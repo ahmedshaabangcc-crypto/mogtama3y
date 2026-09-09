@@ -1,0 +1,143 @@
+<title>حسابات مُجتمعي</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F4F6F2; --surface:#FFFFFF; --surface-2:#EAEFEA;
+  --ink:#13221C; --ink-2:#4E5C55; --ink-muted:#8A968F;
+  --border:rgba(19,34,28,0.14);
+  --teal:#0E6B55; --navy:#12233F; --coral:#C9552E; --gold:#C99A3D; --gold-text:#8C6A22;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0B1512; --surface:#101D19; --surface-2:#16241F;
+    --ink:#EAF2ED; --ink-2:#A9B8B1; --ink-muted:#6F7D76;
+    --border:rgba(234,242,237,0.14);
+    --teal:#3FBE9B; --coral:#E08159; --gold:#C99A3D; --gold-text:#E0B85F;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0B1512; --surface:#101D19; --surface-2:#16241F;
+  --ink:#EAF2ED; --ink-2:#A9B8B1; --ink-muted:#6F7D76;
+  --border:rgba(234,242,237,0.14);
+  --teal:#3FBE9B; --coral:#E08159; --gold:#C99A3D; --gold-text:#E0B85F;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);direction:rtl;font-family:'IBM Plex Sans Arabic',system-ui,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:2.5rem 1.5rem 5rem}
+.mono{font-family:'IBM Plex Mono',monospace;direction:ltr;unicode-bidi:isolate}
+.eyebrow{font-size:12px;color:var(--gold-text);margin:0 0 .6rem}
+h1{font-family:'Reem Kufi',sans-serif;font-weight:700;font-size:clamp(34px,6vw,48px);margin:0 0 .3rem;text-wrap:balance}
+.subtitle{font-size:16px;color:var(--ink-2);margin:0 0 2rem;max-width:56ch;line-height:1.8}
+.avatar-row{display:flex;align-items:center;gap:20px;margin:0 0 3rem;flex-wrap:wrap}
+.avatar{width:96px;height:96px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:.5px solid var(--border)}
+.avatar.on-light{background:var(--surface)}
+.avatar.on-navy{background:#12233F}
+.avatar svg{width:60%;height:60%}
+.avatar-note{font-size:13px;color:var(--ink-muted);max-width:36ch;line-height:1.7}
+section.platform{border-top:.5px solid var(--border);padding:2.2rem 0}
+section.platform:first-of-type{border-top:none}
+.plate-head{display:flex;align-items:center;gap:10px;margin:0 0 1rem}
+.plate-head .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+h2{font-family:'Reem Kufi',sans-serif;font-weight:600;font-size:22px;margin:0}
+.field{margin:0 0 1rem}
+.field-label{font-size:12px;color:var(--ink-muted);margin:0 0 .35rem}
+.field-value{background:var(--surface-2);border-radius:10px;padding:.7rem .9rem;font-size:15px;line-height:1.8;white-space:pre-line}
+.field-value.handle{font-family:'IBM Plex Mono',monospace;direction:ltr;text-align:right;unicode-bidi:isolate}
+footer{margin-top:1rem;padding-top:2rem;border-top:.5px solid var(--border)}
+footer p{font-size:13px;color:var(--ink-muted);line-height:1.8;margin:0}
+</style>
+
+<svg style="display:none" aria-hidden="true">
+  <defs>
+    <symbol id="mark-home" viewBox="0 0 200 200">
+      <rect x="14" y="14" width="172" height="172" rx="38" fill="#FFFFFF" stroke="#111111" stroke-width="5"/>
+      <path d="M100,42 L150,84 L150,152 L50,152 L50,84 Z" fill="none" stroke="#111111" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="76" cy="112" r="9" fill="#2E7FD6"/>
+      <path d="M65,142 L65,128 Q65,117 76,117 Q87,117 87,128 L87,142 Z" fill="#2E7FD6"/>
+      <circle cx="100" cy="100" r="11" fill="#189E6C"/>
+      <path d="M85,145 L85,126 Q85,113 100,113 Q115,113 115,126 L115,145 Z" fill="#189E6C"/>
+      <circle cx="124" cy="112" r="9" fill="#E8912B"/>
+      <path d="M113,142 L113,128 Q113,117 124,117 Q135,117 135,128 L135,142 Z" fill="#E8912B"/>
+      <text x="100" y="174" text-anchor="middle" font-family="'Reem Kufi',sans-serif" font-size="17" font-weight="700" fill="#111111">مُجتمعي</text>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+
+  <p class="eyebrow">كيت الإطلاق</p>
+  <h1>حسابات مُجتمعي</h1>
+  <p class="subtitle">
+    الأسماء والـBio جاهزين للنسخ مباشرة وقت إنشاء الحسابات. صورة البروفايل نفس اللوجو
+    الرسمي بتاع التطبيق بالظبط (من شاشة [01]) — جاهزة للرفع مباشرة على أي منصة.
+  </p>
+
+  <div class="avatar-row">
+    <div class="avatar on-light"><svg><use href="#mark-home"/></svg></div>
+    <div class="avatar on-navy"><svg><use href="#mark-home"/></svg></div>
+    <p class="avatar-note">صورة البروفايل — نفس أيقونة التطبيق (البيت والجيران التلاتة) بخلفية بيضاء، متأكدة إنها تبان واضحة بعد ما المنصات تقصّها دايرة.</p>
+  </div>
+
+  <section class="platform">
+    <div class="plate-head"><span class="dot" style="background:#1877F2"></span><h2>فيسبوك</h2></div>
+    <div class="field">
+      <p class="field-label">اسم الصفحة</p>
+      <p class="field-value">مُجتمعي | Mogtama3y</p>
+    </div>
+    <div class="field">
+      <p class="field-label">اسم المستخدم</p>
+      <p class="field-value handle">facebook.com/mogtama3y</p>
+    </div>
+    <div class="field">
+      <p class="field-label">وصف الصفحة (About)</p>
+      <p class="field-value">مُجتمعي منصة سكنية ذكية تربط جيران العمارة ببعض، وتدير اتحاد الملاك بشفافية كاملة، وتوفر سوق مستعمل وخدمات صيانة موثوقة بضمان مالي (Escrow) — من غير وسيط.
+انضم لعمارتك دلوقتي.</p>
+    </div>
+  </section>
+
+  <section class="platform">
+    <div class="plate-head"><span class="dot" style="background:#E1306C"></span><h2>إنستجرام</h2></div>
+    <div class="field">
+      <p class="field-label">اسم المستخدم</p>
+      <p class="field-value handle">@mogtama3y</p>
+    </div>
+    <div class="field">
+      <p class="field-label">الـ Bio</p>
+      <p class="field-value">🏢 مُجتمعي — مجتمعك السكني الذكي
+🔐 اتحاد ملاك شفاف + ضمان مالي على كل معاملة
+📍 مصر
+👇 حمّل التطبيق قريباً</p>
+    </div>
+  </section>
+
+  <section class="platform">
+    <div class="plate-head"><span class="dot" style="background:#000000"></span><h2>تيك توك</h2></div>
+    <div class="field">
+      <p class="field-label">اسم المستخدم</p>
+      <p class="field-value handle">@mogtama3y</p>
+    </div>
+    <div class="field">
+      <p class="field-label">الـ Bio</p>
+      <p class="field-value">مُجتمعي 🏘️ إدارة اتحاد الملاك وخدمات الحي في تطبيق واحد</p>
+    </div>
+  </section>
+
+  <section class="platform">
+    <div class="plate-head"><span class="dot" style="background:var(--gold)"></span><h2>أول بوست تعريفي (يشتغل على فيسبوك وإنستجرام)</h2></div>
+    <div class="field">
+      <p class="field-value">جارك بقى أقرب 👋
+
+مُجتمعي مش مجرد تطبيق — هو الطريقة الجديدة اللي بيها اتحاد الملاك يدير العمارة بشفافية، والجيران يبيعوا ويشتروا من بعض بضمان مالي، ويطلبوا صيانة موثوقة من غير قلق.
+
+قريباً في مصر 🇪🇬
+تابعونا عشان تكونوا أول اللي يعرفوا لما نطلق.</p>
+    </div>
+  </section>
+
+  <footer>
+    <p>الاسم موحّد "mogtama3y" على كل المنصات ونفس الدومين (mogtama3y.com) — عشان سهل يتلاقى ويتفتكر.</p>
+  </footer>
+
+</div>
