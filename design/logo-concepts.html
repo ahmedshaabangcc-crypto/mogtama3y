@@ -1,0 +1,188 @@
+<title>هوية مُجتمعي</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@400..700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F4F6F2; --surface:#FFFFFF; --surface-2:#EAEFEA;
+  --ink:#13221C; --ink-2:#4E5C55; --ink-muted:#8A968F;
+  --border:rgba(19,34,28,0.14);
+  --teal:#0E6B55; --gold:#C99A3D; --gold-text:#8C6A22;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0B1512; --surface:#101D19; --surface-2:#16241F;
+    --ink:#EAF2ED; --ink-2:#A9B8B1; --ink-muted:#6F7D76;
+    --border:rgba(234,242,237,0.14);
+    --teal:#3FBE9B; --gold:#C99A3D; --gold-text:#E0B85F;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0B1512; --surface:#101D19; --surface-2:#16241F;
+  --ink:#EAF2ED; --ink-2:#A9B8B1; --ink-muted:#6F7D76;
+  --border:rgba(234,242,237,0.14);
+  --teal:#3FBE9B; --gold:#C99A3D; --gold-text:#E0B85F;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);direction:rtl;font-family:'IBM Plex Sans Arabic',system-ui,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:2.5rem 1.5rem 5rem}
+.mono{font-family:'IBM Plex Mono',monospace;direction:ltr;unicode-bidi:isolate}
+.eyebrow{font-size:12px;color:var(--gold-text);margin:0 0 .6rem}
+h1{font-family:'Reem Kufi',sans-serif;font-weight:700;font-size:clamp(38px,7vw,58px);margin:0 0 .3rem;text-wrap:balance}
+.subtitle{font-size:17px;color:var(--ink-2);margin:0 0 1.5rem}
+.intro{font-size:15.5px;line-height:1.85;color:var(--ink-2);max-width:62ch;margin:0 0 2.5rem}
+.palette{display:flex;gap:10px;margin:0 0 3.5rem;flex-wrap:wrap}
+.swatch{flex:1;min-width:140px;border:.5px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface)}
+.swatch-fill{height:52px}
+.swatch-info{padding:.6rem .8rem}
+.swatch-name{font-size:13px;margin:0 0 2px}
+.swatch-hex{font-size:12px;color:var(--ink-muted);letter-spacing:.3px}
+section.plate{border-top:.5px solid var(--border);padding:3rem 0}
+section.plate:first-of-type{border-top:none;padding-top:0}
+.plate-head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin:0 0 .3rem;flex-wrap:wrap}
+.plate-eyebrow{font-size:12px;color:var(--gold-text)}
+.badge{font-size:12px;color:var(--gold-text);background:color-mix(in srgb, var(--gold) 16%, transparent);padding:4px 12px;border-radius:100px}
+h2{font-family:'Reem Kufi',sans-serif;font-weight:600;font-size:26px;margin:0 0 1.4rem}
+.showcase{display:flex;align-items:center;gap:14px;margin:0 0 1.6rem;flex-wrap:wrap}
+.tile{width:96px;height:96px;border-radius:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tile.teal{background:var(--teal)}
+.tile.navy{background:#12233F}
+.tile .mark{width:56%;height:56%;color:#fff}
+.card{width:96px;height:96px;border-radius:22px;border:.5px solid var(--border);background:var(--surface);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.card .mark{width:56%;height:56%;color:var(--teal)}
+.chip{width:26px;height:26px;border-radius:7px;background:var(--teal);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.chip .mark{width:60%;height:60%;color:#fff}
+.chip-label{font-size:12px;color:var(--ink-muted)}
+.chip-row{display:flex;align-items:center;gap:8px}
+.lockup{display:flex;align-items:center;gap:10px;background:var(--surface-2);border-radius:12px;padding:.9rem 1.1rem;margin:0 0 1.4rem;width:fit-content}
+.lockup .mark{width:30px;height:30px;color:var(--teal)}
+.lockup span{font-family:'Reem Kufi',sans-serif;font-size:22px;color:var(--ink)}
+.rationale{font-size:15px;line-height:1.85;color:var(--ink-2);max-width:60ch}
+footer{margin-top:1rem;padding-top:2rem;border-top:.5px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+footer .mono{font-size:12px;color:var(--ink-muted)}
+</style>
+
+<svg style="display:none" aria-hidden="true">
+  <defs>
+    <symbol id="mark-shield" viewBox="0 0 200 200">
+      <path d="M50,30 L150,30 Q166,30 166,46 L166,102 C166,138 138,160 100,178 C62,160 34,138 34,102 L34,46 Q34,30 50,30 Z" fill="none" stroke="currentColor" stroke-width="10" stroke-linejoin="round"/>
+      <path d="M72,102 L92,122 L132,78" fill="none" stroke="currentColor" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="mark-skyline" viewBox="0 0 200 200">
+      <rect x="40" y="140" width="120" height="18" rx="9" fill="currentColor"/>
+      <rect x="55" y="100" width="20" height="40" rx="8" fill="currentColor"/>
+      <rect x="90" y="76" width="20" height="64" rx="8" fill="currentColor"/>
+      <rect x="125" y="92" width="20" height="48" rx="8" fill="currentColor"/>
+      <circle cx="135" cy="64" r="22" fill="none" stroke="currentColor" stroke-width="16"/>
+    </symbol>
+    <symbol id="mark-network" viewBox="0 0 200 200">
+      <line x1="100" y1="100" x2="155.15" y2="44.85" stroke="currentColor" stroke-width="2.5" opacity="0.45"/>
+      <line x1="100" y1="100" x2="44.85" y2="44.85" stroke="currentColor" stroke-width="2.5" opacity="0.45"/>
+      <line x1="100" y1="100" x2="44.85" y2="155.15" stroke="currentColor" stroke-width="2.5" opacity="0.45"/>
+      <line x1="100" y1="100" x2="155.15" y2="155.15" stroke="currentColor" stroke-width="2.5" opacity="0.45"/>
+      <circle cx="100" cy="100" r="78" fill="none" stroke="currentColor" stroke-width="6"/>
+      <circle cx="155.15" cy="44.85" r="7" fill="currentColor"/>
+      <circle cx="44.85" cy="44.85" r="7" fill="currentColor"/>
+      <circle cx="44.85" cy="155.15" r="7" fill="currentColor"/>
+      <circle cx="155.15" cy="155.15" r="7" fill="currentColor"/>
+      <polygon points="78,96 100,72 122,96" fill="currentColor"/>
+      <rect x="80" y="98" width="40" height="28" rx="3" fill="currentColor"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+
+  <p class="eyebrow">مقترح هوية بصرية</p>
+  <h1>مُجتمعي</h1>
+  <p class="subtitle">ثلاثة اتجاهات لعلامة واحدة موحّدة</p>
+  <p class="intro">
+    شاشات Stitch مبنية على مراحل مختلفة، وده خلّى شكل اللوجو والأيقونة يختلف من شاشة للتانية.
+    هدف المقترحات الجاية إننا نوحّد العلامة في شكل واحد بس، مبني على لغة موجودة بالفعل جوه التطبيق
+    نفسه — شارة «سكن موثّق»، أعمدة اللوجو القديم، وفكرة الشبكة بين الجيران — مش أيقونة عشوائية جديدة.
+  </p>
+
+  <div class="palette">
+    <div class="swatch">
+      <div class="swatch-fill" style="background:var(--teal)"></div>
+      <div class="swatch-info"><p class="swatch-name">الأساسي — أخضر الثقة</p><p class="swatch-hex mono">#0E6B55</p></div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-fill" style="background:#12233F"></div>
+      <div class="swatch-info"><p class="swatch-name">الثانوي — كحلي الهيدر</p><p class="swatch-hex mono">#12233F</p></div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-fill" style="background:var(--gold)"></div>
+      <div class="swatch-info"><p class="swatch-name">تمييز — نحاسي دافئ</p><p class="swatch-hex mono">#C99A3D</p></div>
+    </div>
+  </div>
+
+  <section class="plate">
+    <div class="plate-head">
+      <p class="plate-eyebrow">الاتجاه الأول</p>
+      <span class="badge">الأقرب لهوية التطبيق الحالية</span>
+    </div>
+    <h2>درع الثقة</h2>
+    <div class="showcase">
+      <div class="tile teal"><svg class="mark" aria-hidden="true"><use href="#mark-shield"/></svg></div>
+      <div class="tile navy"><svg class="mark" aria-hidden="true"><use href="#mark-shield"/></svg></div>
+      <div class="card"><svg class="mark" aria-hidden="true"><use href="#mark-shield"/></svg></div>
+      <div class="chip-row">
+        <div class="chip"><svg class="mark" aria-hidden="true"><use href="#mark-shield"/></svg></div>
+        <span class="chip-label">حجم أيقونة صغيرة</span>
+      </div>
+    </div>
+    <div class="lockup"><svg class="mark" aria-hidden="true"><use href="#mark-shield"/></svg><span>مُجتمعي</span></div>
+    <p class="rationale">
+      نفس شارة «سكن موثّق» الخضراء اللي بتتكرر في أعلى كل شاشة تقريباً، لكن مرفوعة لمستوى علامة تجارية
+      كاملة بدل ما تفضل شارة صغيرة جوه الواجهة. الدرع نفسه بيشتغل كأيقونة تطبيق، وكشارة توثيق داخل
+      التطبيق، وكلوجو هيدر — بنفس الشكل بالظبط في الثلاث حالات.
+    </p>
+  </section>
+
+  <section class="plate">
+    <p class="plate-eyebrow">الاتجاه الثاني</p>
+    <h2>الميم الصاعد</h2>
+    <div class="showcase">
+      <div class="tile teal"><svg class="mark" aria-hidden="true"><use href="#mark-skyline"/></svg></div>
+      <div class="tile navy"><svg class="mark" aria-hidden="true"><use href="#mark-skyline"/></svg></div>
+      <div class="card"><svg class="mark" aria-hidden="true"><use href="#mark-skyline"/></svg></div>
+      <div class="chip-row">
+        <div class="chip"><svg class="mark" aria-hidden="true"><use href="#mark-skyline"/></svg></div>
+        <span class="chip-label">حجم أيقونة صغيرة</span>
+      </div>
+    </div>
+    <div class="lockup"><svg class="mark" aria-hidden="true"><use href="#mark-skyline"/></svg><span>مُجتمعي</span></div>
+    <p class="rationale">
+      امتداد لفكرة اللوجو القديم (الأعمدة الصغيرة) بس بشكل مطوّر: ثلاث أعمدة متصاعدة على قاعدة واحدة،
+      والعمود الأطول بيلتف في الآخر ليكوّن حرف الميم — أول حرف في «مُجتمعي». مناسب لو عايز تفضل فيه
+      خيط بصري من الشكل القديم.
+    </p>
+  </section>
+
+  <section class="plate">
+    <p class="plate-eyebrow">الاتجاه الثالث</p>
+    <h2>دائرة الجيرة</h2>
+    <div class="showcase">
+      <div class="tile teal"><svg class="mark" aria-hidden="true"><use href="#mark-network"/></svg></div>
+      <div class="tile navy"><svg class="mark" aria-hidden="true"><use href="#mark-network"/></svg></div>
+      <div class="card"><svg class="mark" aria-hidden="true"><use href="#mark-network"/></svg></div>
+      <div class="chip-row">
+        <div class="chip"><svg class="mark" aria-hidden="true"><use href="#mark-network"/></svg></div>
+        <span class="chip-label">حجم أيقونة صغيرة</span>
+      </div>
+    </div>
+    <div class="lockup"><svg class="mark" aria-hidden="true"><use href="#mark-network"/></svg><span>مُجتمعي</span></div>
+    <p class="rationale">
+      بيت في نص دايرة متوصلة بأربع نقاط حواليه — تجسيد حرفي لمعنى «مُجتمعي»: وحدتك في نص شبكة جيران
+      متصلين. مناسب لو عايز التركيز يكون على الجانب الاجتماعي (اتحاد الملاك، سوق الجيران) أكتر من
+      التوثيق نفسه.
+    </p>
+  </section>
+
+  <footer>
+    <p class="mono">الحالة: جاهز للمراجعة</p>
+    <p class="mono">200×200 viewBox · فيكتور SVG</p>
+  </footer>
+
+</div>
