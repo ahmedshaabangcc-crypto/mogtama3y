@@ -2,7 +2,8 @@
 
 ## بيانات المشروع
 - **اسم المنظمة (Organization):** Mojtama3y
-- **اسم المشروع:** mojtama3y
+- **اسم المشروع:** mogtama3y
+- **مستودع GitHub:** https://github.com/ahmedshaabangcc-crypto/mogtama3y (Private)
 - **المنطقة (Region):** Central EU (Frankfurt) — eu-central-1 (أقرب نقطة أوروبية لمصر/الشرق الأوسط)
 - **الخطة:** Free ($0/شهر)
 - **رابط لوحة التحكم:** https://supabase.com/dashboard/project/pxiabifybakbsqlycffc
