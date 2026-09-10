@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import 'job_applicants_dashboard_screen.dart';
 
 /// Post a new job listing (step 1 of 2) — matches
 /// design/screens/32_post_job_form.png.
@@ -211,7 +212,7 @@ class _PostJobFormScreenState extends State<PostJobFormScreen> {
             width: double.infinity,
             height: 52,
             child: ElevatedButton.icon(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const JobApplicantsDashboardScreen())),
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
               icon: const Icon(Icons.campaign_rounded, size: 18),
               label: const Text('نشر إعلان الوظيفة واستقبال المتقدمين', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
