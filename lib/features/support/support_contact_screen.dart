@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import 'faq_help_center_screen.dart';
 
 /// Support & help-desk contact screen — matches
 /// design/screens/29_support_contact_ticket.png.
@@ -190,14 +191,21 @@ class SupportContactScreen extends StatelessWidget {
           const SizedBox(height: 22),
           Row(children: [
             const Expanded(child: Text('أسئلة شائعة قد تفيدك', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5))),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
-              child: const Text('مركز المساعدة', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
+            InkWell(
+              borderRadius: BorderRadius.circular(100),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FaqHelpCenterScreen())),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
+                child: const Text('مركز المساعدة', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
+              ),
             ),
           ]),
           const SizedBox(height: 10),
-          const _FaqTile(question: 'كيف يتم توثيق صفة مالك الشقة؟'),
+          _FaqTile(
+            question: 'كيف يتم توثيق صفة مالك الشقة؟',
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FaqHelpCenterScreen())),
+          ),
           const SizedBox(height: 8),
           const _FaqTile(question: 'ما هي آلية تسوية اشتراكات الصيانة المعلقة؟'),
         ],
@@ -314,18 +322,23 @@ class _DropdownBox extends StatelessWidget {
 }
 
 class _FaqTile extends StatelessWidget {
-  const _FaqTile({required this.question});
+  const _FaqTile({required this.question, this.onTap});
   final String question;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
-      child: Row(children: [
-        Expanded(child: Text(question, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
-        const Icon(Icons.expand_more_rounded, size: 18, color: AppColors.inkMuted),
-      ]),
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
+        child: Row(children: [
+          Expanded(child: Text(question, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+          const Icon(Icons.expand_more_rounded, size: 18, color: AppColors.inkMuted),
+        ]),
+      ),
     );
   }
 }
