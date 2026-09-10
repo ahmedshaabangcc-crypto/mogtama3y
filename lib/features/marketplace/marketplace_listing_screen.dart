@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import 'item_details_screen.dart';
 
 class _Listing {
   const _Listing({
@@ -173,7 +174,10 @@ class _ListingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ItemDetailsScreen())),
+      child: Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
@@ -293,6 +297,7 @@ class _ListingCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }
