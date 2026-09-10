@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../marketplace/marketplace_listing_screen.dart';
 import '../shared/placeholder_screen.dart';
+import '../union/find_building_screen.dart';
 import '../union/union_feed_screen.dart';
 
 class _Category {
@@ -442,7 +443,7 @@ class _SignupCta extends StatelessWidget {
         child: SizedBox(
           height: 52,
           child: ElevatedButton.icon(
-            onPressed: () {},
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FindBuildingScreen())),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.navy,
               foregroundColor: Colors.white,
