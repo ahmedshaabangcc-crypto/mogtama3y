@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../marketplace/marketplace_listing_screen.dart';
+import '../services/technicians_market_screen.dart';
 import '../shared/placeholder_screen.dart';
 import '../union/find_building_screen.dart';
 import '../union/union_feed_screen.dart';
@@ -313,6 +314,7 @@ class _CategoryGrid extends StatelessWidget {
             builder: (_) => switch (c.label) {
               'سوق المستعمل' => const MarketplaceListingScreen(),
               'اتحاد الملاك' => const UnionFeedScreen(),
+              'الصيانة والخدمات' => const TechniciansMarketScreen(),
               _ => PlaceholderScreen(title: c.label),
             },
           )),
