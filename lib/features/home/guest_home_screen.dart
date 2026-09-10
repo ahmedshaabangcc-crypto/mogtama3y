@@ -312,7 +312,10 @@ class _SectionHeader extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title, style: Theme.of(context).textTheme.titleLarge),
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.ink),
+        ),
         Text(trailing, style: const TextStyle(color: AppColors.inkMuted, fontSize: 12)),
       ],
     );

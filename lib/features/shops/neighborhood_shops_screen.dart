@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import 'store_manager_panel_screen.dart';
 
 class _Shop {
   const _Shop({
@@ -140,7 +141,7 @@ class NeighborhoodShopsScreen extends StatelessWidget {
                   width: double.infinity,
                   height: 44,
                   child: OutlinedButton(
-                    onPressed: () {},
+                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const StoreManagerPanelScreen())),
                     style: OutlinedButton.styleFrom(foregroundColor: AppColors.ink, side: const BorderSide(color: AppColors.border), backgroundColor: AppColors.surface, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                     child: const Text('المطالبة بنشاطك التجاري', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
                   ),
