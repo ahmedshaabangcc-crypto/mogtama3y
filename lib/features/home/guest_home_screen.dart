@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../marketplace/marketplace_listing_screen.dart';
+import '../shared/placeholder_screen.dart';
 
 class _Category {
   const _Category(this.label, this.sublabel, this.icon, this.color);
@@ -303,7 +305,14 @@ class _CategoryGrid extends StatelessWidget {
       ),
       itemBuilder: (context, i) {
         final c = _categories[i];
-        return Container(
+        return InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => c.label == 'سوق المستعمل'
+                ? const MarketplaceListingScreen()
+                : PlaceholderScreen(title: c.label),
+          )),
+          child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
           decoration: BoxDecoration(
             color: AppColors.surface,
@@ -330,6 +339,7 @@ class _CategoryGrid extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
             ],
+          ),
           ),
         );
       },
