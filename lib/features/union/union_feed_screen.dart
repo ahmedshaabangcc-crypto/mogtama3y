@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import 'union_dashboard_screen.dart';
 
 /// اتحاد الملاك community feed — matches design/screens/00_union_feed_community.png.
 class UnionFeedScreen extends StatelessWidget {
@@ -12,6 +13,13 @@ class UnionFeedScreen extends StatelessWidget {
       backgroundColor: AppColors.bg,
       appBar: AppBar(
         title: const Text('مجتمع برج الياسمين'),
+        actions: [
+          IconButton(
+            tooltip: 'لوحة إدارة الاتحاد',
+            icon: const Icon(Icons.dashboard_customize_outlined),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const UnionDashboardScreen())),
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),

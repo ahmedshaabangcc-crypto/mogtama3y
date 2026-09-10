@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../shell/app_shell.dart';
+import 'union_dashboard_screen.dart';
 
 const _perks = [
   (
@@ -98,10 +99,13 @@ class VerifiedNeighborWelcomeScreen extends StatelessWidget {
           SizedBox(
             height: 52,
             child: ElevatedButton.icon(
-              onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const AppShell()),
-                (route) => false,
-              ),
+              onPressed: () {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const AppShell()),
+                  (route) => false,
+                );
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const UnionDashboardScreen()));
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.navy,
                 foregroundColor: Colors.white,

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import 'election_voting_screen.dart';
+import 'union_founding_success_screen.dart';
 import 'union_registration_screen.dart';
 
 enum _QuorumStatus { forming, newCluster, completed }
@@ -299,17 +301,33 @@ class _BuildingCard extends StatelessWidget {
             Text(building.progressLabel ?? '', style: const TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
             const SizedBox(height: 6),
           ],
-          Text(building.note,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                color: building.status == _QuorumStatus.completed ? AppColors.teal : AppColors.inkSecondary,
-              )),
+          if (building.status == _QuorumStatus.forming)
+            InkWell(
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ElectionVotingScreen(buildingName: building.name))),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(building.note, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AppColors.inkSecondary)),
+                  ),
+                  const Icon(Icons.chevron_left_rounded, size: 16, color: AppColors.inkMuted),
+                ],
+              ),
+            )
+          else
+            Text(building.note,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: building.status == _QuorumStatus.completed ? AppColors.teal : AppColors.inkSecondary,
+                )),
           const SizedBox(height: 10),
           if (building.status == _QuorumStatus.completed) ...[
             Row(
               children: [
-                TextButton(onPressed: () {}, child: const Text('عرض لائحة الجمعية', style: TextStyle(fontSize: 12))),
+                TextButton(
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UnionFoundingSuccessScreen(buildingName: building.name))),
+                  child: const Text('عرض لائحة الجمعية', style: TextStyle(fontSize: 12)),
+                ),
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
