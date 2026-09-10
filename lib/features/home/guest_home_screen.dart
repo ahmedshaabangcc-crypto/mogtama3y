@@ -4,6 +4,7 @@ import '../../core/theme/app_colors.dart';
 import '../marketplace/marketplace_listing_screen.dart';
 import '../services/technicians_market_screen.dart';
 import '../shared/placeholder_screen.dart';
+import '../shops/neighborhood_shops_screen.dart';
 import '../union/find_building_screen.dart';
 import '../union/union_feed_screen.dart';
 
@@ -315,6 +316,7 @@ class _CategoryGrid extends StatelessWidget {
               'سوق المستعمل' => const MarketplaceListingScreen(),
               'اتحاد الملاك' => const UnionFeedScreen(),
               'الصيانة والخدمات' => const TechniciansMarketScreen(),
+              'المحلات' => const NeighborhoodShopsScreen(),
               _ => PlaceholderScreen(title: c.label),
             },
           )),
