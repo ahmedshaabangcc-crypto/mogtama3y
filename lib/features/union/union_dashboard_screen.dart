@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../visitor/visitor_qr_pass_screen.dart';
+import 'financial_report_screen.dart';
+import 'maintenance_payment_screen.dart';
 
 /// The owners'-union governance dashboard — matches
 /// design/screens/00_union_dashboard_board.png.
@@ -102,7 +104,7 @@ class UnionDashboardScreen extends StatelessWidget {
                   width: double.infinity,
                   height: 40,
                   child: OutlinedButton.icon(
-                    onPressed: () {},
+                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FinancialReportScreen())),
                     style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white38), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                     icon: const Icon(Icons.arrow_back_rounded, size: 15),
                     label: const Text('التقرير المالي المفصل', style: TextStyle(fontSize: 12)),
@@ -184,7 +186,12 @@ class _QuickActionsRow extends StatelessWidget {
           Expanded(
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: i == 3 ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VisitorQrPassScreen())) : null,
+              onTap: switch (i) {
+                1 => () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FinancialReportScreen())),
+                2 => () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MaintenancePaymentScreen())),
+                3 => () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VisitorQrPassScreen())),
+                _ => null,
+              },
               child: Column(
                 children: [
                   Container(
