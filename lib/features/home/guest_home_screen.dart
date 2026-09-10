@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../jobs/jobs_board_screen.dart';
 import '../lost_found/lost_found_hub_screen.dart';
 import '../marketplace/marketplace_listing_screen.dart';
 import '../recycling/recycling_marketplace_screen.dart';
@@ -323,6 +324,7 @@ class _CategoryGrid extends StatelessWidget {
               'طوارئ SOS' => const SosEmergencyScreen(),
               'المفقودات والأمانات' => const LostFoundHubScreen(),
               'تدوير وتوفير' => const RecyclingMarketplaceScreen(),
+              'وظائف' => const JobsBoardScreen(),
               _ => PlaceholderScreen(title: c.label),
             },
           )),
