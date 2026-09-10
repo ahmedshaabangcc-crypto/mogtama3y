@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import 'job_details_screen.dart';
+import 'post_job_form_screen.dart';
 
 const _postings = [
   sampleJob,
@@ -94,7 +95,7 @@ class JobsBoardScreen extends StatelessWidget {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {},
+        onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PostJobFormScreen())),
         backgroundColor: AppColors.navy,
         icon: const Icon(Icons.add_circle_outline_rounded),
         label: const Text('أضف إعلان وظيفة جديد'),
