@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import 'add_listing_screen.dart';
 import 'item_details_screen.dart';
 
 class _Listing {
@@ -86,7 +87,7 @@ class MarketplaceListingScreen extends StatelessWidget {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {},
+        onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddListingScreen())),
         backgroundColor: AppColors.navy,
         icon: const Icon(Icons.add_circle_outline_rounded),
         label: const Text('أضف إعلان مستعمل جديد'),
