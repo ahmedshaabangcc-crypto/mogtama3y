@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../about/about_platform_screen.dart';
 import '../admin/superadmin_control_panel_screen.dart';
 import '../legal/privacy_policy_screen.dart';
 import '../legal/terms_conditions_screen.dart';
@@ -241,6 +242,19 @@ class WalletScreen extends StatelessWidget {
             ),
             title: const Text('لوحة تحكم السوبر أدمن', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
             subtitle: const Text('فض النزاعات والرقابة العامة', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
+            trailing: const Icon(Icons.chevron_left_rounded, color: AppColors.inkMuted),
+          ),
+          const SizedBox(height: 6),
+          ListTile(
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AboutPlatformScreen())),
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
+              child: const Icon(Icons.info_outline_rounded, color: AppColors.inkSecondary, size: 20),
+            ),
+            title: const Text('عن منصة مُجتمعي', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
             trailing: const Icon(Icons.chevron_left_rounded, color: AppColors.inkMuted),
           ),
         ],
