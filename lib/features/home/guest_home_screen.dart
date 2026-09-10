@@ -4,6 +4,7 @@ import '../../core/theme/app_colors.dart';
 import '../jobs/jobs_board_screen.dart';
 import '../lost_found/lost_found_hub_screen.dart';
 import '../marketplace/marketplace_listing_screen.dart';
+import '../real_estate/real_estate_marketplace_screen.dart';
 import '../recycling/recycling_marketplace_screen.dart';
 import '../services/technicians_market_screen.dart';
 import '../shared/placeholder_screen.dart';
@@ -349,6 +350,7 @@ class _CategoryGrid extends StatelessWidget {
               'المفقودات والأمانات' => const LostFoundHubScreen(),
               'تدوير وتوفير' => const RecyclingMarketplaceScreen(),
               'وظائف' => const JobsBoardScreen(),
+              'عقارات' => const RealEstateMarketplaceScreen(),
               _ => PlaceholderScreen(title: c.label),
             },
           )),
