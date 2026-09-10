@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../support/support_contact_screen.dart';
 
 enum _TxnKind { earning, payment, escrowHold }
 
@@ -184,6 +185,20 @@ class WalletScreen extends StatelessWidget {
                 ),
               ),
             ]),
+          ),
+          const SizedBox(height: 14),
+          ListTile(
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SupportContactScreen())),
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
+              child: const Icon(Icons.support_agent_rounded, color: AppColors.inkSecondary, size: 20),
+            ),
+            title: const Text('الدعم والمساعدة', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+            subtitle: const Text('تواصل مع فريق علاقات السكان', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
+            trailing: const Icon(Icons.chevron_left_rounded, color: AppColors.inkMuted),
           ),
         ],
       ),
