@@ -93,7 +93,14 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        Positioned.fill(child: CustomPaint(painter: _BuildingBackdropPainter())),
+        Positioned.fill(
+          child: Image.asset(
+            'assets/images/building_header.png',
+            fit: BoxFit.fitHeight,
+            repeat: ImageRepeat.repeatX,
+            alignment: Alignment.topCenter,
+          ),
+        ),
         Positioned.fill(
           child: DecoratedBox(
             decoration: BoxDecoration(
@@ -101,9 +108,9 @@ class _Header extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  AppColors.navy.withValues(alpha: 0.55),
-                  AppColors.navy.withValues(alpha: 0.82),
-                  const Color(0xFF1B3A63).withValues(alpha: 0.9),
+                  AppColors.navy.withValues(alpha: 0.35),
+                  AppColors.navy.withValues(alpha: 0.72),
+                  const Color(0xFF1B3A63).withValues(alpha: 0.88),
                 ],
                 stops: const [0, 0.55, 1],
               ),
@@ -207,52 +214,6 @@ class _Header extends StatelessWidget {
       ],
     );
   }
-}
-
-/// Stylized modern residential towers used as the header's photo-style
-/// backdrop (the real Stitch design uses an actual building photograph
-/// here; this recreates it procedurally since no image asset exists).
-class _BuildingBackdropPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final sky = Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Color(0xFF6E8AAE), Color(0xFF3F5578)],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), sky);
-
-    void tower(double left, double width, double top, Color color) {
-      final rect = Rect.fromLTWH(left, top, width, size.height - top);
-      canvas.drawRect(rect, Paint()..color = color);
-      const gap = 6.0, winW = 8.0, winH = 10.0;
-      var wy = top + 10;
-      var row = 0;
-      while (wy < size.height - winH) {
-        var wx = left + 8;
-        var col = 0;
-        while (wx < left + width - winW) {
-          final lit = (row * 7 + col * 3) % 11 == 0;
-          canvas.drawRect(
-            Rect.fromLTWH(wx, wy, winW, winH),
-            Paint()..color = lit ? AppColors.gold.withValues(alpha: 0.55) : Colors.white.withValues(alpha: 0.14),
-          );
-          wx += winW + gap;
-          col++;
-        }
-        wy += winH + gap;
-        row++;
-      }
-    }
-
-    tower(-size.width * 0.1, size.width * 0.42, size.height * 0.18, const Color(0xFF2A3B54));
-    tower(size.width * 0.32, size.width * 0.4, size.height * 0.02, const Color(0xFF23324A));
-    tower(size.width * 0.68, size.width * 0.42, size.height * 0.28, const Color(0xFF314560));
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 /// Minimal recreation of the mُجتمعي icon (house + three neighbors).
