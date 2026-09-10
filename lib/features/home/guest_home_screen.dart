@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../marketplace/marketplace_listing_screen.dart';
 import '../shared/placeholder_screen.dart';
+import '../union/union_feed_screen.dart';
 
 class _Category {
   const _Category(this.label, this.sublabel, this.icon, this.color);
@@ -308,9 +309,11 @@ class _CategoryGrid extends StatelessWidget {
         return InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => c.label == 'سوق المستعمل'
-                ? const MarketplaceListingScreen()
-                : PlaceholderScreen(title: c.label),
+            builder: (_) => switch (c.label) {
+              'سوق المستعمل' => const MarketplaceListingScreen(),
+              'اتحاد الملاك' => const UnionFeedScreen(),
+              _ => PlaceholderScreen(title: c.label),
+            },
           )),
           child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
