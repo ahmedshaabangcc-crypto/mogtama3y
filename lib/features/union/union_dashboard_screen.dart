@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../visitor/visitor_qr_pass_screen.dart';
 
 /// The owners'-union governance dashboard — matches
 /// design/screens/00_union_dashboard_board.png.
@@ -181,17 +182,21 @@ class _QuickActionsRow extends StatelessWidget {
         for (var i = 0; i < _actions.length; i++) ...[
           if (i > 0) const SizedBox(width: 8),
           Expanded(
-            child: Column(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
-                  child: Icon(_actions[i].icon, size: 20, color: AppColors.teal),
-                ),
-                const SizedBox(height: 6),
-                Text(_actions[i].label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600)),
-              ],
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: i == 3 ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VisitorQrPassScreen())) : null,
+              child: Column(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
+                    child: Icon(_actions[i].icon, size: 20, color: AppColors.teal),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(_actions[i].label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600)),
+                ],
+              ),
             ),
           ),
         ],
