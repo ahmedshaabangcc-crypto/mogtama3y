@@ -5,6 +5,7 @@ import '../about/about_platform_screen.dart';
 import '../admin/superadmin_control_panel_screen.dart';
 import '../legal/privacy_policy_screen.dart';
 import '../legal/terms_conditions_screen.dart';
+import '../post/smart_post_picker_screen.dart';
 import '../support/support_contact_screen.dart';
 
 enum _TxnKind { earning, payment, escrowHold }
@@ -191,6 +192,20 @@ class WalletScreen extends StatelessWidget {
             ]),
           ),
           const SizedBox(height: 14),
+          ListTile(
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SmartPostPickerScreen())),
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: AppColors.teal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.teal.withValues(alpha: 0.3))),
+              child: const Icon(Icons.add_circle_outline_rounded, color: AppColors.teal, size: 20),
+            ),
+            title: const Text('انشر إعلاناً جديداً', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+            subtitle: const Text('وظيفة، سلعة مستعملة، خدمة صيانة، أو خردة للتدوير', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
+            trailing: const Icon(Icons.chevron_left_rounded, color: AppColors.inkMuted),
+          ),
+          const Divider(height: 20, color: AppColors.border),
           ListTile(
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SupportContactScreen())),
             contentPadding: EdgeInsets.zero,
