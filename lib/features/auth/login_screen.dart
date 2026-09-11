@@ -41,8 +41,8 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.of(context).popUntil((r) => r.isFirst);
     } on AuthException catch (e) {
       setState(() => _error = _mapError(e.message));
-    } catch (_) {
-      setState(() => _error = 'تعذر الاتصال بالخادم، تحقق من اتصالك بالإنترنت وحاول مرة أخرى.');
+    } catch (e) {
+      setState(() => _error = 'حدث خطأ غير متوقع: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
