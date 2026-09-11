@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
-import 'store_manager_panel_screen.dart';
+import 'claim_business_hub_screen.dart';
+import 'grocery_store_order_screen.dart';
 
 class _Shop {
   const _Shop({
@@ -141,7 +142,7 @@ class NeighborhoodShopsScreen extends StatelessWidget {
                   width: double.infinity,
                   height: 44,
                   child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const StoreManagerPanelScreen())),
+                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ClaimBusinessHubScreen())),
                     style: OutlinedButton.styleFrom(foregroundColor: AppColors.ink, side: const BorderSide(color: AppColors.border), backgroundColor: AppColors.surface, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                     child: const Text('المطالبة بنشاطك التجاري', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
                   ),
@@ -364,7 +365,9 @@ class _ShopCard extends StatelessWidget {
                 child: SizedBox(
                   height: 40,
                   child: ElevatedButton.icon(
-                    onPressed: () {},
+                    onPressed: shop.ctaLabel == 'تصفح المتجر والطلب'
+                        ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GroceryStoreOrderScreen()))
+                        : () {},
                     style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                     icon: Icon(shop.ctaIcon, size: 15),
                     label: Text(shop.ctaLabel, style: const TextStyle(fontSize: 11.5)),
