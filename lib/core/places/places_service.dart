@@ -35,6 +35,17 @@ class PlacesService {
 
   static SupabaseClient get _client => Supabase.instance.client;
 
+  /// Builds a real, directly-loadable image URL from a Places photo
+  /// reference — no extra API call needed, the Photo endpoint serves
+  /// the image itself when hit.
+  static String photoUrlFor(String photoReference, {int maxWidth = 640}) {
+    return Uri.https('maps.googleapis.com', '/maps/api/place/photo', {
+      'maxwidth': '$maxWidth',
+      'photo_reference': photoReference,
+      'key': PlacesConfig.apiKey,
+    }).toString();
+  }
+
   static Future<List<Map<String, dynamic>>> fetchImportedShops() async {
     final rows = await _client.from('shops').select().order('created_at', ascending: false).limit(50);
     return List<Map<String, dynamic>>.from(rows as List);
@@ -59,6 +70,8 @@ class PlacesService {
       final rows = results.map((r) {
         final place = r as Map<String, dynamic>;
         final location = (place['geometry'] as Map<String, dynamic>?)?['location'] as Map<String, dynamic>?;
+        final photos = place['photos'] as List<dynamic>?;
+        final photoRef = (photos != null && photos.isNotEmpty) ? (photos.first as Map<String, dynamic>)['photo_reference'] as String? : null;
         return {
           'source': 'google_imported',
           'google_place_id': place['place_id'],
@@ -69,6 +82,7 @@ class PlacesService {
           'lng': location?['lng'],
           'rating': place['rating'],
           'rating_count': place['user_ratings_total'] ?? 0,
+          if (photoRef != null) 'cover_image_url': photoUrlFor(photoRef),
         };
       }).toList();
       await _client.from('shops').upsert(rows, onConflict: 'google_place_id', ignoreDuplicates: true);

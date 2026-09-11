@@ -192,6 +192,7 @@ class _ShopCard extends StatelessWidget {
     final ratingCount = shop['rating_count'] as int?;
     final isClaimed = shop['is_claimed'] as bool? ?? false;
     final source = shop['source'] as String?;
+    final coverImageUrl = shop['cover_image_url'] as String?;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -201,11 +202,27 @@ class _ShopCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(color: AppColors.categoryShops.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-                child: const Icon(Icons.storefront_rounded, color: AppColors.categoryShops, size: 24),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: coverImageUrl != null
+                    ? Image.network(
+                        coverImageUrl,
+                        width: 52,
+                        height: 52,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => Container(
+                          width: 52,
+                          height: 52,
+                          color: AppColors.categoryShops.withValues(alpha: 0.1),
+                          child: const Icon(Icons.storefront_rounded, color: AppColors.categoryShops, size: 24),
+                        ),
+                      )
+                    : Container(
+                        width: 52,
+                        height: 52,
+                        color: AppColors.categoryShops.withValues(alpha: 0.1),
+                        child: const Icon(Icons.storefront_rounded, color: AppColors.categoryShops, size: 24),
+                      ),
               ),
               const SizedBox(width: 10),
               Expanded(
