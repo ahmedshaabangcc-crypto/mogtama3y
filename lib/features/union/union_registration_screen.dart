@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
-import 'verified_neighbor_welcome_screen.dart';
+import '../../core/union/union_service.dart';
+import '../auth/auth_landing_screen.dart';
 
 /// Union registration step 2: unit verification + union head approval —
 /// matches design/screens/08_union_registration_step2.png.
@@ -16,9 +18,97 @@ class UnionRegistrationScreen extends StatefulWidget {
 class _UnionRegistrationScreenState extends State<UnionRegistrationScreen> {
   int _residency = 0;
   bool _showFamilyNameOnly = true;
+  bool _submitting = false;
+  bool _submitted = false;
+  String? _error;
+
+  final _codeCtrl = TextEditingController();
+  final _unitCtrl = TextEditingController();
+  final _floorCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _codeCtrl.dispose();
+    _unitCtrl.dispose();
+    _floorCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!AuthService.isSignedIn) {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthLandingScreen()));
+      return;
+    }
+    if (_codeCtrl.text.trim().isEmpty || _unitCtrl.text.trim().isEmpty || _floorCtrl.text.trim().isEmpty) {
+      setState(() => _error = 'يرجى إدخال كود الدعوة ورقم الشقة والدور.');
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await UnionService.joinWithCode(
+        code: _codeCtrl.text.trim(),
+        unitNumber: _unitCtrl.text.trim(),
+        floorLabel: _floorCtrl.text.trim(),
+        residencyType: _residency == 0 ? 'owner' : 'tenant',
+      );
+      if (!mounted) return;
+      setState(() => _submitted = true);
+    } catch (e) {
+      setState(() => _error = e.toString().contains('كود الدعوة') || e.toString().contains('صلاحية')
+          ? e.toString().replaceFirst('Exception: ', '')
+          : 'تعذر إتمام طلب الانضمام، تأكد من صحة الكود وحاول مرة أخرى.');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_submitted) {
+      return Scaffold(
+        backgroundColor: AppColors.bg,
+        appBar: AppBar(title: const Text('تم إرسال طلب الانضمام')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
+                  child: const Icon(Icons.hourglass_top_rounded, color: AppColors.gold, size: 32),
+                ),
+                const SizedBox(height: 18),
+                const Text('طلبك قيد المراجعة', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                const Text('تم إرسال طلب انضمامك بنجاح، وسيتم إشعارك فور اعتماد رئيس الاتحاد لعضويتك.',
+                    textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: AppColors.inkMuted, height: 1.7)),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.navy,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: const Text('العودة للرئيسية', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(title: const Text('تسجيل وتوثيق الشقة بكود الدعوة')),
@@ -76,7 +166,7 @@ class _UnionRegistrationScreenState extends State<UnionRegistrationScreen> {
                   children: [
                     const _FieldLabel('رقم الدور'),
                     const SizedBox(height: 6),
-                    _Box(text: 'الدور الرابع'),
+                    _EditableBox(controller: _floorCtrl, hint: 'الدور الرابع'),
                   ],
                 ),
               ),
@@ -87,7 +177,7 @@ class _UnionRegistrationScreenState extends State<UnionRegistrationScreen> {
                   children: [
                     const _FieldLabel('رقم الشقة'),
                     const SizedBox(height: 6),
-                    _Box(text: 'شقة 4B'),
+                    _EditableBox(controller: _unitCtrl, hint: 'شقة 4B'),
                   ],
                 ),
               ),
@@ -166,30 +256,7 @@ class _UnionRegistrationScreenState extends State<UnionRegistrationScreen> {
             style: TextStyle(fontSize: 11.5, color: AppColors.inkSecondary, height: 1.7),
           ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                  decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
-                  child: const Text('مثال: YSM-9482', style: TextStyle(fontSize: 13, color: AppColors.inkMuted)),
-                ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                height: 46,
-                child: ElevatedButton(
-                  onPressed: () {},
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.teal,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: const Text('تحقق من الكود', style: TextStyle(fontSize: 12.5)),
-                ),
-              ),
-            ],
-          ),
+          _EditableBox(controller: _codeCtrl, hint: 'مثال: BLD-9F2A1C'),
           const SizedBox(height: 8),
           const Row(children: [
             Icon(Icons.check_circle_outline_rounded, size: 14, color: AppColors.teal),
@@ -283,19 +350,31 @@ class _UnionRegistrationScreenState extends State<UnionRegistrationScreen> {
               ],
             ),
           ),
+          if (_error != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
+              child: Row(children: [
+                const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 18),
+                const SizedBox(width: 8),
+                Expanded(child: Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12))),
+              ]),
+            ),
+          ],
           const SizedBox(height: 22),
           SizedBox(
             height: 52,
             child: ElevatedButton(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const VerifiedNeighborWelcomeScreen()),
-              ),
+              onPressed: _submitting ? null : _submit,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.navy,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
-              child: const Text('إرسال طلب الانضمام والتوثيق للاتحاد', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+              child: _submitting
+                  ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
+                  : const Text('إرسال طلب الانضمام والتوثيق للاتحاد', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
             ),
           ),
           const SizedBox(height: 8),
@@ -415,6 +494,32 @@ class _Box extends StatelessWidget {
           Expanded(child: Text(text, style: const TextStyle(fontSize: 12.5), overflow: TextOverflow.ellipsis)),
           const Icon(Icons.expand_more_rounded, size: 18, color: AppColors.inkMuted),
         ],
+      ),
+    );
+  }
+}
+
+class _EditableBox extends StatelessWidget {
+  const _EditableBox({required this.controller, required this.hint});
+  final TextEditingController controller;
+  final String hint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
+      child: TextField(
+        controller: controller,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: const TextStyle(color: AppColors.inkMuted, fontWeight: FontWeight.w400),
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 9),
+        ),
       ),
     );
   }

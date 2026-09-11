@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import 'election_voting_screen.dart';
+import 'found_building_screen.dart';
 import 'union_founding_success_screen.dart';
 import 'union_registration_screen.dart';
 
@@ -192,7 +193,7 @@ class FindBuildingScreen extends StatelessWidget {
                 SizedBox(
                   height: 46,
                   child: ElevatedButton.icon(
-                    onPressed: () {},
+                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FoundBuildingScreen())),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.teal,
                       foregroundColor: Colors.white,
