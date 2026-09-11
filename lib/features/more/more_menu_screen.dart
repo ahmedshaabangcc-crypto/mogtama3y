@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../about/about_platform_screen.dart';
+import '../bills/bill_payment_hub_screen.dart';
 import '../admin/superadmin_control_panel_screen.dart';
 import '../legal/privacy_policy_screen.dart';
 import '../legal/terms_conditions_screen.dart';
@@ -63,6 +64,13 @@ class MoreMenuScreen extends StatelessWidget {
             title: 'انشر إعلاناً جديداً',
             subtitle: 'وظيفة، سلعة مستعملة، خدمة صيانة، أو خردة للتدوير',
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SmartPostPickerScreen())),
+          ),
+          _MenuTile(
+            icon: Icons.receipt_long_rounded,
+            iconColor: AppColors.gold,
+            title: 'دفع الفواتير والخدمات',
+            subtitle: 'كهرباء، غاز، مياه، فواتير موبايل وأكتر',
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BillPaymentHubScreen())),
           ),
           const SizedBox(height: 18),
           const _SectionLabel('المساعدة والقانون'),
