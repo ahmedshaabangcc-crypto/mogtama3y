@@ -98,6 +98,40 @@ class PlacesService {
     return fetchImportedShops();
   }
 
+  /// Resolves [lat]/[lng] to a human-readable "district / city" label
+  /// using Places API (New) `searchNearby` — there's no separate
+  /// reverse-geocoding call here, since the legacy Geocoding API has
+  /// the same server-only/no-CORS problem as the legacy Places API did
+  /// (see the CORS postmortem on the shops import). Returns null if
+  /// Google has no sublocality/locality result nearby.
+  static Future<String?> resolveAreaLabel({required double lat, required double lng}) async {
+    final response = await http.post(
+      Uri.https('places.googleapis.com', '/v1/places:searchNearby'),
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': PlacesConfig.apiKey,
+        'X-Goog-FieldMask': 'places.displayName,places.formattedAddress',
+      },
+      body: jsonEncode({
+        'includedTypes': ['sublocality', 'locality'],
+        'maxResultCount': 1,
+        'languageCode': 'ar',
+        'locationRestriction': {
+          'circle': {
+            'center': {'latitude': lat, 'longitude': lng},
+            'radius': 3000.0,
+          },
+        },
+      }),
+    );
+    if (response.statusCode != 200) return null;
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final places = (body['places'] as List?) ?? const [];
+    if (places.isEmpty) return null;
+    final place = places.first as Map<String, dynamic>;
+    return (place['displayName'] as Map<String, dynamic>?)?['text'] as String?;
+  }
+
   /// Plain Google Places text search that does NOT touch the `shops`
   /// table — used to resolve a real-world place (e.g. a building) to
   /// its Google `id`/lat/lng so callers can dedupe against it. See

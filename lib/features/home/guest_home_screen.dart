@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/auth/auth_service.dart';
+import '../../core/notifications/notifications_service.dart';
+import '../../core/places/places_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../jobs/jobs_board_screen.dart';
 import '../lost_found/lost_found_hub_screen.dart';
 import '../marketplace/marketplace_listing_screen.dart';
+import '../notifications/notifications_screen.dart';
 import '../real_estate/real_estate_marketplace_screen.dart';
 import '../recycling/recycling_marketplace_screen.dart';
 import '../services/technicians_market_screen.dart';
@@ -156,25 +160,7 @@ class _Header extends StatelessWidget {
                   );
                 },
               ),
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  const CircleAvatar(
-                    radius: 18,
-                    backgroundColor: Colors.white24,
-                    child: Icon(Icons.notifications_none_rounded, color: Colors.white, size: 20),
-                  ),
-                  Positioned(
-                    top: -2,
-                    left: -2,
-                    child: Container(
-                      width: 10,
-                      height: 10,
-                      decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
-                    ),
-                  ),
-                ],
-              ),
+              const _NotificationBell(),
             ],
           ),
           const SizedBox(height: 20),
@@ -199,29 +185,144 @@ class _Header extends StatelessWidget {
           const Text('إدارة اتحاد الملاك والحي... أسهل وأذكى',
               style: TextStyle(color: Colors.white70, fontSize: 13)),
           const SizedBox(height: 18),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white24),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.expand_more_rounded, color: Colors.white70, size: 18),
-                const Spacer(),
-                const Text('استكشف عقارك: القاهرة الجديدة / التجمع الخامس',
-                    style: TextStyle(color: Colors.white, fontSize: 13)),
-                const SizedBox(width: 8),
-                const Icon(Icons.location_on_outlined, color: AppColors.gold, size: 18),
-              ],
-            ),
-          ),
+          const _ExploreLocationBox(),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+class _NotificationBell extends StatefulWidget {
+  const _NotificationBell();
+
+  @override
+  State<_NotificationBell> createState() => _NotificationBellState();
+}
+
+class _NotificationBellState extends State<_NotificationBell> {
+  int _unread = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (!AuthService.isSignedIn) return;
+    final count = await NotificationsService.fetchUnreadCount();
+    if (!mounted) return;
+    setState(() => _unread = count);
+  }
+
+  Future<void> _open() async {
+    if (!AuthService.isSignedIn) {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthLandingScreen()));
+    } else {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+    }
+    _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _open,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const CircleAvatar(
+            radius: 18,
+            backgroundColor: Colors.white24,
+            child: Icon(Icons.notifications_none_rounded, color: Colors.white, size: 20),
+          ),
+          if (_unread > 0)
+            Positioned(
+              top: -2,
+              left: -2,
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExploreLocationBox extends StatefulWidget {
+  const _ExploreLocationBox();
+
+  @override
+  State<_ExploreLocationBox> createState() => _ExploreLocationBoxState();
+}
+
+class _ExploreLocationBoxState extends State<_ExploreLocationBox> {
+  String? _resolvedArea;
+  bool _locating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _detectLocation();
+  }
+
+  Future<void> _detectLocation() async {
+    setState(() => _locating = true);
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) return;
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
+      );
+      final area = await PlacesService.resolveAreaLabel(lat: position.latitude, lng: position.longitude);
+      if (!mounted || area == null) return;
+      setState(() => _resolvedArea = area);
+    } catch (_) {
+      // Geolocation denied/unavailable — keep the generic label, don't
+      // block the box from still being usable.
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FindBuildingScreen())),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.expand_more_rounded, color: Colors.white70, size: 18),
+            const Spacer(),
+            if (_locating)
+              const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white70))
+            else
+              Text(_resolvedArea != null ? 'استكشف عقارك: $_resolvedArea' : 'استكشف عقارك: حدد موقعك',
+                  style: const TextStyle(color: Colors.white, fontSize: 13)),
+            const SizedBox(width: 8),
+            const Icon(Icons.location_on_outlined, color: AppColors.gold, size: 18),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -18,6 +18,13 @@ class NotificationsService {
     return List<Map<String, dynamic>>.from(rows as List);
   }
 
+  static Future<int> fetchUnreadCount() async {
+    final userId = AuthService.currentUser?.id;
+    if (userId == null) return 0;
+    final rows = await _client.from('notifications').select('id').eq('user_id', userId).eq('is_read', false);
+    return (rows as List).length;
+  }
+
   static Future<void> markRead(String id) async {
     await _client.from('notifications').update({'is_read': true}).eq('id', id);
   }
