@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../chat/chat_list_screen.dart';
 import '../home/guest_home_screen.dart';
+import '../more/more_menu_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../services/technicians_market_screen.dart';
-import '../wallet/wallet_screen.dart';
 
 /// Bottom-nav shell matching the 5-tab bar seen across the app screens:
 /// الرئيسية، الخدمات، المحادثات، الإشعارات، المزيد (right-to-left).
@@ -23,7 +23,7 @@ class _AppShellState extends State<AppShell> {
     const TechniciansMarketScreen(),
     const ChatListScreen(),
     const NotificationsScreen(),
-    const WalletScreen(),
+    const MoreMenuScreen(),
   ];
 
   @override

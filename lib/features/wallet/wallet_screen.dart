@@ -1,13 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
-import '../about/about_platform_screen.dart';
-import '../admin/superadmin_control_panel_screen.dart';
-import '../legal/privacy_policy_screen.dart';
-import '../legal/terms_conditions_screen.dart';
-import '../post/smart_post_picker_screen.dart';
-import '../promote/token_wallet_screen.dart';
-import '../support/support_contact_screen.dart';
 
 enum _TxnKind { earning, payment, escrowHold }
 
@@ -191,101 +184,6 @@ class WalletScreen extends StatelessWidget {
                 ),
               ),
             ]),
-          ),
-          const SizedBox(height: 14),
-          ListTile(
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SmartPostPickerScreen())),
-            contentPadding: EdgeInsets.zero,
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(color: AppColors.teal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.teal.withValues(alpha: 0.3))),
-              child: const Icon(Icons.add_circle_outline_rounded, color: AppColors.teal, size: 20),
-            ),
-            title: const Text('انشر إعلاناً جديداً', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-            subtitle: const Text('وظيفة، سلعة مستعملة، خدمة صيانة، أو خردة للتدوير', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
-            trailing: const Icon(Icons.chevron_left_rounded, color: AppColors.inkMuted),
-          ),
-          const SizedBox(height: 6),
-          ListTile(
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TokenWalletScreen())),
-            contentPadding: EdgeInsets.zero,
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.gold.withValues(alpha: 0.3))),
-              child: const Icon(Icons.toll_rounded, color: AppColors.gold, size: 20),
-            ),
-            title: const Text('رصيد التوكن ومميزات الإعلانات', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-            subtitle: const Text('اشحن رصيدك ومَيّز إعلاناتك ليظهروا أولاً', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
-            trailing: const Icon(Icons.chevron_left_rounded, color: AppColors.inkMuted),
-          ),
-          const Divider(height: 20, color: AppColors.border),
-          ListTile(
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SupportContactScreen())),
-            contentPadding: EdgeInsets.zero,
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
-              child: const Icon(Icons.support_agent_rounded, color: AppColors.inkSecondary, size: 20),
-            ),
-            title: const Text('الدعم والمساعدة', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-            subtitle: const Text('تواصل مع فريق علاقات السكان', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
-            trailing: const Icon(Icons.chevron_left_rounded, color: AppColors.inkMuted),
-          ),
-          const Divider(height: 20, color: AppColors.border),
-          ListTile(
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TermsConditionsScreen())),
-            contentPadding: EdgeInsets.zero,
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
-              child: const Icon(Icons.gavel_rounded, color: AppColors.inkSecondary, size: 20),
-            ),
-            title: const Text('الشروط والأحكام وميثاق الجيران', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-            trailing: const Icon(Icons.chevron_left_rounded, color: AppColors.inkMuted),
-          ),
-          const SizedBox(height: 6),
-          ListTile(
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen())),
-            contentPadding: EdgeInsets.zero,
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
-              child: const Icon(Icons.privacy_tip_outlined, color: AppColors.inkSecondary, size: 20),
-            ),
-            title: const Text('سياسة الخصوصية وحماية البيانات', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-            trailing: const Icon(Icons.chevron_left_rounded, color: AppColors.inkMuted),
-          ),
-          const Divider(height: 20, color: AppColors.border),
-          ListTile(
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SuperadminControlPanelScreen())),
-            contentPadding: EdgeInsets.zero,
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
-              child: const Icon(Icons.admin_panel_settings_outlined, color: AppColors.inkSecondary, size: 20),
-            ),
-            title: const Text('لوحة تحكم السوبر أدمن', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-            subtitle: const Text('فض النزاعات والرقابة العامة', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
-            trailing: const Icon(Icons.chevron_left_rounded, color: AppColors.inkMuted),
-          ),
-          const SizedBox(height: 6),
-          ListTile(
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AboutPlatformScreen())),
-            contentPadding: EdgeInsets.zero,
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
-              child: const Icon(Icons.info_outline_rounded, color: AppColors.inkSecondary, size: 20),
-            ),
-            title: const Text('عن منصة مُجتمعي', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-            trailing: const Icon(Icons.chevron_left_rounded, color: AppColors.inkMuted),
           ),
         ],
       ),

@@ -37,11 +37,16 @@ class AppTheme {
           color: AppColors.ink,
         ),
       ),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: AppColors.navy,
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
+        titleTextStyle: GoogleFonts.cairo(
+          fontSize: 17,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+        ),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppColors.surface,

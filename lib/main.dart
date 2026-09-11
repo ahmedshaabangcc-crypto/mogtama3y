@@ -33,7 +33,10 @@ class MogtamayApp extends StatelessWidget {
       ],
       builder: (context, child) => Directionality(
         textDirection: TextDirection.rtl,
-        child: child!,
+        child: MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.12)),
+          child: child!,
+        ),
       ),
       home: const AppShell(),
     );
