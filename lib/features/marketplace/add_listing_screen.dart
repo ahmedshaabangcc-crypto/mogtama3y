@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../promote/promote_listing_screen.dart';
 
@@ -16,8 +18,67 @@ class _AddListingScreenState extends State<AddListingScreen> {
   bool _negotiable = true;
   bool _hideFromBuilding = false;
   bool _hidePhone = true;
+  bool _submitting = false;
+  String? _error;
+
+  final _titleCtrl = TextEditingController(text: 'ماكينة قهوة ديلونجي ديديكا بحالة ممتازة');
+  final _priceCtrl = TextEditingController(text: '3850');
+  final _descriptionCtrl = TextEditingController(
+    text: 'استعمال شخصي راقٍ لمدة 4 أشهر فقط، تم عمل دورة إزالة ترسبات بانتظام. '
+        'تأتي مع كافة الملحقات الأصلية (البورتافلتر)، باكستك سنجل ودبل.',
+  );
 
   static const _conditions = ['بحالة متوسطة', 'استعمال خفيف', 'شبه جديد (كالجديد)'];
+  static const _conditionValues = ['used', 'light_use', 'like_new'];
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _priceCtrl.dispose();
+    _descriptionCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _publish() async {
+    if (!AuthService.isSignedIn) {
+      setState(() => _error = 'يجب تسجيل الدخول أولاً لنشر إعلان.');
+      return;
+    }
+    final title = _titleCtrl.text.trim();
+    final price = double.tryParse(_priceCtrl.text.trim());
+    if (title.isEmpty) {
+      setState(() => _error = 'أدخل عنوان الإعلان.');
+      return;
+    }
+    if (price == null || price <= 0) {
+      setState(() => _error = 'أدخل سعراً صحيحاً.');
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await Supabase.instance.client.from('marketplace_listings').insert({
+        'seller_id': AuthService.currentUser!.id,
+        'title': title,
+        'description': _descriptionCtrl.text.trim(),
+        'price': price,
+        'is_negotiable': _negotiable,
+        'condition': _conditionValues[_condition],
+        'hide_from_own_building': _hideFromBuilding,
+        'hide_phone_number': _hidePhone,
+      });
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => PromoteListingScreen(listingTitle: title)),
+      );
+    } catch (_) {
+      setState(() => _error = 'تعذر نشر الإعلان، تحقق من اتصالك بالإنترنت وحاول مرة أخرى.');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +97,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
           const SizedBox(height: 20),
           const _FieldLabel('عنوان الإعلان *'),
           const SizedBox(height: 6),
-          const _InputBox(text: 'ماكينة قهوة ديلونجي ديديكا بحالة ممتازة'),
+          _EditableBox(controller: _titleCtrl),
           const SizedBox(height: 16),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,12 +160,17 @@ class _AddListingScreenState extends State<AddListingScreen> {
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: AppColors.border),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
                       Expanded(
-                        child: Text('3850', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                        child: TextField(
+                          controller: _priceCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                          decoration: const InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
+                        ),
                       ),
-                      Text('ج.م', style: TextStyle(fontSize: 12, color: AppColors.inkMuted)),
+                      const Text('ج.م', style: TextStyle(fontSize: 12, color: AppColors.inkMuted)),
                     ],
                   ),
                 ),
@@ -153,9 +219,12 @@ class _AddListingScreenState extends State<AddListingScreen> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.border),
             ),
-            child: const Text(
-              'استعمال شخصي راقٍ لمدة 4 أشهر فقط، تم عمل دورة إزالة ترسبات بانتظام. تأتي مع كافة الملحقات الأصلية (البورتافلتر)، باكستك سنجل ودبل، وتمام احترافي إضافي لماكينة تقدير التركيزية لسبب البيع.',
-              style: TextStyle(fontSize: 12.5, height: 1.8, color: AppColors.inkSecondary),
+            child: TextField(
+              controller: _descriptionCtrl,
+              maxLines: 4,
+              minLines: 2,
+              style: const TextStyle(fontSize: 12.5, height: 1.8, color: AppColors.inkSecondary),
+              decoration: const InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
             ),
           ),
           const SizedBox(height: 24),
@@ -188,19 +257,31 @@ class _AddListingScreenState extends State<AddListingScreen> {
             tone: _BannerTone.success,
             text: 'حسابك موثّق كمالك مقيم؛ إعلانك سيحصل على شارة "بائع موثوق" تلقائياً.',
           ),
+          if (_error != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
+              child: Row(children: [
+                const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 18),
+                const SizedBox(width: 8),
+                Expanded(child: Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12))),
+              ]),
+            ),
+          ],
           const SizedBox(height: 20),
           SizedBox(
             height: 52,
             child: ElevatedButton.icon(
-              onPressed: () => Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const PromoteListingScreen(listingTitle: 'ماكينة قهوة ديلونجي ديديكا بحالة ممتازة')),
-              ),
+              onPressed: _submitting ? null : _publish,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.navy,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
-              icon: const Icon(Icons.send_rounded, size: 18),
+              icon: _submitting
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white))
+                  : const Icon(Icons.send_rounded, size: 18),
               label: const Text('نشر الإعلان فوراً', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
             ),
           ),
@@ -245,21 +326,25 @@ class _FieldLabel extends StatelessWidget {
   }
 }
 
-class _InputBox extends StatelessWidget {
-  const _InputBox({required this.text});
-  final String text;
+class _EditableBox extends StatelessWidget {
+  const _EditableBox({required this.controller});
+  final TextEditingController controller;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
-      child: Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+      child: TextField(
+        controller: controller,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        decoration: const InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 9)),
+      ),
     );
   }
 }
