@@ -98,6 +98,39 @@ class PlacesService {
     return fetchImportedShops();
   }
 
+  /// Plain Google Places text search that does NOT touch the `shops`
+  /// table — used to resolve a real-world place (e.g. a building) to
+  /// its Google `id`/lat/lng so callers can dedupe against it. See
+  /// backend/migrations/0017_buildings_registry.sql.
+  static Future<List<Map<String, dynamic>>> searchPlaces(String query) async {
+    final response = await http.post(
+      Uri.https('places.googleapis.com', '/v1/places:searchText'),
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': PlacesConfig.apiKey,
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location',
+      },
+      body: jsonEncode({'textQuery': query, 'languageCode': 'ar', 'regionCode': 'EG'}),
+    );
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode != 200) {
+      final message = (body['error'] as Map<String, dynamic>?)?['message'] as String?;
+      throw Exception(message ?? 'تعذر البحث عبر خرائط Google (${response.statusCode})');
+    }
+    final places = (body['places'] as List?) ?? const [];
+    return places.map((p) {
+      final place = p as Map<String, dynamic>;
+      final location = place['location'] as Map<String, dynamic>?;
+      return {
+        'place_id': place['id'],
+        'name': (place['displayName'] as Map<String, dynamic>?)?['text'] ?? '',
+        'address': place['formattedAddress'] ?? '',
+        'lat': location?['latitude'],
+        'lng': location?['longitude'],
+      };
+    }).toList();
+  }
+
   /// Submits a real ownership-claim request for [shopId] — goes into a
   /// pending review queue (shop_claim_requests), not an instant claim.
   static Future<void> submitClaimRequest({

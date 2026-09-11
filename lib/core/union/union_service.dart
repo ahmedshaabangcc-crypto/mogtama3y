@@ -26,6 +26,10 @@ class UnionService {
 
   /// Creates a new building with the caller as its founding, verified
   /// president. Returns the invite code to share with neighbors.
+  /// If [googlePlaceId] matches a building someone else already
+  /// registered, this does NOT create a duplicate — it submits a
+  /// pending join request on the existing building instead, and
+  /// returns 'PENDING_EXISTING' rather than an invite code.
   static Future<String> foundBuilding({
     required String name,
     required String district,
@@ -33,6 +37,9 @@ class UnionService {
     required String governorate,
     required String unitNumber,
     required String floorLabel,
+    String? googlePlaceId,
+    double? lat,
+    double? lng,
   }) async {
     final result = await _client.rpc('found_building', params: {
       'p_name': name,
@@ -41,6 +48,9 @@ class UnionService {
       'p_governorate': governorate,
       'p_unit_number': unitNumber,
       'p_floor_label': floorLabel,
+      'p_google_place_id': googlePlaceId,
+      'p_lat': lat,
+      'p_lng': lng,
     });
     return result as String;
   }
