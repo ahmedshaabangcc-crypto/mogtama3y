@@ -7,7 +7,7 @@ import 'places_config.dart';
 
 const _typeLabels = {
   'supermarket': 'سوبر ماركت',
-  'grocery_or_supermarket': 'بقالة',
+  'grocery_store': 'بقالة',
   'pharmacy': 'صيدلية',
   'bakery': 'مخبز',
   'restaurant': 'مطعم',
@@ -28,65 +28,88 @@ String _categoryFor(List<dynamic>? types) {
 }
 
 /// Imports real nearby shops from Google Places into the `shops` table —
-/// see backend/migrations/0012_shops.sql. Uses the Places API (Legacy)
-/// Text Search endpoint since it needs only a single GET with the key.
+/// see backend/migrations/0012_shops.sql.
+///
+/// Uses the **Places API (New)** `searchText` endpoint, not the legacy
+/// Places API — the legacy REST endpoints are server-only and reject
+/// direct browser calls with a CORS failure (confirmed live: it worked
+/// fine from a plain server-side request but failed with "Failed to
+/// fetch" from an actual browser tab). The new API explicitly supports
+/// being called from client-side JavaScript/web.
 class PlacesService {
   PlacesService._();
 
   static SupabaseClient get _client => Supabase.instance.client;
-
-  /// Builds a real, directly-loadable image URL from a Places photo
-  /// reference — no extra API call needed, the Photo endpoint serves
-  /// the image itself when hit.
-  static String photoUrlFor(String photoReference, {int maxWidth = 640}) {
-    return Uri.https('maps.googleapis.com', '/maps/api/place/photo', {
-      'maxwidth': '$maxWidth',
-      'photo_reference': photoReference,
-      'key': PlacesConfig.apiKey,
-    }).toString();
-  }
 
   static Future<List<Map<String, dynamic>>> fetchImportedShops() async {
     final rows = await _client.from('shops').select().order('created_at', ascending: false).limit(50);
     return List<Map<String, dynamic>>.from(rows as List);
   }
 
+  /// Builds a real, directly-loadable image URL from a Places (New)
+  /// photo resource name (e.g. "places/ABC/photos/XYZ").
+  static String photoUrlFor(String photoName, {int maxWidthPx = 640}) {
+    return Uri.https('places.googleapis.com', '/v1/$photoName/media', {
+      'maxWidthPx': '$maxWidthPx',
+      'key': PlacesConfig.apiKey,
+    }).toString();
+  }
+
   /// Searches Google Places for [query] (e.g. "سوبر ماركت في المعادي")
   /// and upserts the results into `shops`, then returns the current
   /// full shop list.
   static Future<List<Map<String, dynamic>>> importFromGoogle(String query) async {
-    final uri = Uri.https('maps.googleapis.com', '/maps/api/place/textsearch/json', {
-      'query': query,
-      'key': PlacesConfig.apiKey,
-    });
-    final response = await http.get(uri);
+    final response = await http.post(
+      Uri.https('places.googleapis.com', '/v1/places:searchText'),
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': PlacesConfig.apiKey,
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.types,places.photos',
+      },
+      body: jsonEncode({'textQuery': query, 'languageCode': 'ar'}),
+    );
     final body = jsonDecode(response.body) as Map<String, dynamic>;
-    final status = body['status'] as String?;
-    if (status != 'OK' && status != 'ZERO_RESULTS') {
-      throw Exception(body['error_message'] as String? ?? 'تعذر البحث عبر خرائط Google ($status)');
+    if (response.statusCode != 200) {
+      final message = (body['error'] as Map<String, dynamic>?)?['message'] as String?;
+      throw Exception(message ?? 'تعذر البحث عبر خرائط Google (${response.statusCode})');
     }
-    final results = (body['results'] as List?) ?? const [];
-    if (results.isNotEmpty) {
-      final rows = results.map((r) {
-        final place = r as Map<String, dynamic>;
-        final location = (place['geometry'] as Map<String, dynamic>?)?['location'] as Map<String, dynamic>?;
+    final places = (body['places'] as List?) ?? const [];
+    if (places.isNotEmpty) {
+      final rows = places.map((p) {
+        final place = p as Map<String, dynamic>;
+        final location = place['location'] as Map<String, dynamic>?;
         final photos = place['photos'] as List<dynamic>?;
-        final photoRef = (photos != null && photos.isNotEmpty) ? (photos.first as Map<String, dynamic>)['photo_reference'] as String? : null;
+        final photoName = (photos != null && photos.isNotEmpty) ? (photos.first as Map<String, dynamic>)['name'] as String? : null;
         return {
           'source': 'google_imported',
-          'google_place_id': place['place_id'],
-          'name': place['name'],
+          'google_place_id': place['id'],
+          'name': (place['displayName'] as Map<String, dynamic>?)?['text'],
           'category': _categoryFor(place['types'] as List<dynamic>?),
-          'address': place['formatted_address'],
-          'lat': location?['lat'],
-          'lng': location?['lng'],
+          'address': place['formattedAddress'],
+          'lat': location?['latitude'],
+          'lng': location?['longitude'],
           'rating': place['rating'],
-          'rating_count': place['user_ratings_total'] ?? 0,
-          if (photoRef != null) 'cover_image_url': photoUrlFor(photoRef),
+          'rating_count': place['userRatingCount'] ?? 0,
+          if (photoName != null) 'cover_image_url': photoUrlFor(photoName),
         };
       }).toList();
       await _client.from('shops').upsert(rows, onConflict: 'google_place_id', ignoreDuplicates: true);
     }
     return fetchImportedShops();
+  }
+
+  /// Submits a real ownership-claim request for [shopId] — goes into a
+  /// pending review queue (shop_claim_requests), not an instant claim.
+  static Future<void> submitClaimRequest({
+    required String shopId,
+    required String verificationMethod,
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('يجب تسجيل الدخول أولاً');
+    await _client.from('shop_claim_requests').insert({
+      'shop_id': shopId,
+      'requester_id': userId,
+      'verification_method': verificationMethod,
+    });
   }
 }

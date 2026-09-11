@@ -155,19 +155,9 @@ class _NeighborhoodShopsScreenState extends State<NeighborhoodShopsScreen> {
                   const Text('هل تملك محلاً في هذا الحي؟', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
                   const SizedBox(height: 6),
                   const Text(
-                    'طالب بملكية نشاطك التجاري واحصد سكان عماراتك فوراً. أضف اسمك على شارة الشريك المعتمد وتلقَّ الطلبات المباشرة دون وسيط.',
+                    'ابحث عن محلك في القائمة فوق واضغط "محلي ده! طالب بيه" على كارته لتبدأ توثيق الملكية.',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted, height: 1.7),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 44,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ClaimBusinessHubScreen())),
-                      style: OutlinedButton.styleFrom(foregroundColor: AppColors.ink, side: const BorderSide(color: AppColors.border), backgroundColor: AppColors.surface, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                      child: const Text('المطالبة بنشاطك التجاري', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
-                    ),
                   ),
                 ],
               ),
@@ -261,7 +251,13 @@ class _ShopCard extends StatelessWidget {
           Row(children: [
             Icon(source == 'google_imported' ? Icons.travel_explore_rounded : Icons.handshake_rounded, size: 12, color: AppColors.inkMuted),
             const SizedBox(width: 4),
-            Text(source == 'google_imported' ? 'عبر خرائط Google' : 'محل مسجّل يدوياً', style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
+            Expanded(child: Text(source == 'google_imported' ? 'عبر خرائط Google' : 'محل مسجّل يدوياً', style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted))),
+            if (!isClaimed)
+              TextButton(
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ClaimBusinessHubScreen(shop: shop))),
+                style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                child: const Text('محلي ده! طالب بيه', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: AppColors.teal)),
+              ),
           ]),
         ],
       ),

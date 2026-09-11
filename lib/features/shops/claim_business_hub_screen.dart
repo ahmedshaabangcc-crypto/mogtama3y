@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 
+import '../../core/places/places_service.dart';
 import '../../core/theme/app_colors.dart';
-import 'store_manager_panel_screen.dart';
+
+const _methodValues = ['otp', 'document', 'union_president'];
 
 /// Claim & verify a Google-imported business listing — matches
-/// design/screens/42_claim_business_hub.png.
+/// design/screens/42_claim_business_hub.png, now submitting a real
+/// shop_claim_requests row for review instead of granting instant
+/// access to the store manager panel.
 class ClaimBusinessHubScreen extends StatefulWidget {
-  const ClaimBusinessHubScreen({super.key});
+  const ClaimBusinessHubScreen({super.key, required this.shop});
+  final Map<String, dynamic> shop;
 
   @override
   State<ClaimBusinessHubScreen> createState() => _ClaimBusinessHubScreenState();
@@ -14,9 +19,76 @@ class ClaimBusinessHubScreen extends StatefulWidget {
 
 class _ClaimBusinessHubScreenState extends State<ClaimBusinessHubScreen> {
   int _method = 0;
+  bool _submitting = false;
+  bool _submitted = false;
+  String? _error;
+
+  Future<void> _submit() async {
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await PlacesService.submitClaimRequest(
+        shopId: widget.shop['id'] as String,
+        verificationMethod: _methodValues[_method],
+      );
+      if (!mounted) return;
+      setState(() => _submitted = true);
+    } catch (_) {
+      setState(() => _error = 'تعذر إرسال الطلب، حاول مرة أخرى.');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_submitted) {
+      return Scaffold(
+        backgroundColor: AppColors.bg,
+        appBar: AppBar(title: const Text('مطالبة وتملك النشاط التجاري')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
+                  child: const Icon(Icons.hourglass_top_rounded, color: AppColors.gold, size: 32),
+                ),
+                const SizedBox(height: 18),
+                const Text('طلبك قيد المراجعة', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                const Text('تم إرسال طلب مطالبتك بالنشاط التجاري بنجاح، وسيتم إشعارك فور مراجعته والتأكد من ملكيتك للمحل.',
+                    textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: AppColors.inkMuted, height: 1.7)),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                    child: const Text('العودة للرئيسية', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final shop = widget.shop;
+    final name = shop['name'] as String? ?? '';
+    final address = shop['address'] as String?;
+    final category = shop['category'] as String?;
+    final rating = (shop['rating'] as num?)?.toDouble();
+    final ratingCount = shop['rating_count'] as int?;
+
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(title: const Text('مطالبة وتملك النشاط التجاري')),
@@ -24,38 +96,10 @@ class _ClaimBusinessHubScreenState extends State<ClaimBusinessHubScreen> {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         children: [
           const Text(
-            'فعّل محلك التجاري المستورد تلقائياً من خرائط جوجل وابدأ تقديم خدماتك وتوصيل لـ 500م لسكان العمارات المجاورة.',
+            'فعّل محلك التجاري المستورد تلقائياً من خرائط جوجل وابدأ تقديم خدماتك وتوصيل لسكان العمارات المجاورة.',
             style: TextStyle(fontSize: 11.5, color: AppColors.inkSecondary, height: 1.8),
           ),
-          const SizedBox(height: 12),
-          Container(
-            height: 130,
-            decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(14)),
-            child: Stack(
-              children: [
-                const Center(child: Icon(Icons.map_rounded, size: 30, color: AppColors.inkMuted)),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-                    child: const Text('مستورد من خرائط Google', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
-                  ),
-                ),
-                Positioned(
-                  bottom: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: AppColors.teal.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(8)),
-                    child: const Text('نطاق 500 متر نشط', style: TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w600)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
@@ -63,32 +107,36 @@ class _ClaimBusinessHubScreenState extends State<ClaimBusinessHubScreen> {
               Container(
                 width: 46,
                 height: 46,
-                decoration: BoxDecoration(color: AppColors.categorySos.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.local_pharmacy_rounded, color: AppColors.categorySos),
+                decoration: BoxDecoration(color: AppColors.categoryShops.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.storefront_rounded, color: AppColors.categoryShops),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('صيدلية الأمل الحديثة - دجلة المعادي', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
-                    Row(children: const [
-                      Icon(Icons.location_on_outlined, size: 11, color: AppColors.inkMuted),
-                      SizedBox(width: 3),
-                      Expanded(child: Text('شارع 206 متفرع من دجلة الرئيسي - المعادي', style: TextStyle(fontSize: 9.5, color: AppColors.inkMuted), overflow: TextOverflow.ellipsis)),
-                    ]),
-                    Row(children: const [
-                      Icon(Icons.star_rounded, size: 12, color: AppColors.gold),
-                      SizedBox(width: 2),
-                      Text('4.8 (142 مراجعة على جوجل)', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600)),
-                    ]),
+                    Text(name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+                    if (address != null)
+                      Row(children: [
+                        const Icon(Icons.location_on_outlined, size: 11, color: AppColors.inkMuted),
+                        const SizedBox(width: 3),
+                        Expanded(child: Text(address, style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted), overflow: TextOverflow.ellipsis)),
+                      ]),
+                    if (rating != null)
+                      Row(children: [
+                        const Icon(Icons.star_rounded, size: 12, color: AppColors.gold),
+                        const SizedBox(width: 2),
+                        Text('$rating${ratingCount != null ? ' ($ratingCount مراجعة على جوجل)' : ''}', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600)),
+                      ]),
                   ],
                 ),
               ),
             ]),
           ),
-          const SizedBox(height: 6),
-          const Text('تصنيف نشاط تجاري من خرائط جوجل', style: TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
+          if (category != null) ...[
+            const SizedBox(height: 6),
+            Text('تصنيف: $category', style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
+          ],
           const SizedBox(height: 14),
           Container(
             padding: const EdgeInsets.all(12),
@@ -114,27 +162,26 @@ class _ClaimBusinessHubScreenState extends State<ClaimBusinessHubScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
-              child: const Text('3 خيارات موثقة', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
+              child: const Text('3 خيارات', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
             ),
           ]),
           const SizedBox(height: 10),
           _ProofOption(
             selected: _method == 0,
             onTap: () => setState(() => _method = 0),
-            badge: 'أسرع طريقة - فورية',
+            badge: 'أسرع طريقة',
             badgeColor: AppColors.teal,
-            title: 'إرسال كود OTP عبر هاتف المحل الأرضي / المسجل في جوجل فوراً',
-            body: 'إرسال رمز تحقق آني (OTP) إلى هاتف المتجر الثابت/المسجل في جوجل فوراً للتأكيد الآلي المباشر.',
-            note: 'اتصال آلي بصوت عربي واضح لقراءة رمز التفعيل المكون من 6 أرقام',
+            title: 'إرسال كود OTP عبر هاتف المحل المسجل في جوجل',
+            body: 'إرسال رمز تحقق آني (OTP) إلى هاتف المتجر الثابت/المسجل في جوجل للتأكيد المباشر.',
           ),
           const SizedBox(height: 10),
           _ProofOption(
             selected: _method == 1,
             onTap: () => setState(() => _method = 1),
-            badge: 'مراجعة سريعة',
+            badge: 'مراجعة يدوية',
             badgeColor: AppColors.gold,
             title: 'رفع صورة السجل التجاري أو البطاقة الضريبية للمنشأة',
-            body: 'رفع مستند رسمي بإدارة أو ملكية الصيدلية لتوثيق الحساب التجاري رسمياً.',
+            body: 'رفع مستند رسمي بإدارة أو ملكية المحل لتوثيق الحساب التجاري رسمياً.',
           ),
           const SizedBox(height: 10),
           _ProofOption(
@@ -142,67 +189,36 @@ class _ClaimBusinessHubScreenState extends State<ClaimBusinessHubScreen> {
             onTap: () => setState(() => _method = 2),
             badge: 'ضمان الجيرة',
             badgeColor: AppColors.categoryUnion,
-            title: 'تزكية وتأكيد رئيس اتحاد ملاك العمارة الكائن بها المحل (عمارة 14)',
-            body: 'تزكية وتأكيد رقمي مباشر من رئيس اتحاد ملاك عمارة 14 عبر حسابه بتطبيق مُجتمعي.',
+            title: 'تزكية وتأكيد رئيس اتحاد ملاك العمارة الكائن بها المحل',
+            body: 'تزكية وتأكيد رقمي مباشر من رئيس اتحاد الملاك عبر حسابه بتطبيق مُجتمعي.',
           ),
-          const SizedBox(height: 22),
-          Row(children: [
-            const Expanded(child: Text('مزايا الشريك التجاري بعد التوثيق', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14))),
+          if (_error != null) ...[
+            const SizedBox(height: 16),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(100)),
-              child: const Text('حصري لمجتمع البرج', style: TextStyle(fontSize: 9, color: AppColors.gold, fontWeight: FontWeight.w700)),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
+              child: Row(children: [
+                const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 18),
+                const SizedBox(width: 8),
+                Expanded(child: Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12))),
+              ]),
             ),
-          ]),
-          const SizedBox(height: 10),
-          const _BenefitTile(
-            icon: Icons.local_shipping_outlined,
-            title: 'توصيل سريع حصري (500م)',
-            body: 'وصول سريع لشقق السكان خلال 10-15 دقيقة مع بوابة الدخول الرقمي المخصص لمندوب محلك دون توقيف أمني.',
-          ),
-          const SizedBox(height: 10),
-          const _BenefitTile(
-            icon: Icons.loyalty_outlined,
-            title: 'خصومات بطاقة الساكن الموثقة (10%)',
-            body: 'ظهور محلك في صدارة قائمة التسوق اليومي لسكان أكثر من 240 شقة مع تقديم كوبونات تلقائية.',
-          ),
-          const SizedBox(height: 10),
-          const _BenefitTile(
-            icon: Icons.dashboard_customize_outlined,
-            title: 'لوحة تحكم فورية ذكية',
-            body: 'تعديل فوري لقائمة المنتجات، استلام الطلبات صوتياً عبر التطبيق، وتحويل أسبوعي لمستحقات المبيعات عبر إنستاباي.',
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(12)),
-            child: Row(children: [
-              const Icon(Icons.verified_user_outlined, color: AppColors.inkSecondary),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('ضمان حماية الملكية التجارية', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                    Text('يتم تدقيق كافة بيانات النشاط ومطابقتها قانونياً تحت إشراف اتحاد الملاك المرخص.', style: TextStyle(fontSize: 10, color: AppColors.inkMuted, height: 1.6)),
-                  ],
-                ),
-              ),
-            ]),
-          ),
-          const SizedBox(height: 18),
+          ],
+          const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
             height: 52,
             child: ElevatedButton.icon(
-              onPressed: () => Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const StoreManagerPanelScreen())),
+              onPressed: _submitting ? null : _submit,
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-              icon: const Icon(Icons.verified_rounded, size: 18),
-              label: const Text('بدء توثيق ملكية المحل وتفعيل التوصيل', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+              icon: _submitting
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white))
+                  : const Icon(Icons.verified_rounded, size: 18),
+              label: const Text('إرسال طلب توثيق الملكية', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
             ),
           ),
           const SizedBox(height: 8),
-          const Text('عملية تدقيق آمنة ولا يتم خصم أي عمولة في أول 60 يوماً', textAlign: TextAlign.center, style: TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
+          const Text('طلبك يُراجع يدوياً قبل تفعيل صلاحيات إدارة المحل', textAlign: TextAlign.center, style: TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
         ],
       ),
     );
@@ -210,11 +226,10 @@ class _ClaimBusinessHubScreenState extends State<ClaimBusinessHubScreen> {
 }
 
 class _ProofOption extends StatelessWidget {
-  const _ProofOption({required this.selected, required this.onTap, required this.badge, required this.badgeColor, required this.title, required this.body, this.note});
+  const _ProofOption({required this.selected, required this.onTap, required this.badge, required this.badgeColor, required this.title, required this.body});
   final bool selected;
   final VoidCallback onTap;
   final String badge, title, body;
-  final String? note;
   final Color badgeColor;
 
   @override
@@ -247,59 +262,8 @@ class _ProofOption extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Padding(padding: const EdgeInsets.only(right: 26), child: Text(body, style: const TextStyle(fontSize: 10.5, color: AppColors.inkSecondary, height: 1.6))),
-            if (selected && note != null) ...[
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.only(right: 26),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  decoration: BoxDecoration(color: AppColors.teal.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8)),
-                  child: Row(children: [
-                    const Icon(Icons.phone_in_talk_outlined, size: 12, color: AppColors.teal),
-                    const SizedBox(width: 6),
-                    Expanded(child: Text(note!, style: const TextStyle(fontSize: 9.5, color: AppColors.teal))),
-                  ]),
-                ),
-              ),
-            ],
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _BenefitTile extends StatelessWidget {
-  const _BenefitTile({required this.icon, required this.title, required this.body});
-  final IconData icon;
-  final String title, body;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, color: AppColors.gold, size: 18),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                const SizedBox(height: 3),
-                Text(body, style: const TextStyle(fontSize: 10, color: AppColors.inkMuted, height: 1.6)),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
