@@ -94,6 +94,18 @@ class UnionService {
     });
   }
 
+  /// All verified members of [buildingId], with their profile and unit
+  /// embedded — used by the president/board to pick a guard candidate.
+  static Future<List<Map<String, dynamic>>> fetchVerifiedMembers(String buildingId) async {
+    final rows = await _client
+        .from('union_members')
+        .select('*, profile:profiles(full_name, phone), unit:units(unit_number, floor_label)')
+        .eq('building_id', buildingId)
+        .eq('status', 'verified')
+        .order('created_at', ascending: true);
+    return List<Map<String, dynamic>>.from(rows as List);
+  }
+
   // ---- Tenant sub-accounts — see backend/migrations/0018_tenant_accounts.sql ----
 
   /// The units the caller owns (is the primary owner of), with the
