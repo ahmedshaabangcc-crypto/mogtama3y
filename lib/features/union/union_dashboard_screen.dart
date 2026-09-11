@@ -6,6 +6,7 @@ import '../visitor/visitor_qr_pass_screen.dart';
 import 'board_decisions_screen.dart';
 import 'financial_report_screen.dart';
 import 'maintenance_payment_screen.dart';
+import 'pending_members_screen.dart';
 
 /// The owners'-union governance dashboard — matches
 /// design/screens/00_union_dashboard_board.png.
@@ -161,6 +162,13 @@ class UnionDashboardScreen extends StatelessWidget {
               ),
             ),
           ]),
+          const SizedBox(height: 10),
+          _GovernanceTile(
+            icon: Icons.person_add_alt_1_rounded,
+            title: 'طلبات الانضمام المعلّقة',
+            subtitle: 'راجع طلبات جيران جدد بانتظار موافقتك',
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PendingMembersScreen())),
+          ),
           const SizedBox(height: 22),
           Row(
             children: [

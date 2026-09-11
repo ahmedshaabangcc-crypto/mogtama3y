@@ -60,4 +60,27 @@ class UnionService {
       'p_residency_type': residencyType,
     });
   }
+
+  /// Pending union_members rows for [buildingId], with the applicant's
+  /// profile and unit embedded. Only returns rows the caller is allowed
+  /// to see under the "building members can view roster" policy (i.e.
+  /// the caller must already be a verified member of that building).
+  static Future<List<Map<String, dynamic>>> fetchPendingMembers(String buildingId) async {
+    final rows = await _client
+        .from('union_members')
+        .select('*, profile:profiles(full_name, phone), unit:units(unit_number, floor_label)')
+        .eq('building_id', buildingId)
+        .eq('status', 'pending')
+        .order('created_at', ascending: true);
+    return List<Map<String, dynamic>>.from(rows as List);
+  }
+
+  /// Approves or rejects a pending member — only succeeds server-side if
+  /// the caller is a verified president/board_member of that building.
+  static Future<void> reviewMember({required String memberId, required bool approve}) async {
+    await _client.rpc('review_union_member', params: {
+      'p_member_id': memberId,
+      'p_approve': approve,
+    });
+  }
 }
