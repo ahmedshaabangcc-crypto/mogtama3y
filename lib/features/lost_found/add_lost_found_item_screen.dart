@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../core/lost_found/lost_found_service.dart';
 import '../../core/theme/app_colors.dart';
+
+const _categories = ['مفاتيح', 'محافظ وبطاقات', 'إلكترونية', 'حيوانات أليفة', 'أخرى'];
 
 /// Report a lost or found item — matches
 /// design/screens/41_add_lost_found_item.png.
@@ -14,7 +17,51 @@ class AddLostFoundItemScreen extends StatefulWidget {
 class _AddLostFoundItemScreenState extends State<AddLostFoundItemScreen> {
   int _mode = 1;
   int _custody = 0;
+  int _category = 0;
   bool _blurTags = true;
+  bool _submitting = false;
+  String? _error;
+
+  final _titleCtrl = TextEditingController();
+  final _locationCtrl = TextEditingController();
+  final _secretMarkCtrl = TextEditingController();
+  final _rewardCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _locationCtrl.dispose();
+    _secretMarkCtrl.dispose();
+    _rewardCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_titleCtrl.text.trim().isEmpty || _locationCtrl.text.trim().isEmpty) {
+      setState(() => _error = 'يرجى إدخال عنوان البلاغ ومكان العثور عليه.');
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await LostFoundService.reportItem(
+        type: _mode == 0 ? 'lost' : 'found',
+        category: _categories[_category],
+        title: _titleCtrl.text.trim(),
+        locationNote: _locationCtrl.text.trim(),
+        secretMark: _secretMarkCtrl.text.trim().isEmpty ? null : _secretMarkCtrl.text.trim(),
+        rewardAmount: _mode == 0 && _rewardCtrl.text.trim().isNotEmpty ? double.tryParse(_rewardCtrl.text.trim()) : null,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    } catch (e) {
+      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -96,15 +143,28 @@ class _AddLostFoundItemScreenState extends State<AddLostFoundItemScreen> {
           const SizedBox(height: 20),
           const _FieldLabel('عنوان البلاغ *'),
           const SizedBox(height: 6),
-          _InputField(hint: 'مثال: ميدالية مفاتيح، محفظة، هاتف، سماعات'),
+          _EditableField(controller: _titleCtrl, hint: 'مثال: ميدالية مفاتيح، محفظة، هاتف، سماعات'),
           const SizedBox(height: 14),
           const _FieldLabel('التصنيف العام *'),
-          const SizedBox(height: 6),
-          _DropdownBox(text: 'اختر تصنيف الغرض...'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (var i = 0; i < _categories.length; i++)
+                ChoiceChip(
+                  label: Text(_categories[i], style: const TextStyle(fontSize: 11.5)),
+                  selected: _category == i,
+                  selectedColor: AppColors.navy,
+                  labelStyle: TextStyle(color: _category == i ? Colors.white : AppColors.inkSecondary),
+                  onSelected: (_) => setState(() => _category = i),
+                ),
+            ],
+          ),
           const SizedBox(height: 14),
           const _FieldLabel('مكان العثور عليه بدقة *'),
           const SizedBox(height: 6),
-          _InputField(hint: 'اسم الشارع، العمارة، مدخل المبنى، المصعد'),
+          _EditableField(controller: _locationCtrl, hint: 'اسم الشارع، العمارة، مدخل المبنى، المصعد'),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -173,10 +233,40 @@ class _AddLostFoundItemScreenState extends State<AddLostFoundItemScreen> {
           ),
           const SizedBox(height: 8),
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
-            child: const Text('أدخل علامة سرية يعرفها المالك الحقيقي فقط لمطابقتها عند التسليم...', style: TextStyle(fontSize: 12, color: AppColors.inkMuted)),
+            child: TextField(
+              controller: _secretMarkCtrl,
+              maxLines: 2,
+              minLines: 1,
+              style: const TextStyle(fontSize: 12.5),
+              decoration: const InputDecoration(
+                hintText: 'أدخل علامة سرية يعرفها المالك الحقيقي فقط لمطابقتها عند التسليم...',
+                hintStyle: TextStyle(fontSize: 12, color: AppColors.inkMuted),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
           ),
+          if (_mode == 0) ...[
+            const SizedBox(height: 14),
+            const _FieldLabel('مكافأة مالية (اختياري)'),
+            const SizedBox(height: 6),
+            _EditableField(controller: _rewardCtrl, hint: 'مثال: 200', keyboardType: TextInputType.number),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
+              child: Row(children: [
+                const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 18),
+                const SizedBox(width: 8),
+                Expanded(child: Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12))),
+              ]),
+            ),
+          ],
           const SizedBox(height: 20),
           Container(
             padding: const EdgeInsets.all(12),
@@ -197,9 +287,11 @@ class _AddLostFoundItemScreenState extends State<AddLostFoundItemScreen> {
             width: double.infinity,
             height: 52,
             child: ElevatedButton.icon(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: _submitting ? null : _submit,
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-              icon: const Icon(Icons.campaign_rounded, size: 18),
+              icon: _submitting
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white))
+                  : const Icon(Icons.campaign_rounded, size: 18),
               label: const Text('نشر البلاغ وتنبيه جيران الحي الآن', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
             ),
           ),
@@ -252,17 +344,30 @@ class _FieldLabel extends StatelessWidget {
   }
 }
 
-class _InputField extends StatelessWidget {
-  const _InputField({required this.hint});
+class _EditableField extends StatelessWidget {
+  const _EditableField({required this.controller, required this.hint, this.keyboardType});
+  final TextEditingController controller;
   final String hint;
+  final TextInputType? keyboardType;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
-      child: Text(hint, style: const TextStyle(fontSize: 12.5, color: AppColors.inkMuted)),
+      child: TextField(
+        controller: controller,
+        keyboardType: keyboardType,
+        style: const TextStyle(fontSize: 12.5),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: const TextStyle(fontSize: 12.5, color: AppColors.inkMuted),
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 9),
+        ),
+      ),
     );
   }
 }
