@@ -72,6 +72,19 @@ class SuperadminControlPanelScreen extends StatelessWidget {
           const SizedBox(height: 10),
           const _ClaimBusinessCard(),
           const SizedBox(height: 22),
+          Row(children: [
+            const Expanded(child: Text('طلبات شحن رصيد التوكن', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14))),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(100)),
+              child: const Text('3 طلبات', style: TextStyle(fontSize: 9, color: AppColors.gold, fontWeight: FontWeight.w700)),
+            ),
+          ]),
+          const SizedBox(height: 10),
+          const _TokenTopUpCard(residentName: 'م. أحمد عزت', unit: 'برج الياسمين - شقة 402', tokens: 5, amount: 75),
+          const SizedBox(height: 10),
+          const _TokenTopUpCard(residentName: 'د. مي الشاذلي', unit: 'برج الياسمين - شقة 2A', tokens: 10, amount: 150),
+          const SizedBox(height: 22),
           const Text('أدوات الرقابة والتحكم الأمني المتقدم', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
           const SizedBox(height: 10),
           Container(
@@ -280,6 +293,79 @@ class _DisputeCard extends StatelessWidget {
                   onPressed: () {},
                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                   child: const Text('تحرير المبلغ للفني', style: TextStyle(fontSize: 11)),
+                ),
+              ),
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
+}
+
+class _TokenTopUpCard extends StatelessWidget {
+  const _TokenTopUpCard({required this.residentName, required this.unit, required this.tokens, required this.amount});
+  final String residentName, unit;
+  final int tokens, amount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const CircleAvatar(radius: 16, backgroundColor: AppColors.surfaceAlt, child: Icon(Icons.person_rounded, size: 16, color: AppColors.inkMuted)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(residentName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                  Text(unit, style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('$tokens توكن', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.gold)),
+                Text('$amount ج.م', style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
+              ],
+            ),
+          ]),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(8)),
+            child: Row(children: const [
+              Icon(Icons.receipt_long_outlined, size: 13, color: AppColors.inkSecondary),
+              SizedBox(width: 6),
+              Text('عرض إثبات التحويل المرفق', style: TextStyle(fontSize: 10.5, color: AppColors.inkSecondary, fontWeight: FontWeight.w600)),
+            ]),
+          ),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(
+              child: SizedBox(
+                height: 38,
+                child: OutlinedButton(
+                  onPressed: () {},
+                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.categorySos, side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                  child: const Text('رفض', style: TextStyle(fontSize: 11)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: SizedBox(
+                height: 38,
+                child: ElevatedButton(
+                  onPressed: () {},
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                  child: const Text('اعتماد وإضافة الرصيد', style: TextStyle(fontSize: 11)),
                 ),
               ),
             ),

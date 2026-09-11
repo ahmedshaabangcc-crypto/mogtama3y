@@ -6,6 +6,7 @@ import '../admin/superadmin_control_panel_screen.dart';
 import '../legal/privacy_policy_screen.dart';
 import '../legal/terms_conditions_screen.dart';
 import '../post/smart_post_picker_screen.dart';
+import '../promote/token_wallet_screen.dart';
 import '../support/support_contact_screen.dart';
 
 enum _TxnKind { earning, payment, escrowHold }
@@ -203,6 +204,20 @@ class WalletScreen extends StatelessWidget {
             ),
             title: const Text('انشر إعلاناً جديداً', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
             subtitle: const Text('وظيفة، سلعة مستعملة، خدمة صيانة، أو خردة للتدوير', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
+            trailing: const Icon(Icons.chevron_left_rounded, color: AppColors.inkMuted),
+          ),
+          const SizedBox(height: 6),
+          ListTile(
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TokenWalletScreen())),
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.gold.withValues(alpha: 0.3))),
+              child: const Icon(Icons.toll_rounded, color: AppColors.gold, size: 20),
+            ),
+            title: const Text('رصيد التوكن ومميزات الإعلانات', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+            subtitle: const Text('اشحن رصيدك ومَيّز إعلاناتك ليظهروا أولاً', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
             trailing: const Icon(Icons.chevron_left_rounded, color: AppColors.inkMuted),
           ),
           const Divider(height: 20, color: AppColors.border),

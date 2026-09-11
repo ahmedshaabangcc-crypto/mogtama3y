@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../guard/guard_console_screen.dart';
 import '../visitor/visitor_qr_pass_screen.dart';
+import 'board_decisions_screen.dart';
 import 'financial_report_screen.dart';
 import 'maintenance_payment_screen.dart';
 
@@ -137,6 +139,29 @@ class UnionDashboardScreen extends StatelessWidget {
           const SizedBox(height: 10),
           const _ProposalCard(),
           const SizedBox(height: 22),
+          const Text('الحوكمة والفريق', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
+          const Text('قرارات المجلس لا يتخذها الرئيس بمفرده، وفريق الحراسة معتمد ومُدار من هنا', style: TextStyle(fontSize: 10, color: AppColors.inkMuted)),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(
+              child: _GovernanceTile(
+                icon: Icons.gavel_rounded,
+                title: 'قرارات مجلس الإدارة',
+                subtitle: '2 قرار مفتوح',
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BoardDecisionsScreen())),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _GovernanceTile(
+                icon: Icons.security_rounded,
+                title: 'لوحة حارس العقار',
+                subtitle: 'عم رجب • عمارة 16',
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GuardConsoleScreen())),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 22),
           Row(
             children: [
               const Expanded(child: Text('جدول الصيانات الدورية القادمة', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5))),
@@ -162,6 +187,40 @@ class UnionDashboardScreen extends StatelessWidget {
           const SizedBox(height: 22),
           const _BoardMessage(),
         ],
+      ),
+    );
+  }
+}
+
+class _GovernanceTile extends StatelessWidget {
+  const _GovernanceTile({required this.icon, required this.title, required this.subtitle, required this.onTap});
+  final IconData icon;
+  final String title, subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(color: AppColors.teal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+              child: Icon(icon, color: AppColors.teal, size: 17),
+            ),
+            const SizedBox(height: 8),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5)),
+            const SizedBox(height: 2),
+            Text(subtitle, style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
+          ],
+        ),
       ),
     );
   }

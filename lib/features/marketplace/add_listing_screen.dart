@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../promote/promote_listing_screen.dart';
 
 /// Add a new used-item listing — matches design/screens/04_add_used_item_listing.png.
 class AddListingScreen extends StatefulWidget {
@@ -191,7 +192,9 @@ class _AddListingScreenState extends State<AddListingScreen> {
           SizedBox(
             height: 52,
             child: ElevatedButton.icon(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const PromoteListingScreen(listingTitle: 'ماكينة قهوة ديلونجي ديديكا بحالة ممتازة')),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.navy,
                 foregroundColor: Colors.white,
