@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 
+import '../../core/sos/sos_service.dart';
 import '../../core/theme/app_colors.dart';
 
 class _EmergencyType {
-  const _EmergencyType({required this.icon, required this.title, required this.subtitle});
+  const _EmergencyType({required this.icon, required this.title, required this.subtitle, required this.value});
   final IconData icon;
-  final String title, subtitle;
+  final String title, subtitle, value;
 }
 
 const _emergencyTypes = [
-  _EmergencyType(icon: Icons.medical_services_rounded, title: 'حالة صحية وإسعافية حرجة', subtitle: 'أزمة قلبية، إغماء، إصابة خطيرة'),
-  _EmergencyType(icon: Icons.local_fire_department_rounded, title: 'حريق داخل العقار', subtitle: 'دخان كثيف أو ألسنة لهب'),
-  _EmergencyType(icon: Icons.bolt_rounded, title: 'تسريب غاز أو ماس كهربائي', subtitle: 'رائحة غاز نفاذة، شرر أو ماس'),
-  _EmergencyType(icon: Icons.shield_moon_rounded, title: 'اشتباه أمني أو اقتحام', subtitle: 'متسلل، سرقة، اعتداء مشبوه'),
+  _EmergencyType(icon: Icons.medical_services_rounded, title: 'حالة صحية وإسعافية حرجة', subtitle: 'أزمة قلبية، إغماء، إصابة خطيرة', value: 'medical'),
+  _EmergencyType(icon: Icons.local_fire_department_rounded, title: 'حريق داخل العقار', subtitle: 'دخان كثيف أو ألسنة لهب', value: 'fire'),
+  _EmergencyType(icon: Icons.bolt_rounded, title: 'تسريب غاز أو ماس كهربائي', subtitle: 'رائحة غاز نفاذة، شرر أو ماس', value: 'gas_electric'),
+  _EmergencyType(icon: Icons.shield_moon_rounded, title: 'اشتباه أمني أو اقتحام', subtitle: 'متسلل، سرقة، اعتداء مشبوه', value: 'security'),
 ];
 
 const _hotlines = [
@@ -32,8 +33,11 @@ class SosEmergencyScreen extends StatefulWidget {
 
 class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTickerProviderStateMixin {
   late final AnimationController _holdController;
-  int? _selectedType;
+  int _selectedType = 0;
   bool _sent = false;
+  bool _sending = false;
+  String? _alertId;
+  String? _error;
 
   @override
   void initState() {
@@ -41,7 +45,7 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
     _holdController = AnimationController(vsync: this, duration: const Duration(seconds: 2));
     _holdController.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        setState(() => _sent = true);
+        _send();
       }
     });
   }
@@ -50,6 +54,41 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
   void dispose() {
     _holdController.dispose();
     super.dispose();
+  }
+
+  Future<void> _send() async {
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+    try {
+      final id = await SosService.triggerAlert(type: _emergencyTypes[_selectedType].value);
+      if (!mounted) return;
+      setState(() {
+        _alertId = id;
+        _sent = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString().replaceFirst('Exception: ', '');
+        _holdController.value = 0;
+      });
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _cancel() async {
+    final id = _alertId;
+    if (id != null) {
+      await SosService.cancelAlert(id);
+    }
+    setState(() {
+      _sent = false;
+      _alertId = null;
+      _holdController.value = 0;
+    });
   }
 
   @override
@@ -70,9 +109,9 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
           const SizedBox(height: 24),
           Center(
             child: GestureDetector(
-              onTapDown: _sent ? null : (_) => _holdController.forward(from: _holdController.value),
-              onTapUp: _sent ? null : (_) => _holdController.reverse(),
-              onTapCancel: _sent ? null : () => _holdController.reverse(),
+              onTapDown: (_sent || _sending) ? null : (_) => _holdController.forward(from: _holdController.value),
+              onTapUp: (_sent || _sending) ? null : (_) => _holdController.reverse(),
+              onTapCancel: (_sent || _sending) ? null : () => _holdController.reverse(),
               child: AnimatedBuilder(
                 animation: _holdController,
                 builder: (context, child) {
@@ -132,14 +171,24 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
             const SizedBox(height: 8),
             Center(
               child: TextButton(
-                onPressed: () => setState(() {
-                  _sent = false;
-                  _holdController.value = 0;
-                }),
+                onPressed: _cancel,
                 child: const Text('إلغاء التنبيه', style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted)),
               ),
             ),
-          ] else
+          ] else ...[
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
+                  child: Row(children: [
+                    const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12))),
+                  ]),
+                ),
+              ),
             Column(
               children: const [
                 Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -155,6 +204,7 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
                 ]),
               ],
             ),
+          ],
           const SizedBox(height: 24),
           Row(children: [
             const Expanded(child: Text('حدد نوع الطارئ (لتوجيه الفريق الأنسب)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5))),
