@@ -21,7 +21,11 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    final res = await _client.auth.signUp(email: email, password: password);
+    final res = await _client.auth.signUp(
+      email: email,
+      password: password,
+      data: {'full_name': fullName, 'phone': phone},
+    );
     final user = res.user;
     if (user == null) {
       throw Exception('تعذر إنشاء الحساب، حاول مرة أخرى.');
@@ -58,10 +62,17 @@ class AuthService {
   }) async {
     final existingProfile = await _client.from('profiles').select('id').eq('id', userId).maybeSingle();
     if (existingProfile == null) {
+      // Email confirmation delays profile creation until first login, by
+      // which point the sign-up form's name/phone are long gone — fall
+      // back to the metadata stashed on the auth user at sign-up time
+      // (see signUpWithEmail's `data:` param) before the generic default.
+      final metadata = currentUser?.userMetadata;
+      final name = fallbackName ?? metadata?['full_name'] as String?;
+      final phone = fallbackPhone ?? metadata?['phone'] as String?;
       await _client.from('profiles').insert({
         'id': userId,
-        'full_name': (fallbackName == null || fallbackName.trim().isEmpty) ? 'عضو مُجتمعي' : fallbackName.trim(),
-        if (fallbackPhone != null && fallbackPhone.trim().isNotEmpty) 'phone': fallbackPhone.trim(),
+        'full_name': (name == null || name.trim().isEmpty) ? 'عضو مُجتمعي' : name.trim(),
+        if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
       });
     }
     final existingWallet = await _client.from('wallets').select('id').eq('user_id', userId).maybeSingle();
