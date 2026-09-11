@@ -1,7 +1,12 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../about/about_platform_screen.dart';
+import '../auth/auth_landing_screen.dart';
 import '../bills/bill_payment_hub_screen.dart';
 import '../admin/superadmin_control_panel_screen.dart';
 import '../legal/privacy_policy_screen.dart';
@@ -13,35 +18,106 @@ import '../wallet/wallet_screen.dart';
 
 /// The "المزيد" (More) menu — the bottom-nav hamburger tab. A plain
 /// list of every account/tool section, not any single feature.
-class MoreMenuScreen extends StatelessWidget {
+class MoreMenuScreen extends StatefulWidget {
   const MoreMenuScreen({super.key});
 
   @override
+  State<MoreMenuScreen> createState() => _MoreMenuScreenState();
+}
+
+class _MoreMenuScreenState extends State<MoreMenuScreen> {
+  Map<String, dynamic>? _profile;
+  bool _loadingProfile = false;
+  late final StreamSubscription<AuthState> _authSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+    _authSub = AuthService.authStateChanges.listen((_) => _loadProfile());
+  }
+
+  @override
+  void dispose() {
+    _authSub.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadProfile() async {
+    if (!AuthService.isSignedIn) {
+      setState(() => _profile = null);
+      return;
+    }
+    setState(() => _loadingProfile = true);
+    final profile = await AuthService.fetchCurrentProfile();
+    if (!mounted) return;
+    setState(() {
+      _profile = profile;
+      _loadingProfile = false;
+    });
+  }
+
+  Future<void> _signOut() async {
+    await AuthService.signOut();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final signedIn = AuthService.isSignedIn;
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(title: const Text('القائمة')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-            child: Row(children: [
-              const CircleAvatar(radius: 24, backgroundColor: AppColors.surfaceAlt, child: Icon(Icons.person_rounded, color: AppColors.inkMuted, size: 26)),
-              const SizedBox(width: 10),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('سكن موثّق', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                    Text('برج الياسمين - شقة 4B', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
-                  ],
+          if (signedIn)
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+              child: Row(children: [
+                const CircleAvatar(radius: 24, backgroundColor: AppColors.surfaceAlt, child: Icon(Icons.person_rounded, color: AppColors.inkMuted, size: 26)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _loadingProfile ? 'جارِ التحميل...' : (_profile?['full_name'] as String? ?? 'عضو مُجتمعي'),
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                      ),
+                      Text(
+                        AuthService.currentUser?.email ?? '',
+                        style: const TextStyle(fontSize: 10.5, color: AppColors.inkMuted),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const Icon(Icons.chevron_left_rounded, color: AppColors.inkMuted),
-            ]),
-          ),
+                TextButton(onPressed: _signOut, child: const Text('تسجيل الخروج', style: TextStyle(fontSize: 11.5, color: AppColors.gold))),
+              ]),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: AppColors.navy, borderRadius: BorderRadius.circular(16)),
+              child: Row(children: [
+                const CircleAvatar(radius: 24, backgroundColor: Colors.white24, child: Icon(Icons.person_outline_rounded, color: Colors.white, size: 26)),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('غير مسجل الدخول', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white)),
+                      Text('سجّل دخولك للوصول لكل مزايا حسابك', style: TextStyle(fontSize: 10.5, color: Colors.white70)),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthLandingScreen())),
+                  child: const Text('تسجيل الدخول', style: TextStyle(fontSize: 12, color: AppColors.gold, fontWeight: FontWeight.w700)),
+                ),
+              ]),
+            ),
           const SizedBox(height: 18),
           const _SectionLabel('الحساب والمال'),
           _MenuTile(

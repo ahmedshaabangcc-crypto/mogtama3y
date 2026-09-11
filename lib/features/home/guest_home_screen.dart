@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../auth/auth_landing_screen.dart';
 import '../jobs/jobs_board_screen.dart';
 import '../lost_found/lost_found_hub_screen.dart';
 import '../marketplace/marketplace_listing_screen.dart';
@@ -130,22 +133,28 @@ class _Header extends StatelessWidget {
                 backgroundColor: Colors.white24,
                 child: Icon(Icons.person_outline, color: Colors.white, size: 20),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(100),
-                  border: Border.all(color: Colors.white24),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('وضع الاستكشاف كزائر',
-                        style: TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.w500)),
-                    SizedBox(width: 6),
-                    Icon(Icons.circle, size: 6, color: AppColors.gold),
-                  ],
-                ),
+              StreamBuilder<AuthState>(
+                stream: AuthService.authStateChanges,
+                builder: (context, snapshot) {
+                  final signedIn = AuthService.isSignedIn;
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(100),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(signedIn ? 'أهلاً بعودتك' : 'وضع الاستكشاف كزائر',
+                            style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.w500)),
+                        const SizedBox(width: 6),
+                        Icon(signedIn ? Icons.verified_rounded : Icons.circle, size: signedIn ? 13 : 6, color: AppColors.gold),
+                      ],
+                    ),
+                  );
+                },
               ),
               Stack(
                 clipBehavior: Clip.none,
@@ -475,23 +484,31 @@ class _ListingCard extends StatelessWidget {
 class _SignupCta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        child: SizedBox(
-          height: 52,
-          child: ElevatedButton.icon(
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FindBuildingScreen())),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.navy,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    return StreamBuilder<AuthState>(
+      stream: AuthService.authStateChanges,
+      builder: (context, snapshot) {
+        final signedIn = AuthService.isSignedIn;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: SizedBox(
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => signedIn ? const FindBuildingScreen() : const AuthLandingScreen(),
+                )),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.navy,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                icon: Icon(signedIn ? Icons.groups_rounded : Icons.login_rounded, size: 18),
+                label: Text(signedIn ? 'ابحث عن عمارتك وانضم لاتحاد الملاك' : 'تسجيل الدخول أو فتح حساب جديد للعمارة'),
+              ),
             ),
-            icon: const Icon(Icons.login_rounded, size: 18),
-            label: const Text('تسجيل الدخول أو فتح حساب جديد للعمارة'),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
