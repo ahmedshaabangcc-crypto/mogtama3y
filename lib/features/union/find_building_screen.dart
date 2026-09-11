@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import 'election_voting_screen.dart';
 import 'found_building_screen.dart';
+import 'join_as_tenant_screen.dart';
 import 'union_founding_success_screen.dart';
 import 'union_registration_screen.dart';
 
@@ -206,7 +207,15 @@ class FindBuildingScreen extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          Center(
+            child: TextButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const JoinAsTenantScreen())),
+              icon: const Icon(Icons.key_rounded, size: 16, color: AppColors.teal),
+              label: const Text('عندي كود دعوة من مالك شقتي (مستأجر)', style: TextStyle(fontSize: 12, color: AppColors.teal, fontWeight: FontWeight.w600)),
+            ),
+          ),
+          const SizedBox(height: 8),
           Center(
             child: TextButton.icon(
               onPressed: () {},

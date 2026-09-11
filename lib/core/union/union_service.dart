@@ -93,4 +93,50 @@ class UnionService {
       'p_approve': approve,
     });
   }
+
+  // ---- Tenant sub-accounts — see backend/migrations/0018_tenant_accounts.sql ----
+
+  /// The units the caller owns (is the primary owner of), with the
+  /// building name embedded — the units they're allowed to manage
+  /// tenants for.
+  static Future<List<Map<String, dynamic>>> fetchMyOwnedUnits() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return [];
+    final rows = await _client
+        .from('unit_residents')
+        .select('unit:units(id, unit_number, floor_label, building:buildings(name))')
+        .eq('user_id', userId)
+        .eq('residency_type', 'owner')
+        .eq('is_primary', true);
+    return List<Map<String, dynamic>>.from(rows as List);
+  }
+
+  /// Generates a single-use tenant invite code for [unitId] — only
+  /// succeeds server-side if the caller is that unit's primary owner.
+  static Future<String> inviteTenant({required String unitId}) async {
+    final result = await _client.rpc('invite_tenant_for_unit', params: {'p_unit_id': unitId});
+    return result as String;
+  }
+
+  /// Redeems a tenant invite code — instantly verified, no president
+  /// review, since the inviting owner already vouched for the tenant.
+  static Future<void> joinAsTenant({required String code}) async {
+    await _client.rpc('join_as_tenant_with_code', params: {'p_code': code});
+  }
+
+  /// The current tenants living in [unitId], with their profile embedded.
+  static Future<List<Map<String, dynamic>>> fetchUnitTenants({required String unitId}) async {
+    final rows = await _client
+        .from('unit_residents')
+        .select('*, profile:profiles(full_name, phone)')
+        .eq('unit_id', unitId)
+        .eq('residency_type', 'tenant');
+    return List<Map<String, dynamic>>.from(rows as List);
+  }
+
+  /// Revokes a tenant's access to [unitId] — only succeeds server-side
+  /// if the caller is that unit's primary owner.
+  static Future<void> revokeTenant({required String unitId, required String tenantUserId}) async {
+    await _client.rpc('revoke_tenant', params: {'p_unit_id': unitId, 'p_tenant_user_id': tenantUserId});
+  }
 }

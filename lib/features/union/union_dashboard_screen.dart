@@ -6,6 +6,7 @@ import '../visitor/visitor_qr_pass_screen.dart';
 import 'board_decisions_screen.dart';
 import 'financial_report_screen.dart';
 import 'maintenance_payment_screen.dart';
+import 'manage_tenants_screen.dart';
 import 'pending_members_screen.dart';
 
 /// The owners'-union governance dashboard — matches
@@ -168,6 +169,13 @@ class UnionDashboardScreen extends StatelessWidget {
             title: 'طلبات الانضمام المعلّقة',
             subtitle: 'راجع طلبات جيران جدد بانتظار موافقتك',
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PendingMembersScreen())),
+          ),
+          const SizedBox(height: 10),
+          _GovernanceTile(
+            icon: Icons.key_rounded,
+            title: 'حسابات المستأجرين',
+            subtitle: 'مالك الوحدة يدعو مستأجره بحساب مستقل',
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManageTenantsScreen())),
           ),
           const SizedBox(height: 22),
           Row(
