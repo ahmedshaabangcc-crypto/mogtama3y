@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../core/jobs/jobs_service.dart';
 import '../../core/theme/app_colors.dart';
-import 'job_applicants_dashboard_screen.dart';
+import 'jobs_board_screen.dart';
 
 /// Post a new job listing (step 1 of 2) — matches
 /// design/screens/32_post_job_form.png.
@@ -17,8 +18,59 @@ class _PostJobFormScreenState extends State<PostJobFormScreen> {
   bool _negotiable = true;
   bool _receiveCvDirect = true;
   bool _hideEmployerPhone = true;
+  bool _submitting = false;
+  String? _error;
+
+  final _titleCtrl = TextEditingController(text: 'مسؤول مبيعات وكاشير متجر');
+  final _categoryCtrl = TextEditingController(text: 'سوبر ماركت ومتاجر التجزئة');
+  final _minSalaryCtrl = TextEditingController(text: '5000');
+  final _maxSalaryCtrl = TextEditingController(text: '6500');
+  final _requirementsCtrl = TextEditingController(
+    text: 'مؤهل عالٍ أو متوسط مناسب مع إجادة التعامل مع نقاط البيع.\n'
+        'خبرة سابقة لا تقل عن سنة في مجال مبيعات السوبرماركت أو التجزئة.\n'
+        'الأولوية لسكان المعادي والمناطق المجاورة لسرعة الالتحاق.',
+  );
 
   static const _schedules = ['دوام جزئي (Part-time)', 'دوام كامل (Full-time)', 'عمل حر / بالقطعة', 'ورديات مرنة'];
+  static const _scheduleValues = ['part_time', 'full_time', 'freelance', 'shift'];
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _categoryCtrl.dispose();
+    _minSalaryCtrl.dispose();
+    _maxSalaryCtrl.dispose();
+    _requirementsCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_titleCtrl.text.trim().isEmpty) {
+      setState(() => _error = 'أدخل المسمى الوظيفي أولاً.');
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await JobsService.postJob(
+        title: _titleCtrl.text.trim(),
+        category: _categoryCtrl.text.trim(),
+        employmentType: _scheduleValues[_scheduleType],
+        salaryMin: double.tryParse(_minSalaryCtrl.text.trim()),
+        salaryMax: double.tryParse(_maxSalaryCtrl.text.trim()),
+        salaryNegotiable: _negotiable,
+        requirements: _requirementsCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const JobsBoardScreen()));
+    } catch (_) {
+      setState(() => _error = 'تعذر نشر الإعلان، حاول مرة أخرى.');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +128,7 @@ class _PostJobFormScreenState extends State<PostJobFormScreen> {
           const SizedBox(height: 20),
           const _FieldLabel('المسمى الوظيفي *'),
           const SizedBox(height: 6),
-          const _InputBox(text: 'مسؤول مبيعات وكاشير متجر'),
+          _EditableBox(controller: _titleCtrl),
           const SizedBox(height: 6),
           const Row(children: [
             Icon(Icons.lightbulb_outline_rounded, size: 13, color: AppColors.inkMuted),
@@ -86,7 +138,7 @@ class _PostJobFormScreenState extends State<PostJobFormScreen> {
           const SizedBox(height: 16),
           const _FieldLabel('التصنيف والنشاط التجاري *'),
           const SizedBox(height: 6),
-          _DropdownBox(text: 'سوبر ماركت ومتاجر التجزئة'),
+          _EditableBox(controller: _categoryCtrl),
           const SizedBox(height: 16),
           const _FieldLabel('طبيعة العمل ونوع الدوام *'),
           const SizedBox(height: 8),
@@ -127,10 +179,10 @@ class _PostJobFormScreenState extends State<PostJobFormScreen> {
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text('الحد الأدنى', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
-                    SizedBox(height: 4),
-                    _InputBox(text: '5000'),
+                  children: [
+                    const Text('الحد الأدنى', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
+                    const SizedBox(height: 4),
+                    _EditableBox(controller: _minSalaryCtrl, keyboardType: TextInputType.number),
                   ],
                 ),
               ),
@@ -138,10 +190,10 @@ class _PostJobFormScreenState extends State<PostJobFormScreen> {
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text('الحد الأقصى', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
-                    SizedBox(height: 4),
-                    _InputBox(text: '6500'),
+                  children: [
+                    const Text('الحد الأقصى', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
+                    const SizedBox(height: 4),
+                    _EditableBox(controller: _maxSalaryCtrl, keyboardType: TextInputType.number),
                   ],
                 ),
               ),
@@ -160,9 +212,12 @@ class _PostJobFormScreenState extends State<PostJobFormScreen> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
-            child: const Text(
-              '• مؤهل عالٍ أو متوسط مناسب مع إجادة التعامل مع نقاط البيع.\n• خبرة سابقة لا تقل عن سنة في مجال مبيعات السوبرماركت أو التجزئة.\n• الأولوية لسكان المعادي والمناطق المجاورة لسرعة...',
-              style: TextStyle(fontSize: 11.5, color: AppColors.inkSecondary, height: 1.9),
+            child: TextField(
+              controller: _requirementsCtrl,
+              maxLines: 6,
+              minLines: 3,
+              style: const TextStyle(fontSize: 11.5, color: AppColors.inkSecondary, height: 1.9),
+              decoration: const InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
             ),
           ),
           const SizedBox(height: 20),
@@ -207,15 +262,29 @@ class _PostJobFormScreenState extends State<PostJobFormScreen> {
               ),
             ]),
           ),
+          if (_error != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
+              child: Row(children: [
+                const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 18),
+                const SizedBox(width: 8),
+                Expanded(child: Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12))),
+              ]),
+            ),
+          ],
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
             height: 52,
             child: ElevatedButton.icon(
-              onPressed: () => Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const JobApplicantsDashboardScreen())),
+              onPressed: _submitting ? null : _submit,
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-              icon: const Icon(Icons.campaign_rounded, size: 18),
-              label: const Text('نشر إعلان الوظيفة واستقبال المتقدمين', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+              icon: _submitting
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white))
+                  : const Icon(Icons.campaign_rounded, size: 18),
+              label: const Text('نشر إعلان الوظيفة الآن', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
             ),
           ),
           const SizedBox(height: 8),
@@ -236,35 +305,23 @@ class _FieldLabel extends StatelessWidget {
   }
 }
 
-class _InputBox extends StatelessWidget {
-  const _InputBox({required this.text});
-  final String text;
+class _EditableBox extends StatelessWidget {
+  const _EditableBox({required this.controller, this.keyboardType});
+  final TextEditingController controller;
+  final TextInputType? keyboardType;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
-      child: Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-    );
-  }
-}
-
-class _DropdownBox extends StatelessWidget {
-  const _DropdownBox({required this.text});
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
-      child: Row(children: [
-        Expanded(child: Text(text, style: const TextStyle(fontSize: 12.5))),
-        const Icon(Icons.expand_more_rounded, size: 18, color: AppColors.inkMuted),
-      ]),
+      child: TextField(
+        controller: controller,
+        keyboardType: keyboardType,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        decoration: const InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 9)),
+      ),
     );
   }
 }

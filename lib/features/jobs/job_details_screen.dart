@@ -1,70 +1,93 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
+import '../../core/auth/auth_service.dart';
+import '../../core/jobs/jobs_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../auth/auth_landing_screen.dart';
 import 'job_application_confirm_screen.dart';
 
-class JobPosting {
-  const JobPosting({
-    required this.title,
-    required this.company,
-    required this.location,
-    required this.postedNote,
-    required this.applicantsNote,
-    required this.salaryRange,
-    required this.schedule,
-    required this.dayOff,
-    required this.experience,
-    required this.workLocation,
-    required this.distanceNote,
-    required this.description,
-    required this.duties,
-  });
+const _employmentLabels = {
+  'full_time': 'دوام كامل (Full-time)',
+  'part_time': 'دوام جزئي (Part-time)',
+  'freelance': 'عمل حر / بالقطعة',
+  'shift': 'ورديات مرنة',
+};
 
-  final String title, company, location, postedNote, applicantsNote, salaryRange, schedule, dayOff, experience, workLocation, distanceNote, description;
-  final List<String> duties;
+String _timeAgo(DateTime dt) {
+  final diff = DateTime.now().difference(dt.toLocal());
+  if (diff.inMinutes < 1) return 'الآن';
+  if (diff.inMinutes < 60) return 'منذ ${diff.inMinutes} دقيقة';
+  if (diff.inHours < 24) return 'منذ ${diff.inHours} ساعة';
+  return 'منذ ${diff.inDays} يوم';
 }
 
-const sampleJob = JobPosting(
-  title: 'مطلوب كاشير ومساعد مدير فرع',
-  company: 'سوبر ماركت الأمانة - دجلة',
-  location: 'المعادي - برج الياسمين',
-  postedNote: 'نُشر منذ 4 ساعات',
-  applicantsNote: '18 متقدماً حق الآن',
-  salaryRange: '5,500 - 6,500',
-  schedule: 'دوام كامل (8 ساعات)',
-  dayOff: 'يوم إجازة أسبوعي',
-  experience: 'سنة أو خريج جديد',
-  workLocation: 'دجلة - شارع 206',
-  distanceNote: 'على بعد 350 متر منك',
-  description:
-      'تبحث عن عضو نشيط ومحل ثقة للانضمام إلى فريق عمل فرع دجلة المعادي، لتولي عمليات الصندوق وخدمة سكان الحي والإشراف على الجودة العامة خلال الوردية الصباحية.',
-  duties: [
-    'التعامل السلس مع ماكينات الدفع الإلكتروني (POS)، أنظمة الكاشير المحاسبية وإصدار الفواتير المعتمدة.',
-    'استقبال الجيران والزبائن برحابة وحسن خلق، وترتيب المنتجات على الأرفف وفق أفضل معايير العرض.',
-    'جرد البضائع اليومي والتبليغ الاستباقي عن النواقص بالتنسيق المباشر مع إدارة المحل ومسؤولي التوريد.',
-  ],
-);
+String _salaryLabel(Map<String, dynamic> job) {
+  final min = (job['salary_min'] as num?)?.toDouble();
+  final max = (job['salary_max'] as num?)?.toDouble();
+  final fmt = NumberFormat('#,##0');
+  if (min == null && max == null) return 'حسب الاتفاق';
+  if (min != null && max != null) return '${fmt.format(min)} - ${fmt.format(max)} ج.م';
+  return '${fmt.format(min ?? max)} ج.م';
+}
 
 /// Job details + inline application — matches
-/// design/screens/33_job_details.png.
+/// design/screens/33_job_details.png, now backed by a real job_postings row.
 class JobDetailsScreen extends StatefulWidget {
-  const JobDetailsScreen({super.key, this.job = sampleJob});
-  final JobPosting job;
+  const JobDetailsScreen({super.key, required this.job});
+  final Map<String, dynamic> job;
 
   @override
   State<JobDetailsScreen> createState() => _JobDetailsScreenState();
 }
 
 class _JobDetailsScreenState extends State<JobDetailsScreen> {
+  final _messageCtrl = TextEditingController();
+  bool _submitting = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _messageCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _apply() async {
+    if (!AuthService.isSignedIn) {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthLandingScreen()));
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await JobsService.apply(jobId: widget.job['id'] as String, introMessage: _messageCtrl.text);
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => JobApplicationConfirmScreen(job: widget.job)));
+    } catch (_) {
+      setState(() => _error = 'تعذر إرسال الطلب، حاول مرة أخرى.');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final job = widget.job;
+    final title = job['title'] as String? ?? '';
+    final category = job['category'] as String?;
+    final requirements = job['requirements'] as String?;
+    final employmentType = job['employment_type'] as String? ?? 'full_time';
+    final salaryNegotiable = job['salary_negotiable'] as bool? ?? false;
+    final createdAt = DateTime.tryParse(job['created_at'] as String? ?? '') ?? DateTime.now();
+    final poster = job['poster'] as Map<String, dynamic>?;
+    final posterName = poster?['full_name'] as String? ?? 'صاحب العمل';
+    final posterVerified = poster?['is_verified'] as bool? ?? false;
+
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('تفاصيل الوظيفة والتقديم السريع'), actions: const [
-        Padding(padding: EdgeInsets.only(left: 12), child: Icon(Icons.share_outlined)),
-        Padding(padding: EdgeInsets.only(left: 12), child: Icon(Icons.bookmark_border_rounded)),
-      ]),
+      appBar: AppBar(title: const Text('تفاصيل الوظيفة والتقديم السريع')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         children: [
@@ -75,37 +98,24 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  Expanded(child: Text(job.title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, height: 1.4))),
+                  Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, height: 1.4))),
                   Container(
                     width: 46,
                     height: 46,
                     decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(12)),
-                    child: const Icon(Icons.storefront_rounded, color: AppColors.inkSecondary),
+                    child: const Icon(Icons.work_rounded, color: AppColors.inkSecondary),
                   ),
                 ]),
                 const SizedBox(height: 6),
-                Text('${job.company} • ${job.location}', style: const TextStyle(fontSize: 11.5, color: AppColors.inkMuted)),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: AppColors.teal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(100)),
-                  child: const Text('نشاط تجاري موثّق بالعمارة 14', style: TextStyle(fontSize: 9.5, color: AppColors.teal, fontWeight: FontWeight.w700)),
-                ),
+                Row(children: [
+                  Expanded(child: Text('$posterName${category != null ? ' • $category' : ''}', style: const TextStyle(fontSize: 11.5, color: AppColors.inkMuted))),
+                  if (posterVerified) const Icon(Icons.verified_rounded, size: 14, color: AppColors.teal),
+                ]),
                 const SizedBox(height: 10),
                 Row(children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(100)),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.circle, size: 6, color: AppColors.gold),
-                      const SizedBox(width: 4),
-                      Text(job.applicantsNote, style: const TextStyle(fontSize: 9.5, color: AppColors.gold, fontWeight: FontWeight.w700)),
-                    ]),
-                  ),
-                  const Spacer(),
-                  Icon(Icons.access_time_rounded, size: 12, color: AppColors.inkMuted),
+                  const Icon(Icons.access_time_rounded, size: 12, color: AppColors.inkMuted),
                   const SizedBox(width: 4),
-                  Text(job.postedNote, style: const TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
+                  Text(_timeAgo(createdAt), style: const TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
                 ]),
               ],
             ),
@@ -115,55 +125,40 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(color: AppColors.navy, borderRadius: BorderRadius.circular(16)),
             child: Row(children: [
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('قابل للتفاوض حسب الخبرة', style: TextStyle(color: Colors.white70, fontSize: 10.5)),
+                    Text(salaryNegotiable ? 'قابل للتفاوض حسب الخبرة' : 'راتب ثابت', style: const TextStyle(color: Colors.white70, fontSize: 10.5)),
                   ],
                 ),
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('${job.salaryRange} ج.م', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+                  Text(_salaryLabel(job), style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
                   const Text('شهرياً', style: TextStyle(color: Colors.white70, fontSize: 10)),
                 ],
               ),
             ]),
           ),
           const SizedBox(height: 14),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 2.4,
-            children: [
-              _InfoTile(icon: Icons.event_available_outlined, label: 'نوع الدوام', value: job.schedule),
-              _InfoTile(icon: Icons.calendar_month_outlined, label: 'أيام الراحة', value: job.dayOff),
-              _InfoTile(icon: Icons.badge_outlined, label: 'متطلبات الخبرة', value: job.experience),
-              _InfoTile(icon: Icons.near_me_outlined, label: 'موقع العمل', value: '${job.workLocation}\n${job.distanceNote}'),
-            ],
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
+            child: Row(children: [
+              const Icon(Icons.event_available_outlined, size: 16, color: AppColors.teal),
+              const SizedBox(width: 8),
+              Text(_employmentLabels[employmentType] ?? employmentType, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+            ]),
           ),
           const SizedBox(height: 20),
-          const Text('الوصف الوظيفي والمهام المطلوبة', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
+          const Text('الوصف الوظيفي والمتطلبات', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
           const SizedBox(height: 10),
-          Text(job.description, style: const TextStyle(fontSize: 11.5, color: AppColors.inkSecondary, height: 1.9)),
-          const SizedBox(height: 10),
-          for (final duty in job.duties) ...[
-            Container(
-              padding: const EdgeInsets.all(10),
-              margin: const EdgeInsets.only(bottom: 8),
-              decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(10)),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Padding(padding: EdgeInsets.only(top: 2), child: Icon(Icons.check_circle_outline_rounded, size: 14, color: AppColors.teal)),
-                const SizedBox(width: 8),
-                Expanded(child: Text(duty, style: const TextStyle(fontSize: 11, color: AppColors.inkSecondary, height: 1.6))),
-              ]),
-            ),
-          ],
+          Text(
+            (requirements == null || requirements.trim().isEmpty) ? 'لم يضف صاحب العمل تفاصيل إضافية.' : requirements,
+            style: const TextStyle(fontSize: 11.5, color: AppColors.inkSecondary, height: 1.9),
+          ),
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.all(12),
@@ -173,70 +168,46 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'خصوصية وأمان التقديم عبر مُجتمعي: بياناتك وسيرتك الذاتية تُرسل مباشرة لصاحب العمل وتُمسح من منصة مُجتمعي الآمنة. لن يتم مشاركة رقم هاتفك إلا بعد الموافقة المبدئية لحضور المقابلة الشخصية حفاظاً على خصوصيتك.',
+                  'خصوصية وأمان التقديم عبر مُجتمعي: بياناتك تُرسل مباشرة لصاحب العمل، ولن يتم مشاركة رقم هاتفك إلا بعد الموافقة المبدئية لحضور المقابلة.',
                   style: TextStyle(fontSize: 10, color: AppColors.teal, height: 1.7),
                 ),
               ),
             ]),
           ),
           const SizedBox(height: 20),
-          Row(children: [
-            const Expanded(child: Text('نموذج التقديم المباشر', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5))),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
-              child: const Text('خطوة واحدة فقط', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
-            ),
-          ]),
+          const Text('نموذج التقديم المباشر', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
           const SizedBox(height: 10),
-          const Text('السيرة الذاتية (CV)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.inkSecondary)),
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
-            child: Row(children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(color: AppColors.categorySos.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.picture_as_pdf_rounded, color: AppColors.categorySos, size: 18),
-              ),
-              const SizedBox(width: 10),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Ahmed_CV_2025.pdf', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                    Text('تم الاسترداد من ملف الشخصي (1.2MB)', style: TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
-                  ],
-                ),
-              ),
-              TextButton(onPressed: () {}, child: const Text('تغيير الملف', style: TextStyle(fontSize: 11))),
-            ]),
-          ),
-          const SizedBox(height: 12),
-          const Text('رقم الهاتف للتواصل الرسمي', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.inkSecondary)),
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
-            child: Row(children: const [
-              Icon(Icons.verified_rounded, size: 15, color: AppColors.teal),
-              SizedBox(width: 6),
-              Text('رقمك الموثّق', style: TextStyle(fontSize: 10.5, color: AppColors.teal)),
-              Spacer(),
-              Text('0100 123 4567', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-            ]),
-          ),
-          const SizedBox(height: 12),
           const Text('رسالة تعريفية قصيرة لصاحب العمل (اختياري)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.inkSecondary)),
           const SizedBox(height: 6),
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
-            child: const Text('اكتب نبذة موجزة (مثلاً: متفرغ تماماً ومستعد لبدء العمل فوراً وسبق لي التعامل مع ماكينات كاشير)...',
-                style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted, height: 1.6)),
+            child: TextField(
+              controller: _messageCtrl,
+              maxLines: 3,
+              minLines: 2,
+              style: const TextStyle(fontSize: 12),
+              decoration: const InputDecoration(
+                hintText: 'اكتب نبذة موجزة (مثلاً: متفرغ تماماً ومستعد لبدء العمل فوراً)...',
+                hintStyle: TextStyle(fontSize: 11.5, color: AppColors.inkMuted),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
           ),
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
+              child: Row(children: [
+                const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 18),
+                const SizedBox(width: 8),
+                Expanded(child: Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12))),
+              ]),
+            ),
+          ],
         ],
       ),
       bottomSheet: SafeArea(
@@ -245,43 +216,15 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
           child: SizedBox(
             height: 52,
             child: ElevatedButton.icon(
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => JobApplicationConfirmScreen(job: job))),
+              onPressed: _submitting ? null : _apply,
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-              icon: const Icon(Icons.send_rounded, size: 17),
-              label: const Text('إرسال طلب التقديم والسيرة الذاتية الآن', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+              icon: _submitting
+                  ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white))
+                  : const Icon(Icons.send_rounded, size: 17),
+              label: const Text('إرسال طلب التقديم الآن', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _InfoTile extends StatelessWidget {
-  const _InfoTile({required this.icon, required this.label, required this.value});
-  final IconData icon;
-  final String label, value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 16, color: AppColors.teal),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
-                Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, height: 1.3)),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
