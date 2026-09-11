@@ -1,121 +1,153 @@
 import 'package:flutter/material.dart';
 
+import '../../core/auth/auth_service.dart';
+import '../../core/notifications/notifications_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../auth/auth_landing_screen.dart';
 
-class _Notice {
-  const _Notice({required this.icon, required this.iconColor, required this.title, required this.body, required this.time, this.unread = false});
-  final IconData icon;
-  final Color iconColor;
-  final String title, body, time;
-  final bool unread;
+String _timeAgo(DateTime dt) {
+  final diff = DateTime.now().difference(dt.toLocal());
+  if (diff.inMinutes < 1) return 'الآن';
+  if (diff.inMinutes < 60) return 'منذ ${diff.inMinutes} دقيقة';
+  if (diff.inHours < 24) return 'منذ ${diff.inHours} ساعة';
+  return 'منذ ${diff.inDays} يوم';
 }
 
-const _notices = [
-  _Notice(
-    icon: Icons.how_to_vote_rounded,
-    iconColor: AppColors.categoryUnion,
-    title: 'استفتاء جديد يحتاج تصويتك',
-    body: 'تركيب كاميرات مراقبة ذكية في الجراج ومداخل المبنى - صوّت الآن قبل إغلاق التصويت.',
-    time: 'منذ 10 دقائق',
-    unread: true,
-  ),
-  _Notice(
-    icon: Icons.local_shipping_outlined,
-    iconColor: AppColors.categoryShops,
-    title: 'طلبك #1084 في الطريق إليك',
-    body: 'مندوب سوبر ماركت الأمانة وصل لمدخل البرج، سيصلك الطلب خلال دقائق.',
-    time: 'منذ 25 دقيقة',
-    unread: true,
-  ),
-  _Notice(
-    icon: Icons.payments_outlined,
-    iconColor: AppColors.gold,
-    title: 'اشتراك الصيانة مستحق قريباً',
-    body: '350 ج.م مستحقة عن شهر مارس، آخر موعد للسداد قبل الغرامة: 10 مارس.',
-    time: 'منذ ساعتين',
-  ),
-  _Notice(
-    icon: Icons.chat_bubble_outline_rounded,
-    iconColor: AppColors.teal,
-    title: 'رسالة جديدة من م/ خالد البحيري',
-    body: 'اقترح موعد فحص وزيارة اليوم الساعة 05:30 مساءً.',
-    time: 'منذ 3 ساعات',
-  ),
-  _Notice(
-    icon: Icons.recycling_rounded,
-    iconColor: AppColors.categoryRecycling,
-    title: 'مزادك على وشك الانتهاء',
-    body: 'خردة 2 تكييف سبليت قديم + مواسير نحاس - أعلى عرض حالياً 1,850 ج.م.',
-    time: 'أمس',
-  ),
-  _Notice(
-    icon: Icons.verified_user_outlined,
-    iconColor: AppColors.inkSecondary,
-    title: 'تم اعتماد عضويتك في اتحاد الملاك',
-    body: 'أصبحت الآن عضواً موثقاً في اتحاد ملاك برج الياسمين.',
-    time: 'منذ يومين',
-  ),
-];
-
-/// Notifications tab — the bottom-nav "الإشعارات" tab.
-class NotificationsScreen extends StatelessWidget {
+/// Notifications tab — the bottom-nav "الإشعارات" tab, now reading real
+/// notifications populated by actual app events (membership approval,
+/// new dues, etc.) instead of six hardcoded sample notices.
+class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
 
   @override
+  State<NotificationsScreen> createState() => _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends State<NotificationsScreen> {
+  bool _loading = true;
+  List<Map<String, dynamic>> _notices = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final notices = await NotificationsService.fetchMine();
+    if (!mounted) return;
+    setState(() {
+      _notices = notices;
+      _loading = false;
+    });
+  }
+
+  Future<void> _markAllRead() async {
+    await NotificationsService.markAllRead();
+    _load();
+  }
+
+  Future<void> _onTapNotice(Map<String, dynamic> n) async {
+    if (n['is_read'] != true) {
+      await NotificationsService.markRead(n['id'] as String);
+      _load();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (!AuthService.isSignedIn) {
+      return Scaffold(
+        backgroundColor: AppColors.bg,
+        appBar: AppBar(title: const Text('الإشعارات')),
+        body: Center(
+          child: ElevatedButton(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthLandingScreen())),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white),
+            child: const Text('سجّل دخولك لعرض إشعاراتك'),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
         title: const Text('الإشعارات'),
         actions: [
           TextButton(
-            onPressed: () {},
+            onPressed: _markAllRead,
             child: const Text('تحديد الكل كمقروء', style: TextStyle(color: Colors.white, fontSize: 11.5)),
           ),
         ],
       ),
-      body: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        itemCount: _notices.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (context, i) {
-          final n = _notices[i];
-          return Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: n.unread ? AppColors.teal.withValues(alpha: 0.06) : AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: n.unread ? AppColors.teal.withValues(alpha: 0.3) : AppColors.border),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(color: n.iconColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-                  child: Icon(n.icon, color: n.iconColor, size: 19),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [
-                        Expanded(child: Text(n.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5))),
-                        if (n.unread) Container(width: 8, height: 8, margin: const EdgeInsets.only(right: 6), decoration: const BoxDecoration(color: AppColors.teal, shape: BoxShape.circle)),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _notices.isEmpty
+                ? ListView(children: const [
+                    Padding(
+                      padding: EdgeInsets.symmetric(vertical: 60),
+                      child: Column(children: [
+                        Icon(Icons.notifications_none_rounded, color: AppColors.inkMuted, size: 36),
+                        SizedBox(height: 10),
+                        Text('لا توجد إشعارات حالياً', style: TextStyle(color: AppColors.inkMuted, fontSize: 13)),
                       ]),
-                      const SizedBox(height: 3),
-                      Text(n.body, style: const TextStyle(fontSize: 10.5, color: AppColors.inkSecondary, height: 1.6)),
-                      const SizedBox(height: 6),
-                      Text(n.time, style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
-                    ],
+                    ),
+                  ])
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                    itemCount: _notices.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    itemBuilder: (context, i) {
+                      final n = _notices[i];
+                      final unread = n['is_read'] != true;
+                      final createdAt = DateTime.tryParse(n['created_at'] as String? ?? '') ?? DateTime.now();
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () => _onTapNotice(n),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: unread ? AppColors.teal.withValues(alpha: 0.06) : AppColors.surface,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: unread ? AppColors.teal.withValues(alpha: 0.3) : AppColors.border),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(color: AppColors.teal.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                                child: const Icon(Icons.notifications_rounded, color: AppColors.teal, size: 19),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(children: [
+                                      Expanded(child: Text(n['title'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5))),
+                                      if (unread) Container(width: 8, height: 8, margin: const EdgeInsets.only(right: 6), decoration: const BoxDecoration(color: AppColors.teal, shape: BoxShape.circle)),
+                                    ]),
+                                    if (n['body'] != null) ...[
+                                      const SizedBox(height: 3),
+                                      Text(n['body'] as String, style: const TextStyle(fontSize: 10.5, color: AppColors.inkSecondary, height: 1.6)),
+                                    ],
+                                    const SizedBox(height: 6),
+                                    Text(_timeAgo(createdAt), style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                ),
-              ],
-            ),
-          );
-        },
       ),
     );
   }
