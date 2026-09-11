@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_colors.dart';
+import '../assistant/assistant_chat_screen.dart';
 import '../chat/chat_list_screen.dart';
 import '../home/guest_home_screen.dart';
 import '../more/more_menu_screen.dart';
@@ -29,7 +31,24 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _index, children: _pages),
+      body: Stack(
+        children: [
+          IndexedStack(index: _index, children: _pages),
+          // Positioned manually (rather than Scaffold.floatingActionButton) so it
+          // can clear the home tab's own bottomSheet CTA, which an outer
+          // Scaffold's default FAB placement doesn't know about.
+          Positioned(
+            bottom: _index == 0 ? 104 : 20,
+            left: 16,
+            child: FloatingActionButton(
+              heroTag: 'assistant-fab',
+              backgroundColor: AppColors.navy,
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AssistantChatScreen())),
+              child: const Icon(Icons.smart_toy_rounded, color: Colors.white),
+            ),
+          ),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _index,
         onTap: (i) => setState(() => _index = i),
