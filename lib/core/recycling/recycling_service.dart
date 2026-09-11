@@ -12,7 +12,7 @@ class RecyclingService {
   static Future<List<Map<String, dynamic>>> fetchActiveLots() async {
     final rows = await _client
         .from('recycling_listings')
-        .select('*, seller:profiles(full_name, is_verified), recycling_bids(id, bidder_id, amount, created_at)')
+        .select('*, seller:profiles(full_name, is_verified), recycling_bids!recycling_bids_listing_id_fkey(id, bidder_id, amount, created_at)')
         .eq('status', 'active')
         .order('created_at', ascending: false)
         .limit(30);
@@ -22,7 +22,7 @@ class RecyclingService {
   static Future<Map<String, dynamic>> fetchLot(String listingId) async {
     return await _client
         .from('recycling_listings')
-        .select('*, seller:profiles(full_name, is_verified), recycling_bids(id, bidder_id, amount, created_at)')
+        .select('*, seller:profiles(full_name, is_verified), recycling_bids!recycling_bids_listing_id_fkey(id, bidder_id, amount, created_at)')
         .eq('id', listingId)
         .single();
   }
