@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../core/guard/guard_service.dart';
 import '../../core/lost_found/lost_found_service.dart';
 import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/union/union_service.dart';
 
 const _categories = ['مفاتيح', 'محافظ وبطاقات', 'إلكترونية', 'حيوانات أليفة', 'أخرى'];
 
@@ -25,11 +27,32 @@ class _AddLostFoundItemScreenState extends State<AddLostFoundItemScreen> {
   String? _error;
   String? _imageUrl;
   bool _uploadingPhoto = false;
+  String? _guardName;
 
   final _titleCtrl = TextEditingController();
   final _locationCtrl = TextEditingController();
   final _secretMarkCtrl = TextEditingController();
   final _rewardCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGuard();
+  }
+
+  Future<void> _loadGuard() async {
+    final membership = await UnionService.fetchMyMembership();
+    final buildingId = membership?['building_id'] as String?;
+    if (buildingId == null) return;
+    final guards = await GuardService.fetchGuardsFor(buildingId);
+    if (!mounted) return;
+    if (guards.isEmpty) {
+      setState(() => _custody = 1);
+      return;
+    }
+    final profile = guards.first['profile'] as Map<String, dynamic>?;
+    setState(() => _guardName = profile?['full_name'] as String?);
+  }
 
   @override
   void dispose() {
@@ -66,11 +89,18 @@ class _AddLostFoundItemScreenState extends State<AddLostFoundItemScreen> {
       _error = null;
     });
     try {
+      var locationNote = _locationCtrl.text.trim();
+      if (_mode == 1) {
+        final custodyNote = _custody == 0 && _guardName != null
+            ? 'الأمانة مودعة لدى حارس العمارة الموثق ($_guardName)'
+            : 'الأمانة مع المُبلّغ شخصياً، التواصل عبر محادثة التطبيق';
+        locationNote = '$locationNote — $custodyNote';
+      }
       await LostFoundService.reportItem(
         type: _mode == 0 ? 'lost' : 'found',
         category: _categories[_category],
         title: _titleCtrl.text.trim(),
-        locationNote: _locationCtrl.text.trim(),
+        locationNote: locationNote,
         secretMark: _secretMarkCtrl.text.trim().isEmpty ? null : _secretMarkCtrl.text.trim(),
         rewardAmount: _mode == 0 && _rewardCtrl.text.trim().isNotEmpty ? double.tryParse(_rewardCtrl.text.trim()) : null,
         imageUrl: _imageUrl,
@@ -205,47 +235,38 @@ class _AddLostFoundItemScreenState extends State<AddLostFoundItemScreen> {
               _QuickChip('مواقف سيارات B1'),
             ],
           ),
-          const SizedBox(height: 20),
-          Row(children: [
-            const Expanded(child: Text('مكان إيداع الأمانة والتحريز', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5))),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(100)),
-              child: const Text('إلزامي للأمانات', style: TextStyle(fontSize: 9, color: AppColors.gold, fontWeight: FontWeight.w700)),
-            ),
-          ]),
-          const SizedBox(height: 10),
-          _CustodyOption(
-            title: 'تم إيداع الأمانة طرف حارس عمارة موثق (عم رجب - حارس عمارة 16)',
-            selected: _custody == 0,
-            onTap: () => setState(() => _custody = 0),
-            expanded: Container(
-              margin: const EdgeInsets.only(top: 10),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(10)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('الحارس معتمد ومفيد في سجل اتحاد الملاك، ويتحمل مسؤولية الاستلام والتسليم الميداني.',
-                      style: TextStyle(fontSize: 10, color: AppColors.inkMuted, height: 1.6)),
-                  const SizedBox(height: 8),
-                  _DropdownBox(text: 'عمارة 16 - الحارس: عمّ رجب (موثق ومسجل)'),
-                  const SizedBox(height: 6),
-                  Row(children: const [
-                    Icon(Icons.check_circle_rounded, size: 13, color: AppColors.teal),
-                    SizedBox(width: 4),
-                    Text('الهاتف الموثق: 3910****010', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600)),
-                  ]),
-                ],
+          if (_mode == 1) ...[
+            const SizedBox(height: 20),
+            Row(children: [
+              const Expanded(child: Text('مكان إيداع الأمانة والتحريز', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5))),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(100)),
+                child: const Text('إلزامي للأمانات', style: TextStyle(fontSize: 9, color: AppColors.gold, fontWeight: FontWeight.w700)),
               ),
+            ]),
+            const SizedBox(height: 10),
+            if (_guardName != null) ...[
+              _CustodyOption(
+                title: 'تم إيداع الأمانة طرف حارس العمارة الموثق ($_guardName)',
+                selected: _custody == 0,
+                onTap: () => setState(() => _custody = 0),
+                expanded: Container(
+                  margin: const EdgeInsets.only(top: 10),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(10)),
+                  child: const Text('الحارس معتمد من مجلس إدارة اتحاد عمارتك، ويتحمل مسؤولية الاستلام والتسليم الميداني.',
+                      style: TextStyle(fontSize: 10, color: AppColors.inkMuted, height: 1.6)),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            _CustodyOption(
+              title: 'الأمانة معي شخصياً والتواصل عبر محادثة التطبيق فقط',
+              selected: _custody == 1 || _guardName == null,
+              onTap: () => setState(() => _custody = 1),
             ),
-          ),
-          const SizedBox(height: 8),
-          _CustodyOption(
-            title: 'الأمانة معي شخصياً والتواصل عبر محادثة التطبيق فقط',
-            selected: _custody == 1,
-            onTap: () => setState(() => _custody = 1),
-          ),
+          ],
           const SizedBox(height: 20),
           Row(children: [
             const Expanded(child: Text('العلامة السرية للتحقق', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5))),
@@ -325,7 +346,7 @@ class _AddLostFoundItemScreenState extends State<AddLostFoundItemScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          const Text('سيتم بث تنبيه لـ 14 عمارة مجاورة على رادار العمارة.',
+          const Text('سيظهر البلاغ لجيران عمارتك الموثقين فقط.',
               textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: AppColors.inkMuted)),
         ],
       ),
@@ -397,24 +418,6 @@ class _EditableField extends StatelessWidget {
           contentPadding: const EdgeInsets.symmetric(vertical: 9),
         ),
       ),
-    );
-  }
-}
-
-class _DropdownBox extends StatelessWidget {
-  const _DropdownBox({required this.text});
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
-      child: Row(children: [
-        Expanded(child: Text(text, style: const TextStyle(fontSize: 12.5), overflow: TextOverflow.ellipsis)),
-        const Icon(Icons.expand_more_rounded, size: 18, color: AppColors.inkMuted),
-      ]),
     );
   }
 }
