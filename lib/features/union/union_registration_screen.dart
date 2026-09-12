@@ -6,10 +6,16 @@ import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
 
 /// Union registration step 2: unit verification + union head approval —
-/// matches design/screens/08_union_registration_step2.png.
+/// matches design/screens/08_union_registration_step2.png. Used to show
+/// a fake "officially registered, 43 units" building card and a fake
+/// board-member/response-time card regardless of which real building
+/// the invite code actually matched — removed since the real join
+/// (UnionService.joinWithCode) is entirely determined by the code
+/// itself, server-side; the building name shown here was pure fabricated
+/// decoration with no relation to it (its default value was even the
+/// literal fake "برج الياسمين الفاخر").
 class UnionRegistrationScreen extends StatefulWidget {
-  const UnionRegistrationScreen({super.key, this.buildingName = 'برج الياسمين الفاخر'});
-  final String buildingName;
+  const UnionRegistrationScreen({super.key});
 
   @override
   State<UnionRegistrationScreen> createState() => _UnionRegistrationScreenState();
@@ -117,46 +123,7 @@ class _UnionRegistrationScreenState extends State<UnionRegistrationScreen> {
         children: [
           const _StepHeader(),
           const SizedBox(height: 20),
-          const _SectionTitle('تحديد مكان العقار', badge: 'الخطوة الجغرافية'),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const _FieldLabel('المحافظة'),
-                    const SizedBox(height: 6),
-                    _Box(text: 'القاهرة'),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const _FieldLabel('الحي والمجاورة'),
-                    const SizedBox(height: 6),
-                    _Box(text: 'المعادي - دجلة'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          const _FieldLabel('البحث عن العمارة أو البرج المسجل'),
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
-            child: Row(
-              children: [
-                Expanded(child: Text(widget.buildingName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-                const Icon(Icons.search_rounded, size: 18, color: AppColors.inkMuted),
-              ],
-            ),
-          ),
+          const _SectionTitle('بيانات الوحدة السكنية', badge: 'الخطوة الجغرافية'),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -207,47 +174,6 @@ class _UnionRegistrationScreenState extends State<UnionRegistrationScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: AppColors.navy, borderRadius: BorderRadius.circular(14)),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-                  child: const Icon(Icons.apartment_rounded, color: Colors.white, size: 20),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [
-                        Flexible(child: Text(widget.buildingName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13), overflow: TextOverflow.ellipsis)),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(100)),
-                          child: const Text('مشهر رسمي', style: TextStyle(fontSize: 8.5, color: Colors.white, fontWeight: FontWeight.w700)),
-                        ),
-                      ]),
-                      const SizedBox(height: 3),
-                      const Text('شارع 30 مترفرع من ميدان دجلة، المعادي', style: TextStyle(color: Colors.white70, fontSize: 10.5)),
-                      const SizedBox(height: 4),
-                      const Text('43 شقة مسجلة  •  اتحاد ملاك مشهر', style: TextStyle(color: Colors.white70, fontSize: 10)),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.check_circle_rounded, color: AppColors.teal, size: 22),
-              ],
-            ),
-          ),
-          const SizedBox(height: 6),
-          Center(
-            child: TextButton(onPressed: () {}, child: const Text('تسجيل عقار جديد غير مدرج؟', style: TextStyle(fontSize: 11.5))),
-          ),
           const SizedBox(height: 16),
           const _SectionTitle('كود الدعوة المعتمد من رئيس الاتحاد', badge: 'توثيق فوري بدون أوراق'),
           const SizedBox(height: 8),
@@ -288,7 +214,7 @@ class _UnionRegistrationScreenState extends State<UnionRegistrationScreen> {
                       const Row(children: [
                         Icon(Icons.shield_outlined, size: 13, color: AppColors.inkMuted),
                         SizedBox(width: 5),
-                        Expanded(child: Text('حماية وتدقيق مجتمعي لضمان خصوصية وأمان سكان البرج', style: TextStyle(fontSize: 10, color: AppColors.inkMuted))),
+                        Expanded(child: Text('حماية وتدقيق مجتمعي لضمان خصوصية وأمان سكان العمارة', style: TextStyle(fontSize: 10, color: AppColors.inkMuted))),
                       ]),
                     ],
                   ),
@@ -320,33 +246,6 @@ class _UnionRegistrationScreenState extends State<UnionRegistrationScreen> {
                 ),
                 const SizedBox(width: 8),
                 Switch(value: _showFamilyNameOnly, onChanged: (v) => setState(() => _showFamilyNameOnly = v), activeThumbColor: AppColors.teal),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text('المجلس التنسيقي المشرف', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
-            child: Row(
-              children: [
-                const CircleAvatar(radius: 18, backgroundColor: AppColors.surfaceAlt, child: Icon(Icons.person_rounded, color: AppColors.inkMuted)),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('م. أحمد شريف', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
-                      Text('المسؤول الإداري ورئيس الاتحاد', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: AppColors.teal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(100)),
-                  child: const Text('استجابة سريعة < 3 ساعات', style: TextStyle(fontSize: 9.5, color: AppColors.teal, fontWeight: FontWeight.w600)),
-                ),
               ],
             ),
           ),
@@ -476,26 +375,6 @@ class _FieldLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.inkSecondary));
-  }
-}
-
-class _Box extends StatelessWidget {
-  const _Box({required this.text});
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
-      child: Row(
-        children: [
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 12.5), overflow: TextOverflow.ellipsis)),
-          const Icon(Icons.expand_more_rounded, size: 18, color: AppColors.inkMuted),
-        ],
-      ),
-    );
   }
 }
 
