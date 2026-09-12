@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../core/places/places_service.dart';
 import '../../core/theme/app_colors.dart';
 import 'claim_business_hub_screen.dart';
+import 'shop_details_screen.dart';
 
 /// Neighborhood shops guide — matches
 /// design/screens/17_neighborhood_shops_guide.png, now backed by real
@@ -20,12 +22,38 @@ class _NeighborhoodShopsScreenState extends State<NeighborhoodShopsScreen> {
   bool _searching = false;
   String? _error;
   List<Map<String, dynamic>> _shops = [];
-  final _searchCtrl = TextEditingController(text: 'سوبر ماركت وصيدليات في المعادي');
+  final _searchCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _load();
+    _prefillAreaFromLocation();
+  }
+
+  /// Best-effort: fills the search box with the user's REAL area
+  /// instead of leaving a hardcoded city in it (a previous version
+  /// defaulted to "سوبر ماركت وصيدليات في المعادي" — Maadi, Cairo —
+  /// which silently returned Cairo results to a user testing from
+  /// Alexandria who just tapped search without editing the example
+  /// text). Fails silently to an empty box if location is unavailable.
+  Future<void> _prefillAreaFromLocation() async {
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) return;
+
+      final position = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium));
+      final area = await PlacesService.resolveAreaLabel(lat: position.latitude, lng: position.longitude);
+      if (!mounted || area == null || _searchCtrl.text.isNotEmpty) return;
+      setState(() => _searchCtrl.text = 'سوبر ماركت وصيدليات في $area');
+    } catch (_) {
+      // keep the box empty — never fall back to a hardcoded city.
+    }
   }
 
   @override
@@ -89,7 +117,12 @@ class _NeighborhoodShopsScreenState extends State<NeighborhoodShopsScreen> {
                           controller: _searchCtrl,
                           onSubmitted: (_) => _search(),
                           style: const TextStyle(fontSize: 12.5),
-                          decoration: const InputDecoration(border: InputBorder.none, isDense: true),
+                          decoration: const InputDecoration(
+                            hintText: 'مثال: صيدليات في حيّك',
+                            hintStyle: TextStyle(fontSize: 12.5, color: AppColors.inkMuted),
+                            border: InputBorder.none,
+                            isDense: true,
+                          ),
                         ),
                       ),
                     ]),
@@ -184,7 +217,10 @@ class _ShopCard extends StatelessWidget {
     final source = shop['source'] as String?;
     final coverImageUrl = shop['cover_image_url'] as String?;
 
-    return Container(
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ShopDetailsScreen(shop: shop))),
+      child: Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
       child: Column(
@@ -260,6 +296,7 @@ class _ShopCard extends StatelessWidget {
               ),
           ]),
         ],
+      ),
       ),
     );
   }

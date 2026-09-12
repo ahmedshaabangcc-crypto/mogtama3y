@@ -10,7 +10,9 @@ import '../auth/auth_landing_screen.dart';
 import '../jobs/jobs_board_screen.dart';
 import '../lost_found/lost_found_hub_screen.dart';
 import '../marketplace/marketplace_listing_screen.dart';
+import '../neighborhood/neighborhood_list_screen.dart';
 import '../notifications/notifications_screen.dart';
+import '../profile/profile_screen.dart';
 import '../real_estate/real_estate_marketplace_screen.dart';
 import '../recycling/recycling_marketplace_screen.dart';
 import '../services/technicians_market_screen.dart';
@@ -132,10 +134,16 @@ class _Header extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const CircleAvatar(
-                radius: 18,
-                backgroundColor: Colors.white24,
-                child: Icon(Icons.person_outline, color: Colors.white, size: 20),
+              InkWell(
+                borderRadius: BorderRadius.circular(100),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => AuthService.isSignedIn ? const ProfileScreen() : const AuthLandingScreen(),
+                )),
+                child: const CircleAvatar(
+                  radius: 18,
+                  backgroundColor: Colors.white24,
+                  child: Icon(Icons.person_outline, color: Colors.white, size: 20),
+                ),
               ),
               StreamBuilder<AuthState>(
                 stream: AuthService.authStateChanges,
@@ -502,10 +510,11 @@ class _CategoryGrid extends StatelessWidget {
 class _QuickServicesRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    const items = [
-      ('الأمن والحراسة', Icons.security_rounded),
-      ('خدمات النظافة', Icons.cleaning_services_rounded),
-      ('صيانة عامة', Icons.handyman_rounded),
+    final items = [
+      ('الأمن والحراسة', Icons.security_rounded, null),
+      ('خدمات النظافة', Icons.cleaning_services_rounded, null),
+      ('صيانة عامة', Icons.handyman_rounded, () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TechniciansMarketScreen()))),
+      ('جروب الحي', Icons.location_city_rounded, () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NeighborhoodListScreen()))),
     ];
     return SizedBox(
       height: 96,
@@ -514,21 +523,25 @@ class _QuickServicesRow extends StatelessWidget {
         itemCount: items.length,
         separatorBuilder: (_, _) => const SizedBox(width: 12),
         itemBuilder: (context, i) {
-          final (label, icon) = items[i];
-          return Container(
-            width: 120,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.navy,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(icon, color: AppColors.gold, size: 22),
-                const Spacer(),
-                Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-              ],
+          final (label, icon, onTap) = items[i];
+          return InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: onTap,
+            child: Container(
+              width: 120,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.navy,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(icon, color: AppColors.gold, size: 22),
+                  const Spacer(),
+                  Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                ],
+              ),
             ),
           );
         },

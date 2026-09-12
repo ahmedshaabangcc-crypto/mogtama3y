@@ -52,6 +52,18 @@ class AuthService {
     return _client.from('profiles').select().eq('id', user.id).maybeSingle();
   }
 
+  static Future<void> updateProfile({String? fullName, String? phone, bool? phoneHidden, String? avatarUrl}) async {
+    final user = currentUser;
+    if (user == null) throw Exception('يجب تسجيل الدخول أولاً');
+    await _client.from('profiles').update({
+      'full_name': ?fullName,
+      'phone': ?phone,
+      'phone_hidden': ?phoneHidden,
+      'avatar_url': ?avatarUrl,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', user.id);
+  }
+
   /// Creates the `profiles` and `wallets` rows for [userId] if they don't
   /// already exist — covers both the fresh-signup path and a first login
   /// after confirming an email (where sign-up never had an active session).

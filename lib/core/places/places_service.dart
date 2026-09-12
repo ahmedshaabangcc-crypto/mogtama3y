@@ -98,38 +98,42 @@ class PlacesService {
     return fetchImportedShops();
   }
 
-  /// Resolves [lat]/[lng] to a human-readable "district / city" label
-  /// using Places API (New) `searchNearby` — there's no separate
-  /// reverse-geocoding call here, since the legacy Geocoding API has
-  /// the same server-only/no-CORS problem as the legacy Places API did
-  /// (see the CORS postmortem on the shops import). Returns null if
-  /// Google has no sublocality/locality result nearby.
+  /// Resolves [lat]/[lng] to a human-readable "district / city" label.
+  ///
+  /// Uses the plain Geocoding API, NOT Places API (New) `searchNearby`
+  /// — an earlier version of this used searchNearby with
+  /// `includedTypes: ['sublocality', 'locality']`, which always failed
+  /// with a 400 ("Unsupported types: sublocality") since Nearby Search
+  /// only accepts point-of-interest types, never administrative-area
+  /// types; the failure was silently swallowed by the caller's
+  /// try/catch, so the box never resolved an area for anyone. Verified
+  /// live in-browser that the Geocoding endpoint itself has no CORS
+  /// restriction (unlike the legacy Places text-search endpoints) —
+  /// it just needs the **Geocoding API** enabled on the same Google
+  /// Cloud project as Places (New), which it wasn't at first.
   static Future<String?> resolveAreaLabel({required double lat, required double lng}) async {
-    final response = await http.post(
-      Uri.https('places.googleapis.com', '/v1/places:searchNearby'),
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': PlacesConfig.apiKey,
-        'X-Goog-FieldMask': 'places.displayName,places.formattedAddress',
-      },
-      body: jsonEncode({
-        'includedTypes': ['sublocality', 'locality'],
-        'maxResultCount': 1,
-        'languageCode': 'ar',
-        'locationRestriction': {
-          'circle': {
-            'center': {'latitude': lat, 'longitude': lng},
-            'radius': 3000.0,
-          },
-        },
-      }),
-    );
+    final response = await http.get(Uri.https('maps.googleapis.com', '/maps/api/geocode/json', {
+      'latlng': '$lat,$lng',
+      'language': 'ar',
+      'key': PlacesConfig.apiKey,
+    }));
     if (response.statusCode != 200) return null;
     final body = jsonDecode(response.body) as Map<String, dynamic>;
-    final places = (body['places'] as List?) ?? const [];
-    if (places.isEmpty) return null;
-    final place = places.first as Map<String, dynamic>;
-    return (place['displayName'] as Map<String, dynamic>?)?['text'] as String?;
+    if (body['status'] != 'OK') return null;
+    final results = (body['results'] as List?) ?? const [];
+    if (results.isEmpty) return null;
+
+    const preferredTypes = ['sublocality_level_1', 'sublocality', 'locality', 'administrative_area_level_2'];
+    for (final result in results) {
+      final components = (result as Map<String, dynamic>)['address_components'] as List? ?? const [];
+      for (final wantedType in preferredTypes) {
+        for (final component in components) {
+          final types = (component as Map<String, dynamic>)['types'] as List? ?? const [];
+          if (types.contains(wantedType)) return component['long_name'] as String?;
+        }
+      }
+    }
+    return null;
   }
 
   /// Plain Google Places text search that does NOT touch the `shops`
