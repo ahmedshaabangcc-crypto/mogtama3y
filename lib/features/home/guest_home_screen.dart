@@ -6,6 +6,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/notifications/notifications_service.dart';
 import '../../core/places/places_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_logo.dart';
 import '../auth/auth_landing_screen.dart';
 import '../jobs/jobs_board_screen.dart';
 import '../lost_found/lost_found_hub_screen.dart';
@@ -172,16 +173,7 @@ class _Header extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.black, width: 2),
-            ),
-            child: CustomPaint(painter: _LogoPainter()),
-          ),
+          const MogtamayLogo(size: 72),
           const SizedBox(height: 12),
           Text('مُجتمعي',
               style: TextStyle(
@@ -333,47 +325,6 @@ class _ExploreLocationBoxState extends State<_ExploreLocationBox> {
       ),
     );
   }
-}
-
-/// Minimal recreation of the mُجتمعي icon (house + three neighbors).
-class _LogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final s = size.width / 200;
-    final stroke = Paint()
-      ..color = Colors.black
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 7 * s
-      ..strokeJoin = StrokeJoin.round
-      ..strokeCap = StrokeCap.round;
-    final path = Path()
-      ..moveTo(100 * s, 42 * s)
-      ..lineTo(150 * s, 84 * s)
-      ..lineTo(150 * s, 152 * s)
-      ..lineTo(50 * s, 152 * s)
-      ..lineTo(50 * s, 84 * s)
-      ..close();
-    canvas.drawPath(path, stroke);
-
-    void person(double cx, Color color, double headR, double top, double bottom) {
-      final fill = Paint()..color = color;
-      canvas.drawCircle(Offset(cx * s, top * s), headR * s, fill);
-      final body = Path()
-        ..moveTo((cx - headR) * s, bottom * s)
-        ..lineTo((cx - headR) * s, (top + headR + 6) * s)
-        ..quadraticBezierTo(cx * s, (top + headR - 5) * s, (cx + headR) * s, (top + headR + 6) * s)
-        ..lineTo((cx + headR) * s, bottom * s)
-        ..close();
-      canvas.drawPath(body, fill);
-    }
-
-    person(76, const Color(0xFF2E7FD6), 9, 112, 142);
-    person(100, const Color(0xFF189E6C), 11, 100, 145);
-    person(124, const Color(0xFFE8912B), 9, 112, 142);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _NewsBanner extends StatelessWidget {
