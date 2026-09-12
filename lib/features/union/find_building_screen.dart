@@ -313,7 +313,7 @@ class _BuildingCard extends StatelessWidget {
           ],
           if (building.status == _QuorumStatus.forming)
             InkWell(
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ElectionVotingScreen(buildingName: building.name))),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ElectionVotingScreen())),
               child: Row(
                 children: [
                   Expanded(
