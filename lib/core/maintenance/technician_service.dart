@@ -124,6 +124,10 @@ class TechnicianService {
     await _client.rpc('cancel_maintenance_request', params: {'p_request_id': requestId});
   }
 
+  static Future<void> flagDispute({required String requestId, required String reason}) async {
+    await _client.rpc('flag_maintenance_dispute', params: {'p_request_id': requestId, 'p_reason': reason});
+  }
+
   static Future<List<Map<String, dynamic>>> fetchMessages(String requestId) async {
     final rows = await _client
         .from('maintenance_messages')

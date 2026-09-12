@@ -1,167 +1,192 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
+import '../../core/admin/admin_service.dart';
+import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../auth/auth_landing_screen.dart';
 
-/// Platform super-admin control panel — dispute arbitration, business
-/// claims, and security controls. Matches
-/// design/screens/23_superadmin_control_panel.png.
-class SuperadminControlPanelScreen extends StatelessWidget {
+String _money(num v) => '${NumberFormat('#,##0.00').format(v)} ج.م';
+
+/// Platform super-admin control panel — real stats plus two real
+/// arbitration queues (shop-claim review, maintenance-escrow disputes)
+/// instead of the fully mocked dashboard this used to be. See
+/// backend/migrations/0024_superadmin.sql. Requires `profiles.role =
+/// 'super_admin'`, granted manually in the SQL editor — there is
+/// deliberately no self-service way to become an admin.
+class SuperadminControlPanelScreen extends StatefulWidget {
   const SuperadminControlPanelScreen({super.key});
 
   @override
+  State<SuperadminControlPanelScreen> createState() => _SuperadminControlPanelScreenState();
+}
+
+class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScreen> {
+  bool _loading = true;
+  bool _denied = false;
+  Map<String, dynamic> _stats = {};
+  List<Map<String, dynamic>> _shopClaims = [];
+  List<Map<String, dynamic>> _disputes = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _denied = false;
+    });
+    try {
+      final stats = await AdminService.fetchDashboardStats();
+      final claims = await AdminService.fetchPendingShopClaims();
+      final disputes = await AdminService.fetchDisputedRequests();
+      if (!mounted) return;
+      setState(() {
+        _stats = stats;
+        _shopClaims = claims;
+        _disputes = disputes;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _denied = true;
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _reviewClaim(String requestId, bool approve) async {
+    try {
+      await AdminService.reviewShopClaim(requestId: requestId, approve: approve);
+      _load();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر تنفيذ الإجراء')));
+    }
+  }
+
+  Future<void> _resolveDispute(String requestId, bool releaseToTechnician) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('فض النزاع'),
+        content: Text(releaseToTechnician ? 'سيتم تحويل المبلغ المحجوز بالكامل للفني.' : 'سيتم رد المبلغ المحجوز بالكامل للساكن.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('تراجع')),
+          ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('تأكيد')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await AdminService.resolveDispute(requestId: requestId, releaseToTechnician: releaseToTechnician);
+      _load();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فض النزاع')));
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (!AuthService.isSignedIn) {
+      return const AuthLandingScreen();
+    }
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_denied) {
+      return Scaffold(
+        backgroundColor: AppColors.bg,
+        appBar: AppBar(title: const Text('لوحة تحكم السوبر أدمن')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text('هذه اللوحة متاحة فقط لمدير المنصة', textAlign: TextAlign.center, style: TextStyle(color: AppColors.inkMuted, fontSize: 13)),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(title: const Text('لوحة تحكم السوبر أدمن')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-        children: [
-          Row(children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: AppColors.teal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(100)),
-              child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.circle, size: 6, color: AppColors.teal),
-                SizedBox(width: 4),
-                Text('سيرفر متصل ومراقَب لحظياً', style: TextStyle(fontSize: 9.5, color: AppColors.teal, fontWeight: FontWeight.w700)),
-              ]),
-            ),
-          ]),
-          const SizedBox(height: 10),
-          const Text('لوحة تحكم السوبر أدمن وفض النزاعات والرقابة العامة', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, height: 1.4)),
-          const SizedBox(height: 16),
-          Row(children: [
-            const Expanded(child: Text('مؤشرات الرقابة الحية', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5))),
-            const Text('تحديث فوري', style: TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
-          ]),
-          const SizedBox(height: 10),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 1.5,
-            children: const [
-              _StatCard(icon: Icons.lock_outline_rounded, value: '142,500 ج.م', label: 'أموال الضمان (Escrow)', note: 'في 46 عملية نشطة ومؤمنة'),
-              _StatCard(icon: Icons.verified_rounded, value: '184 عمارة', label: 'العقارات الموثقة', note: '+12 عمارة هذا الشهر', noteColor: AppColors.teal),
-              _StatCard(icon: Icons.storefront_outlined, value: '5 طلبات', label: 'اعتماد المحلات والأنشطة', note: 'جديدة تنتظر الفحص'),
-              _StatCard(icon: Icons.gavel_rounded, value: '2 نزاعات', label: 'نزاعات بانتظار الحكم', note: 'قيد المراجعة الفورية', noteColor: AppColors.categorySos),
-            ],
-          ),
-          const SizedBox(height: 22),
-          Row(children: [
-            const Expanded(child: Text('فض النزاعات والتحكيم المالي (Escrow)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5))),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(100)),
-              child: const Text('عاجل', style: TextStyle(fontSize: 9, color: AppColors.gold, fontWeight: FontWeight.w700)),
-            ),
-          ]),
-          const SizedBox(height: 10),
-          const _DisputeCard(),
-          const SizedBox(height: 22),
-          Row(children: [
-            const Expanded(child: Text('اعتماد وتملك المحلات والأنشطة (Claim Business)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14))),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
-              child: const Text('5 طلبات', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
-            ),
-          ]),
-          const SizedBox(height: 10),
-          const _ClaimBusinessCard(),
-          const SizedBox(height: 22),
-          Row(children: [
-            const Expanded(child: Text('طلبات شحن رصيد التوكن', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14))),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(100)),
-              child: const Text('3 طلبات', style: TextStyle(fontSize: 9, color: AppColors.gold, fontWeight: FontWeight.w700)),
-            ),
-          ]),
-          const SizedBox(height: 10),
-          const _TokenTopUpCard(residentName: 'م. أحمد عزت', unit: 'برج الياسمين - شقة 402', tokens: 5, amount: 75),
-          const SizedBox(height: 10),
-          const _TokenTopUpCard(residentName: 'د. مي الشاذلي', unit: 'برج الياسمين - شقة 2A', tokens: 10, amount: 150),
-          const SizedBox(height: 22),
-          const Text('أدوات الرقابة والتحكم الأمني المتقدم', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: AppColors.categorySos.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.categorySos.withValues(alpha: 0.3))),
-            child: Row(children: [
-              const Icon(Icons.warning_amber_rounded, color: AppColors.categorySos),
-              const SizedBox(width: 10),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('تجميد حركة المحافظ والتحويلات المالية', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.categorySos)),
-                    Text('يُستخدم فقط في حالات الطوارئ والاشتباه الأمني القصوى', style: TextStyle(fontSize: 9.5, color: AppColors.categorySos)),
-                  ],
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          children: [
+            const Text('مؤشرات المنصة', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
+            const SizedBox(height: 10),
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 1.5,
+              children: [
+                _StatCard(icon: Icons.lock_outline_rounded, value: _money((_stats['total_held_escrow'] as num?) ?? 0), label: 'أموال الضمان المحجوزة حالياً'),
+                _StatCard(icon: Icons.apartment_rounded, value: '${_stats['buildings_count'] ?? 0} عمارة', label: 'عمارات مسجّلة'),
+                _StatCard(icon: Icons.groups_rounded, value: '${_stats['presidents_count'] ?? 0} رئيس', label: 'رؤساء اتحادات موثقين'),
+                _StatCard(
+                  icon: Icons.storefront_outlined,
+                  value: '${_stats['pending_shop_claims_count'] ?? 0} طلب',
+                  label: 'طلبات تملك محلات معلّقة',
+                  noteColor: (_stats['pending_shop_claims_count'] as int? ?? 0) > 0 ? AppColors.gold : AppColors.inkMuted,
                 ),
+              ],
+            ),
+            const SizedBox(height: 22),
+            Row(children: [
+              const Expanded(child: Text('فض النزاعات المالية (Escrow)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5))),
+              if (_disputes.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(100)),
+                  child: const Text('عاجل', style: TextStyle(fontSize: 9, color: AppColors.gold, fontWeight: FontWeight.w700)),
+                ),
+            ]),
+            const SizedBox(height: 10),
+            if (_disputes.isEmpty)
+              const Text('لا توجد نزاعات مفتوحة حالياً', style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted))
+            else
+              for (final d in _disputes) ...[
+                _DisputeCard(request: d, onResolve: _resolveDispute),
+                const SizedBox(height: 14),
+              ],
+            const SizedBox(height: 22),
+            Row(children: [
+              const Expanded(child: Text('اعتماد تملك المحلات (Claim Business)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14))),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
+                child: Text('${_shopClaims.length} طلب', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
               ),
             ]),
-          ),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.shield_outlined, color: AppColors.inkSecondary),
-                    const SizedBox(height: 8),
-                    const Text('رصد الأمان المجتمعي', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5)),
-                    const Text('3 بلاغات محتوى محلي', style: TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: () {},
-                      style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                      icon: const Icon(Icons.arrow_back_rounded, size: 13),
-                      label: const Text('مراجعة البلاغات', style: TextStyle(fontSize: 10.5)),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.badge_outlined, color: AppColors.inkSecondary),
-                    const SizedBox(height: 8),
-                    const Text('صلاحيات الاتحادات', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5)),
-                    const Text('الفحص والتدقيق الدوري', style: TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: () {},
-                      style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                      icon: const Icon(Icons.arrow_back_rounded, size: 13),
-                      label: const Text('إدارة 184 رئيساً', style: TextStyle(fontSize: 10.5)),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ]),
-        ],
+            const SizedBox(height: 10),
+            if (_shopClaims.isEmpty)
+              const Text('لا توجد طلبات معلّقة حالياً', style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted))
+            else
+              for (final c in _shopClaims) ...[
+                _ClaimBusinessCard(claim: c, onReview: _reviewClaim),
+                const SizedBox(height: 14),
+              ],
+          ],
+        ),
       ),
     );
   }
 }
 
 class _StatCard extends StatelessWidget {
-  const _StatCard({required this.icon, required this.value, required this.label, required this.note, this.noteColor = AppColors.inkMuted});
+  const _StatCard({required this.icon, required this.value, required this.label, this.noteColor = AppColors.inkMuted});
   final IconData icon;
-  final String value, label, note;
+  final String value, label;
   final Color noteColor;
 
   @override
@@ -179,10 +204,8 @@ class _StatCard extends StatelessWidget {
             child: Icon(icon, size: 16, color: AppColors.inkSecondary),
           ),
           const SizedBox(height: 8),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-          Text(label, style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
-          const SizedBox(height: 2),
-          Text(note, style: TextStyle(fontSize: 8.5, color: noteColor, fontWeight: FontWeight.w600)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+          Text(label, style: TextStyle(fontSize: 9.5, color: noteColor)),
         ],
       ),
     );
@@ -190,10 +213,16 @@ class _StatCard extends StatelessWidget {
 }
 
 class _DisputeCard extends StatelessWidget {
-  const _DisputeCard();
+  const _DisputeCard({required this.request, required this.onResolve});
+  final Map<String, dynamic> request;
+  final void Function(String requestId, bool releaseToTechnician) onResolve;
 
   @override
   Widget build(BuildContext context) {
+    final resident = request['resident'] as Map<String, dynamic>?;
+    final unit = request['unit'] as Map<String, dynamic>?;
+    final amount = (request['quoted_amount'] as num?) ?? 0;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
@@ -204,168 +233,37 @@ class _DisputeCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
               decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(100)),
-              child: const Text('350 ج.م محجوزة بالضمان', style: TextStyle(fontSize: 9, color: AppColors.gold, fontWeight: FontWeight.w700)),
+              child: Text('${_money(amount)} محجوزة بالضمان', style: const TextStyle(fontSize: 9, color: AppColors.gold, fontWeight: FontWeight.w700)),
             ),
-            const Spacer(),
-            const Text('#842', style: TextStyle(fontSize: 10, color: AppColors.inkMuted)),
           ]),
           const SizedBox(height: 8),
-          const Text('نزاع على خدمة صيانة تكييف', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text('الطرف الأول (مقدم الخدمة)', style: TextStyle(fontSize: 9, color: AppColors.inkMuted)),
-                  Text('صابر للتبريد والتكييف', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5)),
-                  Text('فني معتمد بالمنطقة', style: TextStyle(fontSize: 9, color: AppColors.inkMuted)),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text('الطرف الثاني (الساكن المشتكي)', style: TextStyle(fontSize: 9, color: AppColors.inkMuted)),
-                  Text('م. أحمد عزت', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5)),
-                  Text('برج الياسمين - شقة 402', style: TextStyle(fontSize: 9, color: AppColors.inkMuted)),
-                ],
-              ),
-            ),
-          ]),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: AppColors.categorySos.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(10)),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [Icon(Icons.warning_amber_rounded, size: 13, color: AppColors.categorySos), SizedBox(width: 5), Text('سبب النزاع:', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: AppColors.categorySos))]),
-                SizedBox(height: 4),
-                Text(
-                  'عدم اكتمال شحن الفريون وظهور تسريب مياه كثيف داخل الغرفة بعد ساعتين من مغادرة الفني ورفضه إعادة المعاينة.',
-                  style: TextStyle(fontSize: 10, color: AppColors.inkSecondary, height: 1.6),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(children: [
-            const Icon(Icons.image_outlined, size: 13, color: AppColors.inkMuted),
-            const SizedBox(width: 4),
-            const Text('صور الضرر (2)', style: TextStyle(fontSize: 10, color: AppColors.inkMuted)),
-            const SizedBox(width: 12),
-            const Icon(Icons.chat_bubble_outline_rounded, size: 13, color: AppColors.inkMuted),
-            const SizedBox(width: 4),
-            const Text('محادثة الشات المسجلة', style: TextStyle(fontSize: 10, color: AppColors.inkMuted)),
-          ]),
+          Text('نزاع على خدمة ${request['category']}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+          const SizedBox(height: 4),
+          Text('${resident?['full_name'] ?? ''} • شقة ${unit?['unit_number'] ?? ''}', style: const TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
+          if (request['description'] != null && (request['description'] as String).isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(request['description'] as String, style: const TextStyle(fontSize: 11, color: AppColors.inkSecondary, height: 1.6)),
+          ],
           const SizedBox(height: 12),
-          const Text('اتخاذ القرار الإداري التحكيمي:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            height: 42,
-            child: ElevatedButton.icon(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-              icon: const Icon(Icons.replay_rounded, size: 15),
-              label: const Text('تحرير 350 ج.م للساكن (استرداد كامل)', style: TextStyle(fontSize: 11.5)),
-            ),
-          ),
-          const SizedBox(height: 8),
           Row(children: [
             Expanded(
               child: SizedBox(
-                height: 40,
+                height: 42,
                 child: OutlinedButton(
-                  onPressed: () {},
-                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.inkSecondary, side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                  child: const Text('تكليف فني مُحايد', style: TextStyle(fontSize: 11)),
+                  onPressed: () => onResolve(request['id'] as String, false),
+                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.inkSecondary, side: const BorderSide(color: AppColors.border)),
+                  child: const Text('رد المبلغ للساكن', style: TextStyle(fontSize: 11)),
                 ),
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
               child: SizedBox(
-                height: 40,
+                height: 42,
                 child: ElevatedButton(
-                  onPressed: () {},
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                  child: const Text('تحرير المبلغ للفني', style: TextStyle(fontSize: 11)),
-                ),
-              ),
-            ),
-          ]),
-        ],
-      ),
-    );
-  }
-}
-
-class _TokenTopUpCard extends StatelessWidget {
-  const _TokenTopUpCard({required this.residentName, required this.unit, required this.tokens, required this.amount});
-  final String residentName, unit;
-  final int tokens, amount;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            const CircleAvatar(radius: 16, backgroundColor: AppColors.surfaceAlt, child: Icon(Icons.person_rounded, size: 16, color: AppColors.inkMuted)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(residentName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                  Text(unit, style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text('$tokens توكن', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.gold)),
-                Text('$amount ج.م', style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
-              ],
-            ),
-          ]),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(8)),
-            child: Row(children: const [
-              Icon(Icons.receipt_long_outlined, size: 13, color: AppColors.inkSecondary),
-              SizedBox(width: 6),
-              Text('عرض إثبات التحويل المرفق', style: TextStyle(fontSize: 10.5, color: AppColors.inkSecondary, fontWeight: FontWeight.w600)),
-            ]),
-          ),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(
-              child: SizedBox(
-                height: 38,
-                child: OutlinedButton(
-                  onPressed: () {},
-                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.categorySos, side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                  child: const Text('رفض', style: TextStyle(fontSize: 11)),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: SizedBox(
-                height: 38,
-                child: ElevatedButton(
-                  onPressed: () {},
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                  child: const Text('اعتماد وإضافة الرصيد', style: TextStyle(fontSize: 11)),
+                  onPressed: () => onResolve(request['id'] as String, true),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white),
+                  child: const Text('تحويل المبلغ للفني', style: TextStyle(fontSize: 11)),
                 ),
               ),
             ),
@@ -377,55 +275,41 @@ class _TokenTopUpCard extends StatelessWidget {
 }
 
 class _ClaimBusinessCard extends StatelessWidget {
-  const _ClaimBusinessCard();
+  const _ClaimBusinessCard({required this.claim, required this.onReview});
+  final Map<String, dynamic> claim;
+  final void Function(String requestId, bool approve) onReview;
 
   @override
   Widget build(BuildContext context) {
+    final shop = claim['shop'] as Map<String, dynamic>?;
+    final requester = claim['requester'] as Map<String, dynamic>?;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-              decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
-              child: const Text('طلب تملك وتوصيل', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
-            ),
-            const Spacer(),
-            const Text('#204', style: TextStyle(fontSize: 10, color: AppColors.inkMuted)),
-          ]),
+          Text(shop?['name'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+          if (shop?['address'] != null)
+            Row(children: [
+              const Icon(Icons.location_on_outlined, size: 12, color: AppColors.inkMuted),
+              const SizedBox(width: 4),
+              Text(shop!['address'] as String, style: const TextStyle(fontSize: 10, color: AppColors.inkMuted)),
+            ]),
           const SizedBox(height: 8),
-          const Text('صيدلية الأمل الحديثة', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-          Row(children: const [
-            Icon(Icons.location_on_outlined, size: 12, color: AppColors.inkMuted),
-            SizedBox(width: 4),
-            Text('دجلة المعادي - شارع 206', style: TextStyle(fontSize: 10, color: AppColors.inkMuted)),
-          ]),
-          const SizedBox(height: 10),
-          const Text('الوثائق والتحقق المرفق:', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
-          Row(children: const [
-            Icon(Icons.check_circle_rounded, size: 13, color: AppColors.teal),
-            SizedBox(width: 4),
-            Expanded(child: Text('تزكية رئيس اتحاد ملاك عمارة 14', style: TextStyle(fontSize: 10.5))),
-          ]),
+          Text('مقدَّم من: ${requester?['full_name'] ?? ''} (${requester?['phone'] ?? ''})', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
-          Row(children: const [
-            Icon(Icons.description_outlined, size: 13, color: AppColors.inkSecondary),
-            SizedBox(width: 4),
-            Expanded(child: Text('السجل التجاري والبطاقة الضريبية', style: TextStyle(fontSize: 10.5))),
-          ]),
+          Text('طريقة التحقق: ${claim['verification_method']}', style: const TextStyle(fontSize: 10, color: AppColors.inkMuted)),
           const SizedBox(height: 12),
           Row(children: [
             Expanded(
               child: SizedBox(
                 height: 42,
                 child: OutlinedButton(
-                  onPressed: () {},
-                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.categorySos, side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                  child: const Text('رفض مع ذكر السبب', style: TextStyle(fontSize: 11)),
+                  onPressed: () => onReview(claim['id'] as String, false),
+                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.categorySos, side: const BorderSide(color: AppColors.border)),
+                  child: const Text('رفض', style: TextStyle(fontSize: 11)),
                 ),
               ),
             ),
@@ -434,9 +318,9 @@ class _ClaimBusinessCard extends StatelessWidget {
               child: SizedBox(
                 height: 42,
                 child: ElevatedButton(
-                  onPressed: () {},
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                  child: const Text('اعتماد وتفعيل التوصيل 500م', style: TextStyle(fontSize: 10.5)),
+                  onPressed: () => onReview(claim['id'] as String, true),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, foregroundColor: Colors.white),
+                  child: const Text('اعتماد الملكية', style: TextStyle(fontSize: 11)),
                 ),
               ),
             ),

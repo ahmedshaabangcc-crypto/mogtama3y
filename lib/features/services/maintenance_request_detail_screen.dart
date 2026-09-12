@@ -121,6 +121,23 @@ class _MaintenanceRequestDetailScreenState extends State<MaintenanceRequestDetai
     }
   }
 
+  Future<void> _flagDispute() async {
+    final reasonCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('فتح نزاع'),
+        content: TextField(controller: reasonCtrl, maxLines: 3, decoration: const InputDecoration(labelText: 'اشرح المشكلة')),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('إلغاء')),
+          ElevatedButton(onPressed: () => Navigator.of(context).pop(true), style: ElevatedButton.styleFrom(backgroundColor: AppColors.categorySos, foregroundColor: Colors.white), child: const Text('فتح النزاع')),
+        ],
+      ),
+    );
+    if (confirmed != true || reasonCtrl.text.trim().isEmpty) return;
+    await _runAction(() => TechnicianService.flagDispute(requestId: _request['id'] as String, reason: reasonCtrl.text.trim()));
+  }
+
   Future<void> _confirmRelease() async {
     if (_otpCtrl.text.trim().isEmpty) return;
     await _runAction(() => TechnicianService.confirmCompletionAndRelease(requestId: _request['id'] as String, otp: _otpCtrl.text.trim()));
@@ -197,6 +214,16 @@ class _MaintenanceRequestDetailScreenState extends State<MaintenanceRequestDetai
                         ElevatedButton(onPressed: _busy ? null : _confirmRelease, style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, foregroundColor: Colors.white), child: const Text('تأكيد')),
                       ]),
                     ],
+                  ],
+                  if (status == 'disputed') ...[
+                    const SizedBox(height: 4),
+                    const Text('النزاع قيد المراجعة من إدارة مُجتمعي', style: TextStyle(fontSize: 11.5, color: AppColors.categorySos, fontWeight: FontWeight.w600)),
+                  ] else if (escrowStatus == 'held') ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(onPressed: _busy ? null : _flagDispute, child: const Text('فتح نزاع', style: TextStyle(color: AppColors.categorySos, fontSize: 11.5))),
+                    ),
                   ],
                 ],
               ),
