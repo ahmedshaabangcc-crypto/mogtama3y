@@ -247,7 +247,7 @@ class _WalletScreenState extends State<WalletScreen> {
                 SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    'جميع المعاملات المالية ومبالغ الضمان تخضع لرقابة مجلس إدارة اتحاد ملاك برج الياسمين وحماية بموجب اللائحة الداخلية المعتمدة.',
+                    'جميع المعاملات المالية ومبالغ الضمان تخضع لرقابة مجلس إدارة اتحاد الملاك وحماية بموجب اللائحة الداخلية المعتمدة.',
                     style: TextStyle(fontSize: 9.5, color: AppColors.inkMuted, height: 1.6),
                   ),
                 ),

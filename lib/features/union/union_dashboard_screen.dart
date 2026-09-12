@@ -38,7 +38,7 @@ class UnionDashboardScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
-                child: const Text('برج الياسمين الفاخر ✓', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
+                child: const Text('عمارة موثقة ✓', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
               ),
             ],
           ),
@@ -467,7 +467,7 @@ class _BoardMessage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('أ. طارق المنشاوي', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
-                  Text('رئيس مجلس اتحاد ملاك برج الياسمين', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
+                  Text('رئيس مجلس اتحاد الملاك', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
                 ],
               ),
             ),
