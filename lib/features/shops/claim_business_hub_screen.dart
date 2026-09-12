@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/places/places_service.dart';
+import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
 
 const _methodValues = ['otp', 'document', 'union_president'];
@@ -22,8 +24,30 @@ class _ClaimBusinessHubScreenState extends State<ClaimBusinessHubScreen> {
   bool _submitting = false;
   bool _submitted = false;
   String? _error;
+  String? _documentPath;
+  bool _uploadingDocument = false;
+
+  Future<void> _pickDocument() async {
+    final file = await UploadService.pickImage(source: ImageSource.gallery);
+    if (file == null) return;
+    setState(() => _uploadingDocument = true);
+    try {
+      final path = await UploadService.uploadPrivateDocument(purpose: 'shop-claim', file: file);
+      if (!mounted) return;
+      setState(() => _documentPath = path);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر رفع المستند، حاول مرة أخرى.')));
+    } finally {
+      if (mounted) setState(() => _uploadingDocument = false);
+    }
+  }
 
   Future<void> _submit() async {
+    if (_method == 1 && _documentPath == null) {
+      setState(() => _error = 'ارفع صورة السجل التجاري أو البطاقة الضريبية أولاً');
+      return;
+    }
     setState(() {
       _submitting = true;
       _error = null;
@@ -32,6 +56,7 @@ class _ClaimBusinessHubScreenState extends State<ClaimBusinessHubScreen> {
       await PlacesService.submitClaimRequest(
         shopId: widget.shop['id'] as String,
         verificationMethod: _methodValues[_method],
+        documentUrl: _method == 1 ? _documentPath : null,
       );
       if (!mounted) return;
       setState(() => _submitted = true);
@@ -183,6 +208,35 @@ class _ClaimBusinessHubScreenState extends State<ClaimBusinessHubScreen> {
             title: 'رفع صورة السجل التجاري أو البطاقة الضريبية للمنشأة',
             body: 'رفع مستند رسمي بإدارة أو ملكية المحل لتوثيق الحساب التجاري رسمياً.',
           ),
+          if (_method == 1) ...[
+            const SizedBox(height: 10),
+            InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: _uploadingDocument ? null : _pickDocument,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: _documentPath != null ? AppColors.teal : AppColors.border, width: _documentPath != null ? 1.5 : 1)),
+                child: Column(
+                  children: [
+                    if (_uploadingDocument)
+                      const SizedBox(width: 30, height: 30, child: CircularProgressIndicator(strokeWidth: 2))
+                    else
+                      Icon(
+                        _documentPath != null ? Icons.check_circle_rounded : Icons.upload_file_rounded,
+                        color: _documentPath != null ? AppColors.teal : AppColors.inkMuted,
+                        size: 30,
+                      ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _documentPath != null ? 'تم رفع المستند' : 'اضغط لرفع صورة السجل التجاري أو البطاقة الضريبية',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: _documentPath != null ? AppColors.teal : AppColors.inkSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           _ProofOption(
             selected: _method == 2,

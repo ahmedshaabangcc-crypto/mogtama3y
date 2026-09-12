@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import 'package:url_launcher/url_launcher.dart';
+
 import '../../core/admin/admin_service.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/promote/ad_token_service.dart';
+import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 
@@ -29,6 +32,7 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
   List<Map<String, dynamic>> _shopClaims = [];
   List<Map<String, dynamic>> _disputes = [];
   List<Map<String, dynamic>> _topups = [];
+  List<Map<String, dynamic>> _technicianVerifications = [];
 
   @override
   void initState() {
@@ -46,12 +50,14 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
       final claims = await AdminService.fetchPendingShopClaims();
       final disputes = await AdminService.fetchDisputedRequests();
       final topups = await AdTokenService.fetchPendingTopups();
+      final technicianVerifications = await AdminService.fetchPendingTechnicianVerifications();
       if (!mounted) return;
       setState(() {
         _stats = stats;
         _shopClaims = claims;
         _disputes = disputes;
         _topups = topups;
+        _technicianVerifications = technicianVerifications;
         _loading = false;
       });
     } catch (_) {
@@ -80,6 +86,29 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر تنفيذ الإجراء')));
+    }
+  }
+
+  Future<void> _reviewTechnicianVerification(String technicianId, bool approve) async {
+    try {
+      await AdminService.reviewTechnicianVerification(technicianId: technicianId, approve: approve);
+      _load();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر تنفيذ الإجراء')));
+    }
+  }
+
+  Future<void> _openTechnicianDoc(String technicianId, {required bool isVideo}) async {
+    try {
+      final docs = await AdminService.fetchTechnicianVerificationDocs(technicianId);
+      final path = isVideo ? docs['verification_video_url'] as String? : docs['id_card_url'] as String?;
+      if (path == null) return;
+      final url = await UploadService.createPrivateSignedUrl(path);
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح المستند')));
     }
   }
 
@@ -198,6 +227,23 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
               ],
             const SizedBox(height: 22),
             Row(children: [
+              const Expanded(child: Text('توثيق هوية الفنيين', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14))),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
+                child: Text('${_technicianVerifications.length} طلب', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
+              ),
+            ]),
+            const SizedBox(height: 10),
+            if (_technicianVerifications.isEmpty)
+              const Text('لا توجد طلبات معلّقة حالياً', style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted))
+            else
+              for (final v in _technicianVerifications) ...[
+                _TechnicianVerificationCard(technician: v, onOpenDoc: _openTechnicianDoc, onReview: _reviewTechnicianVerification),
+                const SizedBox(height: 14),
+              ],
+            const SizedBox(height: 22),
+            Row(children: [
               const Expanded(child: Text('طلبات شحن رصيد التوكن', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14))),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -301,6 +347,82 @@ class _DisputeCard extends StatelessWidget {
                   onPressed: () => onResolve(request['id'] as String, true),
                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white),
                   child: const Text('تحويل المبلغ للفني', style: TextStyle(fontSize: 11)),
+                ),
+              ),
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
+}
+
+class _TechnicianVerificationCard extends StatelessWidget {
+  const _TechnicianVerificationCard({required this.technician, required this.onOpenDoc, required this.onReview});
+  final Map<String, dynamic> technician;
+  final Future<void> Function(String technicianId, {required bool isVideo}) onOpenDoc;
+  final void Function(String technicianId, bool approve) onReview;
+
+  @override
+  Widget build(BuildContext context) {
+    final id = technician['id'] as String;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const CircleAvatar(radius: 16, backgroundColor: AppColors.surfaceAlt, child: Icon(Icons.person_rounded, size: 16, color: AppColors.inkMuted)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(technician['full_name'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                  Text('${technician['category'] ?? ''} • ${technician['phone'] ?? ''}', style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
+                ],
+              ),
+            ),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => onOpenDoc(id, isVideo: false),
+                icon: const Icon(Icons.badge_outlined, size: 15),
+                label: const Text('صورة البطاقة', style: TextStyle(fontSize: 11)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => onOpenDoc(id, isVideo: true),
+                icon: const Icon(Icons.videocam_outlined, size: 15),
+                label: const Text('فيديو الوجه', style: TextStyle(fontSize: 11)),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(
+              child: SizedBox(
+                height: 38,
+                child: OutlinedButton(
+                  onPressed: () => onReview(id, false),
+                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.categorySos, side: const BorderSide(color: AppColors.border)),
+                  child: const Text('رفض', style: TextStyle(fontSize: 11)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: SizedBox(
+                height: 38,
+                child: ElevatedButton(
+                  onPressed: () => onReview(id, true),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, foregroundColor: Colors.white),
+                  child: const Text('اعتماد التوثيق', style: TextStyle(fontSize: 11)),
                 ),
               ),
             ),

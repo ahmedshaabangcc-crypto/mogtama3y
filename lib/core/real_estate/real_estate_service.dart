@@ -46,6 +46,7 @@ class RealEstateService {
     int? bedrooms,
     int? bathrooms,
     required bool hideFromOwnBuilding,
+    List<String> images = const [],
   }) async {
     final userId = AuthService.currentUser?.id;
     if (userId == null) throw Exception('يجب تسجيل الدخول أولاً');
@@ -67,6 +68,7 @@ class RealEstateService {
       'bedrooms': bedrooms,
       'bathrooms': bathrooms,
       'hide_from_own_building': hideFromOwnBuilding,
+      'images': images,
     }).select('id').single();
     return row['id'] as String;
   }

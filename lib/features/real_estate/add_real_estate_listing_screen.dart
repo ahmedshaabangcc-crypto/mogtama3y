@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/real_estate/real_estate_service.dart';
+import '../../core/storage/multi_photo_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../promote/promote_listing_screen.dart';
 
@@ -27,6 +28,7 @@ class _AddRealEstateListingScreenState extends State<AddRealEstateListingScreen>
   bool _hideFromBuilding = false;
   bool _submitting = false;
   String? _error;
+  List<String> _images = [];
 
   @override
   void dispose() {
@@ -64,6 +66,7 @@ class _AddRealEstateListingScreenState extends State<AddRealEstateListingScreen>
         bedrooms: int.tryParse(_bedroomsCtrl.text.trim()),
         bathrooms: int.tryParse(_bathroomsCtrl.text.trim()),
         hideFromOwnBuilding: _hideFromBuilding,
+        images: _images,
       );
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
@@ -85,6 +88,10 @@ class _AddRealEstateListingScreenState extends State<AddRealEstateListingScreen>
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
+          const Text('صور العقار', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+          const SizedBox(height: 8),
+          MultiPhotoPicker(purpose: 'real-estate', onChanged: (urls) => setState(() => _images = urls)),
+          const SizedBox(height: 16),
           Row(children: [
             Expanded(
               child: _DealTypeChip(label: 'للبيع', selected: _dealType == 'sale', onTap: () => setState(() => _dealType = 'sale')),

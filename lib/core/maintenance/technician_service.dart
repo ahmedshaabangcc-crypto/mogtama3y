@@ -15,13 +15,21 @@ import '../auth/auth_service.dart';
 const _requestColumns = 'id, unit_id, resident_id, technician_id, category, description, status, '
     'quoted_amount, escrow_status, visit_scheduled_at, completed_at, created_at';
 
+// technicians has a column-level GRANT that deliberately excludes
+// id_card_url/verification_video_url (see
+// backend/migrations/0027_storage_and_verification.sql) — a bare
+// select('*') fails outright for the same reason maintenance_requests'
+// does, so every select against this table lists columns explicitly.
+const _technicianColumns = 'id, user_id, category, bio, rating, rating_count, is_verified, '
+    'escrow_supported, service_area, created_at, verification_status';
+
 class TechnicianService {
   TechnicianService._();
 
   static SupabaseClient get _client => Supabase.instance.client;
 
   static Future<List<Map<String, dynamic>>> fetchTechnicians({String? category}) async {
-    var query = _client.from('technicians').select('*, profile:profiles(full_name, phone)');
+    var query = _client.from('technicians').select('$_technicianColumns, profile:profiles(full_name, phone)');
     if (category != null && category.isNotEmpty) {
       query = query.eq('category', category);
     }
@@ -32,7 +40,7 @@ class TechnicianService {
   static Future<List<Map<String, dynamic>>> fetchMyTechnicianProfiles() async {
     final userId = AuthService.currentUser?.id;
     if (userId == null) return [];
-    final rows = await _client.from('technicians').select().eq('user_id', userId);
+    final rows = await _client.from('technicians').select(_technicianColumns).eq('user_id', userId);
     return List<Map<String, dynamic>>.from(rows as List);
   }
 
@@ -126,6 +134,26 @@ class TechnicianService {
 
   static Future<void> flagDispute({required String requestId, required String reason}) async {
     await _client.rpc('flag_maintenance_dispute', params: {'p_request_id': requestId, 'p_reason': reason});
+  }
+
+  /// [idCardStoragePath]/[videoStoragePath] are private-documents bucket
+  /// paths from UploadService.uploadPrivateDocument, not public URLs —
+  /// see backend/migrations/0027_storage_and_verification.sql.
+  static Future<void> submitVerification({
+    required String technicianId,
+    required String idCardStoragePath,
+    required String videoStoragePath,
+  }) async {
+    await _client.rpc('submit_technician_verification', params: {
+      'p_technician_id': technicianId,
+      'p_id_card_url': idCardStoragePath,
+      'p_verification_video_url': videoStoragePath,
+    });
+  }
+
+  static Future<Map<String, dynamic>> fetchVerification(String technicianId) async {
+    final result = await _client.rpc('fetch_technician_verification', params: {'p_technician_id': technicianId});
+    return Map<String, dynamic>.from(result as Map);
   }
 
   static Future<List<Map<String, dynamic>>> fetchMessages(String requestId) async {

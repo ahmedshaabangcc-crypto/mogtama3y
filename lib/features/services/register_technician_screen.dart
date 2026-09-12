@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/maintenance/technician_service.dart';
 import '../../core/theme/app_colors.dart';
+import 'technician_verification_screen.dart';
 
 const _categories = ['سباكة', 'كهرباء', 'تكييف وتبريد', 'نجارة', 'دهانات', 'أخرى'];
 
@@ -24,6 +25,7 @@ class _RegisterTechnicianScreenState extends State<RegisterTechnicianScreen> {
   bool _submitting = false;
   String? _error;
   bool _done = false;
+  String? _technicianId;
 
   @override
   void dispose() {
@@ -42,9 +44,12 @@ class _RegisterTechnicianScreenState extends State<RegisterTechnicianScreen> {
       _error = null;
     });
     try {
-      await TechnicianService.registerAsTechnician(category: _category, bio: _bioCtrl.text.trim(), serviceArea: _areaCtrl.text.trim());
+      final id = await TechnicianService.registerAsTechnician(category: _category, bio: _bioCtrl.text.trim(), serviceArea: _areaCtrl.text.trim());
       if (!mounted) return;
-      setState(() => _done = true);
+      setState(() {
+        _technicianId = id;
+        _done = true;
+      });
     } catch (_) {
       setState(() => _error = 'تعذر التسجيل، حاول مرة أخرى.');
     } finally {
@@ -68,10 +73,19 @@ class _RegisterTechnicianScreenState extends State<RegisterTechnicianScreen> {
               const SizedBox(height: 8),
               const Text('هيبدأ الجيران يشوفوك ويحجزوا زيارات، وهتلاقي طلباتهم في قسم "طلباتي" بمجرد ما تحجزلك.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.inkMuted, fontSize: 12)),
               const SizedBox(height: 18),
-              ElevatedButton(
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => TechnicianVerificationScreen(technicianId: _technicianId!))),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, foregroundColor: Colors.white),
+                  icon: const Icon(Icons.verified_outlined, size: 18),
+                  label: const Text('وثّق حسابك الآن (اختياري)'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white),
-                child: const Text('حسناً'),
+                child: const Text('لاحقاً'),
               ),
             ]),
           ),

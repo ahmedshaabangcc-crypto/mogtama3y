@@ -64,6 +64,12 @@ dependencies:
   # Real device/browser geolocation for "استكشف عقارك"
   geolocator: ^13.0.2
 
+  # Real photo/video upload (listings, lost & found, technician verification)
+  image_picker: ^1.1.2
+
+  # Opening signed document/video URLs for admin review
+  url_launcher: ^6.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

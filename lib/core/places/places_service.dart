@@ -170,6 +170,7 @@ class PlacesService {
   static Future<void> submitClaimRequest({
     required String shopId,
     required String verificationMethod,
+    String? documentUrl,
   }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('يجب تسجيل الدخول أولاً');
@@ -177,6 +178,7 @@ class PlacesService {
       'shop_id': shopId,
       'requester_id': userId,
       'verification_method': verificationMethod,
+      'document_url': ?documentUrl,
     });
   }
 }

@@ -38,6 +38,7 @@ class LostFoundService {
     required String locationNote,
     String? secretMark,
     double? rewardAmount,
+    String? imageUrl,
   }) async {
     final userId = AuthService.currentUser?.id;
     if (userId == null) {
@@ -58,6 +59,7 @@ class LostFoundService {
       if (secretMark != null && secretMark.trim().isNotEmpty)
         'secret_mark_hash': sha256.convert(utf8.encode(secretMark.trim())).toString(),
       'reward_amount': ?rewardAmount,
+      'image_url': ?imageUrl,
     });
   }
 

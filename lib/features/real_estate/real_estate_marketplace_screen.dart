@@ -255,6 +255,7 @@ class _ListingCardState extends State<_ListingCard> {
     final isSale = l['deal_type'] == 'sale';
     final price = (l['price'] as num).toStringAsFixed(0);
     final isFeatured = AdTokenService.isCurrentlyFeatured(l);
+    final images = (l['images'] as List?)?.cast<String>() ?? const [];
 
     return Container(
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
@@ -264,7 +265,15 @@ class _ListingCardState extends State<_ListingCard> {
         children: [
           Stack(
             children: [
-              Container(height: 140, color: AppColors.surfaceAlt, child: const Center(child: Icon(Icons.villa_outlined, size: 36, color: AppColors.inkMuted))),
+              images.isEmpty
+                  ? Container(height: 140, color: AppColors.surfaceAlt, child: const Center(child: Icon(Icons.villa_outlined, size: 36, color: AppColors.inkMuted)))
+                  : Image.network(
+                      images.first,
+                      height: 140,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(height: 140, color: AppColors.surfaceAlt, child: const Center(child: Icon(Icons.villa_outlined, size: 36, color: AppColors.inkMuted))),
+                    ),
               Positioned(
                 top: 8,
                 right: 8,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/auth/auth_service.dart';
+import '../../core/storage/multi_photo_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../promote/promote_listing_screen.dart';
 
@@ -20,6 +21,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
   bool _hidePhone = true;
   bool _submitting = false;
   String? _error;
+  List<String> _images = [];
 
   final _titleCtrl = TextEditingController(text: 'ماكينة قهوة ديلونجي ديديكا بحالة ممتازة');
   final _priceCtrl = TextEditingController(text: '3850');
@@ -68,6 +70,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'condition': _conditionValues[_condition],
         'hide_from_own_building': _hideFromBuilding,
         'hide_phone_number': _hidePhone,
+        'images': _images,
       }).select('id').single();
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
@@ -88,9 +91,9 @@ class _AddListingScreenState extends State<AddListingScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
-          const _SectionLabel('صور السلعة', trailing: 'تم رفع 2 من 6'),
+          _SectionLabel('صور السلعة', trailing: 'تم رفع ${_images.length} من 6'),
           const SizedBox(height: 10),
-          const _PhotosRow(),
+          MultiPhotoPicker(purpose: 'marketplace', onChanged: (urls) => setState(() => _images = urls)),
           const SizedBox(height: 6),
           const Text('الصور الواضحة مع إضاءة جيدة تزيد من سرعة بيع السلعة بنسبة 60%',
               style: TextStyle(fontSize: 11, color: AppColors.inkMuted)),
@@ -369,83 +372,6 @@ class _DropdownBox extends StatelessWidget {
           const Icon(Icons.expand_more_rounded, size: 18, color: AppColors.inkMuted),
         ],
       ),
-    );
-  }
-}
-
-class _PhotosRow extends StatelessWidget {
-  const _PhotosRow();
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 90,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          Container(
-            width: 90,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceAlt,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border, style: BorderStyle.solid),
-            ),
-            child: const Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.add_circle_outline_rounded, color: AppColors.inkMuted),
-                SizedBox(height: 4),
-                Text('أضف صورة', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          const _PhotoThumb(isMain: false),
-          const SizedBox(width: 10),
-          const _PhotoThumb(isMain: true),
-        ],
-      ),
-    );
-  }
-}
-
-class _PhotoThumb extends StatelessWidget {
-  const _PhotoThumb({required this.isMain});
-  final bool isMain;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Container(
-          width: 90,
-          height: 90,
-          decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(12)),
-          child: const Center(child: Icon(Icons.coffee_maker_rounded, color: AppColors.inkMuted, size: 28)),
-        ),
-        Positioned(
-          top: 4,
-          right: 4,
-          child: Container(
-            width: 20,
-            height: 20,
-            decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-            child: const Icon(Icons.close_rounded, size: 13, color: Colors.white),
-          ),
-        ),
-        if (isMain)
-          Positioned(
-            bottom: 4,
-            left: 4,
-            right: 4,
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 3),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(6)),
-              child: const Text('الرئيسية', style: TextStyle(fontSize: 9.5, color: Colors.white, fontWeight: FontWeight.w600)),
-            ),
-          ),
-      ],
     );
   }
 }

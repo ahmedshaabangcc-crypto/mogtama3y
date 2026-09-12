@@ -211,6 +211,7 @@ class _ItemCard extends StatelessWidget {
     final rewardAmount = (item['reward_amount'] as num?)?.toDouble();
     final createdAt = DateTime.tryParse(item['created_at'] as String? ?? '') ?? DateTime.now();
     final isOwnReport = item['reporter_id'] == AuthService.currentUser?.id;
+    final imageUrl = item['image_url'] as String?;
 
     return Container(
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
@@ -220,7 +221,15 @@ class _ItemCard extends StatelessWidget {
         children: [
           Stack(
             children: [
-              Container(height: 120, color: AppColors.surfaceAlt, child: Center(child: Icon(_categoryIcon(category), size: 36, color: AppColors.inkMuted))),
+              imageUrl != null
+                  ? Image.network(
+                      imageUrl,
+                      height: 120,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(height: 120, color: AppColors.surfaceAlt, child: Center(child: Icon(_categoryIcon(category), size: 36, color: AppColors.inkMuted))),
+                    )
+                  : Container(height: 120, color: AppColors.surfaceAlt, child: Center(child: Icon(_categoryIcon(category), size: 36, color: AppColors.inkMuted))),
               Positioned(
                 top: 8,
                 right: 8,

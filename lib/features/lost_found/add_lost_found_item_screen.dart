@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/lost_found/lost_found_service.dart';
+import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
 
 const _categories = ['مفاتيح', 'محافظ وبطاقات', 'إلكترونية', 'حيوانات أليفة', 'أخرى'];
@@ -21,6 +23,8 @@ class _AddLostFoundItemScreenState extends State<AddLostFoundItemScreen> {
   bool _blurTags = true;
   bool _submitting = false;
   String? _error;
+  String? _imageUrl;
+  bool _uploadingPhoto = false;
 
   final _titleCtrl = TextEditingController();
   final _locationCtrl = TextEditingController();
@@ -34,6 +38,22 @@ class _AddLostFoundItemScreenState extends State<AddLostFoundItemScreen> {
     _secretMarkCtrl.dispose();
     _rewardCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickPhoto() async {
+    final file = await UploadService.pickImage(source: ImageSource.gallery);
+    if (file == null) return;
+    setState(() => _uploadingPhoto = true);
+    try {
+      final url = await UploadService.uploadPublicPhoto(purpose: 'lost-found', file: file);
+      if (!mounted) return;
+      setState(() => _imageUrl = url);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر رفع الصورة، حاول مرة أخرى.')));
+    } finally {
+      if (mounted) setState(() => _uploadingPhoto = false);
+    }
   }
 
   Future<void> _submit() async {
@@ -53,6 +73,7 @@ class _AddLostFoundItemScreenState extends State<AddLostFoundItemScreen> {
         locationNote: _locationCtrl.text.trim(),
         secretMark: _secretMarkCtrl.text.trim().isEmpty ? null : _secretMarkCtrl.text.trim(),
         rewardAmount: _mode == 0 && _rewardCtrl.text.trim().isNotEmpty ? double.tryParse(_rewardCtrl.text.trim()) : null,
+        imageUrl: _imageUrl,
       );
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -90,29 +111,37 @@ class _AddLostFoundItemScreenState extends State<AddLostFoundItemScreen> {
           const SizedBox(height: 20),
           const Text('صورة الأمانة التوثيقية', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
           const SizedBox(height: 10),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 28),
-            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
-            child: Column(
-              children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
-                  child: const Icon(Icons.add_a_photo_outlined, color: AppColors.inkSecondary, size: 24),
-                ),
-                const SizedBox(height: 10),
-                const Text('اضغط لالتقاط أو إرفاق صورة', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
-                const SizedBox(height: 4),
-                const Text('JPG, PNG فقط، حد أقصى 10 ميجا', style: TextStyle(fontSize: 10, color: AppColors.inkMuted)),
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: AppColors.teal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(100)),
-                  child: const Text('نشط: الذكاء الاصطناعي يعالج الصورة تلقائياً', style: TextStyle(fontSize: 9.5, color: AppColors.teal, fontWeight: FontWeight.w600)),
-                ),
-              ],
+          InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: _uploadingPhoto ? null : _pickPhoto,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: _imageUrl != null ? AppColors.teal : AppColors.border, width: _imageUrl != null ? 1.5 : 1)),
+              child: _imageUrl != null
+                  ? Column(
+                      children: [
+                        ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(_imageUrl!, height: 120, width: 120, fit: BoxFit.cover)),
+                        const SizedBox(height: 8),
+                        const Text('تم إرفاق الصورة، اضغط لتغييرها', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5, color: AppColors.teal)),
+                      ],
+                    )
+                  : Column(
+                      children: [
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
+                          child: _uploadingPhoto
+                              ? const Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.add_a_photo_outlined, color: AppColors.inkSecondary, size: 24),
+                        ),
+                        const SizedBox(height: 10),
+                        const Text('اضغط لإرفاق صورة (اختياري)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+                        const SizedBox(height: 4),
+                        const Text('JPG, PNG فقط، حد أقصى 10 ميجا', style: TextStyle(fontSize: 10, color: AppColors.inkMuted)),
+                      ],
+                    ),
             ),
           ),
           const SizedBox(height: 10),

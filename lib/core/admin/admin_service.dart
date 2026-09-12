@@ -41,4 +41,18 @@ class AdminService {
   static Future<void> resolveDispute({required String requestId, required bool releaseToTechnician}) async {
     await _client.rpc('resolve_maintenance_dispute', params: {'p_request_id': requestId, 'p_release_to_technician': releaseToTechnician});
   }
+
+  static Future<List<Map<String, dynamic>>> fetchPendingTechnicianVerifications() async {
+    final rows = await _client.rpc('fetch_pending_technician_verifications');
+    return List<Map<String, dynamic>>.from(rows as List);
+  }
+
+  static Future<Map<String, dynamic>> fetchTechnicianVerificationDocs(String technicianId) async {
+    final result = await _client.rpc('fetch_technician_verification', params: {'p_technician_id': technicianId});
+    return Map<String, dynamic>.from(result as Map);
+  }
+
+  static Future<void> reviewTechnicianVerification({required String technicianId, required bool approve}) async {
+    await _client.rpc('review_technician_verification', params: {'p_technician_id': technicianId, 'p_approve': approve});
+  }
 }
