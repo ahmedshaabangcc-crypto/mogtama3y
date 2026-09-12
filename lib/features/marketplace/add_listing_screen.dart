@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/storage/multi_photo_picker.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/union/union_service.dart';
 import '../promote/promote_listing_screen.dart';
 
 /// Add a new used-item listing — matches design/screens/04_add_used_item_listing.png.
@@ -61,8 +62,11 @@ class _AddListingScreenState extends State<AddListingScreen> {
       _error = null;
     });
     try {
+      final membership = await UnionService.fetchMyMembership();
+      final buildingId = membership?['status'] == 'verified' ? membership!['building_id'] as String? : null;
       final row = await Supabase.instance.client.from('marketplace_listings').insert({
         'seller_id': AuthService.currentUser!.id,
+        'building_id': buildingId,
         'title': title,
         'description': _descriptionCtrl.text.trim(),
         'price': price,

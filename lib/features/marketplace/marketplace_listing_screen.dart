@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/promote/ad_token_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
 import 'add_listing_screen.dart';
 import 'item_details_screen.dart';
@@ -53,9 +54,17 @@ class _MarketplaceListingScreenState extends State<MarketplaceListingScreen> {
         .eq('status', 'active')
         .order('created_at', ascending: false)
         .limit(30);
+    final listings = List<Map<String, dynamic>>.from(rows as List);
+
+    final membership = await UnionService.fetchMyMembership();
+    final myBuildingId = membership?['building_id'] as String?;
+    final visible = myBuildingId == null
+        ? listings
+        : listings.where((l) => !(l['hide_from_own_building'] == true && l['building_id'] == myBuildingId)).toList();
+
     if (!mounted) return;
     setState(() {
-      _listings = AdTokenService.sortFeaturedFirst(List<Map<String, dynamic>>.from(rows as List));
+      _listings = AdTokenService.sortFeaturedFirst(visible);
       _loading = false;
     });
   }
