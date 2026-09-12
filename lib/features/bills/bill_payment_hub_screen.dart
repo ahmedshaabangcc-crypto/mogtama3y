@@ -23,7 +23,11 @@ const _services = [
 ];
 
 /// Fawry-style bill/service payment hub. Ahmed plans to contract
-/// directly with Fawry for the real integration.
+/// directly with Fawry for the real integration — until then this only
+/// lets someone browse categories; no bill lookup or payment is real
+/// yet (see bill_payment_details_screen.dart). Used to also show two
+/// hardcoded "saved bills" as if they were the viewer's own real saved
+/// bills — removed, since no such feature or backing data exists.
 class BillPaymentHubScreen extends StatelessWidget {
   const BillPaymentHubScreen({super.key});
 
@@ -92,75 +96,7 @@ class BillPaymentHubScreen extends StatelessWidget {
               );
             },
           ),
-          const SizedBox(height: 22),
-          Row(children: [
-            const Expanded(child: Text('فواتيرك المحفوظة', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5))),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
-              child: const Text('2 فاتورة', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
-            ),
-          ]),
-          const SizedBox(height: 10),
-          _SavedBillTile(
-            icon: Icons.bolt_rounded,
-            color: const Color(0xFFE8912B),
-            title: 'فاتورة كهرباء - عداد شقة 4B',
-            subtitle: 'رقم العداد: 445982210',
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => const BillPaymentDetailsScreen(serviceName: 'الكهرباء', serviceIcon: Icons.bolt_rounded, serviceColor: Color(0xFFE8912B), numberLabel: 'رقم العداد الكهربائي'),
-            )),
-          ),
-          const SizedBox(height: 10),
-          _SavedBillTile(
-            icon: Icons.smartphone_rounded,
-            color: const Color(0xFF189E6C),
-            title: 'فاتورة موبايل - فودافون',
-            subtitle: 'الرقم: 010XXXXXXXX',
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => const BillPaymentDetailsScreen(serviceName: 'فواتير المحمول', serviceIcon: Icons.smartphone_rounded, serviceColor: Color(0xFF189E6C), numberLabel: 'رقم الهاتف المحمول'),
-            )),
-          ),
         ],
-      ),
-    );
-  }
-}
-
-class _SavedBillTile extends StatelessWidget {
-  const _SavedBillTile({required this.icon, required this.color, required this.title, required this.subtitle, required this.onTap});
-  final IconData icon;
-  final Color color;
-  final String title, subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
-        child: Row(children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, color: color, size: 19),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12), overflow: TextOverflow.ellipsis),
-                Text(subtitle, style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_left_rounded, color: AppColors.inkMuted),
-        ]),
       ),
     );
   }
