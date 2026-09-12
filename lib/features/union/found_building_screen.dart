@@ -7,6 +7,13 @@ import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
 import 'union_dashboard_screen.dart';
 
+const _egyptGovernorates = [
+  'القاهرة', 'الجيزة', 'الإسكندرية', 'الدقهلية', 'البحر الأحمر', 'البحيرة', 'الفيوم',
+  'الغربية', 'الإسماعيلية', 'المنوفية', 'المنيا', 'القليوبية', 'الوادي الجديد', 'السويس',
+  'أسوان', 'أسيوط', 'بني سويف', 'بورسعيد', 'دمياط', 'الشرقية', 'جنوب سيناء', 'كفر الشيخ',
+  'مطروح', 'الأقصر', 'قنا', 'شمال سيناء', 'سوهاج',
+];
+
 /// Real "found your building" flow: creates the building + the founder's
 /// own unit, makes them its verified president, and generates a share-able
 /// invite code for the rest of the neighbors — see
@@ -30,9 +37,10 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
   final _nameCtrl = TextEditingController();
   final _districtCtrl = TextEditingController(text: 'المعادي - دجلة');
   final _cityCtrl = TextEditingController(text: 'القاهرة');
-  final _governorateCtrl = TextEditingController(text: 'القاهرة');
+  String _governorate = 'القاهرة';
   final _unitCtrl = TextEditingController();
   final _floorCtrl = TextEditingController();
+  bool _asPresident = true;
   bool _submitting = false;
   bool _searching = false;
   String? _error;
@@ -49,7 +57,6 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
     _nameCtrl.dispose();
     _districtCtrl.dispose();
     _cityCtrl.dispose();
-    _governorateCtrl.dispose();
     _unitCtrl.dispose();
     _floorCtrl.dispose();
     super.dispose();
@@ -105,12 +112,13 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
         name: _nameCtrl.text.trim(),
         district: _districtCtrl.text.trim(),
         city: _cityCtrl.text.trim(),
-        governorate: _governorateCtrl.text.trim(),
+        governorate: _governorate,
         unitNumber: _unitCtrl.text.trim(),
         floorLabel: _floorCtrl.text.trim(),
         googlePlaceId: _selectedPlaceId,
         lat: _selectedLat,
         lng: _selectedLng,
+        asPresident: _asPresident,
       );
       if (!mounted) return;
       if (code == 'PENDING_EXISTING') {
@@ -190,11 +198,21 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
                 child: const Icon(Icons.military_tech_rounded, color: AppColors.teal, size: 34),
               ),
               const SizedBox(height: 18),
-              Text('تهانينا! أصبحت رئيس اتحاد ملاك ${_nameCtrl.text.trim()}',
-                  textAlign: TextAlign.center, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, height: 1.5)),
+              Text(
+                _asPresident
+                    ? 'تهانينا! أصبحت رئيس اتحاد ملاك ${_nameCtrl.text.trim()}'
+                    : 'تم تسجيل ${_nameCtrl.text.trim()} بنجاح',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, height: 1.5),
+              ),
               const SizedBox(height: 8),
-              const Text('شارك كود الدعوة التالي مع جيرانك لينضموا للعمارة',
-                  textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: AppColors.inkMuted)),
+              Text(
+                _asPresident
+                    ? 'شارك كود الدعوة التالي مع جيرانك لينضموا للعمارة'
+                    : 'انضممت كعضو مجلس مؤقت — شارك كود الدعوة مع جيرانك، ولما توصلوا للنصاب القانوني تقدروا تفتحوا انتخابات لرئيس فعلي من لوحة الاتحاد',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12.5, color: AppColors.inkMuted, height: 1.6),
+              ),
               const SizedBox(height: 20),
               Container(
                 width: double.infinity,
@@ -235,7 +253,7 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(color: AppColors.navy, borderRadius: BorderRadius.circular(16)),
             child: const Text(
-              'كن أنت المبادر الأول! سجّل بيانات عمارتك ووحدتك، وستصبح رئيساً مؤقتاً لاتحاد الملاك مع كود دعوة فوري لدعوة باقي الجيران.',
+              'كن أنت المبادر الأول! سجّل بيانات عمارتك ووحدتك، وهتاخد كود دعوة فوري لدعوة باقي الجيران — اختار تحت لو عايز تبقى رئيس الاتحاد مؤقتاً ولا تفضّل تسيبها لانتخاب حقيقي بعدين.',
               style: TextStyle(color: Colors.white, fontSize: 12.5, height: 1.8),
             ),
           ),
@@ -324,20 +342,41 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
                 Row(children: [
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const _FieldLabel('المحافظة'),
+                      const _FieldLabel('الدولة'),
                       const SizedBox(height: 6),
-                      _Field(controller: _governorateCtrl, hint: 'القاهرة'),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                        decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
+                        child: const Text('مصر', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.inkMuted)),
+                      ),
                     ]),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const _FieldLabel('المدينة'),
+                      const _FieldLabel('المحافظة'),
                       const SizedBox(height: 6),
-                      _Field(controller: _cityCtrl, hint: 'القاهرة'),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _governorate,
+                            isExpanded: true,
+                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.ink),
+                            items: _egyptGovernorates.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                            onChanged: (v) => setState(() => _governorate = v ?? _governorate),
+                          ),
+                        ),
+                      ),
                     ]),
                   ),
                 ]),
+                const SizedBox(height: 14),
+                const _FieldLabel('المدينة'),
+                const SizedBox(height: 6),
+                _Field(controller: _cityCtrl, hint: 'القاهرة'),
                 const SizedBox(height: 14),
                 const _FieldLabel('الحي / المنطقة *'),
                 const SizedBox(height: 6),
@@ -360,6 +399,35 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
                     ]),
                   ),
                 ]),
+                const SizedBox(height: 20),
+                const _FieldLabel('دورك في الاتحاد بعد التسجيل'),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(
+                    child: _RoleChoiceTile(
+                      icon: Icons.military_tech_rounded,
+                      label: 'أنا رئيس الاتحاد',
+                      selected: _asPresident,
+                      onTap: () => setState(() => _asPresident = true),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _RoleChoiceTile(
+                      icon: Icons.groups_rounded,
+                      label: 'أنا ساكن بس، ننتخب رئيس بعدين',
+                      selected: !_asPresident,
+                      onTap: () => setState(() => _asPresident = false),
+                    ),
+                  ),
+                ]),
+                if (!_asPresident) ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    'هتنضم كعضو مجلس مؤقت — تقدر توافق على انضمام الجيران وتفتح انتخابات رئيس حقيقي لما توصلوا للنصاب القانوني، من غير ما تكون رئيس دائم بنفسك.',
+                    style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted, height: 1.6),
+                  ),
+                ],
               ],
             ),
           ),
@@ -392,6 +460,39 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _RoleChoiceTile extends StatelessWidget {
+  const _RoleChoiceTile({required this.icon, required this.label, required this.selected, required this.onTap});
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? AppColors.navy : AppColors.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: selected ? AppColors.navy : AppColors.border),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: selected ? Colors.white : AppColors.inkSecondary),
+            const SizedBox(height: 6),
+            Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: selected ? Colors.white : AppColors.inkSecondary)),
+          ],
+        ),
       ),
     );
   }

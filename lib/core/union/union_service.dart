@@ -30,6 +30,11 @@ class UnionService {
   /// registered, this does NOT create a duplicate — it submits a
   /// pending join request on the existing building instead, and
   /// returns 'PENDING_EXISTING' rather than an invite code.
+  /// [asPresident] false registers the founder as a temporary
+  /// 'board_member' instead of 'president' — enough authority to
+  /// approve pending neighbors and call the founding election
+  /// (createElection), but not permanent unilateral power. See
+  /// backend/migrations/0032_founding_as_resident.sql.
   static Future<String> foundBuilding({
     required String name,
     required String district,
@@ -40,6 +45,7 @@ class UnionService {
     String? googlePlaceId,
     double? lat,
     double? lng,
+    bool asPresident = true,
   }) async {
     final result = await _client.rpc('found_building', params: {
       'p_name': name,
@@ -51,6 +57,7 @@ class UnionService {
       'p_google_place_id': googlePlaceId,
       'p_lat': lat,
       'p_lng': lng,
+      'p_as_president': asPresident,
     });
     return result as String;
   }
