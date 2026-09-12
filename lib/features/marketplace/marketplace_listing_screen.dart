@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/auth/auth_service.dart';
+import '../../core/promote/ad_token_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import 'add_listing_screen.dart';
@@ -54,7 +55,7 @@ class _MarketplaceListingScreenState extends State<MarketplaceListingScreen> {
         .limit(30);
     if (!mounted) return;
     setState(() {
-      _listings = List<Map<String, dynamic>>.from(rows as List);
+      _listings = AdTokenService.sortFeaturedFirst(List<Map<String, dynamic>>.from(rows as List));
       _loading = false;
     });
   }
@@ -223,6 +224,7 @@ class _ListingCard extends StatelessWidget {
     final sellerProfile = listing['seller'] as Map<String, dynamic>?;
     final sellerName = sellerProfile?['full_name'] as String? ?? 'عضو مُجتمعي';
     final sellerVerified = sellerProfile?['is_verified'] as bool? ?? false;
+    final isFeatured = AdTokenService.isCurrentlyFeatured(listing);
 
     return InkWell(
       borderRadius: BorderRadius.circular(16),
@@ -283,6 +285,20 @@ class _ListingCard extends StatelessWidget {
                     child: Text(_conditionLabels[condition] ?? condition, style: const TextStyle(color: Colors.white, fontSize: 10)),
                   ),
                 ),
+                if (isFeatured)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(8)),
+                      child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.local_fire_department_rounded, size: 12, color: Colors.white),
+                        SizedBox(width: 3),
+                        Text('مميز', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                      ]),
+                    ),
+                  ),
               ],
             ),
             Padding(

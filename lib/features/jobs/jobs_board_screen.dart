@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/jobs/jobs_service.dart';
+import '../../core/promote/ad_token_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import 'job_details_screen.dart';
@@ -146,6 +147,7 @@ class _JobCard extends StatelessWidget {
     final createdAt = DateTime.tryParse(job['created_at'] as String? ?? '') ?? DateTime.now();
     final poster = job['poster'] as Map<String, dynamic>?;
     final posterName = poster?['full_name'] as String? ?? 'صاحب العمل';
+    final isFeatured = AdTokenService.isCurrentlyFeatured(job);
 
     return InkWell(
       borderRadius: BorderRadius.circular(16),
@@ -168,7 +170,17 @@ class _JobCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5), maxLines: 2, overflow: TextOverflow.ellipsis),
+                    Row(children: [
+                      Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                      if (isFeatured) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(100)),
+                          child: const Text('مميز', style: TextStyle(color: Colors.white, fontSize: 8.5, fontWeight: FontWeight.w700)),
+                        ),
+                      ],
+                    ]),
                     Text(category != null ? '$posterName • $category' : posterName, style: const TextStyle(fontSize: 10.5, color: AppColors.inkMuted), overflow: TextOverflow.ellipsis),
                   ],
                 ),

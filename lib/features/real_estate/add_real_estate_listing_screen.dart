@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/real_estate/real_estate_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../promote/promote_listing_screen.dart';
 
 /// Publishes a real real_estate_listings row — see
 /// backend/migrations/0023_real_estate.sql. Requires the caller to
@@ -54,7 +55,7 @@ class _AddRealEstateListingScreenState extends State<AddRealEstateListingScreen>
       _error = null;
     });
     try {
-      await RealEstateService.createListing(
+      final id = await RealEstateService.createListing(
         dealType: _dealType,
         title: title,
         description: _descriptionCtrl.text.trim(),
@@ -65,7 +66,10 @@ class _AddRealEstateListingScreenState extends State<AddRealEstateListingScreen>
         hideFromOwnBuilding: _hideFromBuilding,
       );
       if (!mounted) return;
-      Navigator.of(context).pop(true);
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => PromoteListingScreen(listingTable: 'real_estate_listings', listingId: id, listingTitle: title)),
+        result: true,
+      );
     } catch (e) {
       setState(() => _error = e.toString().contains('توثيق') ? e.toString().replaceFirst('Exception: ', '') : 'تعذر نشر الإعلان، حاول مرة أخرى.');
     } finally {

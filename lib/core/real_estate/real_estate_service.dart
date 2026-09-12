@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/auth_service.dart';
+import '../promote/ad_token_service.dart';
 import '../union/union_service.dart';
 
 /// Real peer-to-peer real estate listings — see
@@ -23,8 +24,10 @@ class RealEstateService {
 
     final membership = await UnionService.fetchMyMembership();
     final myBuildingId = membership?['building_id'] as String?;
-    if (myBuildingId == null) return listings;
-    return listings.where((l) => !(l['hide_from_own_building'] == true && l['building_id'] == myBuildingId)).toList();
+    final visible = myBuildingId == null
+        ? listings
+        : listings.where((l) => !(l['hide_from_own_building'] == true && l['building_id'] == myBuildingId)).toList();
+    return AdTokenService.sortFeaturedFirst(visible);
   }
 
   static Future<List<Map<String, dynamic>>> fetchMyListings() async {
@@ -34,7 +37,7 @@ class RealEstateService {
     return List<Map<String, dynamic>>.from(rows as List);
   }
 
-  static Future<void> createListing({
+  static Future<String> createListing({
     required String dealType,
     required String title,
     required String description,
@@ -52,7 +55,7 @@ class RealEstateService {
       throw Exception('يجب الانضمام لعمارتك وتوثيق حسابك أولاً قبل نشر إعلان عقاري');
     }
 
-    await _client.from('real_estate_listings').insert({
+    final row = await _client.from('real_estate_listings').insert({
       'owner_id': userId,
       'building_id': membership['building_id'],
       'unit_id': membership['unit_id'],
@@ -64,7 +67,8 @@ class RealEstateService {
       'bedrooms': bedrooms,
       'bathrooms': bathrooms,
       'hide_from_own_building': hideFromOwnBuilding,
-    });
+    }).select('id').single();
+    return row['id'] as String;
   }
 
   static Future<void> removeListing(String listingId) async {

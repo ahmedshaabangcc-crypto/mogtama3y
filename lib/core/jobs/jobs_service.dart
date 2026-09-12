@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/auth_service.dart';
+import '../promote/ad_token_service.dart';
 
 /// Real job postings + applications — see backend/migrations/0010_jobs.sql.
 class JobsService {
@@ -15,10 +16,10 @@ class JobsService {
         .eq('is_active', true)
         .order('created_at', ascending: false)
         .limit(30);
-    return List<Map<String, dynamic>>.from(rows as List);
+    return AdTokenService.sortFeaturedFirst(List<Map<String, dynamic>>.from(rows as List));
   }
 
-  static Future<void> postJob({
+  static Future<String> postJob({
     required String title,
     required String category,
     required String employmentType,
@@ -29,7 +30,7 @@ class JobsService {
   }) async {
     final userId = AuthService.currentUser?.id;
     if (userId == null) throw Exception('يجب تسجيل الدخول أولاً');
-    await _client.from('job_postings').insert({
+    final row = await _client.from('job_postings').insert({
       'poster_id': userId,
       'title': title,
       'category': category,
@@ -38,7 +39,8 @@ class JobsService {
       'salary_max': salaryMax,
       'salary_negotiable': salaryNegotiable,
       'requirements': requirements,
-    });
+    }).select('id').single();
+    return row['id'] as String;
   }
 
   static Future<void> apply({

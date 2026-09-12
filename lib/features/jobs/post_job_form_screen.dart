@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/jobs/jobs_service.dart';
 import '../../core/theme/app_colors.dart';
-import 'jobs_board_screen.dart';
+import '../promote/promote_listing_screen.dart';
 
 /// Post a new job listing (step 1 of 2) — matches
 /// design/screens/32_post_job_form.png.
@@ -54,7 +54,7 @@ class _PostJobFormScreenState extends State<PostJobFormScreen> {
       _error = null;
     });
     try {
-      await JobsService.postJob(
+      final id = await JobsService.postJob(
         title: _titleCtrl.text.trim(),
         category: _categoryCtrl.text.trim(),
         employmentType: _scheduleValues[_scheduleType],
@@ -64,7 +64,9 @@ class _PostJobFormScreenState extends State<PostJobFormScreen> {
         requirements: _requirementsCtrl.text.trim(),
       );
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const JobsBoardScreen()));
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => PromoteListingScreen(listingTable: 'job_postings', listingId: id, listingTitle: _titleCtrl.text.trim())),
+      );
     } catch (_) {
       setState(() => _error = 'تعذر نشر الإعلان، حاول مرة أخرى.');
     } finally {

@@ -1,36 +1,84 @@
 import 'package:flutter/material.dart';
 
+import '../../core/promote/ad_token_service.dart';
 import '../../core/theme/app_colors.dart';
 import 'token_wallet_screen.dart';
 import 'top_up_tokens_screen.dart';
 
-const _dailyRateTokens = 1;
-const _currentBalance = 7;
+const _categoryLabels = {
+  'marketplace_listings': 'سوق المستعمل',
+  'real_estate_listings': 'عقارات',
+  'job_postings': 'وظائف',
+};
 
-/// Feature/promote a listing so it shows first with a "مميز" badge —
-/// pay per day out of the token balance.
+/// Feature/promote any of the three real ad types (marketplace listing,
+/// real estate listing, job posting) so it shows first with a "مميز"
+/// badge — pays per day out of the real token balance. See
+/// backend/migrations/0026_ad_tokens.sql.
 class PromoteListingScreen extends StatefulWidget {
-  const PromoteListingScreen({super.key, this.listingTitle = 'صالون زاوية L-Shape مودرن تركي'});
-  final String listingTitle;
+  const PromoteListingScreen({super.key, required this.listingTable, required this.listingId, required this.listingTitle});
+  final String listingTable, listingId, listingTitle;
 
   @override
   State<PromoteListingScreen> createState() => _PromoteListingScreenState();
 }
 
 class _PromoteListingScreenState extends State<PromoteListingScreen> {
+  bool _loading = true;
   int _days = 3;
+  int _balance = 0;
+  int _dailyRate = 1;
   bool _confirmed = false;
+  bool _submitting = false;
 
-  int get _cost => _days * _dailyRateTokens;
-  bool get _canAfford => _cost <= _currentBalance;
+  int get _cost => _days * _dailyRate;
+  bool get _canAfford => _cost <= _balance;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final settings = await AdTokenService.fetchSettings();
+    final balance = await AdTokenService.fetchMyBalance();
+    if (!mounted) return;
+    setState(() {
+      _dailyRate = settings['daily_rate_tokens'] as int? ?? 1;
+      _balance = balance;
+      _loading = false;
+    });
+  }
+
+  Future<void> _confirm() async {
+    setState(() => _submitting = true);
+    try {
+      await AdTokenService.featureListing(listingTable: widget.listingTable, listingId: widget.listingId, days: _days);
+      if (!mounted) return;
+      setState(() => _confirmed = true);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر تمييز الإعلان، حاول مرة أخرى.')));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     if (_confirmed) return _buildConfirmed(context);
 
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('تمييز الإعلان')),
+      appBar: AppBar(
+        title: const Text('تمييز الإعلان'),
+        actions: [TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('تخطي', style: TextStyle(color: Colors.white)))],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         children: [
@@ -50,7 +98,7 @@ class _PromoteListingScreenState extends State<PromoteListingScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(widget.listingTitle, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5), maxLines: 2, overflow: TextOverflow.ellipsis),
-                    const Text('سوق المستعمل', style: TextStyle(fontSize: 10, color: AppColors.inkMuted)),
+                    Text(_categoryLabels[widget.listingTable] ?? '', style: const TextStyle(fontSize: 10, color: AppColors.inkMuted)),
                   ],
                 ),
               ),
@@ -60,10 +108,10 @@ class _PromoteListingScreenState extends State<PromoteListingScreen> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(14)),
-            child: Row(children: [
-              const Icon(Icons.bolt_rounded, color: AppColors.gold),
-              const SizedBox(width: 10),
-              const Expanded(
+            child: const Row(children: [
+              Icon(Icons.bolt_rounded, color: AppColors.gold),
+              SizedBox(width: 10),
+              Expanded(
                 child: Text(
                   'الإعلانات المميزة تظهر أولاً في نتائج البحث وبعلامة "مميز" ذهبية لجذب أكبر عدد من الجيران.',
                   style: TextStyle(fontSize: 10.5, color: AppColors.gold, height: 1.7, fontWeight: FontWeight.w600),
@@ -92,7 +140,7 @@ class _PromoteListingScreenState extends State<PromoteListingScreen> {
                       child: Column(
                         children: [
                           Text('$d ${d == 1 ? 'يوم' : 'أيام'}', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: _days == d ? Colors.white : AppColors.ink)),
-                          Text('$d توكن', style: TextStyle(fontSize: 9.5, color: _days == d ? Colors.white70 : AppColors.inkMuted)),
+                          Text('${d * _dailyRate} توكن', style: TextStyle(fontSize: 9.5, color: _days == d ? Colors.white70 : AppColors.inkMuted)),
                         ],
                       ),
                     ),
@@ -111,7 +159,7 @@ class _PromoteListingScreenState extends State<PromoteListingScreen> {
                 Row(children: [
                   const Text('السعر اليومي الحالي', style: TextStyle(fontSize: 11.5, color: AppColors.inkSecondary)),
                   const Spacer(),
-                  const Text('1 توكن / يوم', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                  Text('$_dailyRate توكن / يوم', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
                 ]),
                 const SizedBox(height: 8),
                 const Divider(height: 1, color: AppColors.border),
@@ -125,7 +173,7 @@ class _PromoteListingScreenState extends State<PromoteListingScreen> {
                 Row(children: [
                   const Text('رصيدك الحالي', style: TextStyle(fontSize: 10, color: AppColors.inkMuted)),
                   const Spacer(),
-                  Text('$_currentBalance توكن', style: TextStyle(fontSize: 10, color: _canAfford ? AppColors.inkMuted : AppColors.categorySos, fontWeight: FontWeight.w600)),
+                  Text('$_balance توكن', style: TextStyle(fontSize: 10, color: _canAfford ? AppColors.inkMuted : AppColors.categorySos, fontWeight: FontWeight.w600)),
                 ]),
               ],
             ),
@@ -140,7 +188,10 @@ class _PromoteListingScreenState extends State<PromoteListingScreen> {
                 const SizedBox(width: 8),
                 const Expanded(child: Text('رصيدك غير كافٍ لهذه المدة. اشحن رصيدك أولاً.', style: TextStyle(fontSize: 11, color: AppColors.categorySos, fontWeight: FontWeight.w600))),
                 TextButton(
-                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TopUpTokensScreen())),
+                  onPressed: () async {
+                    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TopUpTokensScreen()));
+                    _load();
+                  },
                   child: const Text('شحن الآن', style: TextStyle(fontSize: 11)),
                 ),
               ]),
@@ -151,9 +202,11 @@ class _PromoteListingScreenState extends State<PromoteListingScreen> {
             width: double.infinity,
             height: 52,
             child: ElevatedButton.icon(
-              onPressed: _canAfford ? () => setState(() => _confirmed = true) : null,
+              onPressed: _canAfford && !_submitting ? _confirm : null,
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, disabledBackgroundColor: AppColors.surfaceAlt, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-              icon: const Icon(Icons.local_fire_department_rounded, size: 18),
+              icon: _submitting
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.local_fire_department_rounded, size: 18),
               label: Text('تأكيد التمييز مقابل $_cost توكن', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
             ),
           ),
@@ -186,6 +239,16 @@ class _PromoteListingScreenState extends State<PromoteListingScreen> {
             style: const TextStyle(fontSize: 12, color: AppColors.inkSecondary, height: 1.8),
           ),
           const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+              child: const Text('تمام', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+            ),
+          ),
+          const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
             height: 50,

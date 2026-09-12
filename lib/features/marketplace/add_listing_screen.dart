@@ -59,7 +59,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
       _error = null;
     });
     try {
-      await Supabase.instance.client.from('marketplace_listings').insert({
+      final row = await Supabase.instance.client.from('marketplace_listings').insert({
         'seller_id': AuthService.currentUser!.id,
         'title': title,
         'description': _descriptionCtrl.text.trim(),
@@ -68,10 +68,10 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'condition': _conditionValues[_condition],
         'hide_from_own_building': _hideFromBuilding,
         'hide_phone_number': _hidePhone,
-      });
+      }).select('id').single();
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => PromoteListingScreen(listingTitle: title)),
+        MaterialPageRoute(builder: (_) => PromoteListingScreen(listingTable: 'marketplace_listings', listingId: row['id'] as String, listingTitle: title)),
       );
     } catch (_) {
       setState(() => _error = 'تعذر نشر الإعلان، تحقق من اتصالك بالإنترنت وحاول مرة أخرى.');

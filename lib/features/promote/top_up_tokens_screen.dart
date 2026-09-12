@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../../core/promote/ad_token_service.dart';
 import '../../core/theme/app_colors.dart';
 
-const _tokenPriceEgp = 15;
 const _minTokens = 5;
 
-/// Request a manual token top-up: send via InstaPay/wallet, then upload
-/// proof of payment for admin approval.
+/// Request a real manual token top-up — see
+/// backend/migrations/0026_ad_tokens.sql. No file/image upload exists
+/// anywhere in this app yet, so "proof" here is a short typed
+/// reference (transaction id, sender name) rather than a screenshot —
+/// honest and fully functional today; swap in real upload later.
 class TopUpTokensScreen extends StatefulWidget {
   const TopUpTokensScreen({super.key});
 
@@ -15,14 +18,64 @@ class TopUpTokensScreen extends StatefulWidget {
 }
 
 class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
+  bool _loading = true;
   int _tokens = _minTokens;
-  bool _proofAttached = false;
+  double _tokenPrice = 15;
+  String _phone = '01050780807';
+  final _proofCtrl = TextEditingController();
+  bool _submitting = false;
   bool _submitted = false;
+  String? _error;
 
-  int get _amountEgp => _tokens * _tokenPriceEgp;
+  int get _amountEgp => (_tokens * _tokenPrice).round();
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _proofCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final settings = await AdTokenService.fetchSettings();
+    if (!mounted) return;
+    setState(() {
+      _tokenPrice = (settings['token_price_egp'] as num?)?.toDouble() ?? 15;
+      _phone = settings['topup_phone'] as String? ?? _phone;
+      _loading = false;
+    });
+  }
+
+  Future<void> _submit() async {
+    if (_proofCtrl.text.trim().isEmpty) {
+      setState(() => _error = 'اكتب رقم العملية أو تفاصيل التحويل أولاً');
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await AdTokenService.requestTopup(tokens: _tokens, proofNote: _proofCtrl.text.trim());
+      if (!mounted) return;
+      setState(() => _submitted = true);
+    } catch (_) {
+      setState(() => _error = 'تعذر إرسال الطلب، حاول مرة أخرى.');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     if (_submitted) return _buildSubmitted(context);
 
     return Scaffold(
@@ -31,9 +84,9 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         children: [
-          const Text(
-            'استخدم رصيد التوكن لتمييز إعلاناتك وظهورها أولاً لجيرانك. السعر الحالي 15 ج.م للتوكن الواحد.',
-            style: TextStyle(fontSize: 11.5, color: AppColors.inkSecondary, height: 1.8),
+          Text(
+            'استخدم رصيد التوكن لتمييز إعلاناتك وظهورها أولاً لجيرانك. السعر الحالي ${_tokenPrice.toStringAsFixed(0)} ج.م للتوكن الواحد.',
+            style: const TextStyle(fontSize: 11.5, color: AppColors.inkSecondary, height: 1.8),
           ),
           const SizedBox(height: 18),
           const Text('اختر عدد التوكنات', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
@@ -46,10 +99,7 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _StepperButton(
-                      icon: Icons.remove_rounded,
-                      onTap: _tokens > _minTokens ? () => setState(() => _tokens -= 5) : null,
-                    ),
+                    _StepperButton(icon: Icons.remove_rounded, onTap: _tokens > _minTokens ? () => setState(() => _tokens -= 5) : null),
                     SizedBox(
                       width: 120,
                       child: Column(
@@ -98,53 +148,48 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
-                  child: const Text('01050780807', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: 1)),
+                  child: Text(_phone, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: 1)),
                 ),
                 const SizedBox(height: 10),
-                Row(children: const [
+                const Row(children: [
                   Icon(Icons.info_outline_rounded, size: 13, color: Colors.white70),
                   SizedBox(width: 6),
-                  Expanded(child: Text('بعد التحويل، ارفع صورة إثبات الدفع تحت. رصيدك يُضاف بعد مراجعة واعتماد الإدارة يدوياً.', style: TextStyle(color: Colors.white70, fontSize: 10, height: 1.6))),
+                  Expanded(child: Text('بعد التحويل، اكتب تفاصيل العملية تحت. رصيدك يُضاف بعد مراجعة واعتماد الإدارة يدوياً.', style: TextStyle(color: Colors.white70, fontSize: 10, height: 1.6))),
                 ]),
               ],
             ),
           ),
           const SizedBox(height: 18),
-          const Text('إثبات الدفع *', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+          const Text('تفاصيل التحويل *', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
           const SizedBox(height: 8),
-          InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: () => setState(() => _proofAttached = true),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 22),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: _proofAttached ? AppColors.teal : AppColors.border, width: _proofAttached ? 1.5 : 1),
-              ),
-              child: Column(
-                children: [
-                  Icon(_proofAttached ? Icons.check_circle_rounded : Icons.upload_file_rounded, size: 32, color: _proofAttached ? AppColors.teal : AppColors.inkMuted),
-                  const SizedBox(height: 8),
-                  Text(
-                    _proofAttached ? 'تم إرفاق إيصال التحويل' : 'اضغط لرفع لقطة شاشة الإيصال',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: _proofAttached ? AppColors.teal : AppColors.inkSecondary),
-                  ),
-                  const SizedBox(height: 3),
-                  const Text('JPG, PNG (حد أقصى 10 ميجابايت)', style: TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
-                ],
-              ),
+          TextField(
+            controller: _proofCtrl,
+            maxLines: 2,
+            decoration: InputDecoration(
+              hintText: 'مثال: تحويل InstaPay رقم 123456 باسم أحمد',
+              hintStyle: const TextStyle(color: AppColors.inkMuted, fontSize: 11.5),
+              filled: true,
+              fillColor: AppColors.surface,
+              contentPadding: const EdgeInsets.all(14),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.border)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.border)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.teal, width: 1.4)),
             ),
           ),
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+          ],
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
             height: 52,
             child: ElevatedButton.icon(
-              onPressed: _proofAttached ? () => setState(() => _submitted = true) : null,
+              onPressed: _submitting ? null : _submit,
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, disabledBackgroundColor: AppColors.surfaceAlt, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-              icon: const Icon(Icons.send_rounded, size: 17),
+              icon: _submitting
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.send_rounded, size: 17),
               label: const Text('إرسال طلب الشحن للمراجعة', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
             ),
           ),
@@ -172,7 +217,7 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
           const Text('طلبك قيد المراجعة', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
           const SizedBox(height: 8),
           Text(
-            'تم استلام طلب شحن $_tokens توكن ($_amountEgp ج.م) وإثبات الدفع. سيتم مراجعته واعتماده يدوياً وإضافة الرصيد لحسابك خلال ساعات قليلة.',
+            'تم استلام طلب شحن $_tokens توكن ($_amountEgp ج.م). سيتم مراجعته واعتماده يدوياً وإضافة الرصيد لحسابك خلال ساعات قليلة.',
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 12, color: AppColors.inkSecondary, height: 1.8),
           ),

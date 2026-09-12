@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/admin/admin_service.dart';
 import '../../core/auth/auth_service.dart';
+import '../../core/promote/ad_token_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 
@@ -27,6 +28,7 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
   Map<String, dynamic> _stats = {};
   List<Map<String, dynamic>> _shopClaims = [];
   List<Map<String, dynamic>> _disputes = [];
+  List<Map<String, dynamic>> _topups = [];
 
   @override
   void initState() {
@@ -43,11 +45,13 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
       final stats = await AdminService.fetchDashboardStats();
       final claims = await AdminService.fetchPendingShopClaims();
       final disputes = await AdminService.fetchDisputedRequests();
+      final topups = await AdTokenService.fetchPendingTopups();
       if (!mounted) return;
       setState(() {
         _stats = stats;
         _shopClaims = claims;
         _disputes = disputes;
+        _topups = topups;
         _loading = false;
       });
     } catch (_) {
@@ -62,6 +66,16 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
   Future<void> _reviewClaim(String requestId, bool approve) async {
     try {
       await AdminService.reviewShopClaim(requestId: requestId, approve: approve);
+      _load();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر تنفيذ الإجراء')));
+    }
+  }
+
+  Future<void> _reviewTopup(String requestId, bool approve) async {
+    try {
+      await AdTokenService.reviewTopup(requestId: requestId, approve: approve);
       _load();
     } catch (_) {
       if (!mounted) return;
@@ -139,6 +153,12 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
                   label: 'طلبات تملك محلات معلّقة',
                   noteColor: (_stats['pending_shop_claims_count'] as int? ?? 0) > 0 ? AppColors.gold : AppColors.inkMuted,
                 ),
+                _StatCard(
+                  icon: Icons.toll_outlined,
+                  value: '${_stats['pending_token_topups_count'] ?? 0} طلب',
+                  label: 'طلبات شحن توكن معلّقة',
+                  noteColor: (_stats['pending_token_topups_count'] as int? ?? 0) > 0 ? AppColors.gold : AppColors.inkMuted,
+                ),
               ],
             ),
             const SizedBox(height: 22),
@@ -174,6 +194,23 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
             else
               for (final c in _shopClaims) ...[
                 _ClaimBusinessCard(claim: c, onReview: _reviewClaim),
+                const SizedBox(height: 14),
+              ],
+            const SizedBox(height: 22),
+            Row(children: [
+              const Expanded(child: Text('طلبات شحن رصيد التوكن', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14))),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
+                child: Text('${_topups.length} طلب', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
+              ),
+            ]),
+            const SizedBox(height: 10),
+            if (_topups.isEmpty)
+              const Text('لا توجد طلبات معلّقة حالياً', style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted))
+            else
+              for (final t in _topups) ...[
+                _TokenTopUpCard(request: t, onReview: _reviewTopup),
                 const SizedBox(height: 14),
               ],
           ],
@@ -264,6 +301,85 @@ class _DisputeCard extends StatelessWidget {
                   onPressed: () => onResolve(request['id'] as String, true),
                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white),
                   child: const Text('تحويل المبلغ للفني', style: TextStyle(fontSize: 11)),
+                ),
+              ),
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
+}
+
+class _TokenTopUpCard extends StatelessWidget {
+  const _TokenTopUpCard({required this.request, required this.onReview});
+  final Map<String, dynamic> request;
+  final void Function(String requestId, bool approve) onReview;
+
+  @override
+  Widget build(BuildContext context) {
+    final requester = request['requester'] as Map<String, dynamic>?;
+    final tokens = request['tokens_requested'] as int? ?? 0;
+    final amount = (request['amount_egp'] as num?) ?? 0;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const CircleAvatar(radius: 16, backgroundColor: AppColors.surfaceAlt, child: Icon(Icons.person_rounded, size: 16, color: AppColors.inkMuted)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(requester?['full_name'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                  Text(requester?['phone'] as String? ?? '', style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('$tokens توكن', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.gold)),
+                Text('$amount ج.م', style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
+              ],
+            ),
+          ]),
+          if (request['proof_note'] != null && (request['proof_note'] as String).isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(8)),
+              child: Row(children: [
+                const Icon(Icons.receipt_long_outlined, size: 13, color: AppColors.inkSecondary),
+                const SizedBox(width: 6),
+                Expanded(child: Text(request['proof_note'] as String, style: const TextStyle(fontSize: 10.5, color: AppColors.inkSecondary, fontWeight: FontWeight.w600))),
+              ]),
+            ),
+          ],
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(
+              child: SizedBox(
+                height: 38,
+                child: OutlinedButton(
+                  onPressed: () => onReview(request['id'] as String, false),
+                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.categorySos, side: const BorderSide(color: AppColors.border)),
+                  child: const Text('رفض', style: TextStyle(fontSize: 11)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: SizedBox(
+                height: 38,
+                child: ElevatedButton(
+                  onPressed: () => onReview(request['id'] as String, true),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, foregroundColor: Colors.white),
+                  child: const Text('اعتماد وإضافة الرصيد', style: TextStyle(fontSize: 11)),
                 ),
               ),
             ),

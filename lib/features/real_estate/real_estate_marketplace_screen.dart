@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/auth/auth_service.dart';
+import '../../core/promote/ad_token_service.dart';
 import '../../core/real_estate/real_estate_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
@@ -253,6 +254,7 @@ class _ListingCardState extends State<_ListingCard> {
     final owner = l['owner'] as Map<String, dynamic>?;
     final isSale = l['deal_type'] == 'sale';
     final price = (l['price'] as num).toStringAsFixed(0);
+    final isFeatured = AdTokenService.isCurrentlyFeatured(l);
 
     return Container(
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
@@ -276,6 +278,20 @@ class _ListingCardState extends State<_ListingCard> {
                   ]),
                 ),
               ),
+              if (isFeatured)
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(8)),
+                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.local_fire_department_rounded, size: 12, color: Colors.white),
+                      SizedBox(width: 3),
+                      Text('مميز', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                    ]),
+                  ),
+                ),
               Positioned(
                 bottom: 8,
                 right: 8,
