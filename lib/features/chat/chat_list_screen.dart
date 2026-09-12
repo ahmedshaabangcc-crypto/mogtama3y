@@ -1,128 +1,191 @@
 import 'package:flutter/material.dart';
 
+import '../../core/auth/auth_service.dart';
+import '../../core/chat/building_chat_service.dart';
+import '../../core/maintenance/technician_service.dart';
 import '../../core/theme/app_colors.dart';
-import 'service_chat_screen.dart';
+import '../../core/union/union_service.dart';
+import '../auth/auth_landing_screen.dart';
+import '../services/maintenance_request_detail_screen.dart';
+import 'building_chat_screen.dart';
 
-class _Thread {
-  const _Thread({
-    required this.name,
-    required this.role,
-    required this.lastMessage,
-    required this.time,
-    required this.icon,
-    required this.iconColor,
-    this.unread = 0,
-    this.escrow = false,
-  });
-  final String name, role, lastMessage, time;
-  final IconData icon;
-  final Color iconColor;
-  final int unread;
-  final bool escrow;
-}
+const _requestStatusLabels = {
+  'requested': 'بانتظار عرض سعر',
+  'quoted': 'تم تحديد السعر',
+  'scheduled': 'الزيارة محددة',
+  'in_progress': 'العمل جارٍ',
+  'completed': 'العمل مكتمل',
+  'disputed': 'قيد النزاع',
+  'cancelled': 'ملغي',
+};
 
-const _threads = [
-  _Thread(
-    name: 'م/ خالد البحيري',
-    role: 'سباكة وصيانة متخصصة',
-    lastMessage: 'تسجيل صوتي • 0:24',
-    time: '03:20 م',
-    icon: Icons.plumbing_rounded,
-    iconColor: AppColors.teal,
-    unread: 1,
-    escrow: true,
-  ),
-  _Thread(
-    name: 'المهندس هاني زهران',
-    role: 'بائع موثق • سوق المستعمل',
-    lastMessage: 'تمام يا فندم، السعر النهائي 6,200 ج.م وتقدر تعاين بكرة.',
-    time: 'أمس',
-    icon: Icons.shopping_bag_outlined,
-    iconColor: AppColors.categoryUsedMarket,
-  ),
-  _Thread(
-    name: 'مجلس إدارة اتحاد الشاغلين',
-    role: 'رئيس الاتحاد - م. حازم عبد الرحمن',
-    lastMessage: 'تم رفع التقرير المالي للربع الثالث، يرجى المراجعة.',
-    time: 'أمس',
-    icon: Icons.account_balance_rounded,
-    iconColor: AppColors.categoryUnion,
-  ),
-  _Thread(
-    name: 'سوبر ماركت الأمانة',
-    role: 'محل معتمد • دجلة المعادي',
-    lastMessage: 'وصل طلبك رقم #1084 وفي الطريق إليك الآن.',
-    time: 'الثلاثاء',
-    icon: Icons.storefront_rounded,
-    iconColor: AppColors.categoryShops,
-  ),
-];
-
-/// Conversations list — the bottom-nav "المحادثات" tab.
-class ChatListScreen extends StatelessWidget {
+/// Real conversations inbox — the bottom-nav "المحادثات" tab. Used to
+/// be a unified mockup mixing four fake conversation types; now shows
+/// only what's genuinely real: the building-wide group chat (see
+/// backend/migrations/0025_building_chat.sql) and the app's real 1:1
+/// maintenance threads (0022), on both the resident and technician
+/// side. Marketplace-seller and shop-delivery chat have no backing
+/// schema and are dropped rather than shown fake.
+class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
 
   @override
+  State<ChatListScreen> createState() => _ChatListScreenState();
+}
+
+class _ChatListScreenState extends State<ChatListScreen> {
+  bool _loading = true;
+  String? _buildingId;
+  String? _buildingName;
+  String? _lastBuildingMessage;
+  List<Map<String, dynamic>> _myRequests = [];
+  List<Map<String, dynamic>> _myJobs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final membership = await UnionService.fetchMyMembership();
+    final buildingId = membership?['building_id'] as String?;
+    final building = membership?['building'] as Map<String, dynamic>?;
+    String? lastMessage;
+    if (buildingId != null) {
+      final last = await BuildingChatService.fetchLastMessage(buildingId);
+      lastMessage = last?['body'] as String?;
+    }
+
+    final requests = await TechnicianService.fetchMyRequests();
+
+    final profiles = await TechnicianService.fetchMyTechnicianProfiles();
+    final jobs = <Map<String, dynamic>>[];
+    for (final p in profiles) {
+      jobs.addAll(await TechnicianService.fetchAssignedRequests(p['id'] as String));
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _buildingId = buildingId;
+      _buildingName = building?['name'] as String?;
+      _lastBuildingMessage = lastMessage;
+      _myRequests = requests;
+      _myJobs = jobs;
+      _loading = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (!AuthService.isSignedIn) {
+      return const AuthLandingScreen();
+    }
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final hasAnything = _buildingId != null || _myRequests.isNotEmpty || _myJobs.isNotEmpty;
+
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(title: const Text('المحادثات')),
-      body: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        itemCount: _threads.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (context, i) {
-          final t = _threads[i];
-          return InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ServiceChatScreen(contactName: t.name, contactRole: t.role))),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-              child: Row(
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: !hasAnything
+            ? ListView(children: const [
+                Padding(
+                  padding: EdgeInsets.symmetric(vertical: 60),
+                  child: Column(children: [
+                    Icon(Icons.chat_bubble_outline_rounded, color: AppColors.inkMuted, size: 36),
+                    SizedBox(height: 10),
+                    Text('لا توجد محادثات بعد', style: TextStyle(color: AppColors.inkMuted, fontSize: 13)),
+                  ]),
+                ),
+              ])
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                 children: [
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(color: t.iconColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-                    child: Icon(t.icon, color: t.iconColor, size: 22),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(children: [
-                          Expanded(child: Text(t.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13), overflow: TextOverflow.ellipsis)),
-                          if (t.escrow) const Padding(padding: EdgeInsets.only(right: 4), child: Icon(Icons.lock_outline_rounded, size: 12, color: AppColors.gold)),
-                        ]),
-                        Text(t.role, style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted), overflow: TextOverflow.ellipsis),
-                        const SizedBox(height: 4),
-                        Text(t.lastMessage, style: const TextStyle(fontSize: 11, color: AppColors.inkSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      ],
+                  if (_buildingId != null) ...[
+                    _ThreadTile(
+                      icon: Icons.account_balance_rounded,
+                      iconColor: AppColors.categoryUnion,
+                      title: 'دردشة ${_buildingName ?? 'العمارة'}',
+                      subtitle: _lastBuildingMessage ?? 'ابدأ الحديث مع جيرانك',
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BuildingChatScreen(buildingId: _buildingId!, buildingName: _buildingName ?? 'العمارة'))),
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(t.time, style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
-                      const SizedBox(height: 6),
-                      if (t.unread > 0)
-                        Container(
-                          width: 18,
-                          height: 18,
-                          alignment: Alignment.center,
-                          decoration: const BoxDecoration(color: AppColors.teal, shape: BoxShape.circle),
-                          child: Text('${t.unread}', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
-                        ),
-                    ],
-                  ),
+                    const SizedBox(height: 10),
+                  ],
+                  for (final r in _myRequests) ...[
+                    _ThreadTile(
+                      icon: Icons.build_rounded,
+                      iconColor: AppColors.teal,
+                      title: (r['technician'] as Map<String, dynamic>?)?['profile']?['full_name'] as String? ?? (r['category'] as String? ?? ''),
+                      subtitle: _requestStatusLabels[r['status']] ?? r['status'] as String? ?? '',
+                      escrow: r['escrow_status'] == 'held',
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MaintenanceRequestDetailScreen(request: r, isTechnician: false))),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  for (final j in _myJobs) ...[
+                    _ThreadTile(
+                      icon: Icons.badge_rounded,
+                      iconColor: AppColors.categoryMaintenance,
+                      title: (j['resident'] as Map<String, dynamic>?)?['full_name'] as String? ?? (j['category'] as String? ?? ''),
+                      subtitle: _requestStatusLabels[j['status']] ?? j['status'] as String? ?? '',
+                      escrow: j['escrow_status'] == 'held',
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MaintenanceRequestDetailScreen(request: j, isTechnician: true))),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _ThreadTile extends StatelessWidget {
+  const _ThreadTile({required this.icon, required this.iconColor, required this.title, required this.subtitle, required this.onTap, this.escrow = false});
+  final IconData icon;
+  final Color iconColor;
+  final String title, subtitle;
+  final bool escrow;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+              child: Icon(icon, color: iconColor, size: 22),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13), overflow: TextOverflow.ellipsis)),
+                    if (escrow) const Padding(padding: EdgeInsets.only(right: 4), child: Icon(Icons.lock_outline_rounded, size: 12, color: AppColors.gold)),
+                  ]),
+                  const SizedBox(height: 4),
+                  Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.inkSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
                 ],
               ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
