@@ -46,6 +46,32 @@ class AuthService {
 
   static Future<void> signOut() => _client.auth.signOut();
 
+  /// Redirects the whole page to Google, then back to this app's own
+  /// origin — Supabase picks up the resulting session automatically
+  /// from the URL fragment. The `profiles`/`wallets` rows for the
+  /// signed-in user are created by [listenAndSyncProfile]'s global
+  /// listener (started once in main.dart), not here — signInWithOAuth
+  /// is a full page redirect, so there's no "after this call" moment
+  /// to hook into on web.
+  static Future<void> signInWithGoogle() {
+    return _client.auth.signInWithOAuth(OAuthProvider.google, redirectTo: Uri.base.origin);
+  }
+
+  /// Starts a process-lifetime listener that creates the profiles/
+  /// wallets rows for ANY sign-in, including Google OAuth (which has
+  /// no name/phone to fall back to — see _ensureProfileAndWallet).
+  /// Safe to leave running alongside the explicit calls in
+  /// signUpWithEmail/signInWithEmail — the underlying insert is
+  /// idempotent (checks for an existing row first).
+  static void listenAndSyncProfile() {
+    _client.auth.onAuthStateChange.listen((data) {
+      final user = data.session?.user;
+      if (data.event == AuthChangeEvent.signedIn && user != null) {
+        _ensureProfileAndWallet(user.id, fallbackName: null, fallbackPhone: null);
+      }
+    });
+  }
+
   static Future<Map<String, dynamic>?> fetchCurrentProfile() async {
     final user = currentUser;
     if (user == null) return null;
@@ -79,12 +105,17 @@ class AuthService {
       // back to the metadata stashed on the auth user at sign-up time
       // (see signUpWithEmail's `data:` param) before the generic default.
       final metadata = currentUser?.userMetadata;
-      final name = fallbackName ?? metadata?['full_name'] as String?;
+      final name = fallbackName ?? metadata?['full_name'] as String? ?? metadata?['name'] as String?;
       final phone = fallbackPhone ?? metadata?['phone'] as String?;
+      // Google OAuth stashes the account photo under 'avatar_url' or
+      // 'picture' depending on how Supabase mapped the provider's
+      // response — a real profile picture on first login, for free.
+      final avatarUrl = metadata?['avatar_url'] as String? ?? metadata?['picture'] as String?;
       await _client.from('profiles').insert({
         'id': userId,
         'full_name': (name == null || name.trim().isEmpty) ? 'عضو مُجتمعي' : name.trim(),
         if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+        'avatar_url': ?avatarUrl,
       });
     }
     final existingWallet = await _client.from('wallets').select('id').eq('user_id', userId).maybeSingle();

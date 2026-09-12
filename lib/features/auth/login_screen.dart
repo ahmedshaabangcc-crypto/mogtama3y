@@ -29,6 +29,24 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  bool _googleLoading = false;
+
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _googleLoading = true;
+      _error = null;
+    });
+    try {
+      await AuthService.signInWithGoogle();
+      // signInWithOAuth redirects the whole page away on web; nothing
+      // after this line runs until the app reloads at Google's callback.
+    } catch (e) {
+      if (mounted) setState(() => _error = 'تعذر بدء تسجيل الدخول بجوجل: $e');
+    } finally {
+      if (mounted) setState(() => _googleLoading = false);
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() {
@@ -123,6 +141,24 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: _loading
                     ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
                     : const Text('تسجيل الدخول', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Row(children: const [
+              Expanded(child: Divider(color: AppColors.border)),
+              Padding(padding: EdgeInsets.symmetric(horizontal: 10), child: Text('أو', style: TextStyle(color: AppColors.inkMuted, fontSize: 11.5))),
+              Expanded(child: Divider(color: AppColors.border)),
+            ]),
+            const SizedBox(height: 18),
+            SizedBox(
+              height: 50,
+              child: OutlinedButton.icon(
+                onPressed: _googleLoading ? null : _signInWithGoogle,
+                style: OutlinedButton.styleFrom(foregroundColor: AppColors.ink, side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                icon: _googleLoading
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.g_mobiledata_rounded, size: 26),
+                label: const Text('المتابعة بحساب جوجل', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
               ),
             ),
             const SizedBox(height: 14),
