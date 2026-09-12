@@ -268,35 +268,10 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
                       const Text('تنبيه النطاق السكني الفوري', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
                       const SizedBox(height: 4),
                       const Text(
-                        'سينتم إطلاق تنبيه صوتي مرتفع وإشعار فوري لكافة جيران برج الياسمين وحراس البوابات مع تحديد شقة 4B وموقع البرج لحظياً لسرعة النجدة والدعم.',
+                        'سيتم إطلاق تنبيه فوري لكافة جيران عمارتك الموثقين ورئيس الاتحاد فور الضغط، مع نوع الطارئ الذي تحدده تحت.',
                         style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted, height: 1.7),
                       ),
                     ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          Container(
-            height: 110,
-            decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(14)),
-            child: Stack(
-              children: [
-                const Center(child: Icon(Icons.map_rounded, size: 28, color: AppColors.inkMuted)),
-                Positioned(
-                  bottom: 8,
-                  right: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-                    child: Row(children: const [
-                      Icon(Icons.location_on_rounded, size: 13, color: AppColors.categorySos),
-                      SizedBox(width: 4),
-                      Expanded(child: Text('محدد الموقع: بلوك 12، بوابة 2 الفرعية', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
-                      Text('نقطة وصول مسجلة', style: TextStyle(fontSize: 8.5, color: AppColors.teal)),
-                    ]),
                   ),
                 ),
               ],
