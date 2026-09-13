@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../auth/auth_landing_screen.dart';
+import 'marketplace_chat_screen.dart';
 
 const _conditionLabels = {
   'new': 'جديد',
@@ -43,6 +46,9 @@ class ItemDetailsScreen extends StatelessWidget {
     final sellerVerified = sellerProfile?['is_verified'] as bool? ?? false;
     final hidePhone = listing['hide_phone_number'] as bool? ?? false;
     final sellerPhone = hidePhone ? null : sellerProfile?['phone'] as String?;
+    final sellerId = listing['seller_id'] as String?;
+    final myUserId = AuthService.currentUser?.id;
+    final isOwnListing = myUserId != null && myUserId == sellerId;
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -148,27 +154,43 @@ class ItemDetailsScreen extends StatelessWidget {
           const _CharterLine(text: 'يُفضّل دائماً التسليم يداً بيد داخل نطاق العمارة أو الحي لتقليل المخاطر.'),
         ],
       ),
-      bottomSheet: SafeArea(
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          decoration: const BoxDecoration(color: AppColors.surface, border: Border(top: BorderSide(color: AppColors.border))),
-          child: SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: sellerPhone == null
-                ? const OutlinedButton(
-                    onPressed: null,
-                    child: Text('لا توجد وسيلة تواصل مباشرة متاحة لهذا البائع'),
-                  )
-                : ElevatedButton.icon(
-                    onPressed: () => launchUrl(Uri.parse('tel:$sellerPhone')),
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white),
-                    icon: const Icon(Icons.call_outlined, size: 17),
-                    label: const Text('الاتصال بالبائع'),
+      bottomSheet: isOwnListing || sellerId == null
+          ? null
+          : SafeArea(
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                decoration: const BoxDecoration(color: AppColors.surface, border: Border(top: BorderSide(color: AppColors.border))),
+                child: Row(children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => myUserId == null
+                              ? const AuthLandingScreen()
+                              : MarketplaceChatScreen(listingId: id, buyerId: myUserId, otherPartyName: sellerName),
+                        )),
+                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white),
+                        icon: const Icon(Icons.chat_bubble_outline_rounded, size: 17),
+                        label: const Text('دردشة مع البائع'),
+                      ),
+                    ),
                   ),
-          ),
-        ),
-      ),
+                  if (sellerPhone != null) ...[
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: OutlinedButton(
+                        onPressed: () => launchUrl(Uri.parse('tel:$sellerPhone')),
+                        style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
+                        child: const Icon(Icons.call_outlined, size: 18, color: AppColors.navy),
+                      ),
+                    ),
+                  ],
+                ]),
+              ),
+            ),
     );
   }
 }

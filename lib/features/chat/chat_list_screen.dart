@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/chat/building_chat_service.dart';
 import '../../core/maintenance/technician_service.dart';
+import '../../core/marketplace/marketplace_chat_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
+import '../marketplace/marketplace_chat_screen.dart';
 import '../services/maintenance_request_detail_screen.dart';
 import 'building_chat_screen.dart';
 
@@ -22,10 +24,10 @@ const _requestStatusLabels = {
 /// Real conversations inbox — the bottom-nav "المحادثات" tab. Used to
 /// be a unified mockup mixing four fake conversation types; now shows
 /// only what's genuinely real: the building-wide group chat (see
-/// backend/migrations/0025_building_chat.sql) and the app's real 1:1
-/// maintenance threads (0022), on both the resident and technician
-/// side. Marketplace-seller and shop-delivery chat have no backing
-/// schema and are dropped rather than shown fake.
+/// backend/migrations/0025_building_chat.sql), the app's real 1:1
+/// maintenance threads (0022) on both the resident and technician
+/// side, and real marketplace buyer/seller chat (0035). Shop-delivery
+/// chat still has no backing schema and stays dropped.
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
 
@@ -40,6 +42,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   String? _lastBuildingMessage;
   List<Map<String, dynamic>> _myRequests = [];
   List<Map<String, dynamic>> _myJobs = [];
+  List<Map<String, dynamic>> _marketplaceConversations = [];
 
   @override
   void initState() {
@@ -66,6 +69,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
       jobs.addAll(await TechnicianService.fetchAssignedRequests(p['id'] as String));
     }
 
+    final marketplaceConversations = await MarketplaceChatService.fetchMyConversations();
+
     if (!mounted) return;
     setState(() {
       _buildingId = buildingId;
@@ -73,6 +78,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       _lastBuildingMessage = lastMessage;
       _myRequests = requests;
       _myJobs = jobs;
+      _marketplaceConversations = marketplaceConversations;
       _loading = false;
     });
   }
@@ -86,7 +92,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final hasAnything = _buildingId != null || _myRequests.isNotEmpty || _myJobs.isNotEmpty;
+    final hasAnything = _buildingId != null || _myRequests.isNotEmpty || _myJobs.isNotEmpty || _marketplaceConversations.isNotEmpty;
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -136,6 +142,22 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       subtitle: _requestStatusLabels[j['status']] ?? j['status'] as String? ?? '',
                       escrow: j['escrow_status'] == 'held',
                       onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MaintenanceRequestDetailScreen(request: j, isTechnician: true))),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  for (final c in _marketplaceConversations) ...[
+                    _ThreadTile(
+                      icon: Icons.storefront_outlined,
+                      iconColor: AppColors.categoryUsedMarket,
+                      title: '${c['other_party_name'] as String? ?? ''} • ${c['listing_title'] as String? ?? ''}',
+                      subtitle: c['last_message'] as String? ?? '',
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => MarketplaceChatScreen(
+                          listingId: c['listing_id'] as String,
+                          buyerId: c['buyer_id'] as String,
+                          otherPartyName: c['other_party_name'] as String? ?? '',
+                        ),
+                      )),
                     ),
                     const SizedBox(height: 10),
                   ],
