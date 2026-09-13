@@ -21,7 +21,7 @@ import '../shared/placeholder_screen.dart';
 import '../shops/neighborhood_shops_screen.dart';
 import '../sos/sos_emergency_screen.dart';
 import '../union/find_building_screen.dart';
-import '../union/union_feed_screen.dart';
+import '../union/union_dashboard_screen.dart';
 
 class _Category {
   const _Category(this.label, this.sublabel, this.icon, this.color);
@@ -412,7 +412,7 @@ class _CategoryGrid extends StatelessWidget {
           onTap: () => Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => switch (c.label) {
               'سوق المستعمل' => const MarketplaceListingScreen(),
-              'اتحاد الملاك' => const UnionFeedScreen(),
+              'اتحاد الملاك' => const UnionDashboardScreen(),
               'الصيانة والخدمات' => const TechniciansMarketScreen(),
               'المحلات' => const NeighborhoodShopsScreen(),
               'طوارئ SOS' => const SosEmergencyScreen(),

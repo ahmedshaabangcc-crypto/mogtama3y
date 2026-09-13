@@ -17,6 +17,7 @@ import 'financial_report_screen.dart';
 import 'maintenance_payment_screen.dart';
 import 'manage_tenants_screen.dart';
 import 'pending_members_screen.dart';
+import 'union_feed_screen.dart';
 
 String _fmt(num n) {
   final s = n.round().toString();
@@ -284,7 +285,16 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('مجلس إدارة اتحاد الشاغلين')),
+      appBar: AppBar(
+        title: const Text('مجلس إدارة اتحاد الشاغلين'),
+        actions: [
+          IconButton(
+            tooltip: 'مجتمع الاتحاد',
+            icon: const Icon(Icons.forum_outlined),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const UnionFeedScreen())),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
