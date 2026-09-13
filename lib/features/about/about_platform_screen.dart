@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../union/find_building_screen.dart';
 
 const _pillars = [
   (
@@ -158,54 +159,11 @@ class AboutPlatformScreen extends StatelessWidget {
             ]),
           ),
           const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: const [
-                  Icon(Icons.favorite_border_rounded, size: 15, color: AppColors.inkSecondary),
-                  SizedBox(width: 6),
-                  Text('استبيان سريع', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
-                ]),
-                const SizedBox(height: 6),
-                const Text('هل عمارتك جاهزة للتحول للذكي؟', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-                const SizedBox(height: 4),
-                const Text('شاركنا رأيك بنقرة واحدة لنقدم لك استشارة مجانية لمجلس إدارتكم:', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted, height: 1.6)),
-                const SizedBox(height: 12),
-                Row(children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 42,
-                      child: OutlinedButton(
-                        onPressed: () {},
-                        style: OutlinedButton.styleFrom(foregroundColor: AppColors.inkSecondary, side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                        child: const Text('نود تجربة المنصة مجاناً', style: TextStyle(fontSize: 11)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: SizedBox(
-                      height: 42,
-                      child: OutlinedButton(
-                        onPressed: () {},
-                        style: OutlinedButton.styleFrom(foregroundColor: AppColors.inkSecondary, side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                        child: const Text('نحتاج تنظيماً مالياً', style: TextStyle(fontSize: 11)),
-                      ),
-                    ),
-                  ),
-                ]),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             height: 52,
             child: ElevatedButton.icon(
-              onPressed: () {},
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FindBuildingScreen())),
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
               icon: const Icon(Icons.groups_2_outlined, size: 18),
               label: const Text('انضم إلى مجتمعاتنا السكنية', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
