@@ -16,7 +16,10 @@ class AdminService {
   static Future<List<Map<String, dynamic>>> fetchPendingShopClaims() async {
     final rows = await _client
         .from('shop_claim_requests')
-        .select('*, shop:shops(name, address), requester:profiles(full_name, phone)')
+        // shop_claim_requests has two FKs to profiles (requester_id,
+        // reviewed_by) — an unqualified 'profiles(...)' embed is
+        // ambiguous to PostgREST (PGRST201).
+        .select('*, shop:shops(name, address), requester:profiles!shop_claim_requests_requester_id_fkey(full_name, phone)')
         .eq('status', 'pending')
         .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(rows as List);

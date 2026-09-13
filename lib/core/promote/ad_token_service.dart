@@ -82,7 +82,10 @@ class AdTokenService {
   static Future<List<Map<String, dynamic>>> fetchPendingTopups() async {
     final rows = await _client
         .from('ad_token_topup_requests')
-        .select('*, requester:profiles(full_name, phone)')
+        // ad_token_topup_requests has two FKs to profiles (user_id,
+        // reviewed_by) — an unqualified 'profiles(...)' embed is
+        // ambiguous to PostgREST (PGRST201).
+        .select('*, requester:profiles!ad_token_topup_requests_user_id_fkey(full_name, phone)')
         .eq('status', 'pending')
         .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(rows as List);

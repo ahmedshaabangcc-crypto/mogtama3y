@@ -96,7 +96,11 @@ class UnionService {
   static Future<List<Map<String, dynamic>>> fetchPendingMembers(String buildingId) async {
     final rows = await _client
         .from('union_members')
-        .select('*, profile:profiles(full_name, phone), unit:units(unit_number, floor_label)')
+        // union_members has two FKs to profiles (user_id, verified_by) —
+        // PostgREST can't infer which one 'profiles(...)' means once it
+        // notices both, and errors with PGRST201 ("more than one
+        // relationship was found"). Name the user_id one explicitly.
+        .select('*, profile:profiles!union_members_user_id_fkey(full_name, phone), unit:units(unit_number, floor_label)')
         .eq('building_id', buildingId)
         .eq('status', 'pending')
         .order('created_at', ascending: true);
@@ -117,7 +121,7 @@ class UnionService {
   static Future<List<Map<String, dynamic>>> fetchVerifiedMembers(String buildingId) async {
     final rows = await _client
         .from('union_members')
-        .select('*, profile:profiles(full_name, phone), unit:units(unit_number, floor_label)')
+        .select('*, profile:profiles!union_members_user_id_fkey(full_name, phone), unit:units(unit_number, floor_label)')
         .eq('building_id', buildingId)
         .eq('status', 'verified')
         .order('created_at', ascending: true);

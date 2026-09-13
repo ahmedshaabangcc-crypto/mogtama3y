@@ -27,7 +27,10 @@ class GuardService {
   static Future<List<Map<String, dynamic>>> fetchGuardsFor(String buildingId) async {
     final rows = await _client
         .from('building_guards')
-        .select('*, profile:profiles(full_name, phone)')
+        // building_guards has two FKs to profiles (user_id, appointed_by)
+        // — an unqualified 'profiles(...)' embed is ambiguous to
+        // PostgREST (PGRST201). Name the user_id one explicitly.
+        .select('*, profile:profiles!building_guards_user_id_fkey(full_name, phone)')
         .eq('building_id', buildingId)
         .eq('is_active', true);
     return List<Map<String, dynamic>>.from(rows as List);
