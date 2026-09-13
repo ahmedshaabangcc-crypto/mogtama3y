@@ -310,7 +310,7 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
                 children: [
                   Text('قوة عمارتنا في تكاتفنا', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
                   SizedBox(height: 4),
-                  Text('التصويت والتأسيس يتم وفقاً للمادة 74 من قانون البناء الموحد لتنظيم اتحادات الشاغلين.',
+                  Text('التصويت هنا استرشادي لتنظيم اختيار مجلس الإدارة داخل مُجتمعي، ولا يغني عن اتباع القواعد القانونية المعتمدة لاتحادكم.',
                       textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: AppColors.inkMuted, height: 1.6)),
                 ],
               ),
