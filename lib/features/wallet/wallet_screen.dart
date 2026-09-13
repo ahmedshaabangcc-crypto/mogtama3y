@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../union/maintenance_payment_screen.dart';
 
 (IconData, String) _txMeta(String type) => switch (type) {
       'top_up' => (Icons.add_card_rounded, 'شحن رصيد المحفظة'),
@@ -199,19 +200,22 @@ class _WalletScreenState extends State<WalletScreen> {
             ),
             const SizedBox(height: 14),
             Row(
-              children: const [
-                Expanded(child: _QuickAction(icon: Icons.savings_outlined, label: 'سحب أرباح إلى حسابك البنكي')),
-                SizedBox(width: 10),
-                Expanded(child: _QuickAction(icon: Icons.sync_alt_rounded, label: 'تحويل لرئيس الاتحاد (اشتراك الصيانة)')),
-                SizedBox(width: 10),
-                Expanded(child: _QuickAction(icon: Icons.add_card_rounded, label: 'شحن المحفظة (InstaPay / كارت)')),
+              children: [
+                const Expanded(child: _QuickAction(icon: Icons.savings_outlined, label: 'سحب أرباح إلى حسابك البنكي')),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _QuickAction(
+                    icon: Icons.sync_alt_rounded,
+                    label: 'تحويل لرئيس الاتحاد (اشتراك الصيانة)',
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MaintenancePaymentScreen())),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(child: _QuickAction(icon: Icons.add_card_rounded, label: 'شحن المحفظة (InstaPay / كارت)')),
               ],
             ),
             const SizedBox(height: 20),
-            Row(children: [
-              const Expanded(child: Text('سجل المعاملات', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5))),
-              TextButton(onPressed: () {}, child: const Text('عرض الكشف الكامل', style: TextStyle(fontSize: 11.5))),
-            ]),
+            const Text('سجل المعاملات', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
             const SizedBox(height: 8),
             const _FilterChips(),
             const SizedBox(height: 12),
@@ -261,21 +265,34 @@ class _WalletScreenState extends State<WalletScreen> {
 }
 
 class _QuickAction extends StatelessWidget {
-  const _QuickAction({required this.icon, required this.label});
+  const _QuickAction({required this.icon, required this.label, this.onTap});
   final IconData icon;
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
-      child: Column(
-        children: [
-          Icon(icon, color: AppColors.teal, size: 22),
-          const SizedBox(height: 8),
-          Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, height: 1.4)),
-        ],
+    final enabled = onTap != null;
+    return Opacity(
+      opacity: enabled ? 1 : 0.5,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+          child: Column(
+            children: [
+              Icon(icon, color: AppColors.teal, size: 22),
+              const SizedBox(height: 8),
+              Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, height: 1.4)),
+              if (!enabled) ...[
+                const SizedBox(height: 4),
+                const Text('قريباً', style: TextStyle(fontSize: 8.5, color: AppColors.inkMuted, fontWeight: FontWeight.w700)),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
