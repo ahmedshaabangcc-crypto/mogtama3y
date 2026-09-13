@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/guard/guard_service.dart';
+import '../../core/maps/maps_launcher.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/union/board_decisions_service.dart';
 import '../../core/union/financial_report_service.dart';
@@ -67,6 +68,8 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
   String? _buildingName;
   String? _district;
   String? _city;
+  double? _lat;
+  double? _lng;
   bool _isBoard = false;
   int _unitsCount = 0;
   int _membersCount = 0;
@@ -136,6 +139,8 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
       _buildingName = building?['name'] as String?;
       _district = building?['district'] as String?;
       _city = building?['city'] as String?;
+      _lat = (building?['lat'] as num?)?.toDouble();
+      _lng = (building?['lng'] as num?)?.toDouble();
       _isBoard = role == 'president' || role == 'board_member';
       _unitsCount = unitsCount;
       _membersCount = membersCount;
@@ -337,6 +342,12 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
                       ],
                     ),
                   ),
+                  if (_lat != null && _lng != null)
+                    IconButton(
+                      tooltip: 'الاتجاهات عبر خرائط Google',
+                      icon: const Icon(Icons.directions_rounded, color: AppColors.teal),
+                      onPressed: () => openDirections(lat: _lat!, lng: _lng!),
+                    ),
                 ],
               ),
             ),

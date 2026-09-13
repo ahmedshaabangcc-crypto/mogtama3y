@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/auth/auth_service.dart';
+import '../../core/maps/maps_launcher.dart';
 import '../../core/promote/ad_token_service.dart';
 import '../../core/real_estate/real_estate_service.dart';
 import '../../core/theme/app_colors.dart';
@@ -256,6 +257,9 @@ class _ListingCardState extends State<_ListingCard> {
     final price = (l['price'] as num).toStringAsFixed(0);
     final isFeatured = AdTokenService.isCurrentlyFeatured(l);
     final images = (l['images'] as List?)?.cast<String>() ?? const [];
+    final building = l['building'] as Map<String, dynamic>?;
+    final buildingLat = (building?['lat'] as num?)?.toDouble();
+    final buildingLng = (building?['lng'] as num?)?.toDouble();
 
     return Container(
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
@@ -365,18 +369,33 @@ class _ListingCardState extends State<_ListingCard> {
                   ]),
                 ),
                 const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  height: 42,
-                  child: ElevatedButton.icon(
-                    onPressed: _sending ? null : _expressInterest,
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                    icon: _sending
-                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.chat_bubble_outline_rounded, size: 14),
-                    label: const Text('أنا مهتم، تواصل معايا', style: TextStyle(fontSize: 11.5)),
+                Row(children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 42,
+                      child: ElevatedButton.icon(
+                        onPressed: _sending ? null : _expressInterest,
+                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                        icon: _sending
+                            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.chat_bubble_outline_rounded, size: 14),
+                        label: const Text('أنا مهتم، تواصل معايا', style: TextStyle(fontSize: 11.5)),
+                      ),
+                    ),
                   ),
-                ),
+                  if (buildingLat != null && buildingLng != null) ...[
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 42,
+                      height: 42,
+                      child: OutlinedButton(
+                        onPressed: () => openDirections(lat: buildingLat, lng: buildingLng),
+                        style: OutlinedButton.styleFrom(padding: EdgeInsets.zero, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                        child: const Icon(Icons.directions_rounded, size: 18, color: AppColors.teal),
+                      ),
+                    ),
+                  ],
+                ]),
               ],
             ),
           ),

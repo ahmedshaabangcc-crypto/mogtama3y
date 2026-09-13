@@ -15,7 +15,7 @@ class RealEstateService {
   /// client-side against the caller's own building (unlike the
   /// pre-existing marketplace flag, which nothing ever filters on).
   static Future<List<Map<String, dynamic>>> fetchListings({String? dealType}) async {
-    var query = _client.from('real_estate_listings').select('*, owner:profiles(full_name, phone)').eq('status', 'active');
+    var query = _client.from('real_estate_listings').select('*, owner:profiles(full_name, phone), building:buildings(lat, lng)').eq('status', 'active');
     if (dealType != null) {
       query = query.eq('deal_type', dealType);
     }

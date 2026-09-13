@@ -17,7 +17,7 @@ class UnionService {
     if (userId == null) return null;
     return _client
         .from('union_members')
-        .select('*, building:buildings(name, district, city, governorate)')
+        .select('*, building:buildings(name, district, city, governorate, lat, lng)')
         .eq('user_id', userId)
         .order('created_at', ascending: false)
         .limit(1)
