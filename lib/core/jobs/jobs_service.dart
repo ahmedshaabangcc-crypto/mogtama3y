@@ -47,12 +47,36 @@ class JobsService {
     required String jobId,
     required String? introMessage,
   }) async {
+    if (AuthService.currentUser == null) throw Exception('يجب تسجيل الدخول أولاً');
+    await _client.rpc('apply_to_job', params: {'p_job_id': jobId, 'p_intro_message': introMessage});
+  }
+
+  /// Jobs the current user has posted, newest first — the entry point
+  /// into reviewing real applicants.
+  static Future<List<Map<String, dynamic>>> fetchMyPostedJobs() async {
     final userId = AuthService.currentUser?.id;
-    if (userId == null) throw Exception('يجب تسجيل الدخول أولاً');
-    await _client.from('job_applications').insert({
-      'job_id': jobId,
-      'applicant_id': userId,
-      if (introMessage != null && introMessage.trim().isNotEmpty) 'intro_message': introMessage.trim(),
-    });
+    if (userId == null) return [];
+    final rows = await _client.from('job_postings').select().eq('poster_id', userId).order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(rows as List);
+  }
+
+  /// Real applicants to [jobId] — only returns rows if the caller is
+  /// that job's poster (see "job_applications: poster views applicants
+  /// to own jobs" RLS policy).
+  static Future<List<Map<String, dynamic>>> fetchApplicants(String jobId) async {
+    final rows = await _client
+        .from('job_applications')
+        .select('*, applicant:profiles(full_name, phone, is_verified)')
+        .eq('job_id', jobId)
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(rows as List);
+  }
+
+  /// Moves an application through the real status pipeline
+  /// (shortlisted/interview/offered/rejected/hired) — only succeeds
+  /// server-side if the caller posted that job, and notifies the
+  /// applicant for real.
+  static Future<void> reviewApplication({required String applicationId, required String status}) async {
+    await _client.rpc('review_job_application', params: {'p_application_id': applicationId, 'p_status': status});
   }
 }
