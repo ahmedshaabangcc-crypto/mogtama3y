@@ -64,10 +64,16 @@ class AuthService {
   /// signUpWithEmail/signInWithEmail — the underlying insert is
   /// idempotent (checks for an existing row first).
   static void listenAndSyncProfile() {
-    _client.auth.onAuthStateChange.listen((data) {
+    _client.auth.onAuthStateChange.listen((data) async {
       final user = data.session?.user;
       if (data.event == AuthChangeEvent.signedIn && user != null) {
-        _ensureProfileAndWallet(user.id, fallbackName: null, fallbackPhone: null);
+        try {
+          await _ensureProfileAndWallet(user.id, fallbackName: null, fallbackPhone: null);
+        } catch (_) {
+          // Never let a profile/wallet sync failure take down the auth
+          // listener — the rest of the app already handles a missing
+          // profile/wallet gracefully on the screens that need one.
+        }
       }
     });
   }

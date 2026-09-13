@@ -9,10 +9,20 @@ import 'features/shell/app_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Supabase.initialize(
-    url: SupabaseConfig.url,
-    publishableKey: SupabaseConfig.publishableKey,
-  );
+  try {
+    await Supabase.initialize(
+      url: SupabaseConfig.url,
+      publishableKey: SupabaseConfig.publishableKey,
+    );
+  } catch (e) {
+    // A stale/duplicate OAuth callback in the URL (e.g. reopening a tab
+    // that still carries an already-consumed code, or a leftover
+    // ?error=... from a previous failed redirect) can make session
+    // recovery throw here. Failing to boot the whole app over that is
+    // worse than just starting signed-out — the user can always sign
+    // in again from a clean state.
+    debugPrint('Supabase.initialize failed: $e');
+  }
   AuthService.listenAndSyncProfile();
   runApp(const MogtamayApp());
 }
