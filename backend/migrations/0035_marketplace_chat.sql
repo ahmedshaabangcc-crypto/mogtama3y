@@ -6,20 +6,30 @@
 -- real phone-number contact is fine as long as there's also a real
 -- chat between buyer and seller. This adds that chat.
 --
--- A "conversation" is just (listing_id, buyer_id) — no separate
+-- CORRECTED: `marketplace_messages` already existed in schema.sql from
+-- the very start of the project (never wired to anything), with a
+-- shape that can't support a private 1:1 thread — no buyer_id column
+-- at all, just (id, listing_id, sender_id, body, created_at). The
+-- first version of this migration tried to CREATE TABLE it fresh and
+-- collided outright ("relation already exists"), so nothing in it
+-- actually applied. This version adds what's missing to the existing
+-- table instead.
+--
+-- A "conversation" is (listing_id, buyer_id) — no separate
 -- conversations table needed. The seller is always derivable as
 -- marketplace_listings.seller_id, so a listing can have many buyer
 -- conversations but each buyer only ever has one thread per listing.
 -- =====================================================================
 
-create table public.marketplace_messages (
-  id uuid primary key default gen_random_uuid(),
-  listing_id uuid not null references public.marketplace_listings(id) on delete cascade,
-  buyer_id uuid not null references public.profiles(id),
-  sender_id uuid not null references public.profiles(id),
-  body text not null,
-  created_at timestamptz not null default now()
-);
+-- The table has never been written to by any part of the app before
+-- this feature (confirmed: nothing anywhere calls
+-- .from('marketplace_messages')), so it's empty — safe to add a NOT
+-- NULL column with no default.
+alter table public.marketplace_messages
+  add column if not exists buyer_id uuid references public.profiles(id);
+
+alter table public.marketplace_messages
+  alter column buyer_id set not null;
 
 grant select, insert on public.marketplace_messages to authenticated;
 
