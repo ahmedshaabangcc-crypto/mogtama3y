@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/app_colors.dart';
 
@@ -40,6 +41,8 @@ class ItemDetailsScreen extends StatelessWidget {
     final sellerProfile = listing['seller'] as Map<String, dynamic>?;
     final sellerName = sellerProfile?['full_name'] as String? ?? 'بائع مُجتمعي';
     final sellerVerified = sellerProfile?['is_verified'] as bool? ?? false;
+    final hidePhone = listing['hide_phone_number'] as bool? ?? false;
+    final sellerPhone = hidePhone ? null : sellerProfile?['phone'] as String?;
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -128,7 +131,7 @@ class ItemDetailsScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          const _EscrowNotice(),
+          const _SafetyNotice(),
           const SizedBox(height: 16),
           _SellerCard(name: sellerName, verified: sellerVerified),
           const SizedBox(height: 20),
@@ -142,38 +145,27 @@ class ItemDetailsScreen extends StatelessWidget {
           const _SectionTitle(icon: Icons.handshake_outlined, title: 'ميثاق حسن الجوار للبيع والشراء'),
           const SizedBox(height: 8),
           const _CharterLine(text: 'يحق للمشتري معاينة وفحص القطعة وتشغيلها للتأكد قبل تحويل المبلغ أو سداده.'),
-          const _CharterLine(text: 'الحجز الآمن يضمن حجب السلعة عن باقي الأعضاء لمدة 24 ساعة للتسليم المباشر.'),
+          const _CharterLine(text: 'يُفضّل دائماً التسليم يداً بيد داخل نطاق العمارة أو الحي لتقليل المخاطر.'),
         ],
       ),
       bottomSheet: SafeArea(
         child: Container(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           decoration: const BoxDecoration(color: AppColors.surface, border: Border(top: BorderSide(color: AppColors.border))),
-          child: Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 48,
-                  child: OutlinedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.chat_bubble_outline_rounded, size: 17),
-                    label: const Text('محادثة آمنة مع الجار'),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: SizedBox(
-                  height: 48,
-                  child: ElevatedButton.icon(
-                    onPressed: () {},
+          child: SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: sellerPhone == null
+                ? const OutlinedButton(
+                    onPressed: null,
+                    child: Text('لا توجد وسيلة تواصل مباشرة متاحة لهذا البائع'),
+                  )
+                : ElevatedButton.icon(
+                    onPressed: () => launchUrl(Uri.parse('tel:$sellerPhone')),
                     style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white),
-                    icon: const Icon(Icons.lock_outline_rounded, size: 17),
-                    label: const Text('حجز بالضمان (24س)'),
+                    icon: const Icon(Icons.call_outlined, size: 17),
+                    label: const Text('الاتصال بالبائع'),
                   ),
-                ),
-              ),
-            ],
           ),
         ),
       ),
@@ -181,8 +173,8 @@ class ItemDetailsScreen extends StatelessWidget {
   }
 }
 
-class _EscrowNotice extends StatelessWidget {
-  const _EscrowNotice();
+class _SafetyNotice extends StatelessWidget {
+  const _SafetyNotice();
 
   @override
   Widget build(BuildContext context) {
@@ -203,16 +195,10 @@ class _EscrowNotice extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Text('حماية مُجتمعي الموثوقة', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                    SizedBox(width: 6),
-                    Text('آمن 100%', style: TextStyle(color: AppColors.teal, fontSize: 11, fontWeight: FontWeight.w600)),
-                  ],
-                ),
+                Text('تنبيه أمان', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                 SizedBox(height: 4),
                 Text(
-                  'التسليم يتم يدًا بيد داخل المجمع السكني مع إيداع الأمانة عبر بوابة مُجتمعي الرئيسية، بدون شركات شحن وبدون أي تحويلات خارجية مجهولة.',
+                  'هذا إعلان بين جيران مباشرة، ولا يوجد ضمان أو تحصيل مالي عبر مُجتمعي لهذه المعاملة. تأكد من فحص السلعة والدفع وجهاً لوجه فقط.',
                   style: TextStyle(fontSize: 11.5, color: AppColors.inkSecondary, height: 1.7),
                 ),
               ],

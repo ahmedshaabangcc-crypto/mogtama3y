@@ -50,7 +50,7 @@ class _MarketplaceListingScreenState extends State<MarketplaceListingScreen> {
     setState(() => _loading = true);
     final rows = await Supabase.instance.client
         .from('marketplace_listings')
-        .select('*, seller:profiles(full_name, is_verified)')
+        .select('*, seller:profiles(full_name, is_verified, phone)')
         .eq('status', 'active')
         .order('created_at', ascending: false)
         .limit(30);
@@ -336,35 +336,6 @@ class _ListingCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SizedBox(
-                          height: 38,
-                          child: ElevatedButton.icon(
-                            onPressed: () {},
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.teal,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            ),
-                            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
-                            label: const Text('محادثة فورية', style: TextStyle(fontSize: 12)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: const Icon(Icons.share_outlined, size: 17),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
