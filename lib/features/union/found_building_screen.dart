@@ -49,6 +49,7 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
   String? _selectedPlaceId;
   double? _selectedLat;
   double? _selectedLng;
+  String? _selectedBuildingId;
 
   @override
   void dispose() {
@@ -68,9 +69,21 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
       _error = null;
     });
     try {
-      final results = await PlacesService.searchPlaces(query);
+      final results = await Future.wait([
+        PlacesService.searchPlaces(query),
+        UnionService.searchLocalBuildings(query),
+      ]);
       if (!mounted) return;
-      setState(() => _searchResults = results);
+      final googleResults = results[0].map((p) => {...p, 'source': 'google'}).toList();
+      final localResults = results[1].map((b) => {
+            'source': 'local',
+            'building_id': b['id'],
+            'name': b['name'],
+            'address': [b['district'], b['city']].where((s) => s != null && (s as String).isNotEmpty).join(' - '),
+          }).toList();
+      // buildings already on مُجتمعي first — that's the match a resident
+      // should actually pick to avoid creating a duplicate.
+      setState(() => _searchResults = [...localResults, ...googleResults]);
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = 'تعذر البحث حالياً، جرّب إدخال بيانات العمارة يدوياً بالأسفل.');
@@ -80,12 +93,16 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
   }
 
   void _pickResult(Map<String, dynamic> place) {
+    final isLocal = place['source'] == 'local';
     setState(() {
       _nameCtrl.text = place['name'] as String? ?? '';
-      _districtCtrl.text = place['address'] as String? ?? _districtCtrl.text;
-      _selectedPlaceId = place['place_id'] as String?;
-      _selectedLat = (place['lat'] as num?)?.toDouble();
-      _selectedLng = (place['lng'] as num?)?.toDouble();
+      if (!isLocal) {
+        _districtCtrl.text = place['address'] as String? ?? _districtCtrl.text;
+      }
+      _selectedPlaceId = isLocal ? null : place['place_id'] as String?;
+      _selectedLat = isLocal ? null : (place['lat'] as num?)?.toDouble();
+      _selectedLng = isLocal ? null : (place['lng'] as num?)?.toDouble();
+      _selectedBuildingId = isLocal ? place['building_id'] as String? : null;
       _searchResults = [];
       _searchCtrl.clear();
     });
@@ -96,6 +113,7 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
       _selectedPlaceId = null;
       _selectedLat = null;
       _selectedLng = null;
+      _selectedBuildingId = null;
     });
   }
 
@@ -117,6 +135,7 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
         lat: _selectedLat,
         lng: _selectedLng,
         asPresident: _asPresident,
+        existingBuildingId: _selectedBuildingId,
       );
       if (!mounted) return;
       if (code == 'PENDING_EXISTING') {
@@ -293,28 +312,45 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
           ]),
           if (_searchResults.isNotEmpty) ...[
             const SizedBox(height: 10),
-            ..._searchResults.map((place) => InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => _pickResult(place),
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
-                    child: Row(children: [
-                      const Icon(Icons.apartment_rounded, color: AppColors.teal, size: 18),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(place['name'] as String? ?? '', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
-                          const SizedBox(height: 2),
-                          Text(place['address'] as String? ?? '', style: const TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
-                        ]),
-                      ),
-                    ]),
+            ..._searchResults.map((place) {
+              final isLocal = place['source'] == 'local';
+              return InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => _pickResult(place),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isLocal ? AppColors.teal.withValues(alpha: 0.06) : AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: isLocal ? AppColors.teal.withValues(alpha: 0.4) : AppColors.border),
                   ),
-                )),
+                  child: Row(children: [
+                    Icon(isLocal ? Icons.verified_rounded : Icons.apartment_rounded, color: AppColors.teal, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(children: [
+                          Flexible(child: Text(place['name'] as String? ?? '', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700), overflow: TextOverflow.ellipsis)),
+                          if (isLocal) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(100)),
+                              child: const Text('مسجلة على مُجتمعي', style: TextStyle(fontSize: 8.5, color: Colors.white, fontWeight: FontWeight.w700)),
+                            ),
+                          ],
+                        ]),
+                        const SizedBox(height: 2),
+                        Text(place['address'] as String? ?? '', style: const TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
+                      ]),
+                    ),
+                  ]),
+                ),
+              );
+            }),
           ],
-          if (_selectedPlaceId != null) ...[
+          if (_selectedPlaceId != null || _selectedBuildingId != null) ...[
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -322,7 +358,12 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
               child: Row(children: [
                 const Icon(Icons.check_circle_rounded, color: AppColors.teal, size: 16),
                 const SizedBox(width: 8),
-                const Expanded(child: Text('تم تحديد مكان حقيقي من خرائط Google', style: TextStyle(fontSize: 11.5, color: AppColors.teal, fontWeight: FontWeight.w600))),
+                Expanded(
+                  child: Text(
+                    _selectedBuildingId != null ? 'هتنضم لعمارة مسجلة بالفعل على مُجتمعي' : 'تم تحديد مكان حقيقي من خرائط Google',
+                    style: const TextStyle(fontSize: 11.5, color: AppColors.teal, fontWeight: FontWeight.w600),
+                  ),
+                ),
                 InkWell(onTap: _clearSelection, child: const Text('إلغاء', style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted))),
               ]),
             ),

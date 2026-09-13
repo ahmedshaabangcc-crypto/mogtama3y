@@ -46,6 +46,7 @@ class UnionService {
     double? lat,
     double? lng,
     bool asPresident = true,
+    String? existingBuildingId,
   }) async {
     final result = await _client.rpc('found_building', params: {
       'p_name': name,
@@ -58,8 +59,18 @@ class UnionService {
       'p_lat': lat,
       'p_lng': lng,
       'p_as_president': asPresident,
+      'p_existing_building_id': existingBuildingId,
     });
     return result as String;
+  }
+
+  /// Buildings already registered on مُجتمعي whose name matches [query]
+  /// — merged into the same search results as Google Places matches in
+  /// found_building_screen.dart, so residents naturally pick the real
+  /// existing building instead of accidentally creating a duplicate.
+  static Future<List<Map<String, dynamic>>> searchLocalBuildings(String query) async {
+    final rows = await _client.from('buildings').select('id, name, district, city').ilike('name', '%$query%').limit(5);
+    return List<Map<String, dynamic>>.from(rows as List);
   }
 
   /// Validates [code] and creates a pending union_members row for the
