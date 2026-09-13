@@ -61,6 +61,7 @@ class UnionDashboardScreen extends StatefulWidget {
 
 class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
   bool _loading = true;
+  String? _loadError;
   String? _buildingId;
   String? _buildingName;
   String? _district;
@@ -80,7 +81,22 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
+    try {
+      await _loadReal();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _loadReal() async {
     final membership = await UnionService.fetchMyMembership();
     final isVerified = membership?['status'] == 'verified';
     final buildingId = isVerified ? membership!['building_id'] as String? : null;
@@ -103,7 +119,7 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
       ]);
       unitsCount = (results[0] as List).length;
       membersCount = (results[1] as List).length;
-      openDecisions = (results[2] as List).where((d) => d['status'] == 'open').length;
+      openDecisions = (results[2] as List).where((d) => (d as Map)['status'] == 'open').length;
       final guards = results[3] as List<Map<String, dynamic>>;
       if (guards.isNotEmpty) {
         final guardProfile = guards.first['profile'] as Map<String, dynamic>?;
@@ -216,6 +232,29 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
     }
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_loadError != null) {
+      return Scaffold(
+        backgroundColor: AppColors.bg,
+        appBar: AppBar(title: const Text('مجلس إدارة اتحاد الشاغلين')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline_rounded, color: AppColors.categorySos, size: 40),
+                const SizedBox(height: 12),
+                const Text('تعذر تحميل لوحة الاتحاد', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                const SizedBox(height: 8),
+                Text(_loadError!, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.inkMuted, fontSize: 11)),
+                const SizedBox(height: 16),
+                ElevatedButton(onPressed: _load, child: const Text('إعادة المحاولة')),
+              ],
+            ),
+          ),
+        ),
+      );
     }
     if (_buildingId == null) {
       return Scaffold(
