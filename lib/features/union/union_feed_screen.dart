@@ -29,6 +29,7 @@ class UnionFeedScreen extends StatefulWidget {
 
 class _UnionFeedScreenState extends State<UnionFeedScreen> {
   bool _loading = true;
+  String? _loadError;
   String? _buildingId;
   String? _buildingName;
   int _memberCount = 0;
@@ -50,31 +51,42 @@ class _UnionFeedScreenState extends State<UnionFeedScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final membership = await UnionService.fetchMyMembership();
-    final isVerified = membership?['status'] == 'verified';
-    final buildingId = isVerified ? membership!['building_id'] as String? : null;
-    final building = membership?['building'] as Map<String, dynamic>?;
-
-    List<Map<String, dynamic>> posts = [];
-    Set<String> reacted = {};
-    int memberCount = 0;
-    if (buildingId != null) {
-      posts = await PostsService.fetchPosts(buildingId);
-      reacted = await PostsService.fetchMyReactedPostIds(posts.map((p) => p['id'] as String).toList());
-      final members = await UnionService.fetchVerifiedMembers(buildingId);
-      memberCount = members.length;
-    }
-
-    if (!mounted) return;
     setState(() {
-      _buildingId = buildingId;
-      _buildingName = building?['name'] as String?;
-      _memberCount = memberCount;
-      _posts = posts;
-      _reactedIds = reacted;
-      _loading = false;
+      _loading = true;
+      _loadError = null;
     });
+    try {
+      final membership = await UnionService.fetchMyMembership();
+      final isVerified = membership?['status'] == 'verified';
+      final buildingId = isVerified ? membership!['building_id'] as String? : null;
+      final building = membership?['building'] as Map<String, dynamic>?;
+
+      List<Map<String, dynamic>> posts = [];
+      Set<String> reacted = {};
+      int memberCount = 0;
+      if (buildingId != null) {
+        posts = await PostsService.fetchPosts(buildingId);
+        reacted = await PostsService.fetchMyReactedPostIds(posts.map((p) => p['id'] as String).toList());
+        final members = await UnionService.fetchVerifiedMembers(buildingId);
+        memberCount = members.length;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _buildingId = buildingId;
+        _buildingName = building?['name'] as String?;
+        _memberCount = memberCount;
+        _posts = posts;
+        _reactedIds = reacted;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = e.toString();
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _post() async {
@@ -127,6 +139,29 @@ class _UnionFeedScreenState extends State<UnionFeedScreen> {
     }
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_loadError != null) {
+      return Scaffold(
+        backgroundColor: AppColors.bg,
+        appBar: AppBar(title: const Text('اتحاد الملاك')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline_rounded, color: AppColors.categorySos, size: 40),
+                const SizedBox(height: 12),
+                const Text('تعذر تحميل مجتمع الاتحاد', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                const SizedBox(height: 8),
+                Text(_loadError!, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.inkMuted, fontSize: 11)),
+                const SizedBox(height: 16),
+                ElevatedButton(onPressed: _load, child: const Text('إعادة المحاولة')),
+              ],
+            ),
+          ),
+        ),
+      );
     }
     if (_buildingId == null) {
       return Scaffold(
