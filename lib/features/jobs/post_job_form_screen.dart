@@ -258,7 +258,7 @@ class _PostJobFormScreenState extends State<PostJobFormScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('نطاق النشر الجغرافي الذكي', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5)),
-                    Text('يُنشر في محافظة القاهرة مع أولوية الظهور للباحثين الأقرب جغرافياً لبرج الياسمين', style: TextStyle(fontSize: 10, color: AppColors.inkMuted, height: 1.5)),
+                    Text('يظهر الإعلان أولاً لجيرانك الأقرب جغرافياً', style: TextStyle(fontSize: 10, color: AppColors.inkMuted, height: 1.5)),
                   ],
                 ),
               ),
