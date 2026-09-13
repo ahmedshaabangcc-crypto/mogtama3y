@@ -35,8 +35,7 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
   final _formKey = GlobalKey<FormState>();
   final _searchCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
-  final _districtCtrl = TextEditingController(text: 'المعادي - دجلة');
-  final _cityCtrl = TextEditingController(text: 'القاهرة');
+  final _districtCtrl = TextEditingController();
   String _governorate = 'القاهرة';
   final _unitCtrl = TextEditingController();
   final _floorCtrl = TextEditingController();
@@ -56,7 +55,6 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
     _searchCtrl.dispose();
     _nameCtrl.dispose();
     _districtCtrl.dispose();
-    _cityCtrl.dispose();
     _unitCtrl.dispose();
     _floorCtrl.dispose();
     super.dispose();
@@ -111,7 +109,7 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
       final code = await UnionService.foundBuilding(
         name: _nameCtrl.text.trim(),
         district: _districtCtrl.text.trim(),
-        city: _cityCtrl.text.trim(),
+        city: _governorate,
         governorate: _governorate,
         unitNumber: _unitCtrl.text.trim(),
         floorLabel: _floorCtrl.text.trim(),
@@ -373,10 +371,6 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
                     ]),
                   ),
                 ]),
-                const SizedBox(height: 14),
-                const _FieldLabel('المدينة'),
-                const SizedBox(height: 6),
-                _Field(controller: _cityCtrl, hint: 'القاهرة'),
                 const SizedBox(height: 14),
                 const _FieldLabel('الحي / المنطقة *'),
                 const SizedBox(height: 6),
