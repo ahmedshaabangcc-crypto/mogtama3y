@@ -85,7 +85,7 @@ class _FaqHelpCenterScreenState extends State<FaqHelpCenterScreen> {
                       ]),
                       const SizedBox(height: 6),
                       const Text(
-                        'جميع التعاملات المالية وحجز الفنيين وتفويضات اتحاد الملاك موثقة تشفيرياً وعقود رقمية لحماية كامل حقوق الجيران.',
+                        'دفعات الصيانة تُحجز بضمان مالي حقيقي في محفظتك ولا تُصرف للفني إلا بعد تأكيدك، وقرارات اتحاد الملاك محفوظة وموثقة داخل التطبيق.',
                         style: TextStyle(color: Colors.white70, fontSize: 10.5, height: 1.7),
                       ),
                     ],
@@ -133,9 +133,9 @@ class _FaqHelpCenterScreenState extends State<FaqHelpCenterScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('دعم سكني بشري حقيقي', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+                    Text('محتاج مساعدة إضافية؟', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
                     SizedBox(height: 3),
-                    Text('نحن لا نعتمد فقط على الردود الآلية، مدراء علاقات السكان متواجدون لمساعدتك في أي نزاع أو استفسار.',
+                    Text('افتح تذكرة دعم وهيتواصل معاك فريقنا لمساعدتك في أي نزاع أو استفسار.',
                         style: TextStyle(fontSize: 10, color: AppColors.inkMuted, height: 1.6)),
                   ],
                 ),
@@ -156,7 +156,7 @@ class _FaqHelpCenterScreenState extends State<FaqHelpCenterScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('لم تجد إجابة لسؤالك؟', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.teal)),
-                        Text('فريق الدعم الفني متواجد وحاضر لمساعدتك في عرضه 24/7', style: TextStyle(fontSize: 10, color: AppColors.teal)),
+                        Text('افتح تذكرة دعم وهيتواصل معاك فريقنا في أقرب وقت', style: TextStyle(fontSize: 10, color: AppColors.teal)),
                       ],
                     ),
                   ),
@@ -171,7 +171,7 @@ class _FaqHelpCenterScreenState extends State<FaqHelpCenterScreen> {
                           onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SupportContactScreen())),
                           style: OutlinedButton.styleFrom(foregroundColor: AppColors.teal, side: const BorderSide(color: AppColors.teal), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                           icon: const Icon(Icons.chat_bubble_outline_rounded, size: 15),
-                          label: const Text('واتساب المباشر', style: TextStyle(fontSize: 11.5)),
+                          label: const Text('تواصل مع الدعم', style: TextStyle(fontSize: 11.5)),
                         ),
                       ),
                     ),
@@ -182,8 +182,8 @@ class _FaqHelpCenterScreenState extends State<FaqHelpCenterScreen> {
                         child: ElevatedButton.icon(
                           onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SupportContactScreen())),
                           style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                          icon: const Icon(Icons.bolt_rounded, size: 15),
-                          label: const Text('محادثة فورية', style: TextStyle(fontSize: 11.5)),
+                          icon: const Icon(Icons.confirmation_number_outlined, size: 15),
+                          label: const Text('فتح تذكرة دعم', style: TextStyle(fontSize: 11.5)),
                         ),
                       ),
                     ),

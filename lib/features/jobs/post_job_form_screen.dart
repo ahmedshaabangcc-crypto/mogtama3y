@@ -120,7 +120,7 @@ class _PostJobFormScreenState extends State<PostJobFormScreen> {
                       const SizedBox(height: 4),
                       const Text('وظّف من جيرانك مباشرة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
                       const SizedBox(height: 4),
-                      const Text('أولوية الترشيح لسكان المعادي مع التحقق من الهوية والسكن لضمان راحة البال.', style: TextStyle(color: Colors.white70, fontSize: 10, height: 1.6)),
+                      const Text('أولوية الترشيح لجيرانك في نفس الحي مع التحقق من الهوية والسكن لضمان راحة البال.', style: TextStyle(color: Colors.white70, fontSize: 10, height: 1.6)),
                     ],
                   ),
                 ),

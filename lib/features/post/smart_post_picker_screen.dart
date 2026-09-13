@@ -22,7 +22,7 @@ class SmartPostPickerScreen extends StatelessWidget {
           const Text('ماذا تريد أن تنشر في مجتمعك اليوم؟', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, height: 1.4)),
           const SizedBox(height: 6),
           const Text(
-            'اختر نوع الإعلان المناسب للوصول إلى جيرانك الموثقين بالمعادي، مع كامل التحكم في خصوصية هويتك ورقم هاتفك.',
+            'اختر نوع الإعلان المناسب للوصول إلى جيرانك الموثقين، مع كامل التحكم في خصوصية هويتك ورقم هاتفك.',
             style: TextStyle(fontSize: 11.5, color: AppColors.inkSecondary, height: 1.8),
           ),
           const SizedBox(height: 18),
