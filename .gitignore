@@ -52,3 +52,6 @@ Thumbs.db
 
 # Node (backend/tests)
 node_modules/
+
+# Local notes that may hold API keys
+apis.txt
