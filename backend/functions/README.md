@@ -28,3 +28,22 @@ shops into `shops` itself with the service role.
 supabase functions deploy places --no-verify-jwt --project-ref pxiabifybakbsqlycffc
 supabase secrets set GOOGLE_MAPS_API_KEY=... --project-ref pxiabifybakbsqlycffc
 ```
+
+## `assistant` — AI assistant (n8n + Gemini)
+
+The app → `assistant` Edge Function (auth, daily quota: 60/user, 15/guest IP;
+adds the user's building/membership as context) → n8n workflow
+"مُجتمعي – AI Assistant" (`https://n8n.srv1967321.hstgr.cloud/webhook/mogtama3y-assistant`,
+header-auth `X-Mogtama3y-Secret`) → Gemini agent with window memory and the
+platform guide in `assistant/system_prompt.md`. When a user asks for a human,
+the agent messages the owner on Telegram and (for signed-in users) calls back
+this function with `action: 'ticket'` to open a support ticket, answered from
+the admin panel.
+
+- Rebuild/redeploy the n8n workflow after editing the prompt:
+  `node backend/functions/assistant/build_n8n_workflow.js`
+  (needs git-ignored `.n8n-api-key` and `.assistant-secret` in the repo root).
+- Supabase secrets: `ASSISTANT_SHARED_SECRET` = contents of `.assistant-secret`.
+- Deploy `assistant/index.ts` as function `assistant` with **JWT verification OFF**.
+- Gemini free tier is ~5 requests/minute (shared with the Apex agent); the
+  workflow retries, but enable billing on the Gemini key before launch.

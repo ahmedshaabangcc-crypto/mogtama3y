@@ -1,10 +1,8 @@
-import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../core/assistant/assistant_config.dart';
-import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 
 class _ChatMessage {
@@ -13,9 +11,12 @@ class _ChatMessage {
   final bool isUser;
 }
 
-/// The "مساعد مُجتمعي الذكي" — an AI assistant that (once its n8n backend
-/// is wired, see AssistantConfig) can answer questions about anything in
-/// the app. Reachable from a floating button on every tab via AppShell.
+/// The "مساعد مُجتمعي الذكي" — answers questions about anything in the
+/// app and can hand the user over to the support team (Telegram + a
+/// support ticket). Goes through the `assistant` Edge Function
+/// (backend/functions/assistant), which applies a daily quota and forwards
+/// to the n8n "مُجتمعي – AI Assistant" workflow. Reachable from a floating
+/// button on every tab via AppShell.
 class AssistantChatScreen extends StatefulWidget {
   const AssistantChatScreen({super.key});
 
@@ -28,15 +29,16 @@ class _AssistantChatScreenState extends State<AssistantChatScreen> {
   final _scrollController = ScrollController();
   final List<_ChatMessage> _messages = [];
   bool _sending = false;
+  // Keeps a guest's conversation memory together for this visit (signed-in
+  // users are identified server-side by their account instead).
+  final _guestSessionId = List.generate(16, (_) => Random.secure().nextInt(16).toRadixString(16)).join();
 
   @override
   void initState() {
     super.initState();
-    _messages.add(_ChatMessage(
+    _messages.add(const _ChatMessage(
       isUser: false,
-      text: AssistantConfig.isConfigured
-          ? 'أهلاً! أنا مساعد مُجتمعي الذكي، اسألني عن أي حاجة في التطبيق وهساعدك فوراً.'
-          : 'أهلاً! المساعد الذكي قيد التفعيل حالياً وهيكون جاهز قريباً للإجابة عن أي سؤال في التطبيق.',
+      text: 'أهلاً! أنا مساعد مُجتمعي الذكي. اسألني عن أي حاجة في التطبيق، ولو حابب تكلّم حد من فريق الدعم قولّي وأنا أوصّلك.',
     ));
   }
 
@@ -56,27 +58,18 @@ class _AssistantChatScreenState extends State<AssistantChatScreen> {
     });
     _scrollToEnd();
 
-    if (!AssistantConfig.isConfigured) {
-      setState(() {
-        _messages.add(const _ChatMessage(
-          text: 'لسه بيتم توصيل المساعد الذكي بالنظام، جرّب تاني بعد شوية.',
-          isUser: false,
-        ));
-      });
-      _scrollToEnd();
-      return;
-    }
-
     setState(() => _sending = true);
     try {
-      final response = await http.post(
-        Uri.parse(AssistantConfig.webhookUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'message': text, 'user_id': AuthService.currentUser?.id}),
+      final response = await Supabase.instance.client.functions.invoke(
+        'assistant',
+        body: {'action': 'chat', 'message': text, 'session_id': _guestSessionId},
       );
-      final reply = (jsonDecode(response.body) as Map<String, dynamic>)['reply'] as String? ?? 'لم أفهم سؤالك، حاول بصياغة أخرى.';
+      final data = response.data;
+      final reply = data is Map && data['reply'] is String ? data['reply'] as String : 'لم أفهم سؤالك، حاول بصياغة أخرى.';
+      if (!mounted) return;
       setState(() => _messages.add(_ChatMessage(text: reply, isUser: false)));
     } catch (_) {
+      if (!mounted) return;
       setState(() => _messages.add(const _ChatMessage(text: 'حدث خطأ في الاتصال بالمساعد، حاول مرة أخرى.', isUser: false)));
     } finally {
       if (mounted) setState(() => _sending = false);

@@ -58,3 +58,4 @@ apis.txt
 
 # Local n8n API key for building the assistant workflow (never commit)
 .n8n-api-key
+.assistant-secret
