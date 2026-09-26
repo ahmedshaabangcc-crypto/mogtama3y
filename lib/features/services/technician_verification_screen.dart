@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/maintenance/technician_service.dart';
 import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../shared/load_error_view.dart';
 
 /// Submits real identity verification for a technician profile — an ID
 /// card photo plus a short face video, reviewed manually by Ahmed
@@ -21,6 +22,7 @@ class TechnicianVerificationScreen extends StatefulWidget {
 
 class _TechnicianVerificationScreenState extends State<TechnicianVerificationScreen> {
   bool _loading = true;
+  bool _loadError = false;
   String _status = 'unsubmitted';
   String? _idCardPath;
   String? _videoPath;
@@ -35,14 +37,23 @@ class _TechnicianVerificationScreenState extends State<TechnicianVerificationScr
   }
 
   Future<void> _load() async {
-    final result = await TechnicianService.fetchVerification(widget.technicianId);
-    if (!mounted) return;
-    setState(() {
-      _status = result['verification_status'] as String? ?? 'unsubmitted';
-      _idCardPath = result['id_card_url'] as String?;
-      _videoPath = result['verification_video_url'] as String?;
-      _loading = false;
-    });
+    try {
+      final result = await TechnicianService.fetchVerification(widget.technicianId);
+      if (!mounted) return;
+      setState(() {
+        _status = result['verification_status'] as String? ?? 'unsubmitted';
+        _idCardPath = result['id_card_url'] as String?;
+        _videoPath = result['verification_video_url'] as String?;
+        _loading = false;
+        _loadError = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   Future<void> _pickIdCard() async {
@@ -96,6 +107,18 @@ class _TechnicianVerificationScreenState extends State<TechnicianVerificationScr
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_loadError) {
+      return Scaffold(
+        backgroundColor: AppColors.bg,
+        appBar: AppBar(title: const Text('توثيق حساب الفني')),
+        body: LoadErrorView(
+          onRetry: () {
+            setState(() => _loading = true);
+            _load();
+          },
+        ),
+      );
     }
     return Scaffold(
       backgroundColor: AppColors.bg,

@@ -8,6 +8,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/visitor/visitor_pass_service.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/load_error_view.dart';
 
 const _visitTypes = ['ضيف عائلي', 'توصيل وشحن', 'صيانة وخدمات', 'أخرى'];
 const _visitTypeValues = ['guest', 'delivery', 'maintenance', 'other'];
@@ -32,6 +33,7 @@ class _VisitorQrPassScreenState extends State<VisitorQrPassScreen> {
   int _visitType = 0;
   int _duration = 1;
   bool _loading = true;
+  bool _loadError = false;
   bool _issuing = false;
   String? _error;
   Map<String, dynamic>? _activePass;
@@ -75,16 +77,27 @@ class _VisitorQrPassScreenState extends State<VisitorQrPassScreen> {
       setState(() => _loading = false);
       return;
     }
-    setState(() => _loading = true);
-    final pass = await VisitorPassService.fetchActivePass();
-    final count = await VisitorPassService.fetchPassCount();
-    if (!mounted) return;
     setState(() {
-      _activePass = pass;
-      _passCount = count;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
-    _tick();
+    try {
+      final pass = await VisitorPassService.fetchActivePass();
+      final count = await VisitorPassService.fetchPassCount();
+      if (!mounted) return;
+      setState(() {
+        _activePass = pass;
+        _passCount = count;
+        _loading = false;
+      });
+      _tick();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   Future<void> _issue() async {
@@ -118,7 +131,13 @@ class _VisitorQrPassScreenState extends State<VisitorQrPassScreen> {
   Future<void> _revoke() async {
     final pass = _activePass;
     if (pass == null) return;
-    await VisitorPassService.revokePass(pass['id'] as String);
+    try {
+      await VisitorPassService.revokePass(pass['id'] as String);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر إلغاء التصريح، حاول مرة أخرى')));
+      return;
+    }
     if (!mounted) return;
     setState(() => _activePass = null);
   }
@@ -163,6 +182,8 @@ class _VisitorQrPassScreenState extends State<VisitorQrPassScreen> {
       appBar: AppBar(title: const Text('تصريح دخول زائر موقوت (QR Pass)')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
+          : _loadError
+          ? LoadErrorView(onRetry: _load)
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView(

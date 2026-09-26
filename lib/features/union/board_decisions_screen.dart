@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/union/board_decisions_service.dart';
 import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/load_error_view.dart';
 
 /// Board-of-directors decisions requiring member approval (distinct
 /// from the open general-assembly resident votes) — governance layer
@@ -19,6 +20,7 @@ class BoardDecisionsScreen extends StatefulWidget {
 
 class _BoardDecisionsScreenState extends State<BoardDecisionsScreen> {
   bool _loading = true;
+  bool _loadError = false;
   String? _buildingId;
   bool _isBoardMember = false;
   List<Map<String, dynamic>> _boardMembers = [];
@@ -31,29 +33,40 @@ class _BoardDecisionsScreenState extends State<BoardDecisionsScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final membership = await UnionService.fetchMyMembership();
-    final buildingId = membership?['building_id'] as String?;
-    final role = membership?['role'] as String?;
-    final status = membership?['status'] as String?;
-    final isBoardMember = status == 'verified' && (role == 'president' || role == 'board_member');
-
-    List<Map<String, dynamic>> members = [];
-    List<Map<String, dynamic>> decisions = [];
-    if (buildingId != null) {
-      final allMembers = await UnionService.fetchVerifiedMembers(buildingId);
-      members = allMembers.where((m) => m['role'] == 'president' || m['role'] == 'board_member').toList();
-      decisions = await BoardDecisionsService.fetchDecisions(buildingId);
-    }
-
-    if (!mounted) return;
     setState(() {
-      _buildingId = buildingId;
-      _isBoardMember = isBoardMember;
-      _boardMembers = members;
-      _decisions = decisions;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final membership = await UnionService.fetchMyMembership();
+      final buildingId = membership?['building_id'] as String?;
+      final role = membership?['role'] as String?;
+      final status = membership?['status'] as String?;
+      final isBoardMember = status == 'verified' && (role == 'president' || role == 'board_member');
+
+      List<Map<String, dynamic>> members = [];
+      List<Map<String, dynamic>> decisions = [];
+      if (buildingId != null) {
+        final allMembers = await UnionService.fetchVerifiedMembers(buildingId);
+        members = allMembers.where((m) => m['role'] == 'president' || m['role'] == 'board_member').toList();
+        decisions = await BoardDecisionsService.fetchDecisions(buildingId);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _buildingId = buildingId;
+        _isBoardMember = isBoardMember;
+        _boardMembers = members;
+        _decisions = decisions;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   Future<void> _propose() async {
@@ -117,6 +130,9 @@ class _BoardDecisionsScreenState extends State<BoardDecisionsScreen> {
     }
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_loadError) {
+      return Scaffold(backgroundColor: AppColors.bg, appBar: AppBar(title: const Text('قرارات مجلس الإدارة')), body: LoadErrorView(onRetry: _load));
     }
     if (_buildingId == null) {
       return Scaffold(

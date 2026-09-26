@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/recycling/recycling_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../shared/load_error_view.dart';
 
 const _categoryLabels = {
   'metal': 'معادن',
@@ -30,6 +31,7 @@ class AuctionDetailScreen extends StatefulWidget {
 class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
   Map<String, dynamic>? _lot;
   bool _loading = true;
+  bool _loadError = false;
   bool _busy = false;
   String? _error;
   Timer? _timer;
@@ -50,13 +52,25 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final lot = await RecyclingService.fetchLot(widget.listingId);
-    if (!mounted) return;
     setState(() {
-      _lot = lot;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final lot = await RecyclingService.fetchLot(widget.listingId);
+      if (!mounted) return;
+      setState(() {
+        _lot = lot;
+        _loading = false;
+      });
+    } catch (_) {
+      // If a lot was already shown (refresh after a bid), build() keeps it.
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   Duration get _remaining {
@@ -113,6 +127,13 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_loading && _loadError && _lot == null) {
+      return Scaffold(
+        backgroundColor: AppColors.bg,
+        appBar: AppBar(title: const Text('متابعة المزاد')),
+        body: LoadErrorView(onRetry: _load),
+      );
+    }
     if (_loading || _lot == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }

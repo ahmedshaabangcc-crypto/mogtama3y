@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/jobs/jobs_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../shared/load_error_view.dart';
 
 const _statusLabels = {
   'submitted': 'طلب جديد',
@@ -45,6 +46,7 @@ class JobApplicantsDashboardScreen extends StatefulWidget {
 
 class _JobApplicantsDashboardScreenState extends State<JobApplicantsDashboardScreen> {
   bool _loading = true;
+  bool _loadError = false;
   List<Map<String, dynamic>> _applicants = [];
   bool _busyId = false;
 
@@ -55,13 +57,24 @@ class _JobApplicantsDashboardScreenState extends State<JobApplicantsDashboardScr
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final rows = await JobsService.fetchApplicants(widget.jobId);
-    if (!mounted) return;
     setState(() {
-      _applicants = rows;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final rows = await JobsService.fetchApplicants(widget.jobId);
+      if (!mounted) return;
+      setState(() {
+        _applicants = rows;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   Future<void> _review(String applicationId, String status) async {
@@ -86,6 +99,8 @@ class _JobApplicantsDashboardScreenState extends State<JobApplicantsDashboardScr
         onRefresh: _load,
         child: _loading
             ? const Center(child: CircularProgressIndicator())
+            : _loadError
+            ? LoadErrorView(onRetry: _load)
             : ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                 children: [

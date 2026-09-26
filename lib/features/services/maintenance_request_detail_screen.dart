@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/maintenance/technician_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../shared/load_error_view.dart';
 
 const _statusLabels = {
   'requested': 'بانتظار عرض سعر',
@@ -32,6 +33,7 @@ class MaintenanceRequestDetailScreen extends StatefulWidget {
 class _MaintenanceRequestDetailScreenState extends State<MaintenanceRequestDetailScreen> {
   late Map<String, dynamic> _request;
   bool _loadingMessages = true;
+  bool _loadError = false;
   List<Map<String, dynamic>> _messages = [];
   final _messageCtrl = TextEditingController();
   final _otpCtrl = TextEditingController();
@@ -52,12 +54,23 @@ class _MaintenanceRequestDetailScreenState extends State<MaintenanceRequestDetai
   }
 
   Future<void> _loadMessages() async {
-    final rows = await TechnicianService.fetchMessages(_request['id'] as String);
-    if (!mounted) return;
-    setState(() {
-      _messages = rows;
-      _loadingMessages = false;
-    });
+    try {
+      final rows = await TechnicianService.fetchMessages(_request['id'] as String);
+      if (!mounted) return;
+      setState(() {
+        _messages = rows;
+        _loadingMessages = false;
+        _loadError = false;
+      });
+    } catch (_) {
+      // Keep any messages already shown (refresh after sending); the
+      // error view only replaces the list when there is nothing to show.
+      if (!mounted) return;
+      setState(() {
+        _loadingMessages = false;
+        _loadError = true;
+      });
+    }
   }
 
   Future<void> _send() async {
@@ -233,6 +246,13 @@ class _MaintenanceRequestDetailScreenState extends State<MaintenanceRequestDetai
           Expanded(
             child: _loadingMessages
                 ? const Center(child: CircularProgressIndicator())
+                : _loadError && _messages.isEmpty
+                ? LoadErrorView(
+                    onRetry: () {
+                      setState(() => _loadingMessages = true);
+                      _loadMessages();
+                    },
+                  )
                 : ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: _messages.length,

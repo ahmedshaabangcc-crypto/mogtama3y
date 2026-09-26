@@ -49,14 +49,25 @@ class _MarketplaceChatScreenState extends State<MarketplaceChatScreen> {
 
   Future<void> _load({bool silent = false}) async {
     if (!silent) setState(() => _loading = true);
-    final rows = await MarketplaceChatService.fetchMessages(listingId: widget.listingId, buyerId: widget.buyerId);
+    final List<Map<String, dynamic>> rows;
+    try {
+      rows = await MarketplaceChatService.fetchMessages(listingId: widget.listingId, buyerId: widget.buyerId);
+    } catch (_) {
+      // Keep what is already on screen; the 4s poll retries on its own.
+      if (!mounted) return;
+      setState(() => _loading = false);
+      if (!silent) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر تحميل الرسائل، تحقق من الاتصال')));
+      return;
+    }
     if (!mounted) return;
-    final grew = rows.length != _messages.length;
+    // Compare the newest message, not the count — the list is capped at
+    // 200, so the count stops changing once a chat is busy.
+    final grew = (rows.isEmpty ? null : rows.last['id']) != (_messages.isEmpty ? null : _messages.last['id']);
     setState(() {
       _messages = rows;
       _loading = false;
     });
-    if (grew && _scrollCtrl.hasClients) {
+    if (grew) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_scrollCtrl.hasClients) _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
       });
@@ -66,9 +77,10 @@ class _MarketplaceChatScreenState extends State<MarketplaceChatScreen> {
   Future<void> _send() async {
     final text = _messageCtrl.text.trim();
     if (text.isEmpty) return;
-    _messageCtrl.clear();
     try {
       await MarketplaceChatService.sendMessage(listingId: widget.listingId, buyerId: widget.buyerId, body: text);
+      // Cleared only after a successful send, so a failed send keeps the text.
+      _messageCtrl.clear();
       _load();
     } catch (_) {
       if (!mounted) return;

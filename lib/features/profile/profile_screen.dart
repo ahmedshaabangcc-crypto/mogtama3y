@@ -6,6 +6,7 @@ import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../promote/token_wallet_screen.dart';
+import '../shared/load_error_view.dart';
 import '../wallet/wallet_screen.dart';
 
 /// Real profile page — there was previously no profile screen anywhere
@@ -21,6 +22,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _loading = true;
+  bool _loadError = false;
   Map<String, dynamic>? _profile;
   bool _editing = false;
   bool _saving = false;
@@ -42,15 +44,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final profile = await AuthService.fetchCurrentProfile();
-    if (!mounted) return;
     setState(() {
-      _profile = profile;
-      _nameCtrl.text = profile?['full_name'] as String? ?? '';
-      _phoneCtrl.text = profile?['phone'] as String? ?? '';
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final profile = await AuthService.fetchCurrentProfile();
+      if (!mounted) return;
+      setState(() {
+        _profile = profile;
+        _nameCtrl.text = profile?['full_name'] as String? ?? '';
+        _phoneCtrl.text = profile?['phone'] as String? ?? '';
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   Future<void> _save() async {
@@ -110,6 +123,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_loadError) {
+      return Scaffold(
+        backgroundColor: AppColors.bg,
+        appBar: AppBar(title: const Text('حسابي')),
+        body: LoadErrorView(onRetry: _load),
+      );
     }
 
     final avatarUrl = _profile?['avatar_url'] as String?;

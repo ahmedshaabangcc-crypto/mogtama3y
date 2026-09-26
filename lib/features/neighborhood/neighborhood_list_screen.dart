@@ -5,6 +5,7 @@ import '../../core/neighborhood/neighborhood_service.dart';
 import '../../core/places/places_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/load_error_view.dart';
 import 'neighborhood_detail_screen.dart';
 
 /// "جروب الحي" — a real district-wide group above the building union.
@@ -19,6 +20,7 @@ class NeighborhoodListScreen extends StatefulWidget {
 
 class _NeighborhoodListScreenState extends State<NeighborhoodListScreen> {
   bool _loading = true;
+  bool _loadError = false;
   List<Map<String, dynamic>> _myNeighborhoods = [];
   final _searchCtrl = TextEditingController();
   bool _searching = false;
@@ -39,13 +41,24 @@ class _NeighborhoodListScreenState extends State<NeighborhoodListScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final rows = await NeighborhoodService.fetchMyNeighborhoods();
-    if (!mounted) return;
     setState(() {
-      _myNeighborhoods = rows;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final rows = await NeighborhoodService.fetchMyNeighborhoods();
+      if (!mounted) return;
+      setState(() {
+        _myNeighborhoods = rows;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   Future<void> _search() async {
@@ -174,6 +187,8 @@ class _NeighborhoodListScreenState extends State<NeighborhoodListScreen> {
             const SizedBox(height: 10),
             if (_loading)
               const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
+            else if (_loadError)
+              LoadErrorView(onRetry: _load)
             else if (_myNeighborhoods.isEmpty)
               const Text('لسه منضمش لأي جروب حي', style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted))
             else

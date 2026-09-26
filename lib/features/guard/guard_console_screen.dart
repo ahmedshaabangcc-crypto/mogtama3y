@@ -5,6 +5,7 @@ import '../../core/guard/guard_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/load_error_view.dart';
 
 const _passTypeLabels = {
   'delivery': 'دليفري طلبات',
@@ -29,6 +30,7 @@ class GuardConsoleScreen extends StatefulWidget {
 
 class _GuardConsoleScreenState extends State<GuardConsoleScreen> {
   bool _loading = true;
+  bool _loadError = false;
   Map<String, dynamic>? _guardAssignment;
   Map<String, dynamic>? _membership;
 
@@ -39,15 +41,26 @@ class _GuardConsoleScreenState extends State<GuardConsoleScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final guardAssignment = await GuardService.fetchMyGuardAssignment();
-    final membership = guardAssignment == null ? await UnionService.fetchMyMembership() : null;
-    if (!mounted) return;
     setState(() {
-      _guardAssignment = guardAssignment;
-      _membership = membership;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final guardAssignment = await GuardService.fetchMyGuardAssignment();
+      final membership = guardAssignment == null ? await UnionService.fetchMyMembership() : null;
+      if (!mounted) return;
+      setState(() {
+        _guardAssignment = guardAssignment;
+        _membership = membership;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   @override
@@ -57,6 +70,13 @@ class _GuardConsoleScreenState extends State<GuardConsoleScreen> {
     }
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_loadError) {
+      return Scaffold(
+        backgroundColor: AppColors.bg,
+        appBar: AppBar(title: const Text('لوحة تحكم حارس العقار')),
+        body: LoadErrorView(onRetry: _load),
+      );
     }
     if (_guardAssignment != null) {
       final building = _guardAssignment!['building'] as Map<String, dynamic>?;
@@ -94,6 +114,7 @@ class _GuardWorkConsole extends StatefulWidget {
 
 class _GuardWorkConsoleState extends State<_GuardWorkConsole> {
   bool _loading = true;
+  bool _loadError = false;
   List<Map<String, dynamic>> _recentPasses = [];
   List<Map<String, dynamic>> _custodyItems = [];
   final _codeCtrl = TextEditingController();
@@ -112,15 +133,26 @@ class _GuardWorkConsoleState extends State<_GuardWorkConsole> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final passes = await GuardService.fetchRecentPasses(widget.buildingId);
-    final custody = await GuardService.fetchCustodyItems(widget.buildingId);
-    if (!mounted) return;
     setState(() {
-      _recentPasses = passes;
-      _custodyItems = custody;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final passes = await GuardService.fetchRecentPasses(widget.buildingId);
+      final custody = await GuardService.fetchCustodyItems(widget.buildingId);
+      if (!mounted) return;
+      setState(() {
+        _recentPasses = passes;
+        _custodyItems = custody;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   Future<void> _verify() async {
@@ -238,6 +270,8 @@ class _GuardWorkConsoleState extends State<_GuardWorkConsole> {
             const SizedBox(height: 10),
             if (_loading)
               const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
+            else if (_loadError)
+              LoadErrorView(onRetry: _load)
             else if (_recentPasses.isEmpty)
               const Text('لا توجد عمليات تحقق حتى الآن', style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted))
             else
@@ -276,7 +310,9 @@ class _GuardWorkConsoleState extends State<_GuardWorkConsole> {
               ),
             ]),
             const SizedBox(height: 10),
-            if (_custodyItems.isEmpty)
+            if (_loadError)
+              const SizedBox.shrink() // the error view above already covers this section
+            else if (_custodyItems.isEmpty)
               const Text('لا توجد أمانات تحت عهدتك حالياً', style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted))
             else
               for (final item in _custodyItems) ...[
@@ -343,6 +379,7 @@ class _AppointGuardPanel extends StatefulWidget {
 
 class _AppointGuardPanelState extends State<_AppointGuardPanel> {
   bool _loading = true;
+  bool _loadError = false;
   List<Map<String, dynamic>> _members = [];
   List<Map<String, dynamic>> _guards = [];
 
@@ -353,15 +390,26 @@ class _AppointGuardPanelState extends State<_AppointGuardPanel> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final members = await UnionService.fetchVerifiedMembers(widget.buildingId);
-    final guards = await GuardService.fetchGuardsFor(widget.buildingId);
-    if (!mounted) return;
     setState(() {
-      _members = members;
-      _guards = guards;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final members = await UnionService.fetchVerifiedMembers(widget.buildingId);
+      final guards = await GuardService.fetchGuardsFor(widget.buildingId);
+      if (!mounted) return;
+      setState(() {
+        _members = members;
+        _guards = guards;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   Future<void> _appoint(String userId) async {
@@ -387,6 +435,8 @@ class _AppointGuardPanelState extends State<_AppointGuardPanel> {
       appBar: AppBar(title: const Text('تعيين حارس العقار')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
+          : _loadError
+          ? LoadErrorView(onRetry: _load)
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView(

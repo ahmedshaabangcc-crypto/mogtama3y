@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 
 import '../../core/places/places_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../shared/load_error_view.dart';
 import 'claim_business_hub_screen.dart';
 import 'shop_details_screen.dart';
 
@@ -19,6 +20,7 @@ class NeighborhoodShopsScreen extends StatefulWidget {
 
 class _NeighborhoodShopsScreenState extends State<NeighborhoodShopsScreen> {
   bool _loading = true;
+  bool _loadError = false;
   bool _searching = false;
   String? _error;
   List<Map<String, dynamic>> _shops = [];
@@ -63,13 +65,24 @@ class _NeighborhoodShopsScreenState extends State<NeighborhoodShopsScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final shops = await PlacesService.fetchImportedShops();
-    if (!mounted) return;
     setState(() {
-      _shops = shops;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final shops = await PlacesService.fetchImportedShops();
+      if (!mounted) return;
+      setState(() {
+        _shops = shops;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   Future<void> _search() async {
@@ -164,6 +177,8 @@ class _NeighborhoodShopsScreenState extends State<NeighborhoodShopsScreen> {
             const SizedBox(height: 10),
             if (_loading)
               const Padding(padding: EdgeInsets.symmetric(vertical: 40), child: Center(child: CircularProgressIndicator()))
+            else if (_loadError)
+              LoadErrorView(onRetry: _load)
             else if (_shops.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 40),

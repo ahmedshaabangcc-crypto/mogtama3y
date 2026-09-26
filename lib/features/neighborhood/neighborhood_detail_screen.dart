@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/neighborhood/neighborhood_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../shared/load_error_view.dart';
 
 String _timeAgo(DateTime dt) {
   final diff = DateTime.now().difference(dt.toLocal());
@@ -89,6 +90,7 @@ class _NeighborhoodPostsTab extends StatefulWidget {
 
 class _NeighborhoodPostsTabState extends State<_NeighborhoodPostsTab> {
   bool _loading = true;
+  bool _loadError = false;
   List<Map<String, dynamic>> _posts = [];
   final _bodyCtrl = TextEditingController();
   bool _posting = false;
@@ -106,13 +108,24 @@ class _NeighborhoodPostsTabState extends State<_NeighborhoodPostsTab> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final rows = await NeighborhoodService.fetchPosts(widget.neighborhoodId);
-    if (!mounted) return;
     setState(() {
-      _posts = rows;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final rows = await NeighborhoodService.fetchPosts(widget.neighborhoodId);
+      if (!mounted) return;
+      setState(() {
+        _posts = rows;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   Future<void> _post() async {
@@ -156,6 +169,8 @@ class _NeighborhoodPostsTabState extends State<_NeighborhoodPostsTab> {
           const SizedBox(height: 16),
           if (_loading)
             const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
+          else if (_loadError)
+            LoadErrorView(onRetry: _load)
           else if (_posts.isEmpty)
             const Padding(padding: EdgeInsets.symmetric(vertical: 30), child: Center(child: Text('لا توجد منشورات بعد', style: TextStyle(color: AppColors.inkMuted, fontSize: 13))))
           else
@@ -215,7 +230,16 @@ class _NeighborhoodChatTabState extends State<_NeighborhoodChatTab> {
 
   Future<void> _load({bool silent = false}) async {
     if (!silent) setState(() => _loading = true);
-    final rows = await NeighborhoodService.fetchChatMessages(widget.neighborhoodId);
+    final List<Map<String, dynamic>> rows;
+    try {
+      rows = await NeighborhoodService.fetchChatMessages(widget.neighborhoodId);
+    } catch (_) {
+      // Keep what is already on screen; the 4s poll retries on its own.
+      if (!mounted) return;
+      setState(() => _loading = false);
+      if (!silent) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر تحميل الرسائل، تحقق من الاتصال')));
+      return;
+    }
     if (!mounted) return;
     setState(() {
       _messages = rows;
@@ -226,9 +250,10 @@ class _NeighborhoodChatTabState extends State<_NeighborhoodChatTab> {
   Future<void> _send() async {
     final text = _messageCtrl.text.trim();
     if (text.isEmpty) return;
-    _messageCtrl.clear();
     try {
       await NeighborhoodService.sendChatMessage(neighborhoodId: widget.neighborhoodId, body: text);
+      // Cleared only after a successful send, so a failed send keeps the text.
+      _messageCtrl.clear();
       _load();
     } catch (_) {
       if (!mounted) return;

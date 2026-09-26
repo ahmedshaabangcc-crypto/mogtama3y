@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/union/posts_service.dart';
 import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/load_error_view.dart';
 import 'union_dashboard_screen.dart';
 
 String _timeAgo(DateTime dt) {
@@ -29,7 +30,7 @@ class UnionFeedScreen extends StatefulWidget {
 
 class _UnionFeedScreenState extends State<UnionFeedScreen> {
   bool _loading = true;
-  String? _loadError;
+  bool _loadError = false;
   String? _buildingId;
   String? _buildingName;
   int _memberCount = 0;
@@ -53,7 +54,7 @@ class _UnionFeedScreenState extends State<UnionFeedScreen> {
   Future<void> _load() async {
     setState(() {
       _loading = true;
-      _loadError = null;
+      _loadError = false;
     });
     try {
       final membership = await UnionService.fetchMyMembership();
@@ -80,10 +81,10 @@ class _UnionFeedScreenState extends State<UnionFeedScreen> {
         _reactedIds = reacted;
         _loading = false;
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
-        _loadError = e.toString();
+        _loadError = true;
         _loading = false;
       });
     }
@@ -140,28 +141,8 @@ class _UnionFeedScreenState extends State<UnionFeedScreen> {
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    if (_loadError != null) {
-      return Scaffold(
-        backgroundColor: AppColors.bg,
-        appBar: AppBar(title: const Text('اتحاد الملاك')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error_outline_rounded, color: AppColors.categorySos, size: 40),
-                const SizedBox(height: 12),
-                const Text('تعذر تحميل مجتمع الاتحاد', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                const SizedBox(height: 8),
-                Text(_loadError!, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.inkMuted, fontSize: 11)),
-                const SizedBox(height: 16),
-                ElevatedButton(onPressed: _load, child: const Text('إعادة المحاولة')),
-              ],
-            ),
-          ),
-        ),
-      );
+    if (_loadError) {
+      return Scaffold(backgroundColor: AppColors.bg, appBar: AppBar(title: const Text('اتحاد الملاك')), body: LoadErrorView(onRetry: _load));
     }
     if (_buildingId == null) {
       return Scaffold(
@@ -349,6 +330,7 @@ class _CommentsSheet extends StatefulWidget {
 
 class _CommentsSheetState extends State<_CommentsSheet> {
   bool _loading = true;
+  bool _loadError = false;
   List<Map<String, dynamic>> _comments = [];
   final _ctrl = TextEditingController();
   bool _sending = false;
@@ -366,12 +348,21 @@ class _CommentsSheetState extends State<_CommentsSheet> {
   }
 
   Future<void> _load() async {
-    final rows = await PostsService.fetchComments(widget.postId);
-    if (!mounted) return;
-    setState(() {
-      _comments = rows;
-      _loading = false;
-    });
+    setState(() => _loadError = false);
+    try {
+      final rows = await PostsService.fetchComments(widget.postId);
+      if (!mounted) return;
+      setState(() {
+        _comments = rows;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   Future<void> _send() async {
@@ -403,7 +394,9 @@ class _CommentsSheetState extends State<_CommentsSheet> {
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
-                  : _comments.isEmpty
+                  : _loadError
+                      ? LoadErrorView(onRetry: _load)
+                      : _comments.isEmpty
                       ? const Center(child: Text('لا توجد تعليقات بعد', style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5)))
                       : ListView.builder(
                           padding: const EdgeInsets.symmetric(horizontal: 16),

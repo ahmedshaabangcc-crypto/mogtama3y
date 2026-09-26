@@ -16,9 +16,12 @@ class BuildingChatService {
         .from('building_chat_messages')
         .select('*, sender:profiles(full_name)')
         .eq('building_id', buildingId)
-        .order('created_at', ascending: true)
+        // Newest 200, then flipped back to oldest-first for display —
+        // ascending + limit would return the FIRST 200 ever and new
+        // messages would stop appearing once a chat passed 200.
+        .order('created_at', ascending: false)
         .limit(200);
-    return List<Map<String, dynamic>>.from(rows as List);
+    return List<Map<String, dynamic>>.from(rows as List).reversed.toList();
   }
 
   static Future<Map<String, dynamic>?> fetchLastMessage(String buildingId) async {

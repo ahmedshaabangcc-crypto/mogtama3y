@@ -4,6 +4,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/maintenance/technician_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/load_error_view.dart';
 import 'escrow_booking_confirm_screen.dart';
 import 'my_maintenance_requests_screen.dart';
 import 'register_technician_screen.dart';
@@ -24,6 +25,7 @@ class TechniciansMarketScreen extends StatefulWidget {
 
 class _TechniciansMarketScreenState extends State<TechniciansMarketScreen> {
   bool _loading = true;
+  bool _loadError = false;
   List<Map<String, dynamic>> _technicians = [];
   int _categoryIndex = 0;
 
@@ -34,14 +36,25 @@ class _TechniciansMarketScreenState extends State<TechniciansMarketScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final category = _categoryIndex == 0 ? null : _categories[_categoryIndex];
-    final rows = await TechnicianService.fetchTechnicians(category: category);
-    if (!mounted) return;
     setState(() {
-      _technicians = rows;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    final category = _categoryIndex == 0 ? null : _categories[_categoryIndex];
+    try {
+      final rows = await TechnicianService.fetchTechnicians(category: category);
+      if (!mounted) return;
+      setState(() {
+        _technicians = rows;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   @override
@@ -143,6 +156,8 @@ class _TechniciansMarketScreenState extends State<TechniciansMarketScreen> {
             const SizedBox(height: 16),
             if (_loading)
               const Center(child: Padding(padding: EdgeInsets.all(30), child: CircularProgressIndicator()))
+            else if (_loadError)
+              LoadErrorView(onRetry: _load)
             else if (_technicians.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 40),

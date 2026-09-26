@@ -8,6 +8,7 @@ import '../../core/promote/ad_token_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/load_error_view.dart';
 import 'add_listing_screen.dart';
 import 'item_details_screen.dart';
 
@@ -39,6 +40,7 @@ class MarketplaceListingScreen extends StatefulWidget {
 
 class _MarketplaceListingScreenState extends State<MarketplaceListingScreen> {
   bool _loading = true;
+  bool _loadError = false;
   List<Map<String, dynamic>> _listings = [];
   String _query = '';
 
@@ -59,32 +61,43 @@ class _MarketplaceListingScreenState extends State<MarketplaceListingScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final rows = await Supabase.instance.client
-        .from('marketplace_listings')
-        .select('*, seller:profiles(full_name, is_verified)')
-        .eq('status', 'active')
-        .order('created_at', ascending: false)
-        .limit(30);
-    final listings = List<Map<String, dynamic>>.from(rows as List);
-    // Only sellers whose listing shows the number come back from the RPC.
-    await ContactPhones.attach(
-      listings.where((l) => l['hide_phone_number'] != true).toList(),
-      userIdKey: 'seller_id',
-      profileKey: 'seller',
-    );
-
-    final membership = await UnionService.fetchMyMembership();
-    final myBuildingId = membership?['building_id'] as String?;
-    final visible = myBuildingId == null
-        ? listings
-        : listings.where((l) => !(l['hide_from_own_building'] == true && l['building_id'] == myBuildingId)).toList();
-
-    if (!mounted) return;
     setState(() {
-      _listings = AdTokenService.sortFeaturedFirst(visible);
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final rows = await Supabase.instance.client
+          .from('marketplace_listings')
+          .select('*, seller:profiles(full_name, is_verified)')
+          .eq('status', 'active')
+          .order('created_at', ascending: false)
+          .limit(30);
+      final listings = List<Map<String, dynamic>>.from(rows as List);
+      // Only sellers whose listing shows the number come back from the RPC.
+      await ContactPhones.attach(
+        listings.where((l) => l['hide_phone_number'] != true).toList(),
+        userIdKey: 'seller_id',
+        profileKey: 'seller',
+      );
+
+      final membership = await UnionService.fetchMyMembership();
+      final myBuildingId = membership?['building_id'] as String?;
+      final visible = myBuildingId == null
+          ? listings
+          : listings.where((l) => !(l['hide_from_own_building'] == true && l['building_id'] == myBuildingId)).toList();
+
+      if (!mounted) return;
+      setState(() {
+        _listings = AdTokenService.sortFeaturedFirst(visible);
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   void _addListing() {
@@ -137,6 +150,8 @@ class _MarketplaceListingScreenState extends State<MarketplaceListingScreen> {
                 padding: EdgeInsets.symmetric(vertical: 40),
                 child: Center(child: CircularProgressIndicator()),
               )
+            else if (_loadError)
+              LoadErrorView(onRetry: _load)
             else if (_visibleListings.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 40),

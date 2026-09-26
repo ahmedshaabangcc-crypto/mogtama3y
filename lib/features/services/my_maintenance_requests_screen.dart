@@ -4,6 +4,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/maintenance/technician_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/load_error_view.dart';
 import 'maintenance_request_detail_screen.dart';
 
 const _statusLabels = {
@@ -27,6 +28,7 @@ class MyMaintenanceRequestsScreen extends StatefulWidget {
 
 class _MyMaintenanceRequestsScreenState extends State<MyMaintenanceRequestsScreen> {
   bool _loading = true;
+  bool _loadError = false;
   List<Map<String, dynamic>> _requests = [];
 
   @override
@@ -36,13 +38,24 @@ class _MyMaintenanceRequestsScreenState extends State<MyMaintenanceRequestsScree
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final rows = await TechnicianService.fetchMyRequests();
-    if (!mounted) return;
     setState(() {
-      _requests = rows;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final rows = await TechnicianService.fetchMyRequests();
+      if (!mounted) return;
+      setState(() {
+        _requests = rows;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   @override
@@ -57,6 +70,8 @@ class _MyMaintenanceRequestsScreenState extends State<MyMaintenanceRequestsScree
         onRefresh: _load,
         child: _loading
             ? const Center(child: CircularProgressIndicator())
+            : _loadError
+            ? ListView(children: [LoadErrorView(onRetry: _load)])
             : _requests.isEmpty
                 ? ListView(children: const [
                     Padding(

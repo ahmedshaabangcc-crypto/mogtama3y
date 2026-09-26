@@ -39,8 +39,11 @@ jobs:
       - name: Static analysis
         run: flutter analyze
 
+      - name: Widget tests
+        run: flutter test
+
       - name: Build web release
-        run: flutter build web --release --base-href / --source-maps
+        run: flutter build web --release --base-href /
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4

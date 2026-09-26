@@ -4,6 +4,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/maintenance/technician_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/load_error_view.dart';
 import 'maintenance_request_detail_screen.dart';
 import 'register_technician_screen.dart';
 import 'technician_verification_screen.dart';
@@ -31,6 +32,7 @@ class TechnicianJobsScreen extends StatefulWidget {
 
 class _TechnicianJobsScreenState extends State<TechnicianJobsScreen> {
   bool _loading = true;
+  bool _loadError = false;
   List<Map<String, dynamic>> _profiles = [];
   List<Map<String, dynamic>> _jobs = [];
 
@@ -41,19 +43,30 @@ class _TechnicianJobsScreenState extends State<TechnicianJobsScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final profiles = await TechnicianService.fetchMyTechnicianProfiles();
-    final jobs = <Map<String, dynamic>>[];
-    for (final p in profiles) {
-      jobs.addAll(await TechnicianService.fetchAssignedRequests(p['id'] as String));
-    }
-    jobs.sort((a, b) => (b['created_at'] as String).compareTo(a['created_at'] as String));
-    if (!mounted) return;
     setState(() {
-      _profiles = profiles;
-      _jobs = jobs;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final profiles = await TechnicianService.fetchMyTechnicianProfiles();
+      final jobs = <Map<String, dynamic>>[];
+      for (final p in profiles) {
+        jobs.addAll(await TechnicianService.fetchAssignedRequests(p['id'] as String));
+      }
+      jobs.sort((a, b) => (b['created_at'] as String).compareTo(a['created_at'] as String));
+      if (!mounted) return;
+      setState(() {
+        _profiles = profiles;
+        _jobs = jobs;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   @override
@@ -66,6 +79,8 @@ class _TechnicianJobsScreenState extends State<TechnicianJobsScreen> {
       appBar: AppBar(title: const Text('طلبات الصيانة الواردة إليّ')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
+          : _loadError
+          ? LoadErrorView(onRetry: _load)
           : _profiles.isEmpty
               ? Center(
                   child: Padding(

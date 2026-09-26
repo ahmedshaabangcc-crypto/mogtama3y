@@ -1,5 +1,9 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../assistant/assistant_chat_screen.dart';
 import '../chat/chat_list_screen.dart';
@@ -19,21 +23,45 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _index = 0;
+  String? _userId = AuthService.currentUser?.id;
+  late final StreamSubscription<AuthState> _authSub;
 
-  static final _pages = [
-    const GuestHomeScreen(),
-    const TechniciansMarketScreen(),
-    const ChatListScreen(),
-    const NotificationsScreen(),
-    const MoreMenuScreen(),
+  static const _pages = [
+    GuestHomeScreen(),
+    TechniciansMarketScreen(),
+    ChatListScreen(),
+    NotificationsScreen(),
+    MoreMenuScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // The tabs load their data once in initState; when the signed-in
+    // account changes (sign in, sign out, switch user) they are rebuilt
+    // from scratch below, so nobody sees the previous account's chats or
+    // notifications, and a tab first opened while signed out reloads.
+    _authSub = AuthService.authStateChanges.listen((_) {
+      final userId = AuthService.currentUser?.id;
+      if (userId != _userId && mounted) setState(() => _userId = userId);
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSub.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
-          IndexedStack(index: _index, children: _pages),
+          KeyedSubtree(
+            key: ValueKey(_userId),
+            child: IndexedStack(index: _index, children: _pages),
+          ),
           // Positioned manually (rather than Scaffold.floatingActionButton) so it
           // can clear the home tab's own bottomSheet CTA, which an outer
           // Scaffold's default FAB placement doesn't know about.

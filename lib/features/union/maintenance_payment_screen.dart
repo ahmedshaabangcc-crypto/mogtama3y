@@ -5,6 +5,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/dues/dues_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/load_error_view.dart';
 
 /// Monthly maintenance-dues payment — matches
 /// design/screens/11_maintenance_payment.png, now backed by real
@@ -19,6 +20,7 @@ class MaintenancePaymentScreen extends StatefulWidget {
 class _MaintenancePaymentScreenState extends State<MaintenancePaymentScreen> {
   int _method = 0;
   bool _loading = true;
+  bool _loadError = false;
   bool _paying = false;
   bool _canIssue = false;
   Map<String, dynamic>? _due;
@@ -31,15 +33,27 @@ class _MaintenancePaymentScreenState extends State<MaintenancePaymentScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final due = await DuesService.fetchMyOutstandingDue();
-    final canIssue = await DuesService.canIssueDues();
-    if (!mounted) return;
     setState(() {
-      _due = due;
-      _canIssue = canIssue;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final due = await DuesService.fetchMyOutstandingDue();
+      final canIssue = await DuesService.canIssueDues();
+      if (!mounted) return;
+      setState(() {
+        _due = due;
+        _canIssue = canIssue;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      // Never fall through to the "nothing due" state on a failed load.
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   Future<void> _pay() async {
@@ -132,7 +146,9 @@ class _MaintenancePaymentScreenState extends State<MaintenancePaymentScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _due == null
+          : _loadError
+              ? LoadErrorView(onRetry: _load)
+              : _due == null
               ? Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
@@ -227,7 +243,7 @@ class _MaintenancePaymentScreenState extends State<MaintenancePaymentScreen> {
                     ],
                   ],
                 ),
-      bottomSheet: (_loading || _due == null)
+      bottomSheet: (_loading || _loadError || _due == null)
           ? null
           : SafeArea(
               child: Padding(

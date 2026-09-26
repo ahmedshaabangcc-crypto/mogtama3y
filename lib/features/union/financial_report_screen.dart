@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/union/financial_report_service.dart';
 import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/load_error_view.dart';
 
 String _fmt(num n) {
   final s = n.round().toString();
@@ -39,6 +40,7 @@ class FinancialReportScreen extends StatefulWidget {
 
 class _FinancialReportScreenState extends State<FinancialReportScreen> {
   bool _loading = true;
+  bool _loadError = false;
   String? _buildingId;
   String? _buildingName;
   Map<String, dynamic>? _report;
@@ -50,24 +52,35 @@ class _FinancialReportScreenState extends State<FinancialReportScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final membership = await UnionService.fetchMyMembership();
-    final isVerified = membership?['status'] == 'verified';
-    final buildingId = isVerified ? membership!['building_id'] as String? : null;
-    final building = membership?['building'] as Map<String, dynamic>?;
-
-    Map<String, dynamic>? report;
-    if (buildingId != null) {
-      report = await FinancialReportService.fetchLatestReport(buildingId);
-    }
-
-    if (!mounted) return;
     setState(() {
-      _buildingId = buildingId;
-      _buildingName = building?['name'] as String?;
-      _report = report;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final membership = await UnionService.fetchMyMembership();
+      final isVerified = membership?['status'] == 'verified';
+      final buildingId = isVerified ? membership!['building_id'] as String? : null;
+      final building = membership?['building'] as Map<String, dynamic>?;
+
+      Map<String, dynamic>? report;
+      if (buildingId != null) {
+        report = await FinancialReportService.fetchLatestReport(buildingId);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _buildingId = buildingId;
+        _buildingName = building?['name'] as String?;
+        _report = report;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   @override
@@ -77,6 +90,9 @@ class _FinancialReportScreenState extends State<FinancialReportScreen> {
     }
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_loadError) {
+      return Scaffold(backgroundColor: AppColors.bg, appBar: AppBar(title: const Text('التقرير المالي الشامل للجمعية العمومية')), body: LoadErrorView(onRetry: _load));
     }
     if (_buildingId == null) {
       return Scaffold(

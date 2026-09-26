@@ -7,6 +7,7 @@ import '../../core/real_estate/real_estate_service.dart';
 import '../../core/support/support_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/load_error_view.dart';
 import 'add_real_estate_listing_screen.dart';
 
 const _safetyTips = [
@@ -29,6 +30,7 @@ class RealEstateMarketplaceScreen extends StatefulWidget {
 
 class _RealEstateMarketplaceScreenState extends State<RealEstateMarketplaceScreen> {
   bool _loading = true;
+  bool _loadError = false;
   List<Map<String, dynamic>> _listings = [];
   int _filterIndex = 0;
 
@@ -39,18 +41,29 @@ class _RealEstateMarketplaceScreenState extends State<RealEstateMarketplaceScree
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadError = false;
+    });
     final dealType = switch (_filterIndex) {
       1 => 'sale',
       2 => 'rent',
       _ => null,
     };
-    final rows = await RealEstateService.fetchListings(dealType: dealType);
-    if (!mounted) return;
-    setState(() {
-      _listings = rows;
-      _loading = false;
-    });
+    try {
+      final rows = await RealEstateService.fetchListings(dealType: dealType);
+      if (!mounted) return;
+      setState(() {
+        _listings = rows;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   @override
@@ -149,6 +162,8 @@ class _RealEstateMarketplaceScreenState extends State<RealEstateMarketplaceScree
             const SizedBox(height: 16),
             if (_loading)
               const Center(child: Padding(padding: EdgeInsets.all(30), child: CircularProgressIndicator()))
+            else if (_loadError)
+              LoadErrorView(onRetry: _load)
             else if (_listings.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 40),

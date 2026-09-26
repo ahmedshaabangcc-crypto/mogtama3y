@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/union/union_service.dart';
+import '../shared/load_error_view.dart';
 
 /// Lets a union president/board member review pending join requests —
 /// backed by review_union_member() in
@@ -17,6 +18,7 @@ class PendingMembersScreen extends StatefulWidget {
 
 class _PendingMembersScreenState extends State<PendingMembersScreen> {
   bool _loading = true;
+  bool _loadError = false;
   bool _authorized = false;
   String? _buildingName;
   List<Map<String, dynamic>> _pending = [];
@@ -29,22 +31,33 @@ class _PendingMembersScreenState extends State<PendingMembersScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final membership = await UnionService.fetchMyMembership();
-    final role = membership?['role'] as String?;
-    final buildingId = membership?['building_id'] as String?;
-    final isAuthorized = buildingId != null && (role == 'president' || role == 'board_member');
-    var pending = <Map<String, dynamic>>[];
-    if (isAuthorized) {
-      pending = await UnionService.fetchPendingMembers(buildingId);
-    }
-    if (!mounted) return;
     setState(() {
-      _authorized = isAuthorized;
-      _buildingName = (membership?['building'] as Map<String, dynamic>?)?['name'] as String?;
-      _pending = pending;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final membership = await UnionService.fetchMyMembership();
+      final role = membership?['role'] as String?;
+      final buildingId = membership?['building_id'] as String?;
+      final isAuthorized = buildingId != null && (role == 'president' || role == 'board_member');
+      var pending = <Map<String, dynamic>>[];
+      if (isAuthorized) {
+        pending = await UnionService.fetchPendingMembers(buildingId);
+      }
+      if (!mounted) return;
+      setState(() {
+        _authorized = isAuthorized;
+        _buildingName = (membership?['building'] as Map<String, dynamic>?)?['name'] as String?;
+        _pending = pending;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   Future<void> _review(String memberId, bool approve) async {
@@ -71,7 +84,9 @@ class _PendingMembersScreenState extends State<PendingMembersScreen> {
       appBar: AppBar(title: const Text('طلبات الانضمام المعلّقة')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : !_authorized
+          : _loadError
+              ? LoadErrorView(onRetry: _load)
+              : !_authorized
               ? Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24),

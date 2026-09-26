@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/promote/ad_token_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../shared/load_error_view.dart';
 import 'top_up_tokens_screen.dart';
 
 String _timeAgo(DateTime dt) {
@@ -24,6 +25,7 @@ class TokenWalletScreen extends StatefulWidget {
 
 class _TokenWalletScreenState extends State<TokenWalletScreen> {
   bool _loading = true;
+  bool _loadError = false;
   int _balance = 0;
   double _tokenPrice = 15;
   int _dailyRate = 1;
@@ -36,24 +38,42 @@ class _TokenWalletScreenState extends State<TokenWalletScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final balance = await AdTokenService.fetchMyBalance();
-    final settings = await AdTokenService.fetchSettings();
-    final activity = await AdTokenService.fetchMyActivity();
-    if (!mounted) return;
     setState(() {
-      _balance = balance;
-      _tokenPrice = (settings['token_price_egp'] as num?)?.toDouble() ?? 15;
-      _dailyRate = settings['daily_rate_tokens'] as int? ?? 1;
-      _activity = activity;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final balance = await AdTokenService.fetchMyBalance();
+      final settings = await AdTokenService.fetchSettings();
+      final activity = await AdTokenService.fetchMyActivity();
+      if (!mounted) return;
+      setState(() {
+        _balance = balance;
+        _tokenPrice = (settings['token_price_egp'] as num?)?.toDouble() ?? 15;
+        _dailyRate = settings['daily_rate_tokens'] as int? ?? 1;
+        _activity = activity;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_loadError) {
+      return Scaffold(
+        backgroundColor: AppColors.bg,
+        appBar: AppBar(title: const Text('رصيد التوكن ومميزات الإعلانات')),
+        body: LoadErrorView(onRetry: _load),
+      );
     }
     return Scaffold(
       backgroundColor: AppColors.bg,

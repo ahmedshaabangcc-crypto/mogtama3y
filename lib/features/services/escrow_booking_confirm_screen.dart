@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/maintenance/technician_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../shared/load_error_view.dart';
 import 'my_maintenance_requests_screen.dart';
 
 /// Escrow payment confirmation for a booked service visit — now a real
@@ -34,6 +35,7 @@ class EscrowBookingConfirmScreen extends StatefulWidget {
 
 class _EscrowBookingConfirmScreenState extends State<EscrowBookingConfirmScreen> {
   bool _loadingWallet = true;
+  bool _loadError = false;
   double _availableBalance = 0;
   final _descriptionCtrl = TextEditingController();
   bool _submitting = false;
@@ -54,12 +56,26 @@ class _EscrowBookingConfirmScreenState extends State<EscrowBookingConfirmScreen>
   Future<void> _loadWallet() async {
     final userId = AuthService.currentUser?.id;
     if (userId == null) return;
-    final wallet = await Supabase.instance.client.from('wallets').select().eq('user_id', userId).maybeSingle();
-    if (!mounted) return;
     setState(() {
-      _availableBalance = (wallet?['available_balance'] as num?)?.toDouble() ?? 0;
-      _loadingWallet = false;
+      _loadingWallet = true;
+      _loadError = false;
     });
+    try {
+      final wallet = await Supabase.instance.client.from('wallets').select().eq('user_id', userId).maybeSingle();
+      if (!mounted) return;
+      setState(() {
+        _availableBalance = (wallet?['available_balance'] as num?)?.toDouble() ?? 0;
+        _loadingWallet = false;
+      });
+    } catch (_) {
+      // Never let a failed load pass as "balance 0": show retry and keep
+      // the confirm button disabled until the real balance is known.
+      if (!mounted) return;
+      setState(() {
+        _loadingWallet = false;
+        _loadError = true;
+      });
+    }
   }
 
   Future<void> _confirm() async {
@@ -189,13 +205,16 @@ class _EscrowBookingConfirmScreenState extends State<EscrowBookingConfirmScreen>
                 const Divider(height: 24, color: AppColors.border),
                 _FeeRow(label: 'إجمالي الحجز المطلوب', value: '${total.toStringAsFixed(2)} ج.م', emphasize: true),
                 const SizedBox(height: 4),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    _loadingWallet ? 'جارِ تحميل رصيدك...' : 'رصيدك المتاح: ${_availableBalance.toStringAsFixed(2)} ج.م',
-                    style: TextStyle(fontSize: 10, color: _availableBalance >= total ? AppColors.inkMuted : Colors.redAccent),
+                if (_loadError)
+                  LoadErrorView(onRetry: _loadWallet)
+                else
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      _loadingWallet ? 'جارِ تحميل رصيدك...' : 'رصيدك المتاح: ${_availableBalance.toStringAsFixed(2)} ج.م',
+                      style: TextStyle(fontSize: 10, color: _availableBalance >= total ? AppColors.inkMuted : Colors.redAccent),
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -220,7 +239,7 @@ class _EscrowBookingConfirmScreenState extends State<EscrowBookingConfirmScreen>
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton.icon(
-                  onPressed: _submitting || _loadingWallet ? null : _confirm,
+                  onPressed: _submitting || _loadingWallet || _loadError ? null : _confirm,
                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
                   icon: _submitting
                       ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))

@@ -6,6 +6,7 @@ import '../../core/jobs/jobs_service.dart';
 import '../../core/promote/ad_token_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/load_error_view.dart';
 import 'job_details_screen.dart';
 import 'post_job_form_screen.dart';
 
@@ -45,6 +46,7 @@ class JobsBoardScreen extends StatefulWidget {
 
 class _JobsBoardScreenState extends State<JobsBoardScreen> {
   bool _loading = true;
+  bool _loadError = false;
   List<Map<String, dynamic>> _jobs = [];
 
   @override
@@ -54,13 +56,24 @@ class _JobsBoardScreenState extends State<JobsBoardScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final jobs = await JobsService.fetchActiveJobs();
-    if (!mounted) return;
     setState(() {
-      _jobs = jobs;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final jobs = await JobsService.fetchActiveJobs();
+      if (!mounted) return;
+      setState(() {
+        _jobs = jobs;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   @override
@@ -103,6 +116,8 @@ class _JobsBoardScreenState extends State<JobsBoardScreen> {
             const SizedBox(height: 12),
             if (_loading)
               const Padding(padding: EdgeInsets.symmetric(vertical: 40), child: Center(child: CircularProgressIndicator()))
+            else if (_loadError)
+              LoadErrorView(onRetry: _load)
             else if (_jobs.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 40),

@@ -41,17 +41,24 @@ class _AddLostFoundItemScreenState extends State<AddLostFoundItemScreen> {
   }
 
   Future<void> _loadGuard() async {
-    final membership = await UnionService.fetchMyMembership();
-    final buildingId = membership?['building_id'] as String?;
-    if (buildingId == null) return;
-    final guards = await GuardService.fetchGuardsFor(buildingId);
-    if (!mounted) return;
-    if (guards.isEmpty) {
+    try {
+      final membership = await UnionService.fetchMyMembership();
+      final buildingId = membership?['building_id'] as String?;
+      if (buildingId == null) return;
+      final guards = await GuardService.fetchGuardsFor(buildingId);
+      if (!mounted) return;
+      if (guards.isEmpty) {
+        setState(() => _custody = 1);
+        return;
+      }
+      final profile = guards.first['profile'] as Map<String, dynamic>?;
+      setState(() => _guardName = profile?['full_name'] as String?);
+    } catch (_) {
+      // Secondary lookup for the form — on failure fall back to the
+      // "item stays with me" option (no guard offered) instead of erroring.
+      if (!mounted) return;
       setState(() => _custody = 1);
-      return;
     }
-    final profile = guards.first['profile'] as Map<String, dynamic>?;
-    setState(() => _guardName = profile?['full_name'] as String?);
   }
 
   @override

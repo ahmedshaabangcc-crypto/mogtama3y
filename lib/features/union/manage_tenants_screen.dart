@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/union/union_service.dart';
+import '../shared/load_error_view.dart';
 
 /// Lets a unit owner invite/revoke a tenant sub-account for their own
 /// unit — see backend/migrations/0018_tenant_accounts.sql. Only shows
@@ -16,6 +17,7 @@ class ManageTenantsScreen extends StatefulWidget {
 
 class _ManageTenantsScreenState extends State<ManageTenantsScreen> {
   bool _loading = true;
+  bool _loadError = false;
   List<Map<String, dynamic>> _units = [];
   final Map<String, List<Map<String, dynamic>>> _tenantsByUnit = {};
   final Map<String, String> _lastCode = {};
@@ -27,20 +29,31 @@ class _ManageTenantsScreenState extends State<ManageTenantsScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final units = await UnionService.fetchMyOwnedUnits();
-    for (final row in units) {
-      final unit = row['unit'] as Map<String, dynamic>?;
-      final unitId = unit?['id'] as String?;
-      if (unitId != null) {
-        _tenantsByUnit[unitId] = await UnionService.fetchUnitTenants(unitId: unitId);
-      }
-    }
-    if (!mounted) return;
     setState(() {
-      _units = units;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final units = await UnionService.fetchMyOwnedUnits();
+      for (final row in units) {
+        final unit = row['unit'] as Map<String, dynamic>?;
+        final unitId = unit?['id'] as String?;
+        if (unitId != null) {
+          _tenantsByUnit[unitId] = await UnionService.fetchUnitTenants(unitId: unitId);
+        }
+      }
+      if (!mounted) return;
+      setState(() {
+        _units = units;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   Future<void> _invite(String unitId) async {
@@ -71,7 +84,9 @@ class _ManageTenantsScreenState extends State<ManageTenantsScreen> {
       appBar: AppBar(title: const Text('إدارة حسابات المستأجرين')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _units.isEmpty
+          : _loadError
+              ? LoadErrorView(onRetry: _load)
+              : _units.isEmpty
               ? ListView(children: const [
                   Padding(
                     padding: EdgeInsets.symmetric(vertical: 60, horizontal: 24),

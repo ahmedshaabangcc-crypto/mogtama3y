@@ -9,6 +9,7 @@ import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
 import '../marketplace/marketplace_chat_screen.dart';
 import '../services/maintenance_request_detail_screen.dart';
+import '../shared/load_error_view.dart';
 import 'building_chat_screen.dart';
 
 const _requestStatusLabels = {
@@ -37,6 +38,7 @@ class ChatListScreen extends StatefulWidget {
 
 class _ChatListScreenState extends State<ChatListScreen> {
   bool _loading = true;
+  bool _loadError = false;
   String? _buildingId;
   String? _buildingName;
   String? _lastBuildingMessage;
@@ -51,36 +53,47 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final membership = await UnionService.fetchMyMembership();
-    final buildingId = membership?['building_id'] as String?;
-    final building = membership?['building'] as Map<String, dynamic>?;
-    String? lastMessage;
-    if (buildingId != null) {
-      final last = await BuildingChatService.fetchLastMessage(buildingId);
-      lastMessage = last?['body'] as String?;
-    }
-
-    final requests = await TechnicianService.fetchMyRequests();
-
-    final profiles = await TechnicianService.fetchMyTechnicianProfiles();
-    final jobs = <Map<String, dynamic>>[];
-    for (final p in profiles) {
-      jobs.addAll(await TechnicianService.fetchAssignedRequests(p['id'] as String));
-    }
-
-    final marketplaceConversations = await MarketplaceChatService.fetchMyConversations();
-
-    if (!mounted) return;
     setState(() {
-      _buildingId = buildingId;
-      _buildingName = building?['name'] as String?;
-      _lastBuildingMessage = lastMessage;
-      _myRequests = requests;
-      _myJobs = jobs;
-      _marketplaceConversations = marketplaceConversations;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final membership = await UnionService.fetchMyMembership();
+      final buildingId = membership?['building_id'] as String?;
+      final building = membership?['building'] as Map<String, dynamic>?;
+      String? lastMessage;
+      if (buildingId != null) {
+        final last = await BuildingChatService.fetchLastMessage(buildingId);
+        lastMessage = last?['body'] as String?;
+      }
+
+      final requests = await TechnicianService.fetchMyRequests();
+
+      final profiles = await TechnicianService.fetchMyTechnicianProfiles();
+      final jobs = <Map<String, dynamic>>[];
+      for (final p in profiles) {
+        jobs.addAll(await TechnicianService.fetchAssignedRequests(p['id'] as String));
+      }
+
+      final marketplaceConversations = await MarketplaceChatService.fetchMyConversations();
+
+      if (!mounted) return;
+      setState(() {
+        _buildingId = buildingId;
+        _buildingName = building?['name'] as String?;
+        _lastBuildingMessage = lastMessage;
+        _myRequests = requests;
+        _myJobs = jobs;
+        _marketplaceConversations = marketplaceConversations;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   @override
@@ -90,6 +103,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
     }
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_loadError) {
+      return Scaffold(
+        backgroundColor: AppColors.bg,
+        appBar: AppBar(title: const Text('المحادثات')),
+        body: LoadErrorView(onRetry: _load),
+      );
     }
 
     final hasAnything = _buildingId != null || _myRequests.isNotEmpty || _myJobs.isNotEmpty || _marketplaceConversations.isNotEmpty;

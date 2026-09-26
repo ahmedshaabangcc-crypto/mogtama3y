@@ -4,6 +4,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/lost_found/lost_found_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/load_error_view.dart';
 import 'add_lost_found_item_screen.dart';
 
 IconData _categoryIcon(String category) => switch (category) {
@@ -34,6 +35,7 @@ class LostFoundHubScreen extends StatefulWidget {
 class _LostFoundHubScreenState extends State<LostFoundHubScreen> {
   int _tab = 1;
   bool _loading = true;
+  bool _loadError = false;
   List<Map<String, dynamic>> _items = [];
 
   @override
@@ -43,13 +45,24 @@ class _LostFoundHubScreenState extends State<LostFoundHubScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final items = AuthService.isSignedIn ? await LostFoundService.fetchItems() : <Map<String, dynamic>>[];
-    if (!mounted) return;
     setState(() {
-      _items = items;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final items = AuthService.isSignedIn ? await LostFoundService.fetchItems() : <Map<String, dynamic>>[];
+      if (!mounted) return;
+      setState(() {
+        _items = items;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   List<Map<String, dynamic>> get _visibleItems =>
@@ -106,6 +119,8 @@ class _LostFoundHubScreenState extends State<LostFoundHubScreen> {
               )
             else if (_loading)
               const Padding(padding: EdgeInsets.symmetric(vertical: 40), child: Center(child: CircularProgressIndicator()))
+            else if (_loadError)
+              LoadErrorView(onRetry: _load)
             else if (_visibleItems.isEmpty)
               const _EmptyState(icon: Icons.task_alt_rounded, text: 'لا توجد بلاغات حالياً في عمارتك')
             else

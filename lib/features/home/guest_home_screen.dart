@@ -201,9 +201,13 @@ class _NotificationBellState extends State<_NotificationBell> {
 
   Future<void> _load() async {
     if (!AuthService.isSignedIn) return;
-    final count = await NotificationsService.fetchUnreadCount();
-    if (!mounted) return;
-    setState(() => _unread = count);
+    try {
+      final count = await NotificationsService.fetchUnreadCount();
+      if (!mounted) return;
+      setState(() => _unread = count);
+    } catch (_) {
+      // Just a badge — on failure keep the previous count rather than surface an error.
+    }
   }
 
   Future<void> _open() async {

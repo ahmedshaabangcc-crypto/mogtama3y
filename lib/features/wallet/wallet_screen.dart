@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/load_error_view.dart';
 import '../union/maintenance_payment_screen.dart';
 
 (IconData, String) _txMeta(String type) => switch (type) {
@@ -55,6 +56,7 @@ class WalletScreen extends StatefulWidget {
 
 class _WalletScreenState extends State<WalletScreen> {
   bool _loading = true;
+  bool _loadError = false;
   double _available = 0;
   double _held = 0;
   List<Map<String, dynamic>> _transactions = [];
@@ -90,27 +92,39 @@ class _WalletScreenState extends State<WalletScreen> {
       });
       return;
     }
-    setState(() => _loading = true);
-    final client = Supabase.instance.client;
-    final userId = AuthService.currentUser!.id;
-    final wallet = await client.from('wallets').select().eq('user_id', userId).maybeSingle();
-    var txns = <Map<String, dynamic>>[];
-    if (wallet != null) {
-      final rows = await client
-          .from('wallet_transactions')
-          .select()
-          .eq('wallet_id', wallet['id'] as String)
-          .order('created_at', ascending: false)
-          .limit(20);
-      txns = List<Map<String, dynamic>>.from(rows as List);
-    }
-    if (!mounted) return;
     setState(() {
-      _available = (wallet?['available_balance'] as num?)?.toDouble() ?? 0;
-      _held = (wallet?['held_balance'] as num?)?.toDouble() ?? 0;
-      _transactions = txns;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final client = Supabase.instance.client;
+      final userId = AuthService.currentUser!.id;
+      final wallet = await client.from('wallets').select().eq('user_id', userId).maybeSingle();
+      var txns = <Map<String, dynamic>>[];
+      if (wallet != null) {
+        final rows = await client
+            .from('wallet_transactions')
+            .select()
+            .eq('wallet_id', wallet['id'] as String)
+            .order('created_at', ascending: false)
+            .limit(20);
+        txns = List<Map<String, dynamic>>.from(rows as List);
+      }
+      if (!mounted) return;
+      setState(() {
+        _available = (wallet?['available_balance'] as num?)?.toDouble() ?? 0;
+        _held = (wallet?['held_balance'] as num?)?.toDouble() ?? 0;
+        _transactions = txns;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      // Never show a failed load as a 0 balance / empty history.
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   @override
@@ -182,11 +196,11 @@ class _WalletScreenState extends State<WalletScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: Text(
-                      _loading ? '...' : '${NumberFormat('#,##0.00').format(_available)} ج.م',
+                      _loading ? '...' : _loadError ? '—' : '${NumberFormat('#,##0.00').format(_available)} ج.م',
                       style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w800),
                     ),
                   ),
-                  if (_held > 0) ...[
+                  if (!_loadError && _held > 0) ...[
                     const SizedBox(height: 14),
                     Container(
                       padding: const EdgeInsets.all(10),
@@ -231,6 +245,8 @@ class _WalletScreenState extends State<WalletScreen> {
                 padding: EdgeInsets.symmetric(vertical: 24),
                 child: Center(child: CircularProgressIndicator()),
               )
+            else if (_loadError)
+              LoadErrorView(onRetry: _load)
             else if (_visibleTransactions.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24),

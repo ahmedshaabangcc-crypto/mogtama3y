@@ -49,12 +49,19 @@ class _MoreMenuScreenState extends State<MoreMenuScreen> {
       return;
     }
     setState(() => _loadingProfile = true);
-    final profile = await AuthService.fetchCurrentProfile();
-    if (!mounted) return;
-    setState(() {
-      _profile = profile;
-      _loadingProfile = false;
-    });
+    try {
+      final profile = await AuthService.fetchCurrentProfile();
+      if (!mounted) return;
+      setState(() {
+        _profile = profile;
+        _loadingProfile = false;
+      });
+    } catch (_) {
+      // Only the header's name line — on failure stop "loading" and keep the
+      // previous value (or the generic fallback name) instead of an error view.
+      if (!mounted) return;
+      setState(() => _loadingProfile = false);
+    }
   }
 
   Future<void> _signOut() async {

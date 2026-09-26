@@ -11,6 +11,7 @@ import '../../core/union/maintenance_schedule_service.dart';
 import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
 import '../guard/guard_console_screen.dart';
+import '../shared/load_error_view.dart';
 import '../visitor/visitor_qr_pass_screen.dart';
 import 'board_decisions_screen.dart';
 import 'election_voting_screen.dart';
@@ -63,7 +64,7 @@ class UnionDashboardScreen extends StatefulWidget {
 
 class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
   bool _loading = true;
-  String? _loadError;
+  bool _loadError = false;
   String? _buildingId;
   String? _buildingName;
   String? _district;
@@ -87,14 +88,14 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
   Future<void> _load() async {
     setState(() {
       _loading = true;
-      _loadError = null;
+      _loadError = false;
     });
     try {
       await _loadReal();
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
-        _loadError = e.toString();
+        _loadError = true;
         _loading = false;
       });
     }
@@ -239,28 +240,8 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    if (_loadError != null) {
-      return Scaffold(
-        backgroundColor: AppColors.bg,
-        appBar: AppBar(title: const Text('مجلس إدارة اتحاد الشاغلين')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error_outline_rounded, color: AppColors.categorySos, size: 40),
-                const SizedBox(height: 12),
-                const Text('تعذر تحميل لوحة الاتحاد', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                const SizedBox(height: 8),
-                Text(_loadError!, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.inkMuted, fontSize: 11)),
-                const SizedBox(height: 16),
-                ElevatedButton(onPressed: _load, child: const Text('إعادة المحاولة')),
-              ],
-            ),
-          ),
-        ),
-      );
+    if (_loadError) {
+      return Scaffold(backgroundColor: AppColors.bg, appBar: AppBar(title: const Text('مجلس إدارة اتحاد الشاغلين')), body: LoadErrorView(onRetry: _load));
     }
     if (_buildingId == null) {
       return Scaffold(

@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/union/election_service.dart';
 import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/load_error_view.dart';
 
 /// Real president/board succession election — see
 /// backend/migrations/0021_elections.sql. Distinct from founding a
@@ -22,6 +23,7 @@ class ElectionVotingScreen extends StatefulWidget {
 
 class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
   bool _loading = true;
+  bool _loadError = false;
   String? _buildingId;
   bool _isBoardMember = false;
   String? _myUserId;
@@ -36,34 +38,45 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final membership = await UnionService.fetchMyMembership();
-    final buildingId = membership?['building_id'] as String?;
-    final role = membership?['role'] as String?;
-    final status = membership?['status'] as String?;
-    final isBoardMember = status == 'verified' && (role == 'president' || role == 'board_member');
-
-    Map<String, dynamic>? election;
-    List<Map<String, dynamic>> candidates = [];
-    String? myVote;
-    if (buildingId != null) {
-      election = await ElectionService.fetchLatestElection(buildingId);
-      if (election != null) {
-        candidates = await ElectionService.fetchCandidates(election['id'] as String);
-        myVote = await ElectionService.fetchMyVoteCandidateId(election['id'] as String);
-      }
-    }
-
-    if (!mounted) return;
     setState(() {
-      _buildingId = buildingId;
-      _isBoardMember = isBoardMember;
-      _myUserId = AuthService.currentUser?.id;
-      _election = election;
-      _candidates = candidates;
-      _myVoteCandidateId = myVote;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final membership = await UnionService.fetchMyMembership();
+      final buildingId = membership?['building_id'] as String?;
+      final role = membership?['role'] as String?;
+      final status = membership?['status'] as String?;
+      final isBoardMember = status == 'verified' && (role == 'president' || role == 'board_member');
+
+      Map<String, dynamic>? election;
+      List<Map<String, dynamic>> candidates = [];
+      String? myVote;
+      if (buildingId != null) {
+        election = await ElectionService.fetchLatestElection(buildingId);
+        if (election != null) {
+          candidates = await ElectionService.fetchCandidates(election['id'] as String);
+          myVote = await ElectionService.fetchMyVoteCandidateId(election['id'] as String);
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _buildingId = buildingId;
+        _isBoardMember = isBoardMember;
+        _myUserId = AuthService.currentUser?.id;
+        _election = election;
+        _candidates = candidates;
+        _myVoteCandidateId = myVote;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   Future<void> _createElection() async {
@@ -161,6 +174,9 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
     }
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_loadError) {
+      return Scaffold(backgroundColor: AppColors.bg, appBar: AppBar(title: const Text('انتخابات اتحاد الملاك')), body: LoadErrorView(onRetry: _load));
     }
     if (_buildingId == null) {
       return Scaffold(

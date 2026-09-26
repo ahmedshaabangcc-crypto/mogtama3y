@@ -4,6 +4,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/notifications/notifications_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/load_error_view.dart';
 
 String _timeAgo(DateTime dt) {
   final diff = DateTime.now().difference(dt.toLocal());
@@ -25,6 +26,7 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   bool _loading = true;
+  bool _loadError = false;
   List<Map<String, dynamic>> _notices = [];
 
   @override
@@ -34,13 +36,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final notices = await NotificationsService.fetchMine();
-    if (!mounted) return;
     setState(() {
-      _notices = notices;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final notices = await NotificationsService.fetchMine();
+      if (!mounted) return;
+      setState(() {
+        _notices = notices;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   Future<void> _markAllRead() async {
@@ -86,6 +99,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         onRefresh: _load,
         child: _loading
             ? const Center(child: CircularProgressIndicator())
+            : _loadError
+            ? LoadErrorView(onRetry: _load)
             : _notices.isEmpty
                 ? ListView(children: const [
                     Padding(

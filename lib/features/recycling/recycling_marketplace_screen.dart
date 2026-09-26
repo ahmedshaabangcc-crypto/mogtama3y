@@ -7,6 +7,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/recycling/recycling_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/load_error_view.dart';
 import 'add_recycling_lot_screen.dart';
 import 'auction_detail_screen.dart';
 
@@ -45,6 +46,7 @@ class RecyclingMarketplaceScreen extends StatefulWidget {
 
 class _RecyclingMarketplaceScreenState extends State<RecyclingMarketplaceScreen> {
   bool _loading = true;
+  bool _loadError = false;
   List<Map<String, dynamic>> _lots = [];
   Timer? _timer;
 
@@ -62,13 +64,24 @@ class _RecyclingMarketplaceScreenState extends State<RecyclingMarketplaceScreen>
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final lots = await RecyclingService.fetchActiveLots();
-    if (!mounted) return;
     setState(() {
-      _lots = lots;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final lots = await RecyclingService.fetchActiveLots();
+      if (!mounted) return;
+      setState(() {
+        _lots = lots;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   String _format(Duration d) {
@@ -124,6 +137,8 @@ class _RecyclingMarketplaceScreenState extends State<RecyclingMarketplaceScreen>
             const SizedBox(height: 10),
             if (_loading)
               const Padding(padding: EdgeInsets.symmetric(vertical: 40), child: Center(child: CircularProgressIndicator()))
+            else if (_loadError)
+              LoadErrorView(onRetry: _load)
             else if (_lots.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 40),

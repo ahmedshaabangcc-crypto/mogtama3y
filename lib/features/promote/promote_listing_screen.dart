@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/promote/ad_token_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../shared/load_error_view.dart';
 import 'token_wallet_screen.dart';
 import 'top_up_tokens_screen.dart';
 
@@ -25,6 +26,7 @@ class PromoteListingScreen extends StatefulWidget {
 
 class _PromoteListingScreenState extends State<PromoteListingScreen> {
   bool _loading = true;
+  bool _loadError = false;
   int _days = 3;
   int _balance = 0;
   int _dailyRate = 1;
@@ -41,15 +43,27 @@ class _PromoteListingScreenState extends State<PromoteListingScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final settings = await AdTokenService.fetchSettings();
-    final balance = await AdTokenService.fetchMyBalance();
-    if (!mounted) return;
     setState(() {
-      _dailyRate = settings['daily_rate_tokens'] as int? ?? 1;
-      _balance = balance;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      final settings = await AdTokenService.fetchSettings();
+      final balance = await AdTokenService.fetchMyBalance();
+      if (!mounted) return;
+      setState(() {
+        _dailyRate = settings['daily_rate_tokens'] as int? ?? 1;
+        _balance = balance;
+        _loading = false;
+      });
+    } catch (_) {
+      // A failed balance load must not show up as "0 tokens / can't afford".
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   Future<void> _confirm() async {
@@ -72,6 +86,16 @@ class _PromoteListingScreenState extends State<PromoteListingScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (_confirmed) return _buildConfirmed(context);
+    if (_loadError) {
+      return Scaffold(
+        backgroundColor: AppColors.bg,
+        appBar: AppBar(
+          title: const Text('تمييز الإعلان'),
+          actions: [TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('تخطي', style: TextStyle(color: Colors.white)))],
+        ),
+        body: LoadErrorView(onRetry: _load),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.bg,
