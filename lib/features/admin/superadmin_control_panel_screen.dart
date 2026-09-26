@@ -33,6 +33,7 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
   List<Map<String, dynamic>> _disputes = [];
   List<Map<String, dynamic>> _topups = [];
   List<Map<String, dynamic>> _technicianVerifications = [];
+  List<Map<String, dynamic>> _tickets = [];
 
   @override
   void initState() {
@@ -51,6 +52,7 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
       final disputes = await AdminService.fetchDisputedRequests();
       final topups = await AdTokenService.fetchPendingTopups();
       final technicianVerifications = await AdminService.fetchPendingTechnicianVerifications();
+      final tickets = await AdminService.fetchOpenSupportTickets();
       if (!mounted) return;
       setState(() {
         _stats = stats;
@@ -58,6 +60,7 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
         _disputes = disputes;
         _topups = topups;
         _technicianVerifications = technicianVerifications;
+        _tickets = tickets;
         _loading = false;
       });
     } catch (_) {
@@ -109,6 +112,34 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح المستند')));
+    }
+  }
+
+  Future<void> _replyToTicket(Map<String, dynamic> ticket) async {
+    final replyCtrl = TextEditingController();
+    final reply = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(ticket['subject'] as String? ?? 'الرد على التذكرة'),
+        content: TextField(
+          controller: replyCtrl,
+          maxLines: 4,
+          decoration: const InputDecoration(labelText: 'الرد (يصل للمستخدم كإشعار)'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('تراجع')),
+          ElevatedButton(onPressed: () => Navigator.of(context).pop(replyCtrl.text.trim()), child: const Text('إرسال وإغلاق التذكرة')),
+        ],
+      ),
+    );
+    replyCtrl.dispose();
+    if (reply == null || reply.isEmpty) return;
+    try {
+      await AdminService.resolveSupportTicket(ticketId: ticket['id'] as String, reply: reply);
+      _load();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر إرسال الرد')));
     }
   }
 
@@ -257,6 +288,23 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
             else
               for (final t in _topups) ...[
                 _TokenTopUpCard(request: t, onReview: _reviewTopup),
+                const SizedBox(height: 14),
+              ],
+            const SizedBox(height: 22),
+            Row(children: [
+              const Expanded(child: Text('تذاكر الدعم والبلاغات', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14))),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
+                child: Text('${_tickets.length} تذكرة', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
+              ),
+            ]),
+            const SizedBox(height: 10),
+            if (_tickets.isEmpty)
+              const Text('لا توجد تذاكر مفتوحة حالياً', style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted))
+            else
+              for (final t in _tickets) ...[
+                _SupportTicketCard(ticket: t, onReply: () => _replyToTicket(t)),
                 const SizedBox(height: 14),
               ],
           ],
@@ -563,6 +611,58 @@ class _ClaimBusinessCard extends StatelessWidget {
               ),
             ),
           ]),
+        ],
+      ),
+    );
+  }
+}
+
+const _ticketCategoryLabels = {
+  'technical': 'مشكلة تقنية',
+  'billing': 'مدفوعات',
+  'complaint': 'شكوى / بلاغ',
+  'suggestion': 'اقتراح',
+  'other': 'أخرى',
+};
+
+class _SupportTicketCard extends StatelessWidget {
+  const _SupportTicketCard({required this.ticket, required this.onReply});
+  final Map<String, dynamic> ticket;
+  final VoidCallback onReply;
+
+  @override
+  Widget build(BuildContext context) {
+    final requester = ticket['requester'] as Map<String, dynamic>?;
+    final category = ticket['category'] as String? ?? 'other';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Expanded(child: Text(ticket['subject'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5))),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
+              child: Text(_ticketCategoryLabels[category] ?? category, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          Text(ticket['body'] as String? ?? '', style: const TextStyle(fontSize: 11, color: AppColors.inkSecondary, height: 1.6)),
+          const SizedBox(height: 8),
+          Text('من: ${requester?['full_name'] ?? ''} ${requester?['phone'] != null ? '(${requester!['phone']})' : ''}', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 42,
+            child: ElevatedButton(
+              onPressed: onReply,
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, foregroundColor: Colors.white),
+              child: const Text('الرد وإغلاق التذكرة', style: TextStyle(fontSize: 11)),
+            ),
+          ),
         ],
       ),
     );

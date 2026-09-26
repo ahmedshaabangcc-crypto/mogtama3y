@@ -101,7 +101,7 @@ class _EscrowBookingConfirmScreenState extends State<EscrowBookingConfirmScreen>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(color: AppColors.teal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(100)),
-              child: const Text('دفع من محفظتك ومضمون 100%', style: TextStyle(fontSize: 10, color: AppColors.teal, fontWeight: FontWeight.w700)),
+              child: const Text('يُحجز من محفظتك حتى تؤكد الاستلام', style: TextStyle(fontSize: 10, color: AppColors.teal, fontWeight: FontWeight.w700)),
             ),
           ),
           const SizedBox(height: 12),

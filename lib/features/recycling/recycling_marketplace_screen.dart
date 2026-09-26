@@ -107,7 +107,7 @@ class _RecyclingMarketplaceScreenState extends State<RecyclingMarketplaceScreen>
                       children: [
                         Text('أثر مجتمعي مستدام', style: TextStyle(color: AppColors.tealLight, fontSize: 10.5, fontWeight: FontWeight.w600)),
                         SizedBox(height: 4),
-                        Text('حوّل مخلفاتك إلى عائد نقدي أو دعم لصندوق صيانة عمارتك', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14, height: 1.4)),
+                        Text('حوّل مخلفاتك إلى عائد نقدي عبر مزاد بين المهتمين', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14, height: 1.4)),
                       ],
                     ),
                   ),

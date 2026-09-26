@@ -7,22 +7,22 @@ const _pillars = [
   (
     icon: Icons.account_balance_rounded,
     title: 'حوكمة اتحاد الملاك والشفافية المالية',
-    body: 'حوكمة كاملة لجمعيات واتحادات الملاك مع تقارير محاسبية فورية وإشراف حي على الصناديق والمصروفات بكل شفافية.',
+    body: 'المستحقات والتقارير المالية وقرارات المجلس والانتخابات في مكان واحد، ظاهرة لكل سكان العمارة الموثقين.',
   ),
   (
     icon: Icons.shield_outlined,
     title: 'الأمان والضمان المالي (Escrow)',
-    body: 'حماية مدفوعات الصيانة بنظام الحجز المشفر المعتمد، ولا يُصرف للفني إلا بعد تأكيد الساكن وإتمام العمل برضا تام.',
+    body: 'يُحجز مبلغ الصيانة في محفظتك ولا يُصرف للفني إلا بعد أن تتأكد من العمل وتعطيه كود الاستلام.',
   ),
   (
     icon: Icons.storefront_outlined,
-    title: 'تنمية الاقتصاد المحلي وتوصيل الـ500م',
-    body: 'دعم محلات البقالة والمتاجر التابعة للمناطق السكنية المجاورة مع توصيل سريع وتدوير البيكيا لاستدامة الحي.',
+    title: 'تنمية الاقتصاد المحلي',
+    body: 'دليل لمحلات الحي، وسوق للمستعمل بين الجيران، ومزادات للخردة والتدوير.',
   ),
   (
     icon: Icons.privacy_tip_outlined,
     title: 'بيئة سكنية آمنة تحمي الخصوصية',
-    body: 'تواصل وتفاعل سكني ذكي ومترابط يحجب رقم الهاتف الشخصي ويحمي خصوصية كل أسرة داخل المجمع السكني.',
+    body: 'رقم هاتفك لا يظهر لجيرانك؛ يراه رئيس الاتحاد ومجلس الإدارة فقط، أو المشترون إذا اخترت إظهاره في إعلانك.',
   ),
 ];
 
@@ -39,14 +39,6 @@ class AboutPlatformScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         children: [
-          Row(children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: AppColors.teal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(100)),
-              child: const Text('موثّق رسمياً', style: TextStyle(fontSize: 9.5, color: AppColors.teal, fontWeight: FontWeight.w700)),
-            ),
-          ]),
-          const SizedBox(height: 4),
           const Text('من نحن وعن منصة مُجتمعي', style: TextStyle(fontSize: 11.5, color: AppColors.inkSecondary)),
           const SizedBox(height: 4),
           const Text('الرؤية، الرسالة، وركائز السكن الذكي التشاركي', style: TextStyle(fontSize: 11.5, color: AppColors.inkSecondary)),
@@ -97,38 +89,6 @@ class AboutPlatformScreen extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          Row(children: [
-            const Expanded(child: Text('أثر منصة مُجتمعي بالأرقام', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5))),
-            const Text('تحديث حي ومباشر', style: TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
-          ]),
-          const SizedBox(height: 10),
-          Row(children: const [
-            Expanded(child: _StatCircle(emoji: '😊', value: '98%', label: 'نسبة رضا')),
-            SizedBox(width: 8),
-            Expanded(child: _StatCircle(emoji: '🏘️', value: '4,500+', label: 'جار موثق')),
-            SizedBox(width: 8),
-            Expanded(child: _StatCircle(emoji: '📅', value: '180+', label: 'عمارة مفعّلة')),
-          ]),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: const [
-                  Icon(Icons.show_chart_rounded, size: 15, color: AppColors.teal),
-                  SizedBox(width: 6),
-                  Text('مؤشر التوافق وسداد المستحقات السكنية', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-                  Spacer(),
-                  Text('+18.4% نمو هذا العام', style: TextStyle(fontSize: 9.5, color: AppColors.teal, fontWeight: FontWeight.w700)),
-                ]),
-                const SizedBox(height: 10),
-                SizedBox(height: 50, child: CustomPaint(painter: _TrendPainter(), size: const Size(double.infinity, 50))),
-              ],
-            ),
-          ),
           const SizedBox(height: 22),
           const Text('ركائز مُجتمعي الأربعة الأساسية', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
           const Text('الأسس التقنية والاجتماعية التي تُبنى عليها منصتنا', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
@@ -137,27 +97,6 @@ class AboutPlatformScreen extends StatelessWidget {
             _PillarRow(index: i + 1, icon: _pillars[i].icon, title: _pillars[i].title, body: _pillars[i].body),
             const SizedBox(height: 12),
           ],
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: AppColors.teal.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(16)),
-            child: Row(children: [
-              const Icon(Icons.workspace_premium_rounded, color: AppColors.teal, size: 22),
-              const SizedBox(width: 10),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('اعتماد وموثوقية رسمية', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.teal)),
-                    SizedBox(height: 4),
-                    Text(
-                      'مرخّص كمنصة تكنولوجيا عقارية ومجتمعية ذكية وفق أحدث تشريعات تنظيم اتحادات الشاغلين وإدارة المرافق السكنية.',
-                      style: TextStyle(fontSize: 10, color: AppColors.teal, height: 1.7),
-                    ),
-                  ],
-                ),
-              ),
-            ]),
-          ),
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -170,28 +109,7 @@ class AboutPlatformScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          const Text('انضمام عمارة جديدة يستغرق أقل من 3 دقائق مع فريق التوثيق الميداني.', textAlign: TextAlign.center, style: TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatCircle extends StatelessWidget {
-  const _StatCircle({required this.emoji, required this.value, required this.label});
-  final String emoji, value, label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
-      child: Column(
-        children: [
-          Text(emoji, style: const TextStyle(fontSize: 20)),
-          const SizedBox(height: 6),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-          Text(label, style: const TextStyle(fontSize: 9, color: AppColors.inkMuted)),
+          const Text('تأسيس عمارتك أو الانضمام لها يتم من داخل التطبيق في دقائق.', textAlign: TextAlign.center, style: TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
         ],
       ),
     );
@@ -245,41 +163,3 @@ class _PillarRow extends StatelessWidget {
   }
 }
 
-class _TrendPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final points = [0.7, 0.6, 0.5, 0.55, 0.4, 0.35, 0.2, 0.15, 0.05];
-    final path = Path();
-    final fillPath = Path();
-    for (var i = 0; i < points.length; i++) {
-      final x = size.width * i / (points.length - 1);
-      final y = size.height * points[i];
-      if (i == 0) {
-        path.moveTo(x, y);
-        fillPath.moveTo(x, size.height);
-        fillPath.lineTo(x, y);
-      } else {
-        path.lineTo(x, y);
-        fillPath.lineTo(x, y);
-      }
-    }
-    fillPath.lineTo(size.width, size.height);
-    fillPath.close();
-
-    canvas.drawPath(fillPath, Paint()..color = AppColors.teal.withValues(alpha: 0.12));
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = AppColors.teal
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5
-        ..strokeCap = StrokeCap.round,
-    );
-    final lastX = size.width;
-    final lastY = size.height * points.last;
-    canvas.drawCircle(Offset(lastX, lastY), 4, Paint()..color = AppColors.teal);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}

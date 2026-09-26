@@ -4,6 +4,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/maps/maps_launcher.dart';
 import '../../core/promote/ad_token_service.dart';
 import '../../core/real_estate/real_estate_service.dart';
+import '../../core/support/support_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import 'add_real_estate_listing_screen.dart';
@@ -197,6 +198,25 @@ class _ListingCard extends StatefulWidget {
 class _ListingCardState extends State<_ListingCard> {
   bool _sending = false;
 
+  /// Files a real complaint ticket that the support/admin team sees.
+  Future<void> _report(BuildContext context, String reason) async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (!AuthService.isSignedIn) {
+      messenger.showSnackBar(const SnackBar(content: Text('سجّل الدخول أولاً لتتمكن من الإبلاغ عن الإعلان')));
+      return;
+    }
+    try {
+      await SupportService.submitTicket(
+        category: 'complaint',
+        subject: 'بلاغ عن إعلان عقار: $reason',
+        body: 'الإعلان: ${widget.listing['title'] ?? ''}\nرقم الإعلان: ${widget.listing['id']}\nسبب البلاغ: $reason',
+      );
+      messenger.showSnackBar(const SnackBar(content: Text('تم إرسال بلاغك لفريق الدعم، شكراً لمساهمتك في أمان المجتمع')));
+    } catch (_) {
+      messenger.showSnackBar(const SnackBar(content: Text('تعذر إرسال البلاغ، حاول مرة أخرى')));
+    }
+  }
+
   void _showReportSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -225,7 +245,7 @@ class _ListingCardState extends State<_ListingCard> {
                   title: Text(reason, style: const TextStyle(fontSize: 13)),
                   onTap: () {
                     Navigator.of(sheetContext).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم استلام بلاغك، شكراً لمساهمتك في أمان المجتمع')));
+                    _report(context, reason);
                   },
                 ),
             ],

@@ -87,7 +87,7 @@ class SmartPostPickerScreen extends StatelessWidget {
                     Text('ميثاق النشر وحماية الجيران', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
                     SizedBox(height: 3),
                     Text(
-                      'تخضع جميع الإعلانات آلياً لمراجعة فورية وفق قواعد السكن الراقي وتضمن حماية أرقام التواصل بنسبة 100% ومنع أي تطفل غير مرغوب.',
+                      'إعلانك يظهر لجيرانك فوراً، ورقم هاتفك لا يظهر فيه إلا إذا اخترت إظهاره.',
                       style: TextStyle(fontSize: 10, color: AppColors.inkMuted, height: 1.6),
                     ),
                   ],

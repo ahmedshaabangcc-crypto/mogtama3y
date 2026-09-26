@@ -40,6 +40,17 @@ class MarketplaceListingScreen extends StatefulWidget {
 class _MarketplaceListingScreenState extends State<MarketplaceListingScreen> {
   bool _loading = true;
   List<Map<String, dynamic>> _listings = [];
+  String _query = '';
+
+  // Client-side search over the loaded listings (title + description).
+  List<Map<String, dynamic>> get _visibleListings {
+    if (_query.isEmpty) return _listings;
+    final q = _query.toLowerCase();
+    return _listings.where((l) {
+      final text = '${l['title'] ?? ''} ${l['description'] ?? ''}'.toLowerCase();
+      return text.contains(q);
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -100,15 +111,24 @@ class _MarketplaceListingScreenState extends State<MarketplaceListingScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
           children: [
-            const _SearchBar(),
-            const SizedBox(height: 12),
-            const _FilterChips(),
+            TextField(
+              onChanged: (v) => setState(() => _query = v.trim()),
+              decoration: InputDecoration(
+                hintText: 'ابحث في عناوين ووصف الإعلانات...',
+                prefixIcon: const Icon(Icons.search_rounded, color: AppColors.inkMuted, size: 20),
+                filled: true,
+                fillColor: AppColors.surface,
+                isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
+              ),
+            ),
             const SizedBox(height: 20),
             Row(
               children: [
-                const Text('أحدث المعروضات في حيك السكني', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                const Text('أحدث المعروضات', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
                 const Spacer(),
-                Text('${_listings.length} إعلان نشط', style: const TextStyle(color: AppColors.inkMuted, fontSize: 11)),
+                Text('${_visibleListings.length} إعلان نشط', style: const TextStyle(color: AppColors.inkMuted, fontSize: 11)),
               ],
             ),
             const SizedBox(height: 12),
@@ -117,21 +137,23 @@ class _MarketplaceListingScreenState extends State<MarketplaceListingScreen> {
                 padding: EdgeInsets.symmetric(vertical: 40),
                 child: Center(child: CircularProgressIndicator()),
               )
-            else if (_listings.isEmpty)
+            else if (_visibleListings.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 40),
                 child: Column(
                   children: [
                     const Icon(Icons.shopping_bag_outlined, color: AppColors.inkMuted, size: 36),
                     const SizedBox(height: 10),
-                    const Text('لا توجد إعلانات بعد', style: TextStyle(color: AppColors.inkMuted, fontSize: 13)),
-                    const SizedBox(height: 4),
-                    const Text('كن أول من ينشر إعلاناً في السوق!', style: TextStyle(color: AppColors.inkMuted, fontSize: 11)),
+                    Text(_query.isEmpty ? 'لا توجد إعلانات بعد' : 'لا توجد نتائج لبحثك', style: const TextStyle(color: AppColors.inkMuted, fontSize: 13)),
+                    if (_query.isEmpty) ...[
+                      const SizedBox(height: 4),
+                      const Text('كن أول من ينشر إعلاناً في السوق!', style: TextStyle(color: AppColors.inkMuted, fontSize: 11)),
+                    ],
                   ],
                 ),
               )
             else
-              for (final l in _listings) ...[
+              for (final l in _visibleListings) ...[
                 _ListingCard(listing: l),
                 const SizedBox(height: 14),
               ],
@@ -144,83 +166,6 @@ class _MarketplaceListingScreenState extends State<MarketplaceListingScreen> {
         backgroundColor: AppColors.navy,
         icon: const Icon(Icons.add_circle_outline_rounded),
         label: const Text('أضف إعلان مستعمل جديد'),
-      ),
-    );
-  }
-}
-
-class _SearchBar extends StatelessWidget {
-  const _SearchBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: const Icon(Icons.tune_rounded, size: 20),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Container(
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.search_rounded, color: AppColors.inkMuted, size: 20),
-                SizedBox(width: 8),
-                Text('ابحث عن أثاث، إلكترونيات، سيارات، أدوات...',
-                    style: TextStyle(color: AppColors.inkMuted, fontSize: 13)),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _FilterChips extends StatelessWidget {
-  const _FilterChips();
-
-  @override
-  Widget build(BuildContext context) {
-    const chips = ['الأقرب لموقعي أولاً', 'الكل', 'هواتف وإلكترونيات', 'أجهزة كهربائية', 'أثاث ومنزل'];
-    return SizedBox(
-      height: 36,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: chips.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, i) {
-          final selected = i == 0;
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: selected ? AppColors.teal : AppColors.surface,
-              borderRadius: BorderRadius.circular(100),
-              border: Border.all(color: selected ? AppColors.teal : AppColors.border),
-            ),
-            child: Text(chips[i],
-                style: TextStyle(
-                  fontSize: 12,
-                  color: selected ? Colors.white : AppColors.inkSecondary,
-                  fontWeight: FontWeight.w500,
-                )),
-          );
-        },
       ),
     );
   }

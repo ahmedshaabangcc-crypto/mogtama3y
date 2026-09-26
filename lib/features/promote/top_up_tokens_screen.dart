@@ -21,7 +21,10 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
   bool _loading = true;
   int _tokens = _minTokens;
   double _tokenPrice = 15;
-  String _phone = '01050780807';
+  // Always the number from ad_token_settings — never a hardcoded fallback,
+  // so money can't be sent to a stale number if the settings change.
+  String _phone = '';
+  bool _loadFailed = false;
   final _proofCtrl = TextEditingController();
   bool _submitting = false;
   bool _submitted = false;
@@ -42,13 +45,26 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
   }
 
   Future<void> _load() async {
-    final settings = await AdTokenService.fetchSettings();
-    if (!mounted) return;
     setState(() {
-      _tokenPrice = (settings['token_price_egp'] as num?)?.toDouble() ?? 15;
-      _phone = settings['topup_phone'] as String? ?? _phone;
-      _loading = false;
+      _loading = true;
+      _loadFailed = false;
     });
+    try {
+      final settings = await AdTokenService.fetchSettings();
+      if (!mounted) return;
+      setState(() {
+        _tokenPrice = (settings['token_price_egp'] as num?)?.toDouble() ?? 15;
+        _phone = settings['topup_phone'] as String? ?? '';
+        _loadFailed = _phone.isEmpty;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadFailed = true;
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _submit() async {
@@ -65,6 +81,7 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
       if (!mounted) return;
       setState(() => _submitted = true);
     } catch (_) {
+      if (!mounted) return;
       setState(() => _error = 'تعذر إرسال الطلب، حاول مرة أخرى.');
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -75,6 +92,19 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_loadFailed) {
+      return Scaffold(
+        backgroundColor: AppColors.bg,
+        appBar: AppBar(title: const Text('شحن رصيد التوكن')),
+        body: Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('تعذر تحميل بيانات الشحن', style: TextStyle(color: AppColors.inkMuted, fontSize: 13)),
+            const SizedBox(height: 10),
+            OutlinedButton(onPressed: _load, child: const Text('إعادة المحاولة')),
+          ]),
+        ),
+      );
     }
     if (_submitted) return _buildSubmitted(context);
 
@@ -113,7 +143,7 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
                   ],
                 ),
                 const SizedBox(height: 6),
-                const Text('الحد الأدنى 5 توكن (75 ج.م) • بمضاعفات 5', style: TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
+                Text('الحد الأدنى $_minTokens توكن (${(_minTokens * _tokenPrice).round()} ج.م) • بمضاعفات 5', style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
                 const Divider(height: 28, color: AppColors.border),
                 Row(children: [
                   const Text('المبلغ المطلوب تحويله', style: TextStyle(fontSize: 12, color: AppColors.inkSecondary)),

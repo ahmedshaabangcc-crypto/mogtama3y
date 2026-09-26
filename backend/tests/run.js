@@ -152,7 +152,13 @@ const denied = (r) => !!r.error;
   const sos = await as(db, B, `insert into sos_alerts (unit_id, triggered_by, type) values ($1, $2, 'fire') returning id`, [unit2, B]);
   check('verified member can trigger SOS', ok(sos), sos);
   check('EXPLOIT blocked: SOS type changed after the fact', denied(await as(db, B, `update sos_alerts set type = 'medical' where id = $1`, [sos.rows?.[0]?.id])));
+  const sosNotes = await admin(db, `select user_id from notifications where title like '🚨 استغاثة%'`);
+  check('SOS notifies the building\'s verified members (not the sender)',
+    sosNotes.some((n) => n.user_id === A) && sosNotes.some((n) => n.user_id === X) && !sosNotes.some((n) => n.user_id === B), sosNotes.length);
+  check('SOS reaches tenants too, but not people outside the building', sosNotes.some((n) => n.user_id === T) && !sosNotes.some((n) => n.user_id === dup));
   check('triggerer can cancel (false alarm)', ok(await as(db, B, `update sos_alerts set status = 'false_alarm' where id = $1`, [sos.rows?.[0]?.id])));
+  check('cancelling notifies the building too',
+    (await admin(db, `select 1 from notifications where user_id = $1 and title like 'تم إلغاء الاستغاثة%'`, [A])).length === 1);
 
   // ------------------------------------------------------------------
   console.log('\nPhase 2 — announcements');
@@ -242,6 +248,22 @@ const denied = (r) => !!r.error;
   check('EXPLOIT blocked: refund is the 50 actually held, not the 1,000,000,000 quote', w.a === 100 && w.h === 0, w);
   check('EXPLOIT blocked: technician moves a cancelled job back to quoted',
     denied(await as(db, X, `select public.update_request_status($1, 'quoted', 10)`, [reqId])));
+
+  // ------------------------------------------------------------------
+  console.log('\nSupport inbox');
+  const ticket = await as(db, C, `insert into support_tickets (user_id, category, subject, body) values ($1, 'complaint', 'بلاغ عن إعلان', 'سعر مشبوه') returning id`, [C]);
+  check('user files a support ticket', ok(ticket), ticket);
+  const ticketId = ticket.rows?.[0]?.id;
+  check('another user cannot read it', (await as(db, B, `select id from support_tickets where id = $1`, [ticketId])).rows?.length === 0);
+  check('non-admin cannot reply to tickets', denied(await as(db, B, `select public.resolve_support_ticket($1, 'تم')`, [ticketId])));
+  const boss = await signUp(db, 'boss', '01000000999');
+  await admin(db, `update profiles set role = 'super_admin' where id = $1`, [boss]);
+  check('super admin sees the ticket', (await as(db, boss, `select id from support_tickets where id = $1`, [ticketId])).rows?.length === 1);
+  check('super admin sees requester names', (await as(db, boss, `select full_name from profiles where id = $1`, [C])).rows?.[0]?.full_name === 'carim');
+  check('super admin replies', ok(await as(db, boss, `select public.resolve_support_ticket($1, 'تمت مراجعة الإعلان وحذفه')`, [ticketId])));
+  check('the reply reaches the user as a notification',
+    (await admin(db, `select 1 from notifications where user_id = $1 and body = 'تمت مراجعة الإعلان وحذفه'`, [C])).length === 1);
+  check('ticket is marked resolved', (await admin(db, `select status from support_tickets where id = $1`, [ticketId]))[0].status === 'resolved');
 
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {

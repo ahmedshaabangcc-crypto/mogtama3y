@@ -62,4 +62,23 @@ class AdminService {
   static Future<void> reviewTechnicianVerification({required String technicianId, required bool approve}) async {
     await _client.rpc('review_technician_verification', params: {'p_technician_id': technicianId, 'p_approve': approve});
   }
+
+  // ---- support inbox — see backend/migrations/0040_admin_support_inbox.sql ----
+
+  static Future<List<Map<String, dynamic>>> fetchOpenSupportTickets() async {
+    final rows = await _client
+        .from('support_tickets')
+        .select('*, requester:profiles(full_name)')
+        .inFilter('status', ['open', 'in_progress'])
+        .order('created_at', ascending: true);
+    final tickets = List<Map<String, dynamic>>.from(rows as List);
+    await ContactPhones.attach(tickets, userIdKey: 'user_id', profileKey: 'requester');
+    return tickets;
+  }
+
+  /// Marks the ticket resolved and sends [reply] to the user as an
+  /// in-app notification.
+  static Future<void> resolveSupportTicket({required String ticketId, required String reply}) async {
+    await _client.rpc('resolve_support_ticket', params: {'p_ticket_id': ticketId, 'p_reply': reply});
+  }
 }

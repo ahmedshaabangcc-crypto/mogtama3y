@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/auth/auth_service.dart';
@@ -10,6 +11,7 @@ import '../../core/theme/app_logo.dart';
 import '../auth/auth_landing_screen.dart';
 import '../jobs/jobs_board_screen.dart';
 import '../lost_found/lost_found_hub_screen.dart';
+import '../marketplace/item_details_screen.dart';
 import '../marketplace/marketplace_listing_screen.dart';
 import '../neighborhood/neighborhood_list_screen.dart';
 import '../notifications/notifications_screen.dart';
@@ -33,14 +35,14 @@ class _Category {
 
 const _categories = [
   _Category('سوق المستعمل', 'سلع من الجيران', Icons.shopping_bag_rounded, AppColors.categoryUsedMarket),
-  _Category('المحلات', 'دليفري ومتاجر 500م', Icons.storefront_rounded, AppColors.categoryShops),
+  _Category('المحلات', 'محلات ومتاجر الحي', Icons.storefront_rounded, AppColors.categoryShops),
   _Category('اتحاد الملاك', 'حوكمة واشتراكات', Icons.groups_rounded, AppColors.categoryUnion),
   _Category('عقارات', 'بيع وإيجار بالمنطقة', Icons.home_work_rounded, AppColors.categoryRealEstate),
   _Category('وظائف', 'شواغر قريبة منك', Icons.work_rounded, AppColors.categoryJobs),
-  _Category('الصيانة والخدمات', 'فنيين وضمان معتمد', Icons.build_rounded, AppColors.categoryMaintenance),
-  _Category('طوارئ SOS', 'الجيران 24/7 و122', Icons.warning_rounded, AppColors.categorySos),
-  _Category('المفقودات والأمانات', 'مطابقة سرية تامة', Icons.search_rounded, AppColors.categoryLostFound),
-  _Category('تدوير وتوفير', 'لدعم صندوق العمارة', Icons.autorenew_rounded, AppColors.categoryRecycling),
+  _Category('الصيانة والخدمات', 'فنيين وحجز بضمان', Icons.build_rounded, AppColors.categoryMaintenance),
+  _Category('طوارئ SOS', 'تنبيه الجيران والطوارئ', Icons.warning_rounded, AppColors.categorySos),
+  _Category('المفقودات والأمانات', 'مفقود أو موجود', Icons.search_rounded, AppColors.categoryLostFound),
+  _Category('تدوير وتوفير', 'مزادات الخردة والتدوير', Icons.autorenew_rounded, AppColors.categoryRecycling),
 ];
 
 /// The pre-login / guest landing screen — matches design/screens/01_home_guest.png.
@@ -60,34 +62,21 @@ class GuestHomeScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _NewsBanner(),
-                  const SizedBox(height: 24),
-                  _SectionHeader(title: 'أقسام الحي والخدمات', trailing: '(شبكة 3×3)'),
+                  const _SectionHeader(title: 'أقسام الحي والخدمات'),
                   const SizedBox(height: 12),
                   _CategoryGrid(),
                   const SizedBox(height: 28),
-                  _SectionHeader(title: 'خدمات سريعة ومرافق', trailing: 'الكل'),
+                  const _SectionHeader(title: 'خدمات سريعة'),
                   const SizedBox(height: 12),
                   _QuickServicesRow(),
                   const SizedBox(height: 28),
-                  _SectionHeader(title: 'معروضات الحي والقريب منك', trailing: 'عرض الكل'),
-                  const SizedBox(height: 4),
-                  const Text('سلع من جيرانك في نطاق 500 متر',
-                      style: TextStyle(color: AppColors.inkMuted, fontSize: 12)),
-                  const SizedBox(height: 12),
-                  _ListingCard(
-                    tag: 'مستعمل',
-                    title: 'شاشة سامسونج 4K بوصة 55',
-                    subtitle: 'عمارة 14 - التجمع الخامس (على بعد 120م)',
-                    price: '8,500 ج.م',
+                  _SectionHeader(
+                    title: 'أحدث معروضات السوق',
+                    trailing: 'عرض الكل',
+                    onTrailingTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MarketplaceListingScreen())),
                   ),
                   const SizedBox(height: 12),
-                  _ListingCard(
-                    tag: 'إيجار شهري',
-                    title: 'متاح حجز جراج خاص للسيارات',
-                    subtitle: 'بدروم العمارة 22 - حراسة 24 ساعة',
-                    price: '1,200 ج.م/شهر',
-                  ),
+                  const _LatestListings(),
                 ],
               ),
             ),
@@ -327,55 +316,11 @@ class _ExploreLocationBoxState extends State<_ExploreLocationBox> {
   }
 }
 
-class _NewsBanner extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.teal.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(10)),
-            child: const Icon(Icons.campaign_rounded, color: Colors.white, size: 18),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(100)),
-                      child: const Text('جديد', style: TextStyle(color: Colors.white, fontSize: 10)),
-                    ),
-                    const SizedBox(width: 8),
-                    const Text('آخر الأخبار والتحديثات',
-                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                const Text('تم الانتهاء من صيانة المضخات، وبدء مبادرة التدوير للأسبوع...',
-                    style: TextStyle(color: AppColors.inkMuted, fontSize: 12), overflow: TextOverflow.ellipsis),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title, required this.trailing});
-  final String title, trailing;
+  const _SectionHeader({required this.title, this.trailing, this.onTrailingTap});
+  final String title;
+  final String? trailing;
+  final VoidCallback? onTrailingTap;
 
   @override
   Widget build(BuildContext context) {
@@ -386,7 +331,11 @@ class _SectionHeader extends StatelessWidget {
           title,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.ink),
         ),
-        Text(trailing, style: const TextStyle(color: AppColors.inkMuted, fontSize: 12)),
+        if (trailing != null)
+          InkWell(
+            onTap: onTrailingTap,
+            child: Text(trailing!, style: const TextStyle(color: AppColors.teal, fontSize: 12, fontWeight: FontWeight.w600)),
+          ),
       ],
     );
   }
@@ -462,8 +411,6 @@ class _QuickServicesRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
-      ('الأمن والحراسة', Icons.security_rounded, null),
-      ('خدمات النظافة', Icons.cleaning_services_rounded, null),
       ('صيانة عامة', Icons.handyman_rounded, () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TechniciansMarketScreen()))),
       ('جروب الحي', Icons.location_city_rounded, () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NeighborhoodListScreen()))),
     ];
@@ -501,46 +448,136 @@ class _QuickServicesRow extends StatelessWidget {
   }
 }
 
-class _ListingCard extends StatelessWidget {
-  const _ListingCard({required this.tag, required this.title, required this.subtitle, required this.price});
-  final String tag, title, subtitle, price;
+/// The two newest real active marketplace listings (not sample data).
+class _LatestListings extends StatefulWidget {
+  const _LatestListings();
+
+  @override
+  State<_LatestListings> createState() => _LatestListingsState();
+}
+
+class _LatestListingsState extends State<_LatestListings> {
+  List<Map<String, dynamic>>? _listings;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final rows = await Supabase.instance.client
+          .from('marketplace_listings')
+          .select('*, seller:profiles(full_name, is_verified)')
+          .eq('status', 'active')
+          .order('created_at', ascending: false)
+          .limit(2);
+      if (!mounted) return;
+      setState(() => _listings = List<Map<String, dynamic>>.from(rows as List));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _listings = []);
+    }
+  }
+
+  void _openMarketplace() {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MarketplaceListingScreen()));
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
+    final listings = _listings;
+    if (listings == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+      );
+    }
+    if (listings.isEmpty) {
+      return InkWell(
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(10)),
-            child: const Icon(Icons.image_outlined, color: AppColors.inkMuted),
+        onTap: _openMarketplace,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.border),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(6)),
-                  child: Text(tag, style: const TextStyle(fontSize: 10, color: AppColors.inkSecondary)),
-                ),
-                const SizedBox(height: 4),
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                const SizedBox(height: 2),
-                Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.inkMuted)),
-              ],
-            ),
+          child: Row(
+            children: [
+              const Icon(Icons.shopping_bag_outlined, color: AppColors.inkMuted),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                    AuthService.isSignedIn ? 'لا توجد معروضات بعد — كن أول من ينشر إعلاناً في سوق المستعمل' : 'سجّل الدخول لتصفح معروضات جيرانك في سوق المستعمل',
+                    style: const TextStyle(fontSize: 12, color: AppColors.inkMuted)),
+              ),
+            ],
           ),
-          Text(price, style: const TextStyle(color: AppColors.teal, fontWeight: FontWeight.w700, fontSize: 13)),
+        ),
+      );
+    }
+    return Column(
+      children: [
+        for (final l in listings) ...[
+          _ListingCard(listing: l),
+          const SizedBox(height: 12),
         ],
+      ],
+    );
+  }
+}
+
+class _ListingCard extends StatelessWidget {
+  const _ListingCard({required this.listing});
+  final Map<String, dynamic> listing;
+
+  @override
+  Widget build(BuildContext context) {
+    final images = (listing['images'] as List?)?.cast<String>() ?? const [];
+    final price = (listing['price'] as num?)?.toDouble() ?? 0;
+    final sellerName = (listing['seller'] as Map<String, dynamic>?)?['full_name'] as String? ?? 'عضو مُجتمعي';
+    final placeholder = Container(
+      width: 64,
+      height: 64,
+      color: AppColors.surfaceAlt,
+      child: const Icon(Icons.image_outlined, color: AppColors.inkMuted),
+    );
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ItemDetailsScreen(listing: listing))),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: images.isEmpty
+                  ? placeholder
+                  : Image.network(images.first, width: 64, height: 64, fit: BoxFit.cover, errorBuilder: (_, _, _) => placeholder),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(listing['title'] as String? ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  const SizedBox(height: 2),
+                  Text(sellerName, style: const TextStyle(fontSize: 11, color: AppColors.inkMuted)),
+                ],
+              ),
+            ),
+            Text('${NumberFormat('#,##0').format(price)} ج.م', style: const TextStyle(color: AppColors.teal, fontWeight: FontWeight.w700, fontSize: 13)),
+          ],
+        ),
       ),
     );
   }

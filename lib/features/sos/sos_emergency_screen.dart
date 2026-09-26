@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/sos/sos_service.dart';
 import '../../core/theme/app_colors.dart';
@@ -165,7 +166,7 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
               child: const Row(children: [
                 Icon(Icons.check_circle_rounded, size: 16, color: AppColors.teal),
                 SizedBox(width: 6),
-                Expanded(child: Text('تم إرسال نداء الاستغاثة لجيران البرج وغرفة الحراسة الآن.', style: TextStyle(fontSize: 11.5, color: AppColors.teal, fontWeight: FontWeight.w600))),
+                Expanded(child: Text('تم تسجيل الاستغاثة وإرسال إشعار داخل التطبيق لجيران عمارتك والحراسة. إذا كان الموقف خطيراً اتصل بالطوارئ فوراً من الأرقام بالأسفل.', style: TextStyle(fontSize: 11.5, color: AppColors.teal, fontWeight: FontWeight.w600))),
               ]),
             ),
             const SizedBox(height: 8),
@@ -265,10 +266,10 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('تنبيه النطاق السكني الفوري', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+                      const Text('تنبيه جيران العمارة', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
                       const SizedBox(height: 4),
                       const Text(
-                        'سيتم إطلاق تنبيه فوري لكافة جيران عمارتك الموثقين ورئيس الاتحاد فور الضغط، مع نوع الطارئ الذي تحدده تحت.',
+                        'سيصل إشعار داخل التطبيق لكل جيران عمارتك الموثقين والحراسة مع نوع الطارئ الذي تحدده بالأسفل. يظهر الإشعار عند فتحهم التطبيق، لذا اتصل بالطوارئ فوراً إذا كان الموقف خطيراً.',
                         style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted, height: 1.7),
                       ),
                     ],
@@ -278,7 +279,7 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
             ),
           ),
           const SizedBox(height: 18),
-          const Text('أرقام الطوارئ الوطنية المباشرة', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+          const Text('أرقام الطوارئ الوطنية (اضغط للاتصال)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
           const SizedBox(height: 10),
           GridView.builder(
             shrinkWrap: true,
@@ -287,22 +288,26 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 10, crossAxisSpacing: 10, childAspectRatio: 2.2),
             itemBuilder: (context, i) {
               final h = _hotlines[i];
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(h.number, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                          Text(h.label, style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
-                        ],
+              return InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => launchUrl(Uri(scheme: 'tel', path: h.number)),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(h.number, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                            Text(h.label, style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
+                          ],
+                        ),
                       ),
-                    ),
-                    Icon(h.icon, color: AppColors.inkSecondary, size: 20),
-                  ],
+                      Icon(h.icon, color: AppColors.categorySos, size: 20),
+                    ],
+                  ),
                 ),
               );
             },
@@ -312,11 +317,11 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(color: AppColors.categorySos.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(10)),
             child: const Row(children: [
-              Icon(Icons.gavel_rounded, size: 14, color: AppColors.categorySos),
+              Icon(Icons.info_outline_rounded, size: 14, color: AppColors.categorySos),
               SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  'تنبيه قانوني: تطبيق عقوبات رادعة وتعليق فوري للحساب في حال استخدام البلاغات الوهمية وفقاً للميثاق السكني المعتمد.',
+                  'استخدم الاستغاثة في الطوارئ الحقيقية فقط؛ البلاغات الكاذبة تُقلق جيرانك وتُضعف ثقتهم في التنبيه.',
                   style: TextStyle(fontSize: 9.5, color: AppColors.categorySos, height: 1.6),
                 ),
               ),

@@ -14,13 +14,32 @@ const _faqs = [
   _Faq(
     question: 'كيف يحمي نظام الضمان (Escrow) أموالي عند طلب صيانة؟',
     answer:
-        'عند طلبك لأي فني معتمد عبر التطبيق، يتم حجز قيمة الخدمة مؤقتاً داخل محفظة الضمان المشترك (Escrow) الآمنة. لا يتم تحويل مليم واحد لحساب الفني إلا بعد قيامك بمعاينة العمل بالكامل وإدخال رمز المصافحة والتأكيد (Handshake OTP) الذي يظهر لك فقط بعد إتمام الصيانة بنجاح وبأعلى معايير الرضا.',
+        'عند حجز فني عبر التطبيق يُحجز رسم المعاينة من محفظتك ولا يذهب للفني فوراً. عندما يُبلغ الفني بإتمام العمل يصلك كود تأكيد في الإشعارات؛ لا تعطه للفني إلا بعد التأكد من العمل، فهو ما يُفرج عن المبلغ له. وإذا حدث خلاف يمكنك فتح نزاع تراجعه إدارة المنصة.',
     icon: Icons.shield_outlined,
   ),
-  _Faq(question: 'كيف يتم توثيق شقتي في اتحاد الملاك المعتمد؟', icon: Icons.apartment_rounded),
-  _Faq(question: 'هل يمكنني إخفاء رقم هاتفي الشخصي عند بيع أغراض مستعملة؟', icon: Icons.phone_disabled_rounded),
-  _Faq(question: 'كيف يستفيد صندوق صيانة العمارة من أرباح بيع البيكيا والخردة؟', icon: Icons.savings_outlined),
-  _Faq(question: 'ماذا أفعل في حالات الطوارئ ونداء الجيران SOS؟', icon: Icons.warning_amber_rounded),
+  _Faq(
+    question: 'كيف يتم توثيق شقتي في اتحاد الملاك؟',
+    answer:
+        'اطلب الانضمام لعمارتك من "ابحث عن عمارتك" أو بكود الدعوة من رئيس الاتحاد، ثم يراجع رئيس الاتحاد أو مجلس الإدارة طلبك ويوافق عليه. إذا كنت مستأجراً يمكن لمالك الشقة دعوتك بكود خاص.',
+    icon: Icons.apartment_rounded,
+  ),
+  _Faq(
+    question: 'هل يمكنني إخفاء رقم هاتفي الشخصي عند بيع أغراض مستعملة؟',
+    answer:
+        'نعم. عند إضافة الإعلان اختر إخفاء رقم الهاتف، وسيتواصل معك المشترون عبر المحادثة داخل التطبيق. ورقمك لا يظهر لجيرانك عموماً، يراه رئيس الاتحاد ومجلس الإدارة فقط.',
+    icon: Icons.phone_disabled_rounded,
+  ),
+  _Faq(
+    question: 'كيف يعمل سوق التدوير والخردة؟',
+    answer: 'اعرض الخردة أو الأغراض القابلة للتدوير كمزاد، ويقدّم المهتمون عروض أسعار، ثم تختار أنت العرض الذي يناسبك.',
+    icon: Icons.savings_outlined,
+  ),
+  _Faq(
+    question: 'ماذا أفعل في حالات الطوارئ ونداء الجيران SOS؟',
+    answer:
+        'اضغط مع الاستمرار على زر الاستغاثة لمدة ثانيتين؛ سيصل إشعار داخل التطبيق لجيران عمارتك الموثقين والحراسة. الإشعار لا يغني عن الاتصال بالطوارئ: الإسعاف 123، النجدة 122، المطافئ 180، طوارئ الغاز 129.',
+    icon: Icons.warning_amber_rounded,
+  ),
 ];
 
 /// FAQ & help center — matches design/screens/25_faq_help_center.png.
@@ -80,7 +99,7 @@ class _FaqHelpCenterScreenState extends State<FaqHelpCenterScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(color: AppColors.teal.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(100)),
-                          child: const Text('حماية 100%', style: TextStyle(fontSize: 9, color: AppColors.tealLight, fontWeight: FontWeight.w700)),
+                          child: const Text('ضمان الدفع', style: TextStyle(fontSize: 9, color: AppColors.tealLight, fontWeight: FontWeight.w700)),
                         ),
                       ]),
                       const SizedBox(height: 6),

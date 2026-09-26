@@ -87,7 +87,7 @@ class _SupportContactScreenState extends State<SupportContactScreen> {
               child: Row(children: [
                 const Icon(Icons.check_circle_rounded, color: AppColors.teal),
                 const SizedBox(width: 10),
-                const Expanded(child: Text('تم إرسال بلاغك بنجاح، سيتواصل معك فريق الدعم قريباً.', style: TextStyle(color: AppColors.teal, fontWeight: FontWeight.w600, fontSize: 12.5))),
+                const Expanded(child: Text('تم إرسال بلاغك بنجاح، وسيصلك رد فريق الدعم في الإشعارات.', style: TextStyle(color: AppColors.teal, fontWeight: FontWeight.w600, fontSize: 12.5))),
               ]),
             )
           else ...[

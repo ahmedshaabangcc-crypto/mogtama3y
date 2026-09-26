@@ -58,7 +58,14 @@ class _WalletScreenState extends State<WalletScreen> {
   double _available = 0;
   double _held = 0;
   List<Map<String, dynamic>> _transactions = [];
+  int _filter = 0;
   late final StreamSubscription<AuthState> _authSub;
+
+  List<Map<String, dynamic>> get _visibleTransactions {
+    final types = _filterTypes[_filter];
+    if (types == null) return _transactions;
+    return _transactions.where((t) => types.contains(t['type'])).toList();
+  }
 
   @override
   void initState() {
@@ -217,14 +224,14 @@ class _WalletScreenState extends State<WalletScreen> {
             const SizedBox(height: 20),
             const Text('سجل المعاملات', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
             const SizedBox(height: 8),
-            const _FilterChips(),
+            _FilterChips(selected: _filter, onSelected: (i) => setState(() => _filter = i)),
             const SizedBox(height: 12),
             if (_loading)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
                 child: Center(child: CircularProgressIndicator()),
               )
-            else if (_transactions.isEmpty)
+            else if (_visibleTransactions.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Center(
@@ -238,7 +245,7 @@ class _WalletScreenState extends State<WalletScreen> {
                 ),
               )
             else
-              for (final t in _transactions) ...[
+              for (final t in _visibleTransactions) ...[
                 _TransactionTile(row: t),
                 const SizedBox(height: 10),
               ],
@@ -298,8 +305,18 @@ class _QuickAction extends StatelessWidget {
   }
 }
 
+// wallet_transactions.type values shown under each chip (null = all).
+const _filterTypes = <Set<String>?>[
+  null,
+  {'union_dues'},
+  {'maintenance_payment', 'refund'},
+  {'recycling_sale'},
+];
+
 class _FilterChips extends StatelessWidget {
-  const _FilterChips();
+  const _FilterChips({required this.selected, required this.onSelected});
+  final int selected;
+  final ValueChanged<int> onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -311,16 +328,20 @@ class _FilterChips extends StatelessWidget {
         itemCount: chips.length,
         separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, i) {
-          final selected = i == 0;
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: selected ? AppColors.navy : AppColors.surface,
-              borderRadius: BorderRadius.circular(100),
-              border: Border.all(color: selected ? AppColors.navy : AppColors.border),
+          final isSelected = i == selected;
+          return InkWell(
+            borderRadius: BorderRadius.circular(100),
+            onTap: () => onSelected(i),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.navy : AppColors.surface,
+                borderRadius: BorderRadius.circular(100),
+                border: Border.all(color: isSelected ? AppColors.navy : AppColors.border),
+              ),
+              child: Text(chips[i], style: TextStyle(fontSize: 11, color: isSelected ? Colors.white : AppColors.inkSecondary, fontWeight: FontWeight.w500)),
             ),
-            child: Text(chips[i], style: TextStyle(fontSize: 11, color: selected ? Colors.white : AppColors.inkSecondary, fontWeight: FontWeight.w500)),
           );
         },
       ),
