@@ -265,6 +265,29 @@ const denied = (r) => !!r.error;
     (await admin(db, `select 1 from notifications where user_id = $1 and body = 'تمت مراجعة الإعلان وحذفه'`, [C])).length === 1);
   check('ticket is marked resolved', (await admin(db, `select status from support_tickets where id = $1`, [ticketId]))[0].status === 'resolved');
 
+  // ------------------------------------------------------------------
+  console.log('\nPlaces proxy & shops');
+  check('EXPLOIT blocked: user inserts a fake "Google-imported" shop',
+    denied(await as(db, B, `insert into shops (name, source, rating) values ('محل وهمي', 'google_imported', 5)`)));
+  await admin(db, `insert into shops (name, source, google_place_id, rating, owner_id, is_claimed, cover_image_url)
+    values ('بقالة', 'google_imported', 'gp1', 3.1, $1, true, 'https://places.googleapis.com/v1/x/media?key=AIzaSECRET')`, [B]);
+  check('EXPLOIT blocked: shop owner edits the rating',
+    denied(await as(db, B, `update shops set rating = 5 where google_place_id = 'gp1'`)));
+  check('EXPLOIT blocked: shop owner hands the shop to someone else',
+    denied(await as(db, B, `update shops set owner_id = $1 where google_place_id = 'gp1'`, [C])));
+  check('shop owner can still edit the description',
+    ok(await as(db, B, `update shops set description = 'أفضل بقالة' where google_place_id = 'gp1'`)));
+  check('users cannot call the quota function directly',
+    denied(await as(db, B, `select public.bump_places_usage('user:x', 1000)`)));
+  const bump = async () => {
+    await db.exec('begin; set local role service_role;');
+    const r = await db.query(`select public.bump_places_usage('user:quota-test', 2) as ok`);
+    await db.exec('commit');
+    return r.rows[0].ok;
+  };
+  const quota = [await bump(), await bump(), await bump()];
+  check('daily quota allows up to the limit, then refuses', quota[0] && quota[1] && !quota[2], quota);
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));
