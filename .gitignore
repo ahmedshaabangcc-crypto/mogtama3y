@@ -49,3 +49,6 @@ web/index.html.bak
 # OS
 .DS_Store
 Thumbs.db
+
+# Node (backend/tests)
+node_modules/

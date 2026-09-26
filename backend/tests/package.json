@@ -1,0 +1,11 @@
+{
+  "name": "mogtama3y-db-tests",
+  "private": true,
+  "description": "Applies backend/schema.sql + every migration to an in-process Postgres (PGlite) and runs the RLS/RPC security scenarios as real signed-in users.",
+  "scripts": {
+    "test": "node run.js"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.8"
+  }
+}
