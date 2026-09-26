@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/auth/auth_service.dart';
 import 'core/supabase/supabase_config.dart';
 import 'core/theme/app_theme.dart';
-import 'features/shell/app_shell.dart';
+import 'core/routing/app_router.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,7 +32,7 @@ class MogtamayApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'مُجتمعي',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
@@ -50,7 +50,7 @@ class MogtamayApp extends StatelessWidget {
           child: child!,
         ),
       ),
-      home: const AppShell(),
+      routerConfig: appRouter,
     );
   }
 }

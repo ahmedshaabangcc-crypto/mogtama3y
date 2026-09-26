@@ -103,7 +103,7 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
           const Text('نداء عاجل استغاثة للجيران', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19)),
           const SizedBox(height: 6),
           const Text(
-            'إطلاق إنذار فوري ومباشر لكافة جيران المبنى وغرفة الحراسة ورئيس الاتحاد للتدخل والمساندة الفورية.',
+            'إرسال تنبيه داخل التطبيق لجيران عمارتك الموثقين والحراسة ليتدخلوا ويساعدوك.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 11.5, color: AppColors.inkSecondary, height: 1.8),
           ),

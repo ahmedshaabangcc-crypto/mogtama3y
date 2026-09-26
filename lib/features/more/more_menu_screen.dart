@@ -1,20 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/auth/auth_service.dart';
+import '../../core/routing/app_router.dart';
 import '../../core/theme/app_colors.dart';
-import '../about/about_platform_screen.dart';
 import '../auth/auth_landing_screen.dart';
-import '../bills/bill_payment_hub_screen.dart';
-import '../admin/superadmin_control_panel_screen.dart';
-import '../legal/privacy_policy_screen.dart';
-import '../legal/terms_conditions_screen.dart';
-import '../post/smart_post_picker_screen.dart';
-import '../promote/token_wallet_screen.dart';
-import '../support/support_contact_screen.dart';
-import '../wallet/wallet_screen.dart';
 
 /// The "المزيد" (More) menu — the bottom-nav hamburger tab. A plain
 /// list of every account/tool section, not any single feature.
@@ -132,28 +125,28 @@ class _MoreMenuScreenState extends State<MoreMenuScreen> {
             iconColor: AppColors.teal,
             title: 'المحفظة المالية',
             subtitle: 'الرصيد وسجل المعاملات',
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const WalletScreen())),
+            onTap: () => context.go(AppRoutes.wallet),
           ),
           _MenuTile(
             icon: Icons.toll_rounded,
             iconColor: AppColors.gold,
             title: 'رصيد التوكن ومميزات الإعلانات',
             subtitle: 'اشحن رصيدك ومَيّز إعلاناتك',
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TokenWalletScreen())),
+            onTap: () => context.go(AppRoutes.tokens),
           ),
           _MenuTile(
             icon: Icons.add_circle_outline_rounded,
             iconColor: AppColors.teal,
             title: 'انشر إعلاناً جديداً',
             subtitle: 'وظيفة، سلعة مستعملة، خدمة صيانة، أو خردة للتدوير',
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SmartPostPickerScreen())),
+            onTap: () => context.go(AppRoutes.post),
           ),
           _MenuTile(
             icon: Icons.receipt_long_rounded,
             iconColor: AppColors.gold,
             title: 'دفع الفواتير والخدمات',
             subtitle: 'كهرباء، غاز، مياه، فواتير موبايل وأكتر',
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BillPaymentHubScreen())),
+            onTap: () => context.go(AppRoutes.bills),
           ),
           const SizedBox(height: 18),
           const _SectionLabel('المساعدة والقانون'),
@@ -162,25 +155,25 @@ class _MoreMenuScreenState extends State<MoreMenuScreen> {
             iconColor: AppColors.inkSecondary,
             title: 'الدعم والمساعدة',
             subtitle: 'تواصل مع فريق علاقات السكان',
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SupportContactScreen())),
+            onTap: () => context.go(AppRoutes.support),
           ),
           _MenuTile(
             icon: Icons.gavel_rounded,
             iconColor: AppColors.inkSecondary,
             title: 'الشروط والأحكام وميثاق الجيران',
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TermsConditionsScreen())),
+            onTap: () => context.go(AppRoutes.terms),
           ),
           _MenuTile(
             icon: Icons.privacy_tip_outlined,
             iconColor: AppColors.inkSecondary,
             title: 'سياسة الخصوصية وحماية البيانات',
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen())),
+            onTap: () => context.go(AppRoutes.privacy),
           ),
           _MenuTile(
             icon: Icons.info_outline_rounded,
             iconColor: AppColors.inkSecondary,
             title: 'عن منصة مُجتمعي',
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AboutPlatformScreen())),
+            onTap: () => context.go(AppRoutes.about),
           ),
           const SizedBox(height: 18),
           const _SectionLabel('الإدارة'),
@@ -189,7 +182,7 @@ class _MoreMenuScreenState extends State<MoreMenuScreen> {
             iconColor: AppColors.inkSecondary,
             title: 'لوحة تحكم السوبر أدمن',
             subtitle: 'فض النزاعات والرقابة العامة',
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SuperadminControlPanelScreen())),
+            onTap: () => context.go(AppRoutes.admin),
           ),
         ],
       ),

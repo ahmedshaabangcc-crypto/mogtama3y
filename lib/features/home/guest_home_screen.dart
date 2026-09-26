@@ -1,29 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/auth/auth_service.dart';
+import '../../core/routing/app_router.dart';
 import '../../core/notifications/notifications_service.dart';
 import '../../core/places/places_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_logo.dart';
 import '../auth/auth_landing_screen.dart';
-import '../jobs/jobs_board_screen.dart';
-import '../lost_found/lost_found_hub_screen.dart';
 import '../marketplace/item_details_screen.dart';
-import '../marketplace/marketplace_listing_screen.dart';
-import '../neighborhood/neighborhood_list_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../profile/profile_screen.dart';
-import '../real_estate/real_estate_marketplace_screen.dart';
-import '../recycling/recycling_marketplace_screen.dart';
-import '../services/technicians_market_screen.dart';
-import '../shared/placeholder_screen.dart';
-import '../shops/neighborhood_shops_screen.dart';
-import '../sos/sos_emergency_screen.dart';
 import '../union/find_building_screen.dart';
-import '../union/union_dashboard_screen.dart';
 
 class _Category {
   const _Category(this.label, this.sublabel, this.icon, this.color);
@@ -73,7 +64,7 @@ class GuestHomeScreen extends StatelessWidget {
                   _SectionHeader(
                     title: 'أحدث معروضات السوق',
                     trailing: 'عرض الكل',
-                    onTrailingTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MarketplaceListingScreen())),
+                    onTrailingTap: () => context.go(AppRoutes.marketplace),
                   ),
                   const SizedBox(height: 12),
                   const _LatestListings(),
@@ -362,20 +353,18 @@ class _CategoryGrid extends StatelessWidget {
         final c = _categories[i];
         return InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => switch (c.label) {
-              'سوق المستعمل' => const MarketplaceListingScreen(),
-              'اتحاد الملاك' => const UnionDashboardScreen(),
-              'الصيانة والخدمات' => const TechniciansMarketScreen(),
-              'المحلات' => const NeighborhoodShopsScreen(),
-              'طوارئ SOS' => const SosEmergencyScreen(),
-              'المفقودات والأمانات' => const LostFoundHubScreen(),
-              'تدوير وتوفير' => const RecyclingMarketplaceScreen(),
-              'وظائف' => const JobsBoardScreen(),
-              'عقارات' => const RealEstateMarketplaceScreen(),
-              _ => PlaceholderScreen(title: c.label),
-            },
-          )),
+          onTap: () => context.go(switch (c.label) {
+            'سوق المستعمل' => AppRoutes.marketplace,
+            'اتحاد الملاك' => AppRoutes.union,
+            'الصيانة والخدمات' => AppRoutes.technicians,
+            'المحلات' => AppRoutes.shops,
+            'طوارئ SOS' => AppRoutes.sos,
+            'المفقودات والأمانات' => AppRoutes.lostFound,
+            'تدوير وتوفير' => AppRoutes.recycling,
+            'وظائف' => AppRoutes.jobs,
+            'عقارات' => AppRoutes.realEstate,
+            _ => '/',
+          }),
           child: Container(
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
           decoration: BoxDecoration(
@@ -415,8 +404,8 @@ class _QuickServicesRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
-      ('صيانة عامة', Icons.handyman_rounded, () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TechniciansMarketScreen()))),
-      ('جروب الحي', Icons.location_city_rounded, () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NeighborhoodListScreen()))),
+      ('صيانة عامة', Icons.handyman_rounded, () => context.go(AppRoutes.technicians)),
+      ('جروب الحي', Icons.location_city_rounded, () => context.go(AppRoutes.neighborhoods)),
     ];
     return SizedBox(
       height: 96,
@@ -486,7 +475,7 @@ class _LatestListingsState extends State<_LatestListings> {
   }
 
   void _openMarketplace() {
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MarketplaceListingScreen()));
+    context.go(AppRoutes.marketplace);
   }
 
   @override
