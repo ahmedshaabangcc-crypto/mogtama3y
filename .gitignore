@@ -55,3 +55,6 @@ node_modules/
 
 # Local notes that may hold API keys
 apis.txt
+
+# Local n8n API key for building the assistant workflow (never commit)
+.n8n-api-key
