@@ -277,6 +277,9 @@ const denied = (r) => !!r.error;
     denied(await as(db, B, `update shops set owner_id = $1 where google_place_id = 'gp1'`, [C])));
   check('shop owner can still edit the description',
     ok(await as(db, B, `update shops set description = 'أفضل بقالة' where google_place_id = 'gp1'`)));
+  check('guests (not signed in) can browse the shops directory',
+    (await as(db, null, `select name from shops where google_place_id = 'gp1'`)).rows?.[0]?.name === 'بقالة');
+  check('guests cannot add shops', denied(await as(db, null, `insert into shops (name) values ('x')`)));
   check('users cannot call the quota function directly',
     denied(await as(db, B, `select public.bump_places_usage('user:x', 1000)`)));
   const bump = async () => {

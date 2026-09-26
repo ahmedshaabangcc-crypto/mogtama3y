@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../../core/auth/auth_service.dart';
 import '../../core/places/places_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
@@ -87,6 +88,12 @@ class _NeighborhoodShopsScreenState extends State<NeighborhoodShopsScreen> {
 
   Future<void> _search() async {
     if (_searchCtrl.text.trim().isEmpty) return;
+    // Browsing the directory is public; searching Google for new shops
+    // (which imports them) needs an account.
+    if (!AuthService.isSignedIn) {
+      setState(() => _error = 'سجّل الدخول لتبحث عن محلات جديدة في خرائط Google — تصفح المحلات الموجودة متاح للجميع.');
+      return;
+    }
     setState(() {
       _searching = true;
       _error = null;
@@ -95,8 +102,12 @@ class _NeighborhoodShopsScreenState extends State<NeighborhoodShopsScreen> {
       final shops = await PlacesService.importFromGoogle(_searchCtrl.text.trim());
       if (!mounted) return;
       setState(() => _shops = shops);
-    } catch (_) {
-      setState(() => _error = 'تعذر البحث الآن، تحقق من الاتصال وحاول مرة أخرى.');
+    } catch (e) {
+      if (!mounted) return;
+      // The places function returns its own Arabic message (e.g. the daily
+      // search limit); fall back to a generic one.
+      final message = e.toString().replaceFirst('Exception: ', '');
+      setState(() => _error = message.isNotEmpty && !message.contains('Exception') ? message : 'تعذر البحث الآن، تحقق من الاتصال وحاول مرة أخرى.');
     } finally {
       if (mounted) setState(() => _searching = false);
     }
