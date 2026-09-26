@@ -288,6 +288,32 @@ const denied = (r) => !!r.error;
   const quota = [await bump(), await bump(), await bump()];
   check('daily quota allows up to the limit, then refuses', quota[0] && quota[1] && !quota[2], quota);
 
+  // ------------------------------------------------------------------
+  console.log('\nLost & found secret mark');
+  const found = await as(db, C, `select public.report_lost_found_item('found', 'محافظ', 'محفظة جلد', 'عند الأسانسير', 'صورة قطة  بيضاء') as id`);
+  check('member reports a found item with a secret mark', ok(found), found);
+  const foundId = found.rows?.[0]?.id;
+  check('EXPLOIT blocked: neighbours read the mark hash', denied(await as(db, B, `select secret_mark_hash from lost_found_items`)));
+  check('neighbours see only that a mark exists',
+    (await as(db, B, `select has_secret_mark from lost_found_items where id = $1`, [foundId])).rows?.[0]?.has_secret_mark === true);
+  check('stored hash is salted bcrypt, not plain SHA-256',
+    (await admin(db, `select secret_mark_hash like '$2%' as ok from lost_found_items where id = $1`, [foundId]))[0].ok);
+  check('EXPLOIT blocked: direct insert bypassing the RPC',
+    denied(await as(db, B, `insert into lost_found_items (building_id, reporter_id, type, title) values ($1, $2, 'found', 'x')`, [bld, B])));
+  check('reporter cannot claim their own item', denied(await as(db, C, `select public.claim_lost_found_item($1, 'x')`, [foundId])));
+  check('outsider cannot claim', denied(await as(db, outsider, `select public.claim_lost_found_item($1, 'x')`, [foundId])));
+  const claim = async (who, answer) => (await as(db, who, `select public.claim_lost_found_item($1, $2) as r`, [foundId, answer])).rows?.[0]?.r;
+  check('wrong answer is rejected', (await claim(T, 'صورة كلب')) === 'wrong');
+  check('right answer with different spacing/letters is accepted', (await claim(B, 'صوره قطه بيضاء')) === 'verified');
+  check('finder is notified who the owner is',
+    (await admin(db, `select 1 from notifications where user_id = $1 and title like 'تم التحقق من صاحب:%'`, [C])).length === 1);
+  await claim(T, 'a'); await claim(T, 'b');
+  check('3 wrong attempts lock the claimant out, even with the right answer', (await claim(T, 'صورة قطة بيضاء')) === 'locked');
+  const lost = (await as(db, B, `select public.report_lost_found_item('lost', 'مفاتيح', 'مفاتيح عربية', 'الجراج') as id`)).rows[0].id;
+  check('"I know where it is" on a lost item notifies the owner',
+    (await as(db, C, `select public.claim_lost_found_item($1) as r`, [lost])).rows?.[0]?.r === 'notified' &&
+    (await admin(db, `select 1 from notifications where user_id = $1 and title like 'أحد جيرانك يعرف مكان:%'`, [B])).length === 1);
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

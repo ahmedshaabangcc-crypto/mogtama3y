@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/auth_service.dart';
+import '../lost_found/lost_found_service.dart';
 
 /// Real guard console — see backend/migrations/0019_guard_console.sql.
 /// A guard is a building_guards row, not a union_role, so appointed
@@ -61,7 +62,7 @@ class GuardService {
   static Future<List<Map<String, dynamic>>> fetchCustodyItems(String buildingId) async {
     final rows = await _client
         .from('lost_found_items')
-        .select()
+        .select(LostFoundService.columns)
         .eq('building_id', buildingId)
         .eq('type', 'found')
         .eq('is_resolved', false)

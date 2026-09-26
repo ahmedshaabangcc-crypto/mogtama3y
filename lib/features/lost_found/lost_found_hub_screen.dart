@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/lost_found/lost_found_service.dart';
@@ -212,10 +213,50 @@ class _ModeTile extends StatelessWidget {
   }
 }
 
+const _claimResultMessages = {
+  'verified': 'إجابتك صحيحة! تم إبلاغ من وجد الغرض للتواصل معك وتسليمه.',
+  'notified': 'تم إبلاغ صاحب البلاغ، وسيتواصل معك داخل العمارة.',
+  'wrong': 'العلامة غير صحيحة، حاول مرة أخرى (لديك 3 محاولات فقط).',
+  'locked': 'استنفدت محاولاتك الثلاث لهذا الغرض. تواصل مع حارس العمارة أو رئيس الاتحاد.',
+};
+
 class _ItemCard extends StatelessWidget {
   const _ItemCard({required this.item, required this.onResolved});
   final Map<String, dynamic> item;
   final VoidCallback onResolved;
+
+  /// Found item with a secret mark → ask for it (checked server-side).
+  /// Lost item ("I know where it is") or no mark → just notify the reporter.
+  Future<void> _claim(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    String? answer;
+    if (item['type'] == 'found' && item['has_secret_mark'] == true) {
+      final ctrl = TextEditingController();
+      answer = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('أثبت أن الغرض يخصك'),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('اكتب العلامة المميزة التي وضعها من وجد الغرض (تفصيل لا يعرفه إلا صاحبه).', style: TextStyle(fontSize: 12, height: 1.6)),
+            const SizedBox(height: 10),
+            TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: 'العلامة السرية')),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('إلغاء')),
+            ElevatedButton(onPressed: () => Navigator.of(dialogContext).pop(ctrl.text.trim()), child: const Text('تحقق')),
+          ],
+        ),
+      );
+      ctrl.dispose();
+      if (answer == null || answer.isEmpty) return;
+    }
+    try {
+      final result = await LostFoundService.claimItem(itemId: item['id'] as String, answer: answer);
+      messenger.showSnackBar(SnackBar(content: Text(_claimResultMessages[result] ?? 'تم')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e is PostgrestException ? e.message : 'تعذر إرسال الطلب، حاول مرة أخرى')));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -306,9 +347,7 @@ class _ItemCard extends StatelessWidget {
                     width: double.infinity,
                     height: 42,
                     child: ElevatedButton(
-                      onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('محادثة التواصل الآمن مع المُبلّغ قريباً')),
-                      ),
+                      onPressed: () => _claim(context),
                       style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                       child: Text(isLost ? 'أعرف مكان هذا الغرض' : 'هذا الغرض يخصني', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11.5)),
                     ),

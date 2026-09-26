@@ -108,7 +108,7 @@ class _AddLostFoundItemScreenState extends State<AddLostFoundItemScreen> {
         category: _categories[_category],
         title: _titleCtrl.text.trim(),
         locationNote: locationNote,
-        secretMark: _secretMarkCtrl.text.trim().isEmpty ? null : _secretMarkCtrl.text.trim(),
+        secretMark: _mode == 1 && _secretMarkCtrl.text.trim().isNotEmpty ? _secretMarkCtrl.text.trim() : null,
         rewardAmount: _mode == 0 && _rewardCtrl.text.trim().isNotEmpty ? double.tryParse(_rewardCtrl.text.trim()) : null,
         imageUrl: _imageUrl,
       );
@@ -274,38 +274,41 @@ class _AddLostFoundItemScreenState extends State<AddLostFoundItemScreen> {
               onTap: () => setState(() => _custody = 1),
             ),
           ],
-          const SizedBox(height: 20),
-          Row(children: [
-            const Expanded(child: Text('العلامة السرية للتحقق', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5))),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
-              child: const Text('مخفي عن العامة', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
+          // Only a finder sets a secret mark; a lost item's owner doesn't need one.
+          if (_mode == 1) ...[
+            const SizedBox(height: 20),
+            Row(children: [
+              const Expanded(child: Text('العلامة السرية للتحقق', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5))),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
+                child: const Text('مخفي عن العامة', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            const Text(
+              'اكتب كلمة أو كلمتين لا يعرفهما إلا المالك الحقيقي (مثال: لون الجراب، صورة خلفية الهاتف، اسم مكتوب بالداخل). من يضغط "هذا الغرض يخصني" يجب أن يكتبها صحيحة، ولديه 3 محاولات فقط. لا تهتم بالمسافات أو الهمزات.',
+              style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted, height: 1.7),
             ),
-          ]),
-          const SizedBox(height: 6),
-          const Text(
-            'اكتب تفصيلاً لا يعرفه سوى المالك الحقيقي للتحقق منه فقط عند الاستلام (مثال: محتويات المحفظة الداخلية، خلفية شاشة الهاتف، أو خدش محدد).',
-            style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted, height: 1.7),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
-            child: TextField(
-              controller: _secretMarkCtrl,
-              maxLines: 2,
-              minLines: 1,
-              style: const TextStyle(fontSize: 12.5),
-              decoration: const InputDecoration(
-                hintText: 'أدخل علامة سرية يعرفها المالك الحقيقي فقط لمطابقتها عند التسليم...',
-                hintStyle: TextStyle(fontSize: 12, color: AppColors.inkMuted),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(vertical: 14),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
+              child: TextField(
+                controller: _secretMarkCtrl,
+                maxLines: 2,
+                minLines: 1,
+                style: const TextStyle(fontSize: 12.5),
+                decoration: const InputDecoration(
+                  hintText: 'أدخل علامة سرية يعرفها المالك الحقيقي فقط لمطابقتها عند التسليم...',
+                  hintStyle: TextStyle(fontSize: 12, color: AppColors.inkMuted),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(vertical: 14),
+                ),
               ),
             ),
-          ),
+          ],
           if (_mode == 0) ...[
             const SizedBox(height: 14),
             const _FieldLabel('مكافأة مالية (اختياري)'),
