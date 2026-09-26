@@ -9,6 +9,8 @@ import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import '../union/maintenance_payment_screen.dart';
+import 'wallet_topup_screen.dart';
+import 'wallet_withdraw_screen.dart';
 
 (IconData, String) _txMeta(String type) => switch (type) {
       'top_up' => (Icons.add_card_rounded, 'شحن رصيد المحفظة'),
@@ -127,6 +129,13 @@ class _WalletScreenState extends State<WalletScreen> {
     }
   }
 
+  /// Opens a top-up / withdrawal screen and reloads the balance after,
+  /// since a withdrawal changes it immediately.
+  Future<void> _openAndRefresh(Widget screen) async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+    if (mounted) _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!AuthService.isSignedIn) {
@@ -222,7 +231,13 @@ class _WalletScreenState extends State<WalletScreen> {
             const SizedBox(height: 14),
             Row(
               children: [
-                const Expanded(child: _QuickAction(icon: Icons.savings_outlined, label: 'سحب أرباح إلى حسابك البنكي')),
+                Expanded(
+                  child: _QuickAction(
+                    icon: Icons.savings_outlined,
+                    label: 'سحب إلى محفظتك (فودافون كاش / إنستاباي)',
+                    onTap: () => _openAndRefresh(const WalletWithdrawScreen()),
+                  ),
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: _QuickAction(
@@ -232,7 +247,13 @@ class _WalletScreenState extends State<WalletScreen> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                const Expanded(child: _QuickAction(icon: Icons.add_card_rounded, label: 'شحن المحفظة (InstaPay / كارت)')),
+                Expanded(
+                  child: _QuickAction(
+                    icon: Icons.add_card_rounded,
+                    label: 'شحن المحفظة (فودافون كاش / إنستاباي)',
+                    onTap: () => _openAndRefresh(const WalletTopUpScreen()),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 20),

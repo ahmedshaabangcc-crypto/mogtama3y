@@ -317,6 +317,39 @@ const denied = (r) => !!r.error;
     (await as(db, C, `select public.claim_lost_found_item($1) as r`, [lost])).rows?.[0]?.r === 'notified' &&
     (await admin(db, `select 1 from notifications where user_id = $1 and title like 'أحد جيرانك يعرف مكان:%'`, [B])).length === 1);
 
+  // ------------------------------------------------------------------
+  console.log('\nManual wallet top-up & withdrawal');
+  const P = await signUp(db, 'payer', null);
+  const bal = async (u) => (await admin(db, `select available_balance::float a from wallets where user_id = $1`, [u]))[0].a;
+  check('top-up below the minimum is refused', denied(await as(db, P, `select public.request_wallet_topup(5, 'ref 123')`)));
+  check('top-up without a transfer reference is refused', denied(await as(db, P, `select public.request_wallet_topup(100, '')`)));
+  const tu = await as(db, P, `select public.request_wallet_topup(250, 'فودافون كاش - رقم العملية 998877') as id`);
+  check('user files a top-up request', ok(tu), tu);
+  const tuId = tu.rows?.[0]?.id;
+  check('filing a request does not credit the wallet', (await bal(P)) === 0);
+  check('EXPLOIT blocked: user approves their own top-up', denied(await as(db, P, `select public.review_wallet_topup($1, true)`, [tuId])));
+  check('EXPLOIT blocked: user inserts an approved request directly',
+    denied(await as(db, P, `insert into wallet_topup_requests (user_id, amount_egp, proof_note, status) values ($1, 99999, 'x', 'approved')`, [P])));
+  check('super admin approves the top-up', ok(await as(db, boss, `select public.review_wallet_topup($1, true)`, [tuId])));
+  check('approved top-up credits the wallet', (await bal(P)) === 250);
+  check('approving twice is refused', denied(await as(db, boss, `select public.review_wallet_topup($1, true)`, [tuId])));
+  check('user is notified of the top-up',
+    (await admin(db, `select 1 from notifications where user_id = $1 and title = 'تم شحن محفظتك'`, [P])).length === 1);
+
+  check('withdrawal above the balance is refused', denied(await as(db, P, `select public.request_wallet_withdrawal(1000, '01012345678')`)));
+  check('withdrawal to an invalid wallet number is refused', denied(await as(db, P, `select public.request_wallet_withdrawal(50, '12345')`)));
+  const wd = await as(db, P, `select public.request_wallet_withdrawal(100, '010 1234 5678') as id`);
+  check('user requests a withdrawal', ok(wd), wd);
+  check('withdrawn amount leaves the balance immediately (no double spend)', (await bal(P)) === 150);
+  const wdReject = (await as(db, P, `select public.request_wallet_withdrawal(50, '01012345678') as id`)).rows[0].id;
+  check('super admin marks the first withdrawal paid', ok(await as(db, boss, `select public.review_wallet_withdrawal($1, true)`, [wd.rows[0].id])));
+  check('super admin rejects the second one', ok(await as(db, boss, `select public.review_wallet_withdrawal($1, false)`, [wdReject])));
+  check('rejected withdrawal is refunded', (await bal(P)) === 150);
+  const ledger = await admin(db, `select status from wallet_transactions where reference_table = 'wallet_withdrawal_requests' order by created_at`);
+  check('ledger shows one completed and one reversed withdrawal',
+    ledger.length === 2 && ledger.some((l) => l.status === 'completed') && ledger.some((l) => l.status === 'reversed'), ledger);
+  check('other users cannot see these requests', (await as(db, B, `select id from wallet_withdrawal_requests`)).rows?.length === 0);
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));
