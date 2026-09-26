@@ -30,7 +30,7 @@ class GuardService {
         // building_guards has two FKs to profiles (user_id, appointed_by)
         // — an unqualified 'profiles(...)' embed is ambiguous to
         // PostgREST (PGRST201). Name the user_id one explicitly.
-        .select('*, profile:profiles!building_guards_user_id_fkey(full_name, phone)')
+        .select('*, profile:profiles!building_guards_user_id_fkey(full_name)')
         .eq('building_id', buildingId)
         .eq('is_active', true);
     return List<Map<String, dynamic>>.from(rows as List);

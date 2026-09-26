@@ -29,7 +29,7 @@ class TechnicianService {
   static SupabaseClient get _client => Supabase.instance.client;
 
   static Future<List<Map<String, dynamic>>> fetchTechnicians({String? category}) async {
-    var query = _client.from('technicians').select('$_technicianColumns, profile:profiles(full_name, phone)');
+    var query = _client.from('technicians').select('$_technicianColumns, profile:profiles(full_name)');
     if (category != null && category.isNotEmpty) {
       query = query.eq('category', category);
     }

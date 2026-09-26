@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../auth/contact_phones.dart';
+
 /// Real "found a building" / "join with invite code" flow, backed by the
 /// two SECURITY DEFINER functions in
 /// backend/migrations/0003_union_building_flow.sql (found_building,
@@ -10,14 +12,27 @@ class UnionService {
 
   static SupabaseClient get _client => Supabase.instance.client;
 
-  /// The current user's most recent union membership, with the building
-  /// embedded, or null if they haven't founded/joined one yet.
+  /// The current user's union membership, with the building embedded, or
+  /// null if they haven't founded/joined one yet. A verified membership
+  /// wins over a newer pending request elsewhere — otherwise asking to
+  /// join a second building would switch every screen (SOS, visitor
+  /// passes, dues) to a unit the server won't let them act on yet.
   static Future<Map<String, dynamic>?> fetchMyMembership() async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return null;
+    const columns = '*, building:buildings(name, district, city, governorate, lat, lng)';
+    final verified = await _client
+        .from('union_members')
+        .select(columns)
+        .eq('user_id', userId)
+        .eq('status', 'verified')
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    if (verified != null) return verified;
     return _client
         .from('union_members')
-        .select('*, building:buildings(name, district, city, governorate, lat, lng)')
+        .select(columns)
         .eq('user_id', userId)
         .order('created_at', ascending: false)
         .limit(1)
@@ -100,11 +115,13 @@ class UnionService {
         // PostgREST can't infer which one 'profiles(...)' means once it
         // notices both, and errors with PGRST201 ("more than one
         // relationship was found"). Name the user_id one explicitly.
-        .select('*, profile:profiles!union_members_user_id_fkey(full_name, phone), unit:units(unit_number, floor_label)')
+        .select('*, profile:profiles!union_members_user_id_fkey(full_name), unit:units(unit_number, floor_label)')
         .eq('building_id', buildingId)
         .eq('status', 'pending')
         .order('created_at', ascending: true);
-    return List<Map<String, dynamic>>.from(rows as List);
+    final members = List<Map<String, dynamic>>.from(rows as List);
+    await ContactPhones.attach(members, userIdKey: 'user_id', profileKey: 'profile');
+    return members;
   }
 
   /// Approves or rejects a pending member — only succeeds server-side if
@@ -121,11 +138,13 @@ class UnionService {
   static Future<List<Map<String, dynamic>>> fetchVerifiedMembers(String buildingId) async {
     final rows = await _client
         .from('union_members')
-        .select('*, profile:profiles!union_members_user_id_fkey(full_name, phone), unit:units(unit_number, floor_label)')
+        .select('*, profile:profiles!union_members_user_id_fkey(full_name), unit:units(unit_number, floor_label)')
         .eq('building_id', buildingId)
         .eq('status', 'verified')
         .order('created_at', ascending: true);
-    return List<Map<String, dynamic>>.from(rows as List);
+    final members = List<Map<String, dynamic>>.from(rows as List);
+    await ContactPhones.attach(members, userIdKey: 'user_id', profileKey: 'profile');
+    return members;
   }
 
   // ---- Tenant sub-accounts — see backend/migrations/0018_tenant_accounts.sql ----
@@ -162,10 +181,12 @@ class UnionService {
   static Future<List<Map<String, dynamic>>> fetchUnitTenants({required String unitId}) async {
     final rows = await _client
         .from('unit_residents')
-        .select('*, profile:profiles(full_name, phone)')
+        .select('*, profile:profiles(full_name)')
         .eq('unit_id', unitId)
         .eq('residency_type', 'tenant');
-    return List<Map<String, dynamic>>.from(rows as List);
+    final tenants = List<Map<String, dynamic>>.from(rows as List);
+    await ContactPhones.attach(tenants, userIdKey: 'user_id', profileKey: 'profile');
+    return tenants;
   }
 
   /// Revokes a tenant's access to [unitId] — only succeeds server-side

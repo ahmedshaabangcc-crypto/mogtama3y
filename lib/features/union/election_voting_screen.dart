@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
@@ -88,9 +89,9 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
     try {
       await ElectionService.createElection(title: titleCtrl.text.trim(), closesAt: DateTime.now().add(Duration(days: days)));
       _load();
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر بدء الانتخابات، حاول مرة أخرى.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_errorText(e, 'تعذر بدء الانتخابات، حاول مرة أخرى.'))));
     }
   }
 
@@ -113,7 +114,7 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
       _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_errorText(e, 'تعذر الترشح، حاول مرة أخرى.'))));
     }
   }
 
@@ -121,9 +122,9 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
     try {
       await ElectionService.castVote(electionId: _election!['id'] as String, candidateId: candidateId);
       _load();
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر تسجيل صوتك، حاول مرة أخرى.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_errorText(e, 'تعذر تسجيل صوتك، حاول مرة أخرى.'))));
     }
   }
 
@@ -143,11 +144,15 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
     try {
       await ElectionService.finalizeElection(_election!['id'] as String);
       _load();
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر إغلاق الانتخابات، حاول مرة أخرى.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_errorText(e, 'تعذر إغلاق الانتخابات، حاول مرة أخرى.'))));
     }
   }
+
+  /// The server's own Arabic message (e.g. "voting is for each unit's
+  /// primary owner only") when there is one, [fallback] otherwise.
+  String _errorText(Object e, String fallback) => e is PostgrestException ? e.message : fallback;
 
   @override
   Widget build(BuildContext context) {
@@ -202,7 +207,7 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
     final eligible = election['eligible_voters'] as int? ?? 0;
     final totalVotes = _candidates.fold<int>(0, (sum, c) => sum + (c['vote_count'] as int? ?? 0));
     final iHaveNominated = _candidates.any((c) => c['user_id'] == _myUserId);
-    final quorumPct = (election['legal_quorum_pct'] as num?)?.toDouble() ?? 65.0;
+    final quorumPct = (election['legal_quorum_pct'] as num?)?.toDouble() ?? 50.0;
     final turnoutPct = eligible > 0 ? totalVotes / eligible : 0.0;
 
     return Scaffold(
@@ -289,7 +294,7 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
                 ),
               ),
             ],
-            if (isOpen && _isBoardMember) ...[
+            if (!isFinalized && _isBoardMember && (!isOpen || totalVotes >= eligible)) ...[
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,

@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/auth_service.dart';
@@ -47,8 +45,8 @@ class VisitorPassService {
     final unitId = membership?['unit_id'] as String?;
     if (unitId == null) throw Exception('يجب الانضمام لعمارتك أولاً قبل إصدار تصريح');
 
-    final code = 'PASS-${_randomHex(6)}';
-    final now = DateTime.now();
+    // qr_code, valid_from and status are set server-side, and
+    // valid_until is capped there too (migration 0038).
     final row = await _client
         .from('visitor_passes')
         .insert({
@@ -56,10 +54,7 @@ class VisitorPassService {
           'issued_by': userId,
           'visitor_name': visitorName,
           'pass_type': passType,
-          'qr_code': code,
-          'valid_from': now.toUtc().toIso8601String(),
-          'valid_until': now.add(validFor).toUtc().toIso8601String(),
-          'status': 'active',
+          'valid_until': DateTime.now().add(validFor).toUtc().toIso8601String(),
         })
         .select()
         .single();
@@ -68,11 +63,5 @@ class VisitorPassService {
 
   static Future<void> revokePass(String passId) async {
     await _client.from('visitor_passes').update({'status': 'revoked'}).eq('id', passId);
-  }
-
-  static String _randomHex(int length) {
-    const chars = '0123456789ABCDEF';
-    final rand = Random.secure();
-    return List.generate(length, (_) => chars[rand.nextInt(chars.length)]).join();
   }
 }

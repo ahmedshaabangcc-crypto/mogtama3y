@@ -43,15 +43,15 @@ class ElectionService {
     return row?['candidate_id'] as String?;
   }
 
+  /// The quorum is fixed at 50% server-side (migration 0038) — it's not
+  /// the creator's choice.
   static Future<String> createElection({
     required String title,
     required DateTime closesAt,
-    double legalQuorumPct = 65.0,
   }) async {
     final result = await _client.rpc('create_election', params: {
       'p_title': title,
       'p_closes_at': closesAt.toUtc().toIso8601String(),
-      'p_legal_quorum_pct': legalQuorumPct,
     });
     return result as String;
   }

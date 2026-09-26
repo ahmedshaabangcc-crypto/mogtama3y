@@ -66,7 +66,7 @@ class JobsService {
   static Future<List<Map<String, dynamic>>> fetchApplicants(String jobId) async {
     final rows = await _client
         .from('job_applications')
-        .select('*, applicant:profiles(full_name, phone, is_verified)')
+        .select('*, applicant:profiles(full_name, is_verified)')
         .eq('job_id', jobId)
         .order('created_at', ascending: false);
     return List<Map<String, dynamic>>.from(rows as List);

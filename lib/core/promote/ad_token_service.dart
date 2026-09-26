@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/auth_service.dart';
+import '../auth/contact_phones.dart';
 
 /// Real featured-ad token economy — see
 /// backend/migrations/0026_ad_tokens.sql. Works across any of the
@@ -85,10 +86,12 @@ class AdTokenService {
         // ad_token_topup_requests has two FKs to profiles (user_id,
         // reviewed_by) — an unqualified 'profiles(...)' embed is
         // ambiguous to PostgREST (PGRST201).
-        .select('*, requester:profiles!ad_token_topup_requests_user_id_fkey(full_name, phone)')
+        .select('*, requester:profiles!ad_token_topup_requests_user_id_fkey(full_name)')
         .eq('status', 'pending')
         .order('created_at', ascending: true);
-    return List<Map<String, dynamic>>.from(rows as List);
+    final topups = List<Map<String, dynamic>>.from(rows as List);
+    await ContactPhones.attach(topups, userIdKey: 'user_id', profileKey: 'requester');
+    return topups;
   }
 
   static Future<void> reviewTopup({required String requestId, required bool approve}) async {

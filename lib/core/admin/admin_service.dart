@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../auth/contact_phones.dart';
+
 /// Real superadmin panel data — see backend/migrations/0024_superadmin.sql.
 /// Every method here re-checks `is_super_admin()` server-side; a
 /// non-admin calling these just gets a permission exception.
@@ -19,10 +21,12 @@ class AdminService {
         // shop_claim_requests has two FKs to profiles (requester_id,
         // reviewed_by) — an unqualified 'profiles(...)' embed is
         // ambiguous to PostgREST (PGRST201).
-        .select('*, shop:shops(name, address), requester:profiles!shop_claim_requests_requester_id_fkey(full_name, phone)')
+        .select('*, shop:shops(name, address), requester:profiles!shop_claim_requests_requester_id_fkey(full_name)')
         .eq('status', 'pending')
         .order('created_at', ascending: true);
-    return List<Map<String, dynamic>>.from(rows as List);
+    final claims = List<Map<String, dynamic>>.from(rows as List);
+    await ContactPhones.attach(claims, userIdKey: 'requester_id', profileKey: 'requester');
+    return claims;
   }
 
   static Future<void> reviewShopClaim({required String requestId, required bool approve}) async {

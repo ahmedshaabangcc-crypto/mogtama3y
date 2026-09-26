@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'contact_phones.dart';
+
 /// Thin wrapper around Supabase Auth for مُجتمعي: email/password sign-up
 /// and sign-in, plus creating the matching `profiles` + `wallets` rows
 /// the rest of the app expects to exist for every signed-in user.
@@ -78,7 +80,17 @@ class AuthService {
   static Future<Map<String, dynamic>?> fetchCurrentProfile() async {
     final user = currentUser;
     if (user == null) return null;
-    return _client.from('profiles').select().eq('id', user.id).maybeSingle();
+    // Explicit columns: `phone` isn't selectable directly (migration
+    // 0038), so `select()` / `*` would fail — the user's own number comes
+    // back through get_contact_phones instead.
+    final profile = await _client
+        .from('profiles')
+        .select('id, full_name, phone_hidden, avatar_url, is_verified, role, ad_token_balance, created_at, updated_at')
+        .eq('id', user.id)
+        .maybeSingle();
+    if (profile == null) return null;
+    final phones = await ContactPhones.fetch([user.id]);
+    return {...profile, 'phone': phones[user.id]};
   }
 
   static Future<void> updateProfile({String? fullName, String? phone, bool? phoneHidden, String? avatarUrl}) async {

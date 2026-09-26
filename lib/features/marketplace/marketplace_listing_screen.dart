@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/auth/auth_service.dart';
+import '../../core/auth/contact_phones.dart';
 import '../../core/promote/ad_token_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/union/union_service.dart';
@@ -50,11 +51,17 @@ class _MarketplaceListingScreenState extends State<MarketplaceListingScreen> {
     setState(() => _loading = true);
     final rows = await Supabase.instance.client
         .from('marketplace_listings')
-        .select('*, seller:profiles(full_name, is_verified, phone)')
+        .select('*, seller:profiles(full_name, is_verified)')
         .eq('status', 'active')
         .order('created_at', ascending: false)
         .limit(30);
     final listings = List<Map<String, dynamic>>.from(rows as List);
+    // Only sellers whose listing shows the number come back from the RPC.
+    await ContactPhones.attach(
+      listings.where((l) => l['hide_phone_number'] != true).toList(),
+      userIdKey: 'seller_id',
+      profileKey: 'seller',
+    );
 
     final membership = await UnionService.fetchMyMembership();
     final myBuildingId = membership?['building_id'] as String?;
