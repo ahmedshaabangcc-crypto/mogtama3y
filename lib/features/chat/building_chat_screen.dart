@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show RealtimeChannel;
 
 import '../../core/auth/auth_service.dart';
 import '../../core/chat/building_chat_service.dart';
+import '../../core/realtime/realtime_inserts.dart';
 import '../../core/theme/app_colors.dart';
 
 String _timeLabel(DateTime dt) {
@@ -31,17 +33,27 @@ class _BuildingChatScreenState extends State<BuildingChatScreen> {
   final _messageCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   Timer? _poll;
+  RealtimeChannel? _channel;
 
   @override
   void initState() {
     super.initState();
     _load();
-    _poll = Timer.periodic(const Duration(seconds: 4), (_) => _load(silent: true));
+    // New messages arrive instantly over Realtime; the slow poll is only a
+    // fallback in case the realtime connection drops.
+    _channel = subscribeToInserts(
+      table: 'building_chat_messages',
+      column: 'building_id',
+      value: widget.buildingId,
+      onInsert: (_) => _load(silent: true),
+    );
+    _poll = Timer.periodic(const Duration(seconds: 30), (_) => _load(silent: true));
   }
 
   @override
   void dispose() {
     _poll?.cancel();
+    if (_channel != null) unsubscribe(_channel!);
     _messageCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();

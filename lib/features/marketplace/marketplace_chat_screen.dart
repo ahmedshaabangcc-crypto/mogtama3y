@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show RealtimeChannel;
 
 import '../../core/auth/auth_service.dart';
 import '../../core/marketplace/marketplace_chat_service.dart';
+import '../../core/realtime/realtime_inserts.dart';
 import '../../core/theme/app_colors.dart';
 
 String _timeLabel(DateTime dt) {
@@ -31,17 +33,30 @@ class _MarketplaceChatScreenState extends State<MarketplaceChatScreen> {
   final _messageCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   Timer? _poll;
+  RealtimeChannel? _channel;
 
   @override
   void initState() {
     super.initState();
     _load();
-    _poll = Timer.periodic(const Duration(seconds: 4), (_) => _load(silent: true));
+    // New messages arrive instantly over Realtime; the slow poll is only a
+    // fallback in case the realtime connection drops.
+    _channel = subscribeToInserts(
+      table: 'marketplace_messages',
+      column: 'listing_id',
+      value: widget.listingId,
+      onInsert: (row) {
+        if (row['buyer_id'] != widget.buyerId) return; // same listing, another buyer's chat
+        _load(silent: true);
+      },
+    );
+    _poll = Timer.periodic(const Duration(seconds: 30), (_) => _load(silent: true));
   }
 
   @override
   void dispose() {
     _poll?.cancel();
+    if (_channel != null) unsubscribe(_channel!);
     _messageCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
