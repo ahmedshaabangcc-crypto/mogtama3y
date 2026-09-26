@@ -304,7 +304,7 @@ class _DisputeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final resident = request['resident'] as Map<String, dynamic>?;
     final unit = request['unit'] as Map<String, dynamic>?;
-    final amount = (request['quoted_amount'] as num?) ?? 0;
+    final amount = (request['escrow_amount'] as num?) ?? (request['quoted_amount'] as num?) ?? 0;
 
     return Container(
       padding: const EdgeInsets.all(14),

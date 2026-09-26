@@ -31,16 +31,15 @@ class AuthService {
       throw Exception('تعذر إنشاء الحساب، حاول مرة أخرى.');
     }
     if (res.session != null) {
-      await _ensureProfileAndWallet(user.id, fallbackName: fullName, fallbackPhone: phone);
+      await _ensureProfileAndWallet();
     }
     return res.session != null;
   }
 
   static Future<void> signInWithEmail({required String email, required String password}) async {
     final res = await _client.auth.signInWithPassword(email: email, password: password);
-    final user = res.user;
-    if (user != null) {
-      await _ensureProfileAndWallet(user.id, fallbackName: null, fallbackPhone: null);
+    if (res.user != null) {
+      await _ensureProfileAndWallet();
     }
   }
 
@@ -61,14 +60,12 @@ class AuthService {
   /// wallets rows for ANY sign-in, including Google OAuth (which has
   /// no name/phone to fall back to — see _ensureProfileAndWallet).
   /// Safe to leave running alongside the explicit calls in
-  /// signUpWithEmail/signInWithEmail — the underlying insert is
-  /// idempotent (checks for an existing row first).
+  /// signUpWithEmail/signInWithEmail — ensure_my_profile is idempotent.
   static void listenAndSyncProfile() {
     _client.auth.onAuthStateChange.listen((data) async {
-      final user = data.session?.user;
-      if (data.event == AuthChangeEvent.signedIn && user != null) {
+      if (data.event == AuthChangeEvent.signedIn && data.session?.user != null) {
         try {
-          await _ensureProfileAndWallet(user.id, fallbackName: null, fallbackPhone: null);
+          await _ensureProfileAndWallet();
         } catch (_) {
           // Never let a profile/wallet sync failure take down the auth
           // listener — the rest of the app already handles a missing
@@ -96,37 +93,13 @@ class AuthService {
     }).eq('id', user.id);
   }
 
-  /// Creates the `profiles` and `wallets` rows for [userId] if they don't
-  /// already exist — covers both the fresh-signup path and a first login
-  /// after confirming an email (where sign-up never had an active session).
-  static Future<void> _ensureProfileAndWallet(
-    String userId, {
-    required String? fallbackName,
-    required String? fallbackPhone,
-  }) async {
-    final existingProfile = await _client.from('profiles').select('id').eq('id', userId).maybeSingle();
-    if (existingProfile == null) {
-      // Email confirmation delays profile creation until first login, by
-      // which point the sign-up form's name/phone are long gone — fall
-      // back to the metadata stashed on the auth user at sign-up time
-      // (see signUpWithEmail's `data:` param) before the generic default.
-      final metadata = currentUser?.userMetadata;
-      final name = fallbackName ?? metadata?['full_name'] as String? ?? metadata?['name'] as String?;
-      final phone = fallbackPhone ?? metadata?['phone'] as String?;
-      // Google OAuth stashes the account photo under 'avatar_url' or
-      // 'picture' depending on how Supabase mapped the provider's
-      // response — a real profile picture on first login, for free.
-      final avatarUrl = metadata?['avatar_url'] as String? ?? metadata?['picture'] as String?;
-      await _client.from('profiles').insert({
-        'id': userId,
-        'full_name': (name == null || name.trim().isEmpty) ? 'عضو مُجتمعي' : name.trim(),
-        if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
-        'avatar_url': ?avatarUrl,
-      });
-    }
-    final existingWallet = await _client.from('wallets').select('id').eq('user_id', userId).maybeSingle();
-    if (existingWallet == null) {
-      await _client.from('wallets').insert({'user_id': userId});
-    }
+  /// Makes sure the signed-in user has their `profiles` + `wallets` rows.
+  /// They're created server-side (a trigger on auth.users, migration
+  /// 0037) from the name/phone/avatar in the auth user's metadata — the
+  /// client is no longer allowed to insert them itself. This RPC is the
+  /// idempotent fallback for accounts created before that trigger
+  /// existed, so calling it on every sign-in is safe.
+  static Future<void> _ensureProfileAndWallet() async {
+    await _client.rpc('ensure_my_profile');
   }
 }

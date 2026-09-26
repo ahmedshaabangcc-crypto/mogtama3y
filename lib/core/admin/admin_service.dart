@@ -30,7 +30,7 @@ class AdminService {
   }
 
   static const _requestColumns = 'id, unit_id, resident_id, technician_id, category, description, status, '
-      'quoted_amount, escrow_status, visit_scheduled_at, completed_at, created_at';
+      'quoted_amount, escrow_amount, escrow_status, visit_scheduled_at, completed_at, created_at';
 
   static Future<List<Map<String, dynamic>>> fetchDisputedRequests() async {
     final rows = await _client
