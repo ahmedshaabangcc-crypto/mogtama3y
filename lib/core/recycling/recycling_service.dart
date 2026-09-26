@@ -48,24 +48,15 @@ class RecyclingService {
     });
   }
 
+  /// Server-checked bid (migration 0046): the auction must be open, the
+  /// amount positive and above the current top bid, and not your own lot.
   static Future<void> placeBid({required String listingId, required double amount}) async {
-    final userId = AuthService.currentUser?.id;
-    if (userId == null) throw Exception('يجب تسجيل الدخول أولاً');
-    await _client.from('recycling_bids').insert({
-      'listing_id': listingId,
-      'bidder_id': userId,
-      'amount': amount,
-    });
+    await _client.rpc('place_recycling_bid', params: {'p_listing_id': listingId, 'p_amount': amount});
   }
 
-  /// Ends the auction by accepting the current highest bid (seller-only,
-  /// enforced by RLS since only the seller can update their own listing).
+  /// Ends the auction by accepting the current highest bid — seller only,
+  /// and the server picks the real top bid (migration 0046).
   static Future<void> acceptTopBid(String listingId) async {
-    final bids = await _client.from('recycling_bids').select('id, amount').eq('listing_id', listingId).order('amount', ascending: false).limit(1);
-    final topBid = bids.isEmpty ? null : bids.first;
-    await _client.from('recycling_listings').update({
-      'status': 'ended',
-      if (topBid != null) 'winning_bid_id': topBid['id'],
-    }).eq('id', listingId);
+    await _client.rpc('accept_recycling_top_bid', params: {'p_listing_id': listingId});
   }
 }

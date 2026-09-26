@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
 import '../../core/auth/auth_service.dart';
 import '../../core/recycling/recycling_service.dart';
@@ -108,8 +109,10 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
       await RecyclingService.placeBid(listingId: widget.listingId, amount: amount);
       _bidCtrl.clear();
       await _load();
-    } catch (_) {
-      setState(() => _error = 'تعذر إرسال العرض، حاول مرة أخرى.');
+    } catch (e) {
+      if (!mounted) return;
+      // The server explains why (bid too low, auction ended, your own lot).
+      setState(() => _error = e is PostgrestException ? e.message : 'تعذر إرسال العرض، حاول مرة أخرى.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -120,6 +123,9 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
     try {
       await RecyclingService.acceptTopBid(widget.listingId);
       await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is PostgrestException ? e.message : 'تعذر إنهاء المزاد، حاول مرة أخرى.')));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

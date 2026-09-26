@@ -46,7 +46,9 @@ class DuesService {
     required double amount,
     required DateTime dueDate,
   }) async {
+    final membership = await UnionService.fetchMyMembership();
     final result = await _client.rpc('create_union_due', params: {
+      'p_building_id': membership?['building_id'],
       'p_period_label': periodLabel,
       'p_amount': amount,
       'p_due_date': dueDate.toIso8601String().split('T').first,

@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'union_service.dart';
+
 /// Real board-of-directors decisions — see
 /// backend/migrations/0020_board_decisions.sql. Distinct from the
 /// president/board election schema (union_elections) — this is the
@@ -23,7 +25,9 @@ class BoardDecisionsService {
     String? description,
     required bool requiresUnanimous,
   }) async {
+    final membership = await UnionService.fetchMyMembership();
     final result = await _client.rpc('propose_board_decision', params: {
+      'p_building_id': membership?['building_id'],
       'p_title': title,
       'p_description': description,
       'p_requires_unanimous': requiresUnanimous,

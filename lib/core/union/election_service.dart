@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/auth_service.dart';
+import 'union_service.dart';
 
 /// Real president/board elections — see
 /// backend/migrations/0021_elections.sql. Unlike founding a building
@@ -49,7 +50,9 @@ class ElectionService {
     required String title,
     required DateTime closesAt,
   }) async {
+    final membership = await UnionService.fetchMyMembership();
     final result = await _client.rpc('create_election', params: {
+      'p_building_id': membership?['building_id'],
       'p_title': title,
       'p_closes_at': closesAt.toUtc().toIso8601String(),
     });

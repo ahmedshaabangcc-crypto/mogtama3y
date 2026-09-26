@@ -350,6 +350,62 @@ const denied = (r) => !!r.error;
     ledger.length === 2 && ledger.some((l) => l.status === 'completed') && ledger.some((l) => l.status === 'reversed'), ledger);
   check('other users cannot see these requests', (await as(db, B, `select id from wallet_withdrawal_requests`)).rows?.length === 0);
 
+  // ------------------------------------------------------------------
+  console.log('\nMedium hardening (0046)');
+  // Jobs
+  const job = (await admin(db, `insert into job_postings (poster_id, title, employment_type) values ($1, 'كاشير', 'full_time') returning id`, [A]))[0].id;
+  check('EXPLOIT blocked: applicant inserts an application already "hired"',
+    denied(await as(db, T, `insert into job_applications (job_id, applicant_id, status) values ($1, $2, 'hired')`, [job, T])));
+  check('applying through the RPC still works', ok(await as(db, T, `select public.apply_to_job($1, 'مهتم')`, [job])));
+  check('EXPLOIT blocked: applicant promotes their own application',
+    denied(await as(db, T, `update job_applications set status = 'hired' where applicant_id = $1`, [T])));
+  // Token top-ups & shop claims
+  check('EXPLOIT blocked: direct token top-up request for 0 EGP',
+    denied(await as(db, T, `insert into ad_token_topup_requests (user_id, tokens_requested, amount_egp) values ($1, 1000, 0)`, [T])));
+  check('token top-up through the RPC still works', ok(await as(db, T, `select public.request_token_topup(5, 'ref')`)));
+  const shop2 = (await admin(db, `insert into shops (name, google_place_id) values ('صيدلية', 'gp2') returning id`))[0].id;
+  check('EXPLOIT blocked: shop claim filed as already approved',
+    denied(await as(db, T, `insert into shop_claim_requests (shop_id, requester_id, verification_method, status) values ($1, $2, 'document', 'approved')`, [shop2, T])));
+  const claimReq = await as(db, T, `insert into shop_claim_requests (shop_id, requester_id, verification_method) values ($1, $2, 'document') returning id`, [shop2, T]);
+  check('filing a pending shop claim still works', ok(claimReq), claimReq);
+  check('EXPLOIT blocked: requester approves their own claim',
+    denied(await as(db, T, `update shop_claim_requests set status = 'approved' where requester_id = $1`, [T])) ||
+    (await admin(db, `select status from shop_claim_requests where requester_id = $1`, [T]))[0].status === 'pending');
+  check('super admin approves the claim', ok(await as(db, boss, `select public.review_shop_claim($1, true)`, [claimReq.rows[0].id])));
+  const claimReq2 = (await as(db, C, `insert into shop_claim_requests (shop_id, requester_id, verification_method) values ($1, $2, 'document') returning id`, [shop2, C])).rows[0].id;
+  check('a second claim on an already-owned shop cannot be approved', denied(await as(db, boss, `select public.review_shop_claim($1, true)`, [claimReq2])));
+  // Recycling
+  check('EXPLOIT blocked: lot created already "ended" with a year-long auction',
+    (await as(db, B, `insert into recycling_listings (seller_id, category, title, auction_ends_at) values ($1, 'metal', 'x', now() + interval '1 year')`, [B])).error !== undefined);
+  const lot = (await as(db, B, `insert into recycling_listings (seller_id, category, title, auction_ends_at) values ($1, 'metal', 'حديد', now() + interval '2 days') returning id`, [B])).rows[0].id;
+  check('EXPLOIT blocked: raw bid insert', denied(await as(db, C, `insert into recycling_bids (listing_id, bidder_id, amount) values ($1, $2, -500)`, [lot, C])));
+  check('EXPLOIT blocked: seller bids on their own lot', denied(await as(db, B, `select public.place_recycling_bid($1, 100)`, [lot])));
+  check('EXPLOIT blocked: negative bid', denied(await as(db, C, `select public.place_recycling_bid($1, -5)`, [lot])));
+  check('valid bid works', ok(await as(db, C, `select public.place_recycling_bid($1, 100)`, [lot])));
+  check('a bid not above the current top is refused', denied(await as(db, T, `select public.place_recycling_bid($1, 100)`, [lot])));
+  check('higher bid works', ok(await as(db, T, `select public.place_recycling_bid($1, 150)`, [lot])));
+  check('EXPLOIT blocked: seller sets any bid as the winner directly',
+    denied(await as(db, B, `update recycling_listings set status = 'ended' where id = $1`, [lot])));
+  check('EXPLOIT blocked: someone else ends the auction', denied(await as(db, C, `select public.accept_recycling_top_bid($1)`, [lot])));
+  check('seller accepts the top bid', ok(await as(db, B, `select public.accept_recycling_top_bid($1)`, [lot])));
+  const won = (await admin(db, `select b.bidder_id from recycling_listings l join recycling_bids b on b.id = l.winning_bid_id where l.id = $1`, [lot]))[0];
+  check('the highest bidder wins and is notified',
+    won?.bidder_id === T && (await admin(db, `select 1 from notifications where user_id = $1 and title like 'فزت بالمزاد:%'`, [T])).length === 1);
+  check('no bids after the auction ends', denied(await as(db, C, `select public.place_recycling_bid($1, 500)`, [lot])));
+  const lot2 = (await as(db, B, `insert into recycling_listings (seller_id, category, title, auction_ends_at) values ($1, 'paper_cardboard', 'كرتون', now() + interval '2 days') returning id`, [B])).rows[0].id;
+  check('ending an auction with no bids works', ok(await as(db, B, `select public.accept_recycling_top_bid($1)`, [lot2])));
+  // Board actions pick the right building
+  await as(db, B, `select public.found_building('عمارة 2','x','x','x','1','1')`);
+  check('board member of two buildings must specify which one',
+    denied(await as(db, B, `select public.create_union_due('نوفمبر', 100, current_date)`)));
+  check('with the building specified it works', ok(await as(db, B, `select public.create_union_due('نوفمبر', 100, current_date, $1)`, [bld])));
+  check('cannot act on a building where you are not on the board',
+    denied(await as(db, C, `select public.create_union_due('نوفمبر', 100, current_date, $1)`, [bld])));
+  // Anonymous callers
+  check('EXPLOIT blocked: anonymous caller runs a database function',
+    denied(await as(db, null, `select public.found_building('x','x','x','x','1','1')`)));
+  check('internal helpers stay closed to signed-in users', denied(await as(db, B, `select public._board_building_for(null)`)));
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));
