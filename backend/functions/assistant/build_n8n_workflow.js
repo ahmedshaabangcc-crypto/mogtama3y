@@ -23,7 +23,7 @@ const SECRET_CREDENTIAL_NAME = 'Mogtama3y Assistant Secret';
 const GEMINI = { id: 'QhlWQcSXcyjfeoij', name: 'Google Gemini(PaLM) Api account' };
 const TELEGRAM = { id: '9cTMXHYHQERpCO7M', name: 'Telegram account' };
 const OWNER_TELEGRAM_CHAT_ID = '7125544041';
-const SUPABASE_FUNCTION_URL = 'https://pxiabifybakbsqlycffc.supabase.co/functions/v1/assistant';
+const SUPABASE_FUNCTION_URL = 'https://pxiabifybakbsqlycffc.supabase.co/functions/v1/hyper-api';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_3QS4C4PPUUCZuvjUi8Ifmg_EJ44uxhE';
 
 async function api(method, p, body) {

@@ -44,6 +44,8 @@ the admin panel.
   `node backend/functions/assistant/build_n8n_workflow.js`
   (needs git-ignored `.n8n-api-key` and `.assistant-secret` in the repo root).
 - Supabase secrets: `ASSISTANT_SHARED_SECRET` = contents of `.assistant-secret`.
-- Deploy `assistant/index.ts` as function `assistant` with **JWT verification OFF**.
+- Deployed from `assistant/index.ts` as the function with slug **`hyper-api`** (display name
+  "assistant"; the dashboard editor fixed the slug at creation), **JWT verification OFF**.
+  The app and the n8n ticket tool call `/functions/v1/hyper-api`.
 - Gemini free tier is ~5 requests/minute (shared with the Apex agent); the
   workflow retries, but enable billing on the Gemini key before launch.

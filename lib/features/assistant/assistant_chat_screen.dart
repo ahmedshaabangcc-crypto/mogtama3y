@@ -61,7 +61,8 @@ class _AssistantChatScreenState extends State<AssistantChatScreen> {
     setState(() => _sending = true);
     try {
       final response = await Supabase.instance.client.functions.invoke(
-        'assistant',
+        // Deployed under the slug 'hyper-api' (set by the dashboard editor).
+        'hyper-api',
         body: {'action': 'chat', 'message': text, 'session_id': _guestSessionId},
       );
       final data = response.data;
