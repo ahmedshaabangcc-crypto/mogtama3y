@@ -82,68 +82,41 @@ class GuestHomeScreen extends StatelessWidget {
 class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: Image.asset(
-            'assets/images/building_header.png',
-            fit: BoxFit.fitHeight,
-            repeat: ImageRepeat.repeatX,
-            alignment: Alignment.topCenter,
-          ),
-        ),
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  AppColors.navy.withValues(alpha: 0.35),
-                  AppColors.navy.withValues(alpha: 0.72),
-                  const Color(0xFF1B3A63).withValues(alpha: 0.88),
-                ],
-                stops: const [0, 0.55, 1],
-              ),
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 52, 16, 24),
-          child: Column(
-            children: [
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: AppColors.softGradient,
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 48, 16, 22),
+      child: Column(
+        children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              InkWell(
-                borderRadius: BorderRadius.circular(100),
+              _CircleButton(
+                icon: Icons.person_outline_rounded,
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => AuthService.isSignedIn ? const ProfileScreen() : const AuthLandingScreen(),
                 )),
-                child: const CircleAvatar(
-                  radius: 18,
-                  backgroundColor: Colors.white24,
-                  child: Icon(Icons.person_outline, color: Colors.white, size: 20),
-                ),
               ),
               StreamBuilder<AuthState>(
                 stream: AuthService.authStateChanges,
                 builder: (context, snapshot) {
                   final signedIn = AuthService.isSignedIn;
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.25),
+                      color: AppColors.surface.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(100),
-                      border: Border.all(color: Colors.white24),
+                      border: Border.all(color: AppColors.border),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(signedIn ? 'أهلاً بعودتك' : 'وضع الاستكشاف كزائر',
-                            style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.w500)),
+                        Icon(signedIn ? Icons.verified_rounded : Icons.circle, size: signedIn ? 14 : 7, color: signedIn ? AppColors.apexBlue : AppColors.apexPink),
                         const SizedBox(width: 6),
-                        Icon(signedIn ? Icons.verified_rounded : Icons.circle, size: signedIn ? 13 : 6, color: AppColors.gold),
+                        Text(signedIn ? 'أهلاً بعودتك' : 'بتستكشف كزائر',
+                            style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
                       ],
                     ),
                   );
@@ -152,24 +125,46 @@ class _Header extends StatelessWidget {
               const _NotificationBell(),
             ],
           ),
-          const SizedBox(height: 20),
-          const MogtamayLogo(size: 72),
-          const SizedBox(height: 12),
-          Text('مُجتمعي',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
-              )),
+          const SizedBox(height: 22),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [BoxShadow(color: AppColors.apexPurple.withValues(alpha: 0.18), blurRadius: 30, offset: const Offset(0, 12))],
+            ),
+            child: const MogtamayLogo(size: 76),
+          ),
+          const SizedBox(height: 14),
+          ShaderMask(
+            blendMode: BlendMode.srcIn,
+            shaderCallback: (rect) => AppColors.brandGradient.createShader(Rect.fromLTWH(0, 0, rect.width, rect.height)),
+            child: Text('مُجتمعي', style: Theme.of(context).textTheme.headlineLarge?.copyWith(color: Colors.white, fontSize: 32)),
+          ),
           const SizedBox(height: 4),
-          const Text('إدارة اتحاد الملاك والحي... أسهل وأذكى',
-              style: TextStyle(color: Colors.white70, fontSize: 13)),
+          const Text('إدارة اتحاد الملاك والحي… أسهل وأذكى', style: TextStyle(color: AppColors.inkSecondary, fontSize: 13.5)),
           const SizedBox(height: 18),
           const _ExploreLocationBox(),
-            ],
-          ),
-        ),
-      ],
+        ],
+      ),
+    );
+  }
+}
+
+class _CircleButton extends StatelessWidget {
+  const _CircleButton({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      customBorder: const CircleBorder(),
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(color: AppColors.surface, shape: BoxShape.circle, border: Border.all(color: AppColors.border)),
+        child: Icon(icon, color: AppColors.ink, size: 20),
+      ),
     );
   }
 }
@@ -217,10 +212,11 @@ class _NotificationBellState extends State<_NotificationBell> {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          const CircleAvatar(
-            radius: 18,
-            backgroundColor: Colors.white24,
-            child: Icon(Icons.notifications_none_rounded, color: Colors.white, size: 20),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(color: AppColors.surface, shape: BoxShape.circle, border: Border.all(color: AppColors.border)),
+            child: const Icon(Icons.notifications_none_rounded, color: AppColors.ink, size: 20),
           ),
           if (_unread > 0)
             Positioned(
@@ -229,7 +225,7 @@ class _NotificationBellState extends State<_NotificationBell> {
               child: Container(
                 width: 10,
                 height: 10,
-                decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+                decoration: const BoxDecoration(color: AppColors.apexPink, shape: BoxShape.circle),
               ),
             ),
         ],
@@ -283,27 +279,28 @@ class _ExploreLocationBoxState extends State<_ExploreLocationBox> {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(18),
       onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FindBuildingScreen())),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white24),
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.border),
+          boxShadow: [BoxShadow(color: AppColors.ink.withValues(alpha: 0.05), blurRadius: 20, offset: const Offset(0, 8))],
         ),
         child: Row(
           children: [
-            const Icon(Icons.expand_more_rounded, color: Colors.white70, size: 18),
+            const Icon(Icons.expand_more_rounded, color: AppColors.inkMuted, size: 18),
             const Spacer(),
             if (_locating)
-              const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white70))
+              const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
             else
               Text(_resolvedArea != null ? 'استكشف عقارك: $_resolvedArea' : 'استكشف عقارك: حدد موقعك',
-                  style: const TextStyle(color: Colors.white, fontSize: 13)),
+                  style: const TextStyle(color: AppColors.ink, fontSize: 13, fontWeight: FontWeight.w600)),
             const SizedBox(width: 8),
-            const Icon(Icons.location_on_outlined, color: AppColors.gold, size: 18),
+            const Icon(Icons.location_on_rounded, color: AppColors.apexBlue, size: 19),
           ],
         ),
       ),
@@ -352,7 +349,7 @@ class _CategoryGrid extends StatelessWidget {
       itemBuilder: (context, i) {
         final c = _categories[i];
         return InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(22),
           onTap: () => context.go(switch (c.label) {
             'سوق المستعمل' => AppRoutes.marketplace,
             'اتحاد الملاك' => AppRoutes.union,
@@ -369,22 +366,22 @@ class _CategoryGrid extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(22),
             border: Border.all(color: AppColors.border),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(color: c.color, borderRadius: BorderRadius.circular(12)),
-                child: Icon(c.icon, color: Colors.white, size: 22),
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(color: c.color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(16)),
+                child: Icon(c.icon, color: c.color, size: 24),
               ),
               const SizedBox(height: 8),
               Text(c.label,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
               const SizedBox(height: 2),
               Text(c.sublabel,
                   textAlign: TextAlign.center,
@@ -420,18 +417,19 @@ class _QuickServicesRow extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             onTap: onTap,
             child: Container(
-              width: 120,
-              padding: const EdgeInsets.all(12),
+              width: 128,
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: AppColors.navy,
-                borderRadius: BorderRadius.circular(14),
+                gradient: AppColors.brandGradient,
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: [BoxShadow(color: AppColors.apexPurple.withValues(alpha: 0.25), blurRadius: 18, offset: const Offset(0, 8))],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(icon, color: AppColors.gold, size: 22),
+                  Icon(icon, color: Colors.white, size: 24),
                   const Spacer(),
-                  Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                  Text(label, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800)),
                 ],
               ),
             ),
@@ -587,19 +585,33 @@ class _SignupCta extends StatelessWidget {
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: SizedBox(
-              height: 52,
-              child: ElevatedButton.icon(
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => signedIn ? const FindBuildingScreen() : const AuthLandingScreen(),
-                )),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.navy,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            child: Material(
+              color: Colors.transparent,
+              child: Ink(
+                height: 54,
+                decoration: BoxDecoration(
+                  gradient: AppColors.brandGradient,
+                  borderRadius: BorderRadius.circular(100),
+                  boxShadow: [BoxShadow(color: AppColors.apexPurple.withValues(alpha: 0.35), blurRadius: 22, offset: const Offset(0, 10))],
                 ),
-                icon: Icon(signedIn ? Icons.groups_rounded : Icons.login_rounded, size: 18),
-                label: Text(signedIn ? 'ابحث عن عمارتك وانضم لاتحاد الملاك' : 'تسجيل الدخول أو فتح حساب جديد للعمارة'),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(100),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => signedIn ? const FindBuildingScreen() : const AuthLandingScreen(),
+                  )),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(signedIn ? Icons.groups_rounded : Icons.login_rounded, size: 19, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        signedIn ? 'ابحث عن عمارتك وانضم للاتحاد' : 'سجّل دخول أو اعمل حساب',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15),
+                      ),
+                    ),
+                  ]),
+                ),
               ),
             ),
           ),
