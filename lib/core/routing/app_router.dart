@@ -5,6 +5,8 @@ import '../../features/admin/superadmin_control_panel_screen.dart';
 import '../../features/auth/auth_landing_screen.dart';
 import '../../features/bills/bill_payment_hub_screen.dart';
 import '../../features/discover/discover_nearby_screen.dart';
+import '../../features/e_address/my_e_addresses_screen.dart';
+import '../../features/e_address/public_e_address_screen.dart';
 import '../../features/jobs/jobs_board_screen.dart';
 import '../../features/legal/privacy_policy_screen.dart';
 import '../../features/legal/terms_conditions_screen.dart';
@@ -67,9 +69,14 @@ class AppRoutes {
   static const ittihad = '/ittihad';
   /// "اكتشف حواليك" — businesses around the user.
   static const nearby = '/nearby';
+  /// "عنوانك الإلكتروني" — the user's digital addresses.
+  static const myAddress = '/my-address';
 
   /// A merchant's public store (the QR on the shop opens this).
   static String store(String slug) => '/s/$slug';
+
+  /// A shared digital address (its link / QR opens this).
+  static String eAddress(String code) => '/a/$code';
 }
 
 GoRoute _section(String path, GoRouterWidgetBuilder builder) => GoRoute(path: path.substring(1), builder: builder);
@@ -104,6 +111,8 @@ final appRouter = GoRouter(
         _section(AppRoutes.merchant, (_, _) => const MerchantDashboardScreen()),
         _section(AppRoutes.ittihad, (_, _) => const UnionLandingScreen()),
         _section(AppRoutes.nearby, (_, _) => const DiscoverNearbyScreen()),
+        _section(AppRoutes.myAddress, (_, _) => const MyEAddressesScreen()),
+        GoRoute(path: 'a/:code', builder: (_, state) => PublicEAddressScreen(code: state.pathParameters['code']!)),
         GoRoute(path: 's/:slug', builder: (_, state) => StorePageScreen(slug: state.pathParameters['slug']!)),
       ],
     ),
@@ -117,10 +126,12 @@ final appRouter = GoRouter(
       AppRoutes.technicians, AppRoutes.sos, AppRoutes.lostFound, AppRoutes.recycling, AppRoutes.neighborhoods,
       AppRoutes.wallet, AppRoutes.tokens, AppRoutes.post, AppRoutes.bills, AppRoutes.support, AppRoutes.faq,
       AppRoutes.terms, AppRoutes.privacy, AppRoutes.about, AppRoutes.admin, AppRoutes.login, AppRoutes.merchant, AppRoutes.ittihad, AppRoutes.nearby,
+      AppRoutes.myAddress,
     };
-    if (known.contains(path) || _storePath.hasMatch(path.toLowerCase())) return null;
+    if (known.contains(path) || _storePath.hasMatch(path.toLowerCase()) || _eAddressPath.hasMatch(path)) return null;
     return '/';
   },
 );
 
 final _storePath = RegExp(r'^/s/[a-z0-9-]{3,40}$');
+final _eAddressPath = RegExp(r'^/a/[A-Za-z0-9-]{8,14}$');
