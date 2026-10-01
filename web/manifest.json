@@ -1,11 +1,11 @@
 {
-    "name": "mogtama3y",
-    "short_name": "mogtama3y",
+    "name": "مُجتمعي",
+    "short_name": "مُجتمعي",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F4F6F2",
+    "theme_color": "#12233F",
+    "description": "إدارة اتحاد الملاك والحي: مستحقات، قرارات، سوق مستعمل، متاجر المحلات، وخدمات الجيران.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
@@ -31,5 +31,7 @@
             "type": "image/png",
             "purpose": "maskable"
         }
-    ]
+    ],
+    "lang": "ar",
+    "dir": "rtl"
 }
