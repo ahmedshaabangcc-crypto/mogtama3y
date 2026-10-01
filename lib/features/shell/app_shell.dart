@@ -68,11 +68,24 @@ class _AppShellState extends State<AppShell> {
           Positioned(
             bottom: _index == 0 ? 104 : 20,
             left: 16,
-            child: FloatingActionButton(
-              heroTag: 'assistant-fab',
-              backgroundColor: AppColors.navy,
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AssistantChatScreen())),
-              child: const Icon(Icons.smart_toy_rounded, color: Colors.white),
+            child: Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              child: Ink(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  gradient: AppColors.brandGradient,
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(color: AppColors.crystalLight.withValues(alpha: 0.4), blurRadius: 18, offset: const Offset(0, 8))],
+                ),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AssistantChatScreen())),
+                  child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 24),
+                ),
+              ),
             ),
           ),
         ],

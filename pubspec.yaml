@@ -94,6 +94,7 @@ flutter:
 
   assets:
     - assets/images/building_header.png
+    - assets/images/home/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

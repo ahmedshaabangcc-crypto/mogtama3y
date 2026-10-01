@@ -53,6 +53,27 @@ class PlacesService {
     return List<Map<String, dynamic>>.from(result['places'] as List);
   }
 
+  /// "اكتشف حواليك": businesses of [category] within ~3 km of [lat]/[lng],
+  /// nearest first, live from Google Maps (not stored). Works for guests.
+  static Future<List<Map<String, dynamic>>> nearby({required double lat, required double lng, required String category}) async {
+    final result = await _invoke({'action': 'nearby', 'lat': lat, 'lng': lng, 'category': category});
+    return List<Map<String, dynamic>>.from(result['places'] as List);
+  }
+
+  /// One business's page: photos, hours, phone, website, and whether it
+  /// already has a مُجتمعي store.
+  static Future<Map<String, dynamic>> placeDetails(String placeId) async {
+    final result = await _invoke({'action': 'details', 'place_id': placeId});
+    return Map<String, dynamic>.from(result['place'] as Map);
+  }
+
+  /// Creates (or returns) the shop row for a Google place so its owner can
+  /// file an ownership claim. Signed-in users only.
+  static Future<Map<String, dynamic>> ensureShopForPlace(String placeId) async {
+    final result = await _invoke({'action': 'ensure_shop', 'place_id': placeId});
+    return Map<String, dynamic>.from(result['shop'] as Map);
+  }
+
   /// Submits a real ownership-claim request for [shopId] — goes into a
   /// pending review queue (shop_claim_requests), not an instant claim.
   static Future<void> submitClaimRequest({

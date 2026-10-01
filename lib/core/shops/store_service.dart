@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'scan_flag.dart';
 
 /// Merchant stores ("مشروعك أونلاين") — see
 /// backend/migrations/0047_merchant_stores.sql. Every store has a public
@@ -38,6 +39,7 @@ class StoreService {
 
   /// Counts a visit from the QR / link (works for guests too).
   static Future<void> recordScan(String slug) async {
+    if (scanAlreadyRecorded) return; // store-lite.js already counted it
     try {
       await _client.rpc('record_shop_scan', params: {'p_slug': slug});
     } catch (_) {
