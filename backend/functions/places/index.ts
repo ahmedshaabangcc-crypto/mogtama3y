@@ -8,8 +8,15 @@
 //            { action: 'search', query }            — building lookup
 //            { action: 'import_shops', query }      — search + upsert into shops
 //
-// Auth: 'search' and 'import_shops' need a signed-in user; 'geocode'
-// also works for guests (the home screen's "explore your area" box).
+//            { action: 'nearby', lat, lng, category } — "اكتشف حواليك" list
+//            { action: 'details', place_id }        — one business's page
+//            { action: 'ensure_shop', place_id }    — create the shop row so
+//                                                     its owner can claim it
+//
+// Auth: 'search', 'import_shops' and 'ensure_shop' need a signed-in user;
+// 'geocode', 'nearby' and 'details' also work for guests. Nearby/details
+// results are shown live and never stored (Google Maps terms), except the
+// one shop row an owner explicitly asks to claim.
 // Every call counts against a daily quota per user (or per IP for
 // guests) — see bump_places_usage() in migration 0041.
 //
@@ -24,6 +31,55 @@ const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
 const USER_DAILY_LIMIT = 100;
 const GUEST_DAILY_LIMIT = 20;
+const GUEST_ACTIONS = new Set(['geocode', 'nearby', 'details']);
+
+// "اكتشف حواليك" categories → Places (New) primary types.
+const NEARBY_TYPES: Record<string, string[]> = {
+  pharmacy: ['pharmacy', 'drugstore'],
+  clinic: ['doctor', 'dentist', 'medical_lab', 'physiotherapist'],
+  hospital: ['hospital'],
+  restaurant: ['restaurant', 'fast_food_restaurant'],
+  cafe: ['cafe', 'coffee_shop'],
+  supermarket: ['supermarket', 'grocery_store', 'convenience_store'],
+  bakery: ['bakery'],
+  clothing: ['clothing_store', 'shoe_store'],
+  electronics: ['electronics_store', 'cell_phone_store'],
+  bank: ['bank', 'atm'],
+  fuel: ['gas_station'],
+  beauty: ['beauty_salon', 'hair_salon', 'barber_shop'],
+  gym: ['gym', 'fitness_center'],
+  laundry: ['laundry'],
+};
+
+const NEARBY_FIELDS = 'places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.currentOpeningHours.openNow,places.primaryTypeDisplayName,places.websiteUri';
+const DETAIL_FIELDS = 'id,displayName,formattedAddress,location,rating,userRatingCount,types,primaryTypeDisplayName,nationalPhoneNumber,websiteUri,googleMapsUri,regularOpeningHours.weekdayDescriptions,currentOpeningHours.openNow,photos';
+
+async function nearby(lat: number, lng: number, types: string[]) {
+  const res = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': GOOGLE_KEY, 'X-Goog-FieldMask': NEARBY_FIELDS },
+    body: JSON.stringify({
+      includedTypes: types,
+      maxResultCount: 20,
+      rankPreference: 'DISTANCE',
+      languageCode: 'ar',
+      regionCode: 'EG',
+      locationRestriction: { circle: { center: { latitude: lat, longitude: lng }, radius: 3000 } },
+    }),
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.error?.message ?? `Google Places error ${res.status}`);
+  return (body.places ?? []) as any[];
+}
+
+async function placeDetails(placeId: string) {
+  const res = await fetch(`https://places.googleapis.com/v1/places/${placeId}?languageCode=ar&regionCode=EG`, {
+    headers: { 'X-Goog-Api-Key': GOOGLE_KEY, 'X-Goog-FieldMask': DETAIL_FIELDS },
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.error?.message ?? `Google Places error ${res.status}`);
+  return body;
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -125,7 +181,7 @@ Deno.serve(async (req) => {
 
   try {
     const userId = await currentUserId(req);
-    if (!userId && action !== 'geocode') return json({ error: 'يجب تسجيل الدخول أولاً' }, 401);
+    if (!userId && !GUEST_ACTIONS.has(action)) return json({ error: 'يجب تسجيل الدخول أولاً' }, 401);
 
     const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
     const allowed = userId
@@ -138,6 +194,90 @@ Deno.serve(async (req) => {
       const lng = Number(payload.lng);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return json({ error: 'invalid coordinates' }, 400);
       return json({ area: await geocode(lat, lng) });
+    }
+
+    if (action === 'nearby') {
+      const lat = Number(payload.lat);
+      const lng = Number(payload.lng);
+      const types = NEARBY_TYPES[String(payload.category ?? '')];
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return json({ error: 'invalid coordinates' }, 400);
+      if (!types) return json({ error: 'unknown category' }, 400);
+      const places = await nearby(lat, lng, types);
+      // Our own stores for these places (claimed shops with a /#/s/ link).
+      const ids = places.map((p) => p.id);
+      const { data: ours } = ids.length
+        ? await admin.from('shops').select('google_place_id, slug').in('google_place_id', ids).not('slug', 'is', null)
+        : { data: [] as any[] };
+      const slugFor = new Map((ours ?? []).map((r: any) => [r.google_place_id, r.slug]));
+      return json({
+        places: places.map((p) => ({
+          place_id: p.id,
+          name: p.displayName?.text ?? '',
+          type: p.primaryTypeDisplayName?.text ?? '',
+          address: p.formattedAddress ?? '',
+          lat: p.location?.latitude ?? null,
+          lng: p.location?.longitude ?? null,
+          rating: p.rating ?? null,
+          rating_count: p.userRatingCount ?? 0,
+          open_now: p.currentOpeningHours?.openNow ?? null,
+          has_website: !!p.websiteUri,
+          store_slug: slugFor.get(p.id) ?? null,
+        })),
+      });
+    }
+
+    if (action === 'details' || action === 'ensure_shop') {
+      const placeId = String(payload?.place_id ?? '');
+      if (!/^[A-Za-z0-9_-]{10,300}$/.test(placeId)) return json({ error: 'invalid place id' }, 400);
+
+      if (action === 'ensure_shop') {
+        const { data: existing } = await admin.from('shops').select('*').eq('google_place_id', placeId).maybeSingle();
+        if (existing) return json({ shop: existing });
+        const p = await placeDetails(placeId);
+        const photoName = p.photos?.[0]?.name as string | undefined;
+        const { data: shop, error } = await admin.from('shops').insert({
+          source: 'google_imported',
+          google_place_id: p.id,
+          name: p.displayName?.text,
+          category: categoryFor(p.types),
+          address: p.formattedAddress,
+          lat: p.location?.latitude,
+          lng: p.location?.longitude,
+          rating: p.rating,
+          rating_count: p.userRatingCount ?? 0,
+          cover_image_url: photoName ? await photoUri(photoName) : null,
+        }).select('*').single();
+        if (error) throw new Error(error.message);
+        return json({ shop });
+      }
+
+      const p = await placeDetails(placeId);
+      const photos: string[] = [];
+      for (const ph of (p.photos ?? []).slice(0, 3)) {
+        const uri = await photoUri(ph.name);
+        if (uri) photos.push(uri);
+      }
+      const { data: ours } = await admin.from('shops').select('slug, is_claimed').eq('google_place_id', placeId).maybeSingle();
+      return json({
+        place: {
+          place_id: p.id,
+          name: p.displayName?.text ?? '',
+          type: p.primaryTypeDisplayName?.text ?? '',
+          address: p.formattedAddress ?? '',
+          lat: p.location?.latitude ?? null,
+          lng: p.location?.longitude ?? null,
+          rating: p.rating ?? null,
+          rating_count: p.userRatingCount ?? 0,
+          phone: p.nationalPhoneNumber ?? null,
+          website: p.websiteUri ?? null,
+          maps_url: p.googleMapsUri ?? null,
+          open_now: p.currentOpeningHours?.openNow ?? null,
+          hours: p.regularOpeningHours?.weekdayDescriptions ?? [],
+          photos,
+          store_slug: ours?.slug ?? null,
+          is_claimed: ours?.is_claimed ?? false,
+        },
+      });
     }
 
     const query = String(payload?.query ?? '').trim().slice(0, 120);

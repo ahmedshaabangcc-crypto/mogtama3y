@@ -404,6 +404,7 @@ class _QuickServicesRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
+      ('اكتشف حواليك', Icons.near_me_rounded, () => context.go(AppRoutes.nearby)),
       ('صيانة عامة', Icons.handyman_rounded, () => context.go(AppRoutes.technicians)),
       ('جروب الحي', Icons.location_city_rounded, () => context.go(AppRoutes.neighborhoods)),
     ];

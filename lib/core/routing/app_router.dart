@@ -4,6 +4,7 @@ import '../../features/about/about_platform_screen.dart';
 import '../../features/admin/superadmin_control_panel_screen.dart';
 import '../../features/auth/auth_landing_screen.dart';
 import '../../features/bills/bill_payment_hub_screen.dart';
+import '../../features/discover/discover_nearby_screen.dart';
 import '../../features/jobs/jobs_board_screen.dart';
 import '../../features/legal/privacy_policy_screen.dart';
 import '../../features/legal/terms_conditions_screen.dart';
@@ -64,6 +65,8 @@ class AppRoutes {
   static const merchant = '/merchant';
   /// The owners'-union campaign page.
   static const ittihad = '/ittihad';
+  /// "اكتشف حواليك" — businesses around the user.
+  static const nearby = '/nearby';
 
   /// A merchant's public store (the QR on the shop opens this).
   static String store(String slug) => '/s/$slug';
@@ -100,6 +103,7 @@ final appRouter = GoRouter(
         _section(AppRoutes.login, (_, _) => const AuthLandingScreen()),
         _section(AppRoutes.merchant, (_, _) => const MerchantDashboardScreen()),
         _section(AppRoutes.ittihad, (_, _) => const UnionLandingScreen()),
+        _section(AppRoutes.nearby, (_, _) => const DiscoverNearbyScreen()),
         GoRoute(path: 's/:slug', builder: (_, state) => StorePageScreen(slug: state.pathParameters['slug']!)),
       ],
     ),
@@ -112,7 +116,7 @@ final appRouter = GoRouter(
       AppRoutes.marketplace, AppRoutes.shops, AppRoutes.union, AppRoutes.realEstate, AppRoutes.jobs,
       AppRoutes.technicians, AppRoutes.sos, AppRoutes.lostFound, AppRoutes.recycling, AppRoutes.neighborhoods,
       AppRoutes.wallet, AppRoutes.tokens, AppRoutes.post, AppRoutes.bills, AppRoutes.support, AppRoutes.faq,
-      AppRoutes.terms, AppRoutes.privacy, AppRoutes.about, AppRoutes.admin, AppRoutes.login, AppRoutes.merchant, AppRoutes.ittihad,
+      AppRoutes.terms, AppRoutes.privacy, AppRoutes.about, AppRoutes.admin, AppRoutes.login, AppRoutes.merchant, AppRoutes.ittihad, AppRoutes.nearby,
     };
     if (known.contains(path) || _storePath.hasMatch(path.toLowerCase())) return null;
     return '/';
