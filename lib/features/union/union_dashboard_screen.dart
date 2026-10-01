@@ -20,6 +20,7 @@ import 'maintenance_payment_screen.dart';
 import 'manage_tenants_screen.dart';
 import 'pending_members_screen.dart';
 import 'union_feed_screen.dart';
+import 'union_landing_screen.dart';
 
 String _fmt(num n) {
   final s = n.round().toString();
@@ -247,11 +248,18 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
       return Scaffold(
         backgroundColor: AppColors.bg,
         appBar: AppBar(title: const Text('مجلس إدارة اتحاد الشاغلين')),
-        body: const Center(
+        body: Center(
           child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Text('لازم تنضم لعمارتك وتوثّق حسابك الأول عشان توصل للوحة الاتحاد',
-                textAlign: TextAlign.center, style: TextStyle(color: AppColors.inkMuted, fontSize: 13)),
+            padding: const EdgeInsets.all(24),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('لازم تنضم لعمارتك وتوثّق حسابك الأول عشان توصل للوحة الاتحاد',
+                  textAlign: TextAlign.center, style: TextStyle(color: AppColors.inkMuted, fontSize: 13)),
+              const SizedBox(height: 14),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const UnionLandingScreen())),
+                child: const Text('أسّس اتحاد عمارتك أو انضم له'),
+              ),
+            ]),
           ),
         ),
       );

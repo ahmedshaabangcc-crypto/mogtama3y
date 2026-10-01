@@ -23,6 +23,7 @@ import '../../features/store/store_page_screen.dart';
 import '../../features/support/faq_help_center_screen.dart';
 import '../../features/support/support_contact_screen.dart';
 import '../../features/union/union_dashboard_screen.dart';
+import '../../features/union/union_landing_screen.dart';
 import '../../features/wallet/wallet_screen.dart';
 
 /// URLs for the app's main sections, so a browser refresh or a shared
@@ -61,6 +62,8 @@ class AppRoutes {
   static const admin = '/admin';
   static const login = '/login';
   static const merchant = '/merchant';
+  /// The owners'-union campaign page.
+  static const ittihad = '/ittihad';
 
   /// A merchant's public store (the QR on the shop opens this).
   static String store(String slug) => '/s/$slug';
@@ -96,6 +99,7 @@ final appRouter = GoRouter(
         _section(AppRoutes.admin, (_, _) => const SuperadminControlPanelScreen()),
         _section(AppRoutes.login, (_, _) => const AuthLandingScreen()),
         _section(AppRoutes.merchant, (_, _) => const MerchantDashboardScreen()),
+        _section(AppRoutes.ittihad, (_, _) => const UnionLandingScreen()),
         GoRoute(path: 's/:slug', builder: (_, state) => StorePageScreen(slug: state.pathParameters['slug']!)),
       ],
     ),
@@ -108,7 +112,7 @@ final appRouter = GoRouter(
       AppRoutes.marketplace, AppRoutes.shops, AppRoutes.union, AppRoutes.realEstate, AppRoutes.jobs,
       AppRoutes.technicians, AppRoutes.sos, AppRoutes.lostFound, AppRoutes.recycling, AppRoutes.neighborhoods,
       AppRoutes.wallet, AppRoutes.tokens, AppRoutes.post, AppRoutes.bills, AppRoutes.support, AppRoutes.faq,
-      AppRoutes.terms, AppRoutes.privacy, AppRoutes.about, AppRoutes.admin, AppRoutes.login, AppRoutes.merchant,
+      AppRoutes.terms, AppRoutes.privacy, AppRoutes.about, AppRoutes.admin, AppRoutes.login, AppRoutes.merchant, AppRoutes.ittihad,
     };
     if (known.contains(path) || _storePath.hasMatch(path.toLowerCase())) return null;
     return '/';
