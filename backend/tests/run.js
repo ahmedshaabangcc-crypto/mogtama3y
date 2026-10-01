@@ -406,6 +406,45 @@ const denied = (r) => !!r.error;
     denied(await as(db, null, `select public.found_building('x','x','x','x','1','1')`)));
   check('internal helpers stay closed to signed-in users', denied(await as(db, B, `select public._board_building_for(null)`)));
 
+  // ------------------------------------------------------------------
+  console.log('\nMerchant stores (0047)');
+  const M = await signUp(db, 'merchant', '01011111111');
+  const Cu = await signUp(db, 'customer', '01022222222');
+  check('invalid slug is refused', denied(await as(db, M, `select public.create_my_shop('محل', 'بقالة', 'Bad Slug!', '01011111111')`)));
+  const myShop = await as(db, M, `select public.create_my_shop('بقالة السلام', 'بقالة', 'elsalam', '01011111111', 'شارع 9') as id`);
+  check('merchant registers a shop', ok(myShop), myShop);
+  const shopId = myShop.rows?.[0]?.id;
+  check('duplicate slug is refused', denied(await as(db, Cu, `select public.create_my_shop('محل تاني', 'بقالة', 'elsalam', '01022222222')`)));
+  const p1 = await as(db, M, `insert into shop_products (shop_id, name, price) values ($1, 'أرز 1ك', 40) returning id`, [shopId]);
+  const p2 = await as(db, M, `insert into shop_products (shop_id, name, price) values ($1, 'سكر 1ك', 35) returning id`, [shopId]);
+  check('owner adds products', ok(p1) && ok(p2));
+  check('EXPLOIT blocked: someone else adds a product to the shop',
+    denied(await as(db, Cu, `insert into shop_products (shop_id, name, price) values ($1, 'x', 1)`, [shopId])));
+  check('EXPLOIT blocked: someone else changes a price',
+    (await as(db, Cu, `update shop_products set price = 0 where shop_id = $1`, [shopId])).affected === 0);
+  check('guests can browse the store and its products',
+    (await as(db, null, `select p.name from shops s join shop_products p on p.shop_id = s.id where s.slug = 'elsalam'`)).rows?.length === 2);
+  check('guests can record a QR scan', ok(await as(db, null, `select public.record_shop_scan('elsalam')`)));
+  check('EXPLOIT blocked: owner inflates scan count', denied(await as(db, M, `update shops set scan_count = 9999 where id = $1`, [shopId])));
+  check('guests cannot order', denied(await as(db, null, `select public.place_shop_order($1, '[]'::jsonb, '01022222222')`, [shopId])));
+  const items = JSON.stringify([{ product_id: p1.rows[0].id, quantity: 2 }, { product_id: p2.rows[0].id, quantity: 1 }]);
+  const order = await as(db, Cu, `select public.place_shop_order($1, $2::jsonb, '01022222222', 'من غير شطة') as id`, [shopId, items]);
+  check('customer places an order', ok(order), order);
+  const orderRow = (await admin(db, `select total_amount::float t, status from shop_orders where id = $1`, [order.rows[0].id]))[0];
+  check('order total is computed by the server (2×40 + 35 = 115)', orderRow.t === 115 && orderRow.status === 'placed', orderRow);
+  check('merchant is notified of the order', (await admin(db, `select 1 from notifications where user_id = $1 and title like '🛒 طلب جديد%'`, [M])).length === 1);
+  check('EXPLOIT blocked: customer writes an order row directly',
+    denied(await as(db, Cu, `insert into shop_orders (shop_id, buyer_id, status, total_amount) values ($1, $2, 'placed', 1)`, [shopId, Cu])));
+  check('merchant sees the order and its items',
+    (await as(db, M, `select i.quantity from shop_orders o join shop_order_items i on i.order_id = o.id where o.shop_id = $1`, [shopId])).rows?.length === 2);
+  check('other users cannot see the order', (await as(db, B, `select id from shop_orders where shop_id = $1`, [shopId])).rows?.length === 0);
+  check('EXPLOIT blocked: customer marks the order delivered', denied(await as(db, Cu, `select public.update_shop_order_status($1, 'delivered')`, [order.rows[0].id])));
+  check('merchant moves the order to preparing', ok(await as(db, M, `select public.update_shop_order_status($1, 'preparing')`, [order.rows[0].id])));
+  check('customer can no longer cancel once preparing', denied(await as(db, Cu, `select public.update_shop_order_status($1, 'cancelled')`, [order.rows[0].id])));
+  check('customer is notified of status changes', (await admin(db, `select 1 from notifications where user_id = $1 and title like 'المحل بيجهّز طلبك%'`, [Cu])).length === 1);
+  await as(db, M, `update shop_products set is_available = false where id = $1`, [p1.rows[0].id]);
+  check('a hidden product cannot be ordered', denied(await as(db, Cu, `select public.place_shop_order($1, $2::jsonb, '01022222222')`, [shopId, items])));
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

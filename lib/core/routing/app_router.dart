@@ -9,6 +9,7 @@ import '../../features/legal/privacy_policy_screen.dart';
 import '../../features/legal/terms_conditions_screen.dart';
 import '../../features/lost_found/lost_found_hub_screen.dart';
 import '../../features/marketplace/marketplace_listing_screen.dart';
+import '../../features/merchant/merchant_dashboard_screen.dart';
 import '../../features/neighborhood/neighborhood_list_screen.dart';
 import '../../features/post/smart_post_picker_screen.dart';
 import '../../features/promote/token_wallet_screen.dart';
@@ -18,6 +19,7 @@ import '../../features/services/technicians_market_screen.dart';
 import '../../features/shell/app_shell.dart';
 import '../../features/shops/neighborhood_shops_screen.dart';
 import '../../features/sos/sos_emergency_screen.dart';
+import '../../features/store/store_page_screen.dart';
 import '../../features/support/faq_help_center_screen.dart';
 import '../../features/support/support_contact_screen.dart';
 import '../../features/union/union_dashboard_screen.dart';
@@ -58,6 +60,10 @@ class AppRoutes {
   static const about = '/about';
   static const admin = '/admin';
   static const login = '/login';
+  static const merchant = '/merchant';
+
+  /// A merchant's public store (the QR on the shop opens this).
+  static String store(String slug) => '/s/$slug';
 }
 
 GoRoute _section(String path, GoRouterWidgetBuilder builder) => GoRoute(path: path.substring(1), builder: builder);
@@ -89,6 +95,8 @@ final appRouter = GoRouter(
         _section(AppRoutes.about, (_, _) => const AboutPlatformScreen()),
         _section(AppRoutes.admin, (_, _) => const SuperadminControlPanelScreen()),
         _section(AppRoutes.login, (_, _) => const AuthLandingScreen()),
+        _section(AppRoutes.merchant, (_, _) => const MerchantDashboardScreen()),
+        GoRoute(path: 's/:slug', builder: (_, state) => StorePageScreen(slug: state.pathParameters['slug']!)),
       ],
     ),
   ],
@@ -100,8 +108,11 @@ final appRouter = GoRouter(
       AppRoutes.marketplace, AppRoutes.shops, AppRoutes.union, AppRoutes.realEstate, AppRoutes.jobs,
       AppRoutes.technicians, AppRoutes.sos, AppRoutes.lostFound, AppRoutes.recycling, AppRoutes.neighborhoods,
       AppRoutes.wallet, AppRoutes.tokens, AppRoutes.post, AppRoutes.bills, AppRoutes.support, AppRoutes.faq,
-      AppRoutes.terms, AppRoutes.privacy, AppRoutes.about, AppRoutes.admin, AppRoutes.login,
+      AppRoutes.terms, AppRoutes.privacy, AppRoutes.about, AppRoutes.admin, AppRoutes.login, AppRoutes.merchant,
     };
-    return known.contains(path) ? null : '/';
+    if (known.contains(path) || _storePath.hasMatch(path.toLowerCase())) return null;
+    return '/';
   },
 );
+
+final _storePath = RegExp(r'^/s/[a-z0-9-]{3,40}$');

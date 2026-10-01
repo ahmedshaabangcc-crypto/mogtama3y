@@ -148,6 +148,13 @@ class _MoreMenuScreenState extends State<MoreMenuScreen> {
             subtitle: 'كهرباء، غاز، مياه، فواتير موبايل وأكتر',
             onTap: () => context.go(AppRoutes.bills),
           ),
+          _MenuTile(
+            icon: Icons.storefront_rounded,
+            iconColor: AppColors.teal,
+            title: 'لوحة التاجر',
+            subtitle: 'خلّي محلك أونلاين ببلاش: منتجات وطلبات وQR',
+            onTap: () => context.go(AppRoutes.merchant),
+          ),
           const SizedBox(height: 18),
           const _SectionLabel('المساعدة والقانون'),
           _MenuTile(
