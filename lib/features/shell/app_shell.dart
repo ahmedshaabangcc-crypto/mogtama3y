@@ -76,8 +76,9 @@ class _AppShellState extends State<AppShell> {
                 height: 54,
                 decoration: BoxDecoration(
                   gradient: AppColors.brandGradient,
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
                   shape: BoxShape.circle,
-                  boxShadow: [BoxShadow(color: AppColors.apexPurple.withValues(alpha: 0.4), blurRadius: 18, offset: const Offset(0, 8))],
+                  boxShadow: [BoxShadow(color: AppColors.crystalLight.withValues(alpha: 0.4), blurRadius: 18, offset: const Offset(0, 8))],
                 ),
                 child: InkWell(
                   customBorder: const CircleBorder(),

@@ -4,8 +4,30 @@
     {
       "name": "flutter-web",
       "runtimeExecutable": "C:\\src\\flutter\\bin\\flutter.bat",
-      "runtimeArgs": ["run", "-d", "web-server", "--web-port", "8734", "--web-hostname", "0.0.0.0"],
+      "runtimeArgs": [
+        "run",
+        "-d",
+        "web-server",
+        "--web-port",
+        "8734",
+        "--web-hostname",
+        "0.0.0.0"
+      ],
       "port": 8734
+    },
+    {
+      "name": "web-release",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "-y",
+        "http-server",
+        "build/web",
+        "-p",
+        "8735",
+        "-c-1",
+        "--silent"
+      ],
+      "port": 8735
     }
   ]
 }

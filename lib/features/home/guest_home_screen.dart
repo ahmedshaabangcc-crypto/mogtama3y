@@ -17,24 +17,31 @@ import '../profile/profile_screen.dart';
 import '../union/find_building_screen.dart';
 
 class _Category {
-  const _Category(this.label, this.sublabel, this.icon, this.color);
+  const _Category(this.label, this.sublabel, this.image);
   final String label;
   final String sublabel;
-  final IconData icon;
-  final Color color;
+  final String image;
 }
 
+const _img = 'assets/images/home';
 const _categories = [
-  _Category('سوق المستعمل', 'سلع من الجيران', Icons.shopping_bag_rounded, AppColors.categoryUsedMarket),
-  _Category('المحلات', 'محلات ومتاجر الحي', Icons.storefront_rounded, AppColors.categoryShops),
-  _Category('اتحاد الملاك', 'حوكمة واشتراكات', Icons.groups_rounded, AppColors.categoryUnion),
-  _Category('عقارات', 'بيع وإيجار بالمنطقة', Icons.home_work_rounded, AppColors.categoryRealEstate),
-  _Category('وظائف', 'شواغر قريبة منك', Icons.work_rounded, AppColors.categoryJobs),
-  _Category('الصيانة والخدمات', 'فنيين وحجز بضمان', Icons.build_rounded, AppColors.categoryMaintenance),
-  _Category('طوارئ SOS', 'تنبيه الجيران والطوارئ', Icons.warning_rounded, AppColors.categorySos),
-  _Category('المفقودات والأمانات', 'مفقود أو موجود', Icons.search_rounded, AppColors.categoryLostFound),
-  _Category('تدوير وتوفير', 'مزادات الخردة والتدوير', Icons.autorenew_rounded, AppColors.categoryRecycling),
+  _Category('سوق المستعمل', 'سلع من الجيران', '$_img/used_market.jpg'),
+  _Category('المحلات', 'محلات ومتاجر الحي', '$_img/shops.jpg'),
+  _Category('اتحاد الملاك', 'حوكمة واشتراكات', '$_img/union.jpg'),
+  _Category('عقارات', 'بيع وإيجار بالمنطقة', '$_img/real_estate.jpg'),
+  _Category('وظائف', 'شواغر قريبة منك', '$_img/jobs.jpg'),
+  _Category('الصيانة والخدمات', 'فنيين وحجز بضمان', '$_img/maintenance.jpg'),
+  _Category('طوارئ SOS', 'تنبيه الجيران والطوارئ', '$_img/sos.jpg'),
+  _Category('المفقودات والأمانات', 'مفقود أو موجود', '$_img/lost_found.jpg'),
+  _Category('تدوير وتوفير', 'مزادات الخردة والتدوير', '$_img/recycling.jpg'),
 ];
+
+/// Frosted-glass panel used across the night-styled home.
+BoxDecoration _glass({double radius = 22}) => BoxDecoration(
+      color: AppColors.glass,
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(color: AppColors.glassBorder),
+    );
 
 /// The pre-login / guest landing screen — matches design/screens/01_home_guest.png.
 class GuestHomeScreen extends StatelessWidget {
@@ -43,13 +50,15 @@ class GuestHomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bg,
-      body: CustomScrollView(
+      backgroundColor: AppColors.night,
+      body: DecoratedBox(
+        decoration: const BoxDecoration(gradient: AppColors.nightGradient),
+        child: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(child: _Header()),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -73,6 +82,7 @@ class GuestHomeScreen extends StatelessWidget {
             ),
           ),
         ],
+        ),
       ),
       bottomSheet: _SignupCta(),
     );
@@ -82,13 +92,38 @@ class GuestHomeScreen extends StatelessWidget {
 class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: AppColors.softGradient,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 48, 16, 22),
+    return Stack(
+      children: [
+        // Hero artwork, fading into the night canvas at the bottom.
+        Positioned.fill(
+          bottom: 70,
+          child: ShaderMask(
+            blendMode: BlendMode.dstIn,
+            shaderCallback: (rect) => const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Colors.white, Colors.white, Colors.transparent],
+              stops: [0.0, 0.62, 1.0],
+            ).createShader(rect),
+            child: Image.asset('$_img/hero.jpg', fit: BoxFit.cover, alignment: const Alignment(-0.35, 0)),
+          ),
+        ),
+        // Darken the text side so the headline stays readable.
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerRight,
+                end: Alignment.centerLeft,
+                colors: [AppColors.night.withValues(alpha: 0.75), AppColors.night.withValues(alpha: 0.05)],
+              ),
+            ),
+          ),
+        ),
+        Padding(
+      padding: const EdgeInsets.fromLTRB(16, 44, 16, 18),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -105,18 +140,14 @@ class _Header extends StatelessWidget {
                   final signedIn = AuthService.isSignedIn;
                   return Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface.withValues(alpha: 0.85),
-                      borderRadius: BorderRadius.circular(100),
-                      border: Border.all(color: AppColors.border),
-                    ),
+                    decoration: _glass(radius: 100).copyWith(color: AppColors.night.withValues(alpha: 0.45)),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(signedIn ? Icons.verified_rounded : Icons.circle, size: signedIn ? 14 : 7, color: signedIn ? AppColors.apexBlue : AppColors.apexPink),
+                        Icon(signedIn ? Icons.verified_rounded : Icons.circle, size: signedIn ? 14 : 7, color: AppColors.gold),
                         const SizedBox(width: 6),
                         Text(signedIn ? 'أهلاً بعودتك' : 'بتستكشف كزائر',
-                            style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
                       ],
                     ),
                   );
@@ -125,26 +156,31 @@ class _Header extends StatelessWidget {
               const _NotificationBell(),
             ],
           ),
-          const SizedBox(height: 22),
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [BoxShadow(color: AppColors.apexPurple.withValues(alpha: 0.18), blurRadius: 30, offset: const Offset(0, 12))],
+          const SizedBox(height: 70),
+          Row(children: [
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 18, offset: const Offset(0, 8))],
+              ),
+              child: const MogtamayLogo(size: 46),
             ),
-            child: const MogtamayLogo(size: 76),
-          ),
-          const SizedBox(height: 14),
-          ShaderMask(
-            blendMode: BlendMode.srcIn,
-            shaderCallback: (rect) => AppColors.brandGradient.createShader(Rect.fromLTWH(0, 0, rect.width, rect.height)),
-            child: Text('مُجتمعي', style: Theme.of(context).textTheme.headlineLarge?.copyWith(color: Colors.white, fontSize: 32)),
-          ),
+            const SizedBox(width: 12),
+            Text('مُجتمعي',
+                style: Theme.of(context).textTheme.headlineLarge?.copyWith(color: Colors.white, fontSize: 34, shadows: const [Shadow(color: Colors.black54, blurRadius: 16)])),
+          ]),
+          const SizedBox(height: 8),
+          const Text('كل حيّك في تطبيق واحد',
+              style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700, shadows: [Shadow(color: Colors.black54, blurRadius: 12)])),
           const SizedBox(height: 4),
-          const Text('إدارة اتحاد الملاك والحي… أسهل وأذكى', style: TextStyle(color: AppColors.inkSecondary, fontSize: 13.5)),
-          const SizedBox(height: 18),
+          const Text('اتحاد الملاك، المحلات، الصيانة والجيران… أسهل وأذكى',
+              style: TextStyle(color: Colors.white70, fontSize: 12.5, shadows: [Shadow(color: Colors.black54, blurRadius: 10)])),
+          const SizedBox(height: 22),
           const _ExploreLocationBox(),
         ],
       ),
+        ),
+      ],
     );
   }
 }
@@ -162,8 +198,8 @@ class _CircleButton extends StatelessWidget {
       child: Container(
         width: 40,
         height: 40,
-        decoration: BoxDecoration(color: AppColors.surface, shape: BoxShape.circle, border: Border.all(color: AppColors.border)),
-        child: Icon(icon, color: AppColors.ink, size: 20),
+        decoration: BoxDecoration(color: AppColors.night.withValues(alpha: 0.45), shape: BoxShape.circle, border: Border.all(color: AppColors.glassBorder)),
+        child: Icon(icon, color: Colors.white, size: 20),
       ),
     );
   }
@@ -215,8 +251,8 @@ class _NotificationBellState extends State<_NotificationBell> {
           Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(color: AppColors.surface, shape: BoxShape.circle, border: Border.all(color: AppColors.border)),
-            child: const Icon(Icons.notifications_none_rounded, color: AppColors.ink, size: 20),
+            decoration: BoxDecoration(color: AppColors.night.withValues(alpha: 0.45), shape: BoxShape.circle, border: Border.all(color: AppColors.glassBorder)),
+            child: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 20),
           ),
           if (_unread > 0)
             Positioned(
@@ -225,7 +261,7 @@ class _NotificationBellState extends State<_NotificationBell> {
               child: Container(
                 width: 10,
                 height: 10,
-                decoration: const BoxDecoration(color: AppColors.apexPink, shape: BoxShape.circle),
+                decoration: const BoxDecoration(color: AppColors.gold, shape: BoxShape.circle),
               ),
             ),
         ],
@@ -284,23 +320,18 @@ class _ExploreLocationBoxState extends State<_ExploreLocationBox> {
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.border),
-          boxShadow: [BoxShadow(color: AppColors.ink.withValues(alpha: 0.05), blurRadius: 20, offset: const Offset(0, 8))],
-        ),
+        decoration: _glass(radius: 18).copyWith(color: AppColors.night.withValues(alpha: 0.55)),
         child: Row(
           children: [
-            const Icon(Icons.expand_more_rounded, color: AppColors.inkMuted, size: 18),
-            const Spacer(),
+            const Icon(Icons.location_on_rounded, color: AppColors.gold, size: 19),
+            const SizedBox(width: 8),
             if (_locating)
-              const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+              const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold))
             else
               Text(_resolvedArea != null ? 'استكشف عقارك: $_resolvedArea' : 'استكشف عقارك: حدد موقعك',
-                  style: const TextStyle(color: AppColors.ink, fontSize: 13, fontWeight: FontWeight.w600)),
-            const SizedBox(width: 8),
-            const Icon(Icons.location_on_rounded, color: AppColors.apexBlue, size: 19),
+                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+            const Spacer(),
+            const Icon(Icons.expand_more_rounded, color: Colors.white60, size: 18),
           ],
         ),
       ),
@@ -321,12 +352,12 @@ class _SectionHeader extends StatelessWidget {
       children: [
         Text(
           title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.ink),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white),
         ),
         if (trailing != null)
           InkWell(
             onTap: onTrailingTap,
-            child: Text(trailing!, style: const TextStyle(color: AppColors.teal, fontSize: 12, fontWeight: FontWeight.w600)),
+            child: Text(trailing!, style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.w700)),
           ),
       ],
     );
@@ -344,7 +375,7 @@ class _CategoryGrid extends StatelessWidget {
         crossAxisCount: 3,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
-        childAspectRatio: 0.85,
+        childAspectRatio: 0.74,
       ),
       itemBuilder: (context, i) {
         final c = _categories[i];
@@ -363,33 +394,31 @@ class _CategoryGrid extends StatelessWidget {
             _ => '/',
           }),
           child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(color: c.color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(16)),
-                child: Icon(c.icon, color: c.color, size: 24),
-              ),
-              const SizedBox(height: 8),
-              Text(c.label,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 2),
-              Text(c.sublabel,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
-            ],
-          ),
+            clipBehavior: Clip.antiAlias,
+            decoration: _glass().copyWith(
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 16, offset: const Offset(0, 8))],
+            ),
+            child: Column(
+              children: [
+                Expanded(child: Image.asset(c.image, fit: BoxFit.cover, width: double.infinity)),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(6, 7, 6, 9),
+                  child: Column(children: [
+                    Text(c.label,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+                    const SizedBox(height: 1),
+                    Text(c.sublabel,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 9.5, color: Colors.white60)),
+                  ]),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -419,15 +448,11 @@ class _QuickServicesRow extends StatelessWidget {
             child: Container(
               width: 128,
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                gradient: AppColors.brandGradient,
-                borderRadius: BorderRadius.circular(22),
-                boxShadow: [BoxShadow(color: AppColors.apexPurple.withValues(alpha: 0.25), blurRadius: 18, offset: const Offset(0, 8))],
-              ),
+              decoration: _glass(),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(icon, color: Colors.white, size: 24),
+                  Icon(icon, color: AppColors.gold, size: 24),
                   const Spacer(),
                   Text(label, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800)),
                 ],
@@ -492,19 +517,15 @@ class _LatestListingsState extends State<_LatestListings> {
         onTap: _openMarketplace,
         child: Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.border),
-          ),
+          decoration: _glass(radius: 18),
           child: Row(
             children: [
-              const Icon(Icons.shopping_bag_outlined, color: AppColors.inkMuted),
+              const Icon(Icons.shopping_bag_outlined, color: AppColors.gold),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                     AuthService.isSignedIn ? 'لا توجد معروضات بعد — كن أول من ينشر إعلاناً في سوق المستعمل' : 'سجّل الدخول لتصفح معروضات جيرانك في سوق المستعمل',
-                    style: const TextStyle(fontSize: 12, color: AppColors.inkMuted)),
+                    style: const TextStyle(fontSize: 12, color: Colors.white70)),
               ),
             ],
           ),
@@ -543,11 +564,7 @@ class _ListingCard extends StatelessWidget {
       onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ItemDetailsScreen(listing: listing))),
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border),
-        ),
+        decoration: _glass(radius: 18),
         child: Row(
           children: [
             ClipRRect(
@@ -561,13 +578,13 @@ class _ListingCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(listing['title'] as String? ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  Text(listing['title'] as String? ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white)),
                   const SizedBox(height: 2),
-                  Text(sellerName, style: const TextStyle(fontSize: 11, color: AppColors.inkMuted)),
+                  Text(sellerName, style: const TextStyle(fontSize: 11, color: Colors.white60)),
                 ],
               ),
             ),
-            Text('${NumberFormat('#,##0').format(price)} ج.م', style: const TextStyle(color: AppColors.teal, fontWeight: FontWeight.w700, fontSize: 13)),
+            Text('${NumberFormat('#,##0').format(price)} ج.م', style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700, fontSize: 13)),
           ],
         ),
       ),
@@ -582,7 +599,9 @@ class _SignupCta extends StatelessWidget {
       stream: AuthService.authStateChanges,
       builder: (context, snapshot) {
         final signedIn = AuthService.isSignedIn;
-        return SafeArea(
+        return ColoredBox(
+          color: AppColors.night,
+          child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: Material(
@@ -591,8 +610,9 @@ class _SignupCta extends StatelessWidget {
                 height: 54,
                 decoration: BoxDecoration(
                   gradient: AppColors.brandGradient,
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
                   borderRadius: BorderRadius.circular(100),
-                  boxShadow: [BoxShadow(color: AppColors.apexPurple.withValues(alpha: 0.35), blurRadius: 22, offset: const Offset(0, 10))],
+                  boxShadow: [BoxShadow(color: AppColors.crystalLight.withValues(alpha: 0.35), blurRadius: 22, offset: const Offset(0, 10))],
                 ),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(100),
@@ -614,6 +634,7 @@ class _SignupCta extends StatelessWidget {
                 ),
               ),
             ),
+          ),
           ),
         );
       },
