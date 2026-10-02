@@ -139,7 +139,10 @@ class EAddressIntro extends StatelessWidget {
 
 /// "عندك عنوان حد؟" — open an address by its easy name, mobile number or code.
 class EAddressLookupBox extends StatefulWidget {
-  const EAddressLookupBox({super.key});
+  const EAddressLookupBox({super.key, this.dark = false});
+
+  /// Night-glass single-line bar for the home header.
+  final bool dark;
 
   @override
   State<EAddressLookupBox> createState() => _EAddressLookupBoxState();
@@ -167,6 +170,7 @@ class _EAddressLookupBoxState extends State<EAddressLookupBox> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.dark) return _darkBar();
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
@@ -189,4 +193,50 @@ class _EAddressLookupBoxState extends State<EAddressLookupBox> {
       ]),
     );
   }
+
+  Widget _darkBar() {
+    return Container(
+      padding: const EdgeInsetsDirectional.fromSTEB(14, 4, 4, 4),
+      decoration: BoxDecoration(
+        color: AppColors.night.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.glassBorder),
+      ),
+      child: Row(children: [
+        const Icon(Icons.travel_explore_rounded, color: AppColors.gold, size: 19),
+        const SizedBox(width: 8),
+        Expanded(
+          child: TextField(
+            controller: _c,
+            autocorrect: false,
+            onSubmitted: (_) => _go(),
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+            cursorColor: AppColors.gold,
+            decoration: const InputDecoration(
+              filled: false,
+              isDense: true,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              hintText: 'دوّر على عنوان: الاسم أو الموبايل أو الكود',
+              hintStyle: TextStyle(color: Colors.white54, fontSize: 12.5),
+            ),
+          ),
+        ),
+        IconButton(
+          onPressed: _go,
+          style: IconButton.styleFrom(backgroundColor: AppColors.gold, foregroundColor: AppColors.night),
+          icon: const Icon(Icons.search_rounded, size: 20),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Home-header search: "دوّر على عنوان".
+class EAddressSearchBar extends StatelessWidget {
+  const EAddressSearchBar({super.key});
+
+  @override
+  Widget build(BuildContext context) => const EAddressLookupBox(dark: true);
 }

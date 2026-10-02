@@ -11,6 +11,7 @@ import '../../core/places/places_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_logo.dart';
 import '../auth/auth_landing_screen.dart';
+import '../e_address/e_address_widgets.dart';
 import '../marketplace/item_details_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../profile/profile_screen.dart';
@@ -177,6 +178,8 @@ class _Header extends StatelessWidget {
               style: TextStyle(color: Colors.white70, fontSize: 12.5, shadows: [Shadow(color: Colors.black54, blurRadius: 10)])),
           const SizedBox(height: 22),
           const _ExploreLocationBox(),
+          const SizedBox(height: 10),
+          const EAddressSearchBar(),
         ],
       ),
         ),
