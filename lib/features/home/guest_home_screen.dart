@@ -430,6 +430,7 @@ class _QuickServicesRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
+      ('عنوانك الإلكتروني', Icons.qr_code_2_rounded, () => context.go(AppRoutes.myAddress)),
       ('اكتشف حواليك', Icons.near_me_rounded, () => context.go(AppRoutes.nearby)),
       ('صيانة عامة', Icons.handyman_rounded, () => context.go(AppRoutes.technicians)),
       ('جروب الحي', Icons.location_city_rounded, () => context.go(AppRoutes.neighborhoods)),
@@ -454,7 +455,10 @@ class _QuickServicesRow extends StatelessWidget {
                 children: [
                   Icon(icon, color: AppColors.gold, size: 24),
                   const Spacer(),
-                  Text(label, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800)),
+                  Text(label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.25, fontWeight: FontWeight.w800)),
                 ],
               ),
             ),

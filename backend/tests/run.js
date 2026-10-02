@@ -445,6 +445,43 @@ const denied = (r) => !!r.error;
   await as(db, M, `update shop_products set is_available = false where id = $1`, [p1.rows[0].id]);
   check('a hidden product cannot be ordered', denied(await as(db, Cu, `select public.place_shop_order($1, $2::jsonb, '01022222222')`, [shopId, items])));
 
+  // ------------------------------------------------------------------
+  console.log('\nE-addresses (0048)');
+  const addr = { label: 'البيت', governorate: 'القاهرة', city: 'المعادي', street: 'شارع 9', building: '12', floor: '3', apartment: '7', lat: 29.96, lng: 31.25 };
+  check('guests cannot create an address',
+    denied(await as(db, null, `select public.save_my_e_address(null, $1::jsonb)`, [JSON.stringify(addr)])));
+  check('an address needs a governorate and city',
+    denied(await as(db, M, `select public.save_my_e_address(null, $1::jsonb)`, [JSON.stringify({ ...addr, city: '' })])));
+  check('an address needs a building number or landmark',
+    denied(await as(db, M, `select public.save_my_e_address(null, $1::jsonb)`, [JSON.stringify({ ...addr, building: '' })])));
+  check('a map pin outside Egypt is refused',
+    denied(await as(db, M, `select public.save_my_e_address(null, $1::jsonb)`, [JSON.stringify({ ...addr, lat: 51.5, lng: -0.1 })])));
+  const saved = await as(db, M, `select public.save_my_e_address(null, $1::jsonb) as code`, [JSON.stringify(addr)]);
+  check('user saves an address and gets a code', ok(saved) && /^[2-9A-HJ-NP-Z]{8}$/.test(saved.rows?.[0]?.code || ''), saved);
+  const eCode = saved.rows[0].code;
+  const pub = await as(db, null, `select public.get_e_address($1) as a`, ['MG-' + eCode.slice(0, 4) + '-' + eCode.slice(4)]);
+  check('anyone opens the address by its code (MG-XXXX-XXXX form)', pub.rows?.[0]?.a?.street === 'شارع 9' && pub.rows[0].a.lat === 29.96, pub);
+  check('owner name is shown, phone hidden by default', !!pub.rows[0].a.owner_name && pub.rows[0].a.owner_phone == null);
+  check('a wrong code returns nothing', (await as(db, null, `select public.get_e_address('ZZZZZZZZ') as a`)).rows?.[0]?.a == null);
+  check('the visit is counted', (await admin(db, `select scan_count from e_addresses where code = $1`, [eCode]))[0].scan_count === 1);
+  check('EXPLOIT blocked: guests list everyone\'s addresses', denied(await as(db, null, `select * from e_addresses`)));
+  check('EXPLOIT blocked: another user reads the address table', (await as(db, Cu, `select id from e_addresses`)).rows?.length === 0);
+  const addrId = (await as(db, M, `select id from e_addresses`)).rows[0].id;
+  check('EXPLOIT blocked: another user edits the address',
+    denied(await as(db, Cu, `select public.save_my_e_address($1, $2::jsonb)`, [addrId, JSON.stringify({ ...addr, street: 'hacked' })])));
+  check('EXPLOIT blocked: owner writes the row directly (e.g. picks a code)',
+    denied(await as(db, M, `update e_addresses set code = 'AAAAAAAA' where id = $1`, [addrId])));
+  check('owner shows the phone', ok(await as(db, M, `select public.save_my_e_address($1, $2::jsonb)`, [addrId, JSON.stringify({ ...addr, show_phone: true })])));
+  check('phone appears once opted in',
+    (await as(db, null, `select public.get_e_address($1) as a`, [eCode])).rows?.[0]?.a?.owner_phone === '01011111111');
+  const regen = await as(db, M, `select public.regenerate_e_address_code($1) as code`, [addrId]);
+  check('owner regenerates the code', ok(regen) && regen.rows[0].code !== eCode);
+  check('the old link stops working', (await as(db, null, `select public.get_e_address($1) as a`, [eCode])).rows?.[0]?.a == null);
+  await as(db, M, `select public.save_my_e_address($1, $2::jsonb)`, [addrId, JSON.stringify({ ...addr, is_active: false })]);
+  check('a disabled address is hidden', (await as(db, null, `select public.get_e_address($1) as a`, [regen.rows[0].code])).rows?.[0]?.a == null);
+  check('internal code generator is closed', denied(await as(db, M, `select public._new_e_address_code()`)));
+  check('owner deletes the address', (await as(db, M, `delete from e_addresses where id = $1`, [addrId])).affected === 1);
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));
