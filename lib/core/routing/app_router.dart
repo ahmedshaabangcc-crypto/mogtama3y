@@ -134,4 +134,4 @@ final appRouter = GoRouter(
 );
 
 final _storePath = RegExp(r'^/s/[a-z0-9-]{3,40}$');
-final _eAddressPath = RegExp(r'^/a/[A-Za-z0-9-]{8,14}$');
+final _eAddressPath = RegExp(r'^/a/[A-Za-z0-9-]{4,30}$');

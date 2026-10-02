@@ -116,7 +116,7 @@ class _PublicEAddressScreenState extends State<PublicEAddressScreen> {
         const SizedBox(height: 4),
         Directionality(
           textDirection: TextDirection.ltr,
-          child: Text(EAddressService.display(a['code'] as String),
+          child: Text(a['handle'] != null ? 'mogtama3y.com/#/a/${a['handle']}' : EAddressService.display(a['code'] as String),
               textAlign: TextAlign.right, style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w800, letterSpacing: 1.5)),
         ),
         const SizedBox(height: 16),

@@ -22,7 +22,7 @@ class _EAddressCardScreenState extends State<EAddressCardScreen> {
   late Map<String, dynamic> _a = widget.address;
 
   String get _code => _a['code'] as String;
-  String get _link => EAddressService.linkFor(_code);
+  String get _link => EAddressService.shareLinkFor(_a);
 
   void _toast(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 

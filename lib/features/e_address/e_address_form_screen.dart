@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -29,6 +31,11 @@ class _EAddressFormScreenState extends State<EAddressFormScreen> {
   late double? _lng = (widget.existing?['lng'] as num?)?.toDouble();
   late bool _showName = widget.existing?['show_name'] as bool? ?? true;
   late bool _showPhone = widget.existing?['show_phone'] as bool? ?? false;
+  late bool _phoneLookup = widget.existing?['phone_lookup'] as bool? ?? false;
+  late final _handle = TextEditingController(text: widget.existing?['handle'] as String? ?? '');
+  /// null = not checked / empty, true = free, false = taken or not allowed.
+  bool? _handleOk;
+  Timer? _handleDebounce;
   bool _locating = false;
   bool _saving = false;
   String? _error;
@@ -38,7 +45,59 @@ class _EAddressFormScreenState extends State<EAddressFormScreen> {
     for (final c in _c.values) {
       c.dispose();
     }
+    _handle.dispose();
+    _handleDebounce?.cancel();
     super.dispose();
+  }
+
+  void _onHandleChanged(String raw) {
+    _handleDebounce?.cancel();
+    final h = raw.trim().toLowerCase();
+    if (h.isEmpty) {
+      setState(() => _handleOk = null);
+      return;
+    }
+    if (h == widget.existing?['handle']) {
+      setState(() => _handleOk = true);
+      return;
+    }
+    if (!EAddressService.handlePattern.hasMatch(h) || h.length < 4 || h.length > 30) {
+      setState(() => _handleOk = false);
+      return;
+    }
+    _handleDebounce = Timer(const Duration(milliseconds: 450), () async {
+      try {
+        final ok = await EAddressService.handleAvailable(h, selfId: widget.existing?['id'] as String?);
+        if (mounted && _handle.text.trim().toLowerCase() == h) setState(() => _handleOk = ok);
+      } catch (_) {}
+    });
+  }
+
+  Widget _handleField() {
+    final h = _handle.text.trim().toLowerCase();
+    final hint = switch (_handleOk) {
+      true => ('الاسم متاح ✓', AppColors.success),
+      false when h.isNotEmpty && !h.contains('-') => ('الأسماء اللي من كلمة واحدة مميزة ومحجوزة. ضيف كلمة تانية بشرطة، زي ahmed-maadi', Colors.redAccent),
+      false => ('الاسم ده متاخد أو مش مسموح، جرّب اسم تاني', Colors.redAccent),
+      null => ('اختياري. حروف إنجليزي وأرقام، كلمتين بينهم شرطة، زي ahmed-maadi', AppColors.inkMuted),
+    };
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      TextField(
+        controller: _handle,
+        onChanged: _onHandleChanged,
+        textDirection: TextDirection.ltr,
+        autocorrect: false,
+        decoration: const InputDecoration(
+          labelText: 'اسم سهل لعنوانك',
+          prefixText: 'mogtama3y.com/#/a/',
+          hintText: 'ahmed-maadi',
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.only(top: 6, bottom: 12),
+        child: Text(hint.$1, style: TextStyle(color: hint.$2, fontSize: 11.5, height: 1.5)),
+      ),
+    ]);
   }
 
   Future<void> _locate() async {
@@ -78,6 +137,8 @@ class _EAddressFormScreenState extends State<EAddressFormScreen> {
       'lng': _lng,
       'show_name': _showName,
       'show_phone': _showPhone,
+      'phone_lookup': _phoneLookup,
+      'handle': _handle.text.trim().toLowerCase(),
     };
     try {
       final code = await EAddressService.save(id: widget.existing?['id'] as String?, fields: fields);
@@ -170,7 +231,20 @@ class _EAddressFormScreenState extends State<EAddressFormScreen> {
               ]),
             ]),
           ),
+          const SizedBox(height: 18),
+          const Text('خلّي عنوانك سهل الحفظ', style: TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          const Text('الكود العشوائي بيفضل شغال دايماً، ودول إضافات اختيارية.', style: TextStyle(color: AppColors.inkMuted, fontSize: 11.5)),
           const SizedBox(height: 12),
+          _handleField(),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _phoneLookup,
+            onChanged: (v) => setState(() => _phoneLookup = v),
+            title: const Text('افتح عنواني برقم موبايلي', style: TextStyle(fontSize: 13.5)),
+            subtitle: const Text('أي حد يكتب رقمك على مُجتمعي هيوصل للعنوان ده. عنوان واحد بس لكل رقم.', style: TextStyle(fontSize: 11.5)),
+          ),
+          const Divider(height: 24),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             value: _showName,
