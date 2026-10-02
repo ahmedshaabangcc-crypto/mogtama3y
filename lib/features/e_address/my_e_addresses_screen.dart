@@ -78,6 +78,8 @@ class _MyEAddressesScreenState extends State<MyEAddressesScreen> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               children: [
                 const EAddressIntro(),
+                const SizedBox(height: 12),
+                const EAddressLookupBox(),
                 const SizedBox(height: 18),
                 if (items.isEmpty)
                   const Padding(
@@ -109,6 +111,8 @@ class _MyEAddressesScreenState extends State<MyEAddressesScreen> {
       padding: const EdgeInsets.all(16),
       children: [
         const EAddressIntro(),
+        const SizedBox(height: 12),
+        const EAddressLookupBox(),
         const SizedBox(height: 20),
         ElevatedButton.icon(
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthLandingScreen())),

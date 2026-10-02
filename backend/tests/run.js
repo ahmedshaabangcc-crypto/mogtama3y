@@ -482,6 +482,41 @@ const denied = (r) => !!r.error;
   check('internal code generator is closed', denied(await as(db, M, `select public._new_e_address_code()`)));
   check('owner deletes the address', (await as(db, M, `delete from e_addresses where id = $1`, [addrId])).affected === 1);
 
+  // ------------------------------------------------------------------
+  console.log('\nE-address names & phone lookup (0049)');
+  const h1 = await as(db, M, `select public.save_my_e_address(null, $1::jsonb) as code`, [JSON.stringify({ ...addr, handle: 'Salam-Maadi', phone_lookup: true })]);
+  check('owner picks an easy name (stored lowercase)', ok(h1) && (await admin(db, `select handle from e_addresses where code = $1`, [h1.rows?.[0]?.code]))[0]?.handle === 'salam-maadi', h1);
+  check('anyone opens the address by its name',
+    (await as(db, null, `select public.get_e_address('salam-maadi') as a`)).rows?.[0]?.a?.handle === 'salam-maadi');
+  check('the name cannot be taken twice',
+    denied(await as(db, Cu, `select public.save_my_e_address(null, $1::jsonb)`, [JSON.stringify({ ...addr, handle: 'salam-maadi' })])));
+  check('availability check says taken', (await as(db, Cu, `select public.e_address_handle_available('salam-maadi') as ok`)).rows?.[0]?.ok === false);
+  check('availability check says free', (await as(db, Cu, `select public.e_address_handle_available('nour-dokki') as ok`)).rows?.[0]?.ok === true);
+  check('reserved names are refused', denied(await as(db, Cu, `select public.save_my_e_address(null, $1::jsonb)`, [JSON.stringify({ ...addr, handle: 'admin' })])));
+  check('names in Arabic / with spaces are refused (link-safe only)',
+    denied(await as(db, Cu, `select public.save_my_e_address(null, $1::jsonb)`, [JSON.stringify({ ...addr, handle: 'بيت احمد' })])));
+  check('EXPLOIT blocked: a name equal to someone\'s random code (QR hijack)',
+    denied(await as(db, Cu, `select public.save_my_e_address(null, $1::jsonb)`, [JSON.stringify({ ...addr, handle: h1.rows[0].code.toLowerCase() })])));
+  check('opens by mobile number when enabled', (await as(db, null, `select public.get_e_address('01011111111') as a`)).rows?.[0]?.a?.handle === 'salam-maadi');
+  check('…also written as +20 1011111111', (await as(db, null, `select public.get_e_address('+20 1011111111') as a`)).rows?.[0]?.a?.handle === 'salam-maadi');
+  const h2 = await as(db, M, `select public.save_my_e_address(null, $1::jsonb) as code`, [JSON.stringify({ ...addr, label: 'الشغل', phone_lookup: true })]);
+  check('only one address per person answers the mobile number',
+    ok(h2) && (await admin(db, `select count(*)::int n from e_addresses where owner_id = $1 and phone_lookup`, [M]))[0].n === 1);
+  check('the number now opens the newer choice', (await as(db, null, `select public.get_e_address('01011111111') as a`)).rows?.[0]?.a?.label === 'الشغل');
+  check('a number without phone lookup opens nothing', (await as(db, null, `select public.get_e_address('01022222222') as a`)).rows?.[0]?.a == null);
+  check('the random code still works alongside the name',
+    (await as(db, null, `select public.get_e_address($1) as a`, [h1.rows[0].code])).rows?.[0]?.a?.handle === 'salam-maadi');
+  check('single-word names are premium: a user cannot take "mona"',
+    denied(await as(db, Cu, `select public.save_my_e_address(null, $1::jsonb)`, [JSON.stringify({ ...addr, handle: 'mona' })])));
+  check('availability check says a single word is not free', (await as(db, Cu, `select public.e_address_handle_available('cairo') as ok`)).rows?.[0]?.ok === false);
+  const h1Id = (await admin(db, `select id from e_addresses where code = $1`, [h1.rows[0].code]))[0].id;
+  check('EXPLOIT blocked: a normal user assigns a premium name',
+    denied(await as(db, M, `select public.admin_assign_e_address_handle($1, 'salam')`, [h1Id])));
+  check('the admin assigns (sells) a premium name', ok(await as(db, boss, `select public.admin_assign_e_address_handle($1, 'salam')`, [h1Id])));
+  check('the premium name opens the address', (await as(db, null, `select public.get_e_address('salam') as a`)).rows?.[0]?.a?.label === 'البيت');
+  check('the owner keeps the premium name when editing the address',
+    ok(await as(db, M, `select public.save_my_e_address($1, $2::jsonb)`, [h1Id, JSON.stringify({ ...addr, handle: 'salam', street: 'شارع 10' })])));
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));
