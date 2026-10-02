@@ -196,7 +196,7 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
             controller: _proofCtrl,
             maxLines: 2,
             decoration: InputDecoration(
-              hintText: 'مثال: تحويل InstaPay رقم 123456 باسم أحمد',
+              hintText: 'مثال: تحويل InstaPay رقم 123456 باسم محمد',
               hintStyle: const TextStyle(color: AppColors.inkMuted, fontSize: 11.5),
               filled: true,
               fillColor: AppColors.surface,

@@ -239,7 +239,7 @@ class _UnionRegistrationScreenState extends State<UnionRegistrationScreen> {
                     children: [
                       const Text('إظهار اسم العائلة فقط لجيران العمارة', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
                       const SizedBox(height: 3),
-                      const Text('سيظهر اسمك في دليل سكان العمارة كـ «عائلة الأحمدي» بدلاً من اسمك الكامل',
+                      const Text('سيظهر اسمك في دليل سكان العمارة كـ «عائلة» + اسم العيلة (مثلاً «عائلة المصري») بدلاً من اسمك الكامل',
                           style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted, height: 1.5)),
                     ],
                   ),

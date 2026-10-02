@@ -159,7 +159,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: _nameCtrl,
-                    decoration: authInputDecoration(hint: 'مثال: أحمد شعبان', icon: Icons.person_outline_rounded),
+                    decoration: authInputDecoration(hint: 'مثال: محمد علي', icon: Icons.person_outline_rounded),
                     validator: (v) => (v == null || v.trim().length < 3) ? 'أدخل اسمك الكامل' : null,
                   ),
                   const SizedBox(height: 14),
