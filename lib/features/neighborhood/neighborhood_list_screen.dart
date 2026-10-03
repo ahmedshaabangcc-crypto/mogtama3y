@@ -120,7 +120,7 @@ class _NeighborhoodListScreenState extends State<NeighborhoodListScreen> {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: AppColors.navy, borderRadius: BorderRadius.circular(16)),
               child: const Text(
-                'انضم لجروب حيّك عشان تتابع بوستات ودردشة جيرانك في المنطقة كلها، مش بس عمارتك.',
+                'انضم لجروب حيّك عشان تتابع بوستات ودردشة جيرانك في المنطقة كلها.',
                 style: TextStyle(color: Colors.white, fontSize: 12.5, height: 1.8),
               ),
             ),

@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
-import '../union/find_building_screen.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../core/routing/app_router.dart';
 
 const _pillars = [
   (
-    icon: Icons.account_balance_rounded,
-    title: 'حوكمة اتحاد الملاك والشفافية المالية',
-    body: 'المستحقات والتقارير المالية وقرارات المجلس والانتخابات في مكان واحد، ظاهرة لكل سكان العمارة الموثقين.',
+    icon: Icons.qr_code_2_rounded,
+    title: 'عنوانك الإلكتروني',
+    body: 'عنوانك بالتفصيل وبالموقع على الخريطة في كود أو اسم سهل، تبعته لأي حد يوصلك من غير ما توصف الطريق.',
   ),
   (
     icon: Icons.shield_outlined,
@@ -22,7 +24,7 @@ const _pillars = [
   (
     icon: Icons.privacy_tip_outlined,
     title: 'بيئة سكنية آمنة تحمي الخصوصية',
-    body: 'رقم هاتفك لا يظهر لجيرانك؛ يراه رئيس الاتحاد ومجلس الإدارة فقط، أو المشترون إذا اخترت إظهاره في إعلانك.',
+    body: 'رقم هاتفك لا يظهر لأي حد إلا لو اخترت إظهاره في إعلانك أو عنوانك.',
   ),
 ];
 
@@ -68,7 +70,7 @@ class AboutPlatformScreen extends StatelessWidget {
                 const Text('Mogtama3y Smart Living', style: TextStyle(color: Colors.white54, fontSize: 10)),
                 const SizedBox(height: 10),
                 const Text(
-                  'منصة سكنية ومجتمعية ذكية تربط الجيران وتحوكم أعمال اتحاد الملاك بشفافية تامة، وتوفر خدمات صيانة منزلية بضمان مالي وتجارة محلية آمنة بدون أي وساطة معقدة.',
+                  'منصة مجتمعية ذكية تربط الجيران بخدمات حيّهم: سوق المستعمل والمحلات وخدمات صيانة منزلية بضمان مالي وتجارة محلية آمنة بدون أي وساطة معقدة.',
                   style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.8),
                 ),
                 const SizedBox(height: 12),
@@ -84,7 +86,7 @@ class AboutPlatformScreen extends StatelessWidget {
                 Row(children: const [
                   Icon(Icons.verified_rounded, size: 13, color: AppColors.tealLight),
                   SizedBox(width: 6),
-                  Text('حوكمة رقمية متكاملة لعمارتك', style: TextStyle(color: AppColors.tealLight, fontSize: 10.5, fontWeight: FontWeight.w600)),
+                  Text('كل خدمات حيّك في مكان واحد', style: TextStyle(color: AppColors.tealLight, fontSize: 10.5, fontWeight: FontWeight.w600)),
                 ]),
               ],
             ),
@@ -102,14 +104,14 @@ class AboutPlatformScreen extends StatelessWidget {
             width: double.infinity,
             height: 52,
             child: ElevatedButton.icon(
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FindBuildingScreen())),
+              onPressed: () => context.go(AppRoutes.nearby),
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-              icon: const Icon(Icons.groups_2_outlined, size: 18),
-              label: const Text('انضم إلى مجتمعاتنا السكنية', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+              icon: const Icon(Icons.near_me_rounded, size: 18),
+              label: const Text('اكتشف حواليك', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
             ),
           ),
           const SizedBox(height: 8),
-          const Text('تأسيس عمارتك أو الانضمام لها يتم من داخل التطبيق في دقائق.', textAlign: TextAlign.center, style: TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
+          const Text('كل خدمات حيّك في تطبيق واحد.', textAlign: TextAlign.center, style: TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
         ],
       ),
     );

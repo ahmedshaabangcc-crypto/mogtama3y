@@ -1,5 +1,7 @@
 import 'package:go_router/go_router.dart';
 
+import '../app_flavor.dart';
+
 import '../../features/about/about_platform_screen.dart';
 import '../../features/admin/superadmin_control_panel_screen.dart';
 import '../../features/auth/auth_landing_screen.dart';
@@ -20,6 +22,7 @@ import '../../features/real_estate/real_estate_marketplace_screen.dart';
 import '../../features/recycling/recycling_marketplace_screen.dart';
 import '../../features/services/technicians_market_screen.dart';
 import '../../features/shell/app_shell.dart';
+import '../../features/shell/union_shell.dart';
 import '../../features/shops/neighborhood_shops_screen.dart';
 import '../../features/sos/sos_emergency_screen.dart';
 import '../../features/store/store_page_screen.dart';
@@ -81,54 +84,66 @@ class AppRoutes {
 
 GoRoute _section(String path, GoRouterWidgetBuilder builder) => GoRoute(path: path.substring(1), builder: builder);
 
+/// Sections each app exposes. The union app (APP_FLAVOR=ittihad) carries
+/// only building governance; مُجتمعي carries everything else and nothing
+/// about owners' unions. Shared: wallet, help, legal, login, admin.
+final _sharedSections = <String, GoRouterWidgetBuilder>{
+  AppRoutes.wallet: (_, _) => const WalletScreen(),
+  AppRoutes.support: (_, _) => const SupportContactScreen(),
+  AppRoutes.faq: (_, _) => const FaqHelpCenterScreen(),
+  AppRoutes.terms: (_, _) => const TermsConditionsScreen(),
+  AppRoutes.privacy: (_, _) => const PrivacyPolicyScreen(),
+  AppRoutes.admin: (_, _) => const SuperadminControlPanelScreen(),
+  AppRoutes.login: (_, _) => const AuthLandingScreen(),
+};
+
+final _unionSections = <String, GoRouterWidgetBuilder>{
+  AppRoutes.union: (_, _) => const UnionDashboardScreen(),
+  AppRoutes.ittihad: (_, _) => const UnionLandingScreen(),
+  AppRoutes.sos: (_, _) => const SosEmergencyScreen(),
+  AppRoutes.lostFound: (_, _) => const LostFoundHubScreen(),
+};
+
+final _mogtama3ySections = <String, GoRouterWidgetBuilder>{
+  AppRoutes.marketplace: (_, _) => const MarketplaceListingScreen(),
+  AppRoutes.shops: (_, _) => const NeighborhoodShopsScreen(),
+  AppRoutes.realEstate: (_, _) => const RealEstateMarketplaceScreen(),
+  AppRoutes.jobs: (_, _) => const JobsBoardScreen(),
+  AppRoutes.technicians: (_, _) => const TechniciansMarketScreen(),
+  AppRoutes.recycling: (_, _) => const RecyclingMarketplaceScreen(),
+  AppRoutes.neighborhoods: (_, _) => const NeighborhoodListScreen(),
+  AppRoutes.tokens: (_, _) => const TokenWalletScreen(),
+  AppRoutes.post: (_, _) => const SmartPostPickerScreen(),
+  AppRoutes.bills: (_, _) => const BillPaymentHubScreen(),
+  AppRoutes.about: (_, _) => const AboutPlatformScreen(),
+  AppRoutes.merchant: (_, _) => const MerchantDashboardScreen(),
+  AppRoutes.nearby: (_, _) => const DiscoverNearbyScreen(),
+  AppRoutes.myAddress: (_, _) => const MyEAddressesScreen(),
+};
+
+final _sections = {..._sharedSections, ...(isUnionApp ? _unionSections : _mogtama3ySections)};
+
 final appRouter = GoRouter(
   routes: [
     GoRoute(
       path: '/',
-      builder: (_, _) => const AppShell(),
+      builder: (_, _) => isUnionApp ? const UnionShell() : const AppShell(),
       routes: [
-        _section(AppRoutes.marketplace, (_, _) => const MarketplaceListingScreen()),
-        _section(AppRoutes.shops, (_, _) => const NeighborhoodShopsScreen()),
-        _section(AppRoutes.union, (_, _) => const UnionDashboardScreen()),
-        _section(AppRoutes.realEstate, (_, _) => const RealEstateMarketplaceScreen()),
-        _section(AppRoutes.jobs, (_, _) => const JobsBoardScreen()),
-        _section(AppRoutes.technicians, (_, _) => const TechniciansMarketScreen()),
-        _section(AppRoutes.sos, (_, _) => const SosEmergencyScreen()),
-        _section(AppRoutes.lostFound, (_, _) => const LostFoundHubScreen()),
-        _section(AppRoutes.recycling, (_, _) => const RecyclingMarketplaceScreen()),
-        _section(AppRoutes.neighborhoods, (_, _) => const NeighborhoodListScreen()),
-        _section(AppRoutes.wallet, (_, _) => const WalletScreen()),
-        _section(AppRoutes.tokens, (_, _) => const TokenWalletScreen()),
-        _section(AppRoutes.post, (_, _) => const SmartPostPickerScreen()),
-        _section(AppRoutes.bills, (_, _) => const BillPaymentHubScreen()),
-        _section(AppRoutes.support, (_, _) => const SupportContactScreen()),
-        _section(AppRoutes.faq, (_, _) => const FaqHelpCenterScreen()),
-        _section(AppRoutes.terms, (_, _) => const TermsConditionsScreen()),
-        _section(AppRoutes.privacy, (_, _) => const PrivacyPolicyScreen()),
-        _section(AppRoutes.about, (_, _) => const AboutPlatformScreen()),
-        _section(AppRoutes.admin, (_, _) => const SuperadminControlPanelScreen()),
-        _section(AppRoutes.login, (_, _) => const AuthLandingScreen()),
-        _section(AppRoutes.merchant, (_, _) => const MerchantDashboardScreen()),
-        _section(AppRoutes.ittihad, (_, _) => const UnionLandingScreen()),
-        _section(AppRoutes.nearby, (_, _) => const DiscoverNearbyScreen()),
-        _section(AppRoutes.myAddress, (_, _) => const MyEAddressesScreen()),
-        GoRoute(path: 'a/:code', builder: (_, state) => PublicEAddressScreen(code: state.pathParameters['code']!)),
-        GoRoute(path: 's/:slug', builder: (_, state) => StorePageScreen(slug: state.pathParameters['slug']!)),
+        for (final e in _sections.entries) _section(e.key, e.value),
+        if (!isUnionApp) ...[
+          GoRoute(path: 'a/:code', builder: (_, state) => PublicEAddressScreen(code: state.pathParameters['code']!)),
+          GoRoute(path: 's/:slug', builder: (_, state) => StorePageScreen(slug: state.pathParameters['slug']!)),
+        ],
       ],
     ),
   ],
   // Unknown or stale links (and OAuth callbacks carrying ?code=...) go home.
+  // That includes the other app's sections (e.g. /union on مُجتمعي).
   redirect: (_, state) {
     final path = state.uri.path;
     if (path == '/' || path.isEmpty) return null;
-    const known = {
-      AppRoutes.marketplace, AppRoutes.shops, AppRoutes.union, AppRoutes.realEstate, AppRoutes.jobs,
-      AppRoutes.technicians, AppRoutes.sos, AppRoutes.lostFound, AppRoutes.recycling, AppRoutes.neighborhoods,
-      AppRoutes.wallet, AppRoutes.tokens, AppRoutes.post, AppRoutes.bills, AppRoutes.support, AppRoutes.faq,
-      AppRoutes.terms, AppRoutes.privacy, AppRoutes.about, AppRoutes.admin, AppRoutes.login, AppRoutes.merchant, AppRoutes.ittihad, AppRoutes.nearby,
-      AppRoutes.myAddress,
-    };
-    if (known.contains(path) || _storePath.hasMatch(path.toLowerCase()) || _eAddressPath.hasMatch(path)) return null;
+    if (_sections.containsKey(path)) return null;
+    if (!isUnionApp && (_storePath.hasMatch(path.toLowerCase()) || _eAddressPath.hasMatch(path))) return null;
     return '/';
   },
 );

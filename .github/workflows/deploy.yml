@@ -11,6 +11,8 @@ permissions:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      ITTIHAD_ENABLED: ${{ secrets.ITTIHAD_DEPLOY_KEY != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,3 +53,26 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./build/web
           cname: mogtama3y.com
+
+      # The owners'-union app: same code, APP_FLAVOR=ittihad, published to
+      # its own repo's GitHub Pages at ittihad.mogtama3y.com. Skipped until
+      # the ITTIHAD_DEPLOY_KEY secret (write deploy key of that repo) exists.
+      - name: Build union app (ittihad)
+        if: env.ITTIHAD_ENABLED == 'true'
+        run: |
+          flutter build web --release --base-href / --dart-define=APP_FLAVOR=ittihad -o build/web_ittihad
+          sed -i 's|<title>[^<]*</title>|<title>اتحاد الملاك أونلاين</title>|' build/web_ittihad/index.html
+          sed -i 's|"name": *"[^"]*"|"name": "اتحاد الملاك أونلاين"|; s|"short_name": *"[^"]*"|"short_name": "اتحاد الملاك"|' build/web_ittihad/manifest.json
+          # No merchant store pages or مُجتمعي sitemap on the union site.
+          sed -i '/store-lite.js/d' build/web_ittihad/index.html
+          rm -f build/web_ittihad/store-lite.js build/web_ittihad/sitemap.xml
+
+      - name: Deploy union app
+        if: env.ITTIHAD_ENABLED == 'true'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          deploy_key: ${{ secrets.ITTIHAD_DEPLOY_KEY }}
+          external_repository: ahmedshaabangcc-crypto/ittihad
+          publish_branch: gh-pages
+          publish_dir: ./build/web_ittihad
+          cname: ittihad.mogtama3y.com

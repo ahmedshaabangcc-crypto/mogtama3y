@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../core/app_flavor.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/places/places_service.dart';
@@ -237,6 +239,7 @@ class _ClaimBusinessHubScreenState extends State<ClaimBusinessHubScreen> {
               ),
             ),
           ],
+          if (isUnionApp) ...[
           const SizedBox(height: 10),
           _ProofOption(
             selected: _method == 2,
@@ -246,6 +249,7 @@ class _ClaimBusinessHubScreenState extends State<ClaimBusinessHubScreen> {
             title: 'تزكية وتأكيد رئيس اتحاد ملاك العمارة الكائن بها المحل',
             body: 'تزكية وتأكيد رقمي مباشر من رئيس اتحاد الملاك عبر حسابه بتطبيق مُجتمعي.',
           ),
+          ],
           if (_error != null) ...[
             const SizedBox(height: 16),
             Container(

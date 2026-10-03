@@ -97,7 +97,7 @@ class _EscrowBookingConfirmScreenState extends State<EscrowBookingConfirmScreen>
       if (!mounted) return;
       Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const MyMaintenanceRequestsScreen()));
     } catch (e) {
-      setState(() => _error = e.toString().contains('عمارتك') ? e.toString().replaceFirst('Exception: ', '') : 'تعذر إتمام الحجز، حاول مرة أخرى.');
+      setState(() => _error = e is PostgrestException ? e.message : 'تعذر إتمام الحجز، حاول مرة أخرى.');
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

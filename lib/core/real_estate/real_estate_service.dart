@@ -51,10 +51,10 @@ class RealEstateService {
     final userId = AuthService.currentUser?.id;
     if (userId == null) throw Exception('يجب تسجيل الدخول أولاً');
 
-    final membership = await UnionService.fetchMyMembership();
-    if (membership == null || membership['status'] != 'verified') {
-      throw Exception('يجب الانضمام لعمارتك وتوثيق حسابك أولاً قبل نشر إعلان عقاري');
-    }
+    // Owners' unions moved to their own app: anyone signed in may list a
+    // property. A verified building is still attached when there is one.
+    final fetched = await UnionService.fetchMyMembership();
+    final membership = fetched?['status'] == 'verified' ? fetched! : const <String, dynamic>{};
 
     final row = await _client.from('real_estate_listings').insert({
       'owner_id': userId,

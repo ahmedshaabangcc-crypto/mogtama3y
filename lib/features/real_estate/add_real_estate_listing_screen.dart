@@ -25,7 +25,8 @@ class _AddRealEstateListingScreenState extends State<AddRealEstateListingScreen>
   final _areaCtrl = TextEditingController();
   final _bedroomsCtrl = TextEditingController();
   final _bathroomsCtrl = TextEditingController();
-  bool _hideFromBuilding = false;
+  // Building-level hiding belongs to the owners'-union app, not مُجتمعي.
+  static const _hideFromBuilding = false;
   bool _submitting = false;
   String? _error;
   List<String> _images = [];
@@ -115,15 +116,6 @@ class _AddRealEstateListingScreenState extends State<AddRealEstateListingScreen>
             const SizedBox(width: 8),
             Expanded(child: TextField(controller: _bathroomsCtrl, keyboardType: TextInputType.number, decoration: _decoration('الحمامات'))),
           ]),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
-            child: Row(children: [
-              const Expanded(child: Text('إخفاء العقار عن سكان عمارتي الحالية', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
-              Switch(value: _hideFromBuilding, onChanged: (v) => setState(() => _hideFromBuilding = v), activeThumbColor: AppColors.teal),
-            ]),
-          ),
           if (_error != null) ...[
             const SizedBox(height: 14),
             Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
