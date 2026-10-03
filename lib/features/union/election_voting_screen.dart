@@ -10,9 +10,9 @@ import '../shared/load_error_view.dart';
 
 /// Real president/board succession election — see
 /// backend/migrations/0021_elections.sql. Distinct from founding a
-/// building (found_building() makes the founder president instantly,
-/// no vote) — this is for an existing building replacing its
-/// leadership. Finalizing actually hands over the presidency if quorum
+/// building: a president is made either by the platform admin approving
+/// the founder's request, or by the owners electing one here (in a
+/// building with no board, any verified owner can run the election). Finalizing actually hands over the presidency if quorum
 /// is met, so this is a real governance action, not a cosmetic result.
 class ElectionVotingScreen extends StatefulWidget {
   const ElectionVotingScreen({super.key});
@@ -48,6 +48,13 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
       final role = membership?['role'] as String?;
       final status = membership?['status'] as String?;
       final isBoardMember = status == 'verified' && (role == 'president' || role == 'board_member');
+      // In a building with no approved board, verified owners run the
+      // presidential election themselves (the server checks ownership).
+      var canManage = isBoardMember;
+      if (!isBoardMember && status == 'verified' && buildingId != null) {
+        final members = await UnionService.fetchVerifiedMembers(buildingId);
+        canManage = !members.any((m) => const ['president', 'board_member'].contains(m['role']));
+      }
 
       Map<String, dynamic>? election;
       List<Map<String, dynamic>> candidates = [];
@@ -63,7 +70,7 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
       if (!mounted) return;
       setState(() {
         _buildingId = buildingId;
-        _isBoardMember = isBoardMember;
+        _isBoardMember = canManage;
         _myUserId = AuthService.currentUser?.id;
         _election = election;
         _candidates = candidates;
