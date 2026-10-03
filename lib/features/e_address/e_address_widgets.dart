@@ -139,7 +139,9 @@ class EAddressIntro extends StatelessWidget {
 
 /// "عندك عنوان حد؟" — open an address by its easy name, mobile number or code.
 class EAddressLookupBox extends StatefulWidget {
-  const EAddressLookupBox({super.key, this.dark = false});
+  const EAddressLookupBox({super.key, this.dark = false, this.title = 'عندك عنوان حد؟'});
+
+  final String title;
 
   /// Night-glass single-line bar for the home header.
   final bool dark;
@@ -175,7 +177,7 @@ class _EAddressLookupBoxState extends State<EAddressLookupBox> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        const Text('عندك عنوان حد؟', style: TextStyle(fontWeight: FontWeight.w800)),
+        Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w800)),
         const SizedBox(height: 8),
         Row(children: [
           Expanded(

@@ -73,6 +73,9 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
   double? _lat;
   double? _lng;
   bool _isBoard = false;
+  /// No approved president/board yet (presidency pending admin approval
+  /// or an owners' election).
+  bool _noBoard = false;
   int _unitsCount = 0;
   int _membersCount = 0;
   int _openDecisionsCount = 0;
@@ -110,6 +113,7 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
     final role = membership?['role'] as String?;
 
     int unitsCount = 0, membersCount = 0, openDecisions = 0;
+    bool noBoard = false;
     String? guardName;
     Map<String, dynamic>? report;
     List<Map<String, dynamic>> schedule = [];
@@ -125,6 +129,7 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
       ]);
       unitsCount = (results[0] as List).length;
       membersCount = (results[1] as List).length;
+      noBoard = !(results[1] as List).any((m) => const ['president', 'board_member'].contains((m as Map)['role']));
       openDecisions = (results[2] as List).where((d) => (d as Map)['status'] == 'open').length;
       final guards = results[3] as List<Map<String, dynamic>>;
       if (guards.isNotEmpty) {
@@ -144,6 +149,7 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
       _lat = (building?['lat'] as num?)?.toDouble();
       _lng = (building?['lng'] as num?)?.toDouble();
       _isBoard = role == 'president' || role == 'board_member';
+      _noBoard = noBoard;
       _unitsCount = unitsCount;
       _membersCount = membersCount;
       _openDecisionsCount = openDecisions;
@@ -294,6 +300,31 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
+            if (_noBoard && !_isBoard) ...[
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  const Text('العمارة لسه ملهاش رئيس', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'طلب الرئاسة بيتراجع من إدارة مُجتمعي، أو تقدروا إنتو الملاك تعملوا انتخابات والفايز يبقى رئيس على طول.',
+                    style: TextStyle(fontSize: 12, color: AppColors.inkSecondary, height: 1.6),
+                  ),
+                  const SizedBox(height: 10),
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ElectionVotingScreen())),
+                    icon: const Icon(Icons.how_to_vote_rounded, size: 18),
+                    label: const Text('انتخابات الرئاسة'),
+                  ),
+                ]),
+              ),
+              const SizedBox(height: 14),
+            ],
             Row(
               children: [
                 const Spacer(),

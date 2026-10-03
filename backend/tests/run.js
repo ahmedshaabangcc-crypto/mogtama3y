@@ -73,8 +73,19 @@ const denied = (r) => !!r.error;
   console.log('\nPhase 2 — joining a building');
   const code = (await as(db, A, `select public.found_building('برج الياسمين','المعادي','القاهرة','القاهرة','1','الأول') as c`)).rows[0].c;
   const bld = (await admin(db, `select building_id from union_members where user_id = $1`, [A]))[0].building_id;
-  check('A founded a building and is its president',
-    (await admin(db, `select role, status from union_members where user_id = $1`, [A]))[0].role === 'president');
+  check('the founder is an owner, NOT president yet',
+    (await admin(db, `select role, status from union_members where user_id = $1`, [A]))[0].role === 'resident');
+  check('…and has no board powers before approval',
+    denied(await as(db, A, `select public.create_union_due('أكتوبر', 100, current_date)`)));
+  const SA = await signUp(db, 'platform admin', '01000000777');
+  await admin(db, `update profiles set role = 'super_admin' where id = $1`, [SA]);
+  const aReq = (await admin(db, `select id from president_requests where user_id = $1 and status = 'pending'`, [A]))[0]?.id;
+  check('a president request is filed for the admin', !!aReq);
+  check('EXPLOIT blocked: the founder approves their own presidency',
+    denied(await as(db, A, `select public.review_president_request($1, true)`, [aReq])));
+  check('the platform admin approves the president', ok(await as(db, SA, `select public.review_president_request($1, true)`, [aReq])));
+  check('A is now president',
+    (await admin(db, `select role from union_members where user_id = $1`, [A]))[0].role === 'president');
 
   // B asks to join by picking the building id (the old takeover path) for a NEW unit 2
   check('B requests to join existing building',
@@ -396,6 +407,8 @@ const denied = (r) => !!r.error;
   check('ending an auction with no bids works', ok(await as(db, B, `select public.accept_recycling_top_bid($1)`, [lot2])));
   // Board actions pick the right building
   await as(db, B, `select public.found_building('عمارة 2','x','x','x','1','1')`);
+  const b2Req = (await admin(db, `select id from president_requests where user_id = $1 and status = 'pending'`, [B]))[0].id;
+  await as(db, SA, `select public.review_president_request($1, true)`, [b2Req]);
   check('board member of two buildings must specify which one',
     denied(await as(db, B, `select public.create_union_due('نوفمبر', 100, current_date)`)));
   check('with the building specified it works', ok(await as(db, B, `select public.create_union_due('نوفمبر', 100, current_date, $1)`, [bld])));
@@ -532,6 +545,52 @@ const denied = (r) => !!r.error;
     seen.rows?.[0]?.service_address?.includes('شارع 9') && seen.rows[0].service_landmark === 'جنب الجامع' && seen.rows[0].service_lat === 29.96, seen);
   check('other users cannot see the booking address',
     (await as(db, Cu, `select service_address from maintenance_requests where id = $1`, [rb.rows?.[0]?.id])).rows?.length === 0);
+
+  // ------------------------------------------------------------------
+  console.log('\nPresidency: admin approval or owners\' election (0051)');
+  const F = await signUp(db, 'founder', '01066666661');
+  const G = await signUp(db, 'neighbour', '01066666662');
+  const fCode = (await as(db, F, `select public.found_building('عمارة الزهور','x','x','x','1','1') as c`)).rows[0].c;
+  const zBld = (await admin(db, `select building_id from union_members where user_id = $1`, [F]))[0].building_id;
+  await as(db, G, `select public.join_building_with_code($1, '2', '2', 'owner')`, [fCode]);
+  const gReq = (await admin(db, `select id from union_members where user_id = $1`, [G]))[0].id;
+  check('EXPLOIT blocked: the unapproved founder accepts neighbours',
+    denied(await as(db, F, `select public.review_union_member($1, true)`, [gReq])));
+  check('admin sees join requests of buildings without a board',
+    (await as(db, SA, `select * from public.admin_list_boardless_join_requests()`)).rows?.some((r) => r.member_id === gReq));
+  check('the platform admin accepts the neighbour', ok(await as(db, SA, `select public.review_union_member($1, true)`, [gReq])));
+  check('admin sees the pending president request',
+    (await as(db, SA, `select * from public.admin_list_president_requests()`)).rows?.some((r) => r.building_name === 'عمارة الزهور'));
+  check('EXPLOIT blocked: a normal user lists president requests', denied(await as(db, G, `select * from public.admin_list_president_requests()`)));
+  const el = await as(db, G, `select public.create_election('رئاسة الاتحاد', now() + interval '2 days') as id`);
+  check('an owner calls a presidential election while there is no board', ok(el), el);
+  const elId = el.rows[0].id;
+  await as(db, G, `select public.nominate_self($1, 'هخدم العمارة')`, [elId]);
+  const gCand = (await admin(db, `select id from union_candidates where election_id = $1 and user_id = $2`, [elId, G]))[0].id;
+  await as(db, F, `select public.cast_election_vote($1, $2)`, [elId, gCand]);
+  await as(db, G, `select public.cast_election_vote($1, $2)`, [elId, gCand]);
+  check('an owner closes the election once everyone voted', ok(await as(db, F, `select public.finalize_election($1)`, [elId])));
+  check('the winner becomes president immediately',
+    (await admin(db, `select role from union_members where user_id = $1 and building_id = $2`, [G, zBld]))[0].role === 'president');
+  check('the founder\'s pending request is superseded by the vote',
+    (await admin(db, `select status from president_requests where user_id = $1`, [F]))[0].status === 'superseded');
+  check('admin finds an address by its owner\'s mobile to sell a premium name',
+    (await as(db, SA, `select * from public.admin_find_e_addresses('01011111111')`)).rows?.length >= 1);
+  check('EXPLOIT blocked: a normal user searches addresses by mobile',
+    denied(await as(db, G, `select * from public.admin_find_e_addresses('01011111111')`)));
+  check('founding without asking for presidency files no request',
+    ok(await as(db, Cu, `select public.found_building('عمارة النخيل','x','x','x','1','1', null, null, null, false)`)) &&
+    (await admin(db, `select count(*)::int n from president_requests where user_id = $1`, [Cu]))[0].n === 0);
+  // Delivery transparency (0052)
+  const shopOwnerView = await as(db, Cu, `select public.get_e_address('salam') as a`);
+  check('a shop opens a customer address by its name', !!shopOwnerView.rows?.[0]?.a);
+  const salamId = (await admin(db, `select id from e_addresses where handle = 'salam'`))[0].id;
+  const views = await as(db, M, `select * from public.my_e_address_views($1)`, [salamId]);
+  check('the owner sees who opened the address', views.rows?.some((v) => v.viewer_name === 'customer'), views);
+  check('EXPLOIT blocked: someone else reads the view log', denied(await as(db, Cu, `select * from public.my_e_address_views($1)`, [salamId])));
+  check('EXPLOIT blocked: users read the view table directly', denied(await as(db, M, `select * from e_address_views`)));
+  check('with a president in place, owners can no longer call elections themselves',
+    denied(await as(db, F, `select public.create_election('تاني', now() + interval '2 days')`)));
 
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {

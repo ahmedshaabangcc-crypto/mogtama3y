@@ -11,6 +11,7 @@ import '../../core/shops/store_service.dart';
 import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../e_address/e_address_widgets.dart';
 import '../shared/load_error_view.dart';
 
 String _money(num v) => '${NumberFormat('#,##0.##').format(v)} ج.م';
@@ -571,6 +572,18 @@ class _OrdersTabState extends State<_OrdersTab> {
 
   @override
   Widget build(BuildContext context) {
+    // Delivery: open the customer's digital address from the name, mobile
+    // or code they gave the shop (every opening is shown to the customer).
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      const Padding(
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+        child: EAddressLookupBox(title: 'عنوان زبون للتوصيل'),
+      ),
+      Expanded(child: _ordersList()),
+    ]);
+  }
+
+  Widget _ordersList() {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_loadError) return LoadErrorView(onRetry: _load);
     if (_orders.isEmpty) {

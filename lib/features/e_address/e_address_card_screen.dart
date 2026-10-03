@@ -154,8 +154,75 @@ class _EAddressCardScreenState extends State<EAddressCardScreen> {
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.inkMuted, fontSize: 11.5, height: 1.6),
           ),
+          const SizedBox(height: 18),
+          _ViewsLog(addressId: _a['id'] as String),
         ],
       ),
     );
+  }
+}
+
+/// "مين فتح عنوانك" — every opening of the address, newest first.
+class _ViewsLog extends StatefulWidget {
+  const _ViewsLog({required this.addressId});
+  final String addressId;
+
+  @override
+  State<_ViewsLog> createState() => _ViewsLogState();
+}
+
+class _ViewsLogState extends State<_ViewsLog> {
+  List<Map<String, dynamic>>? _views;
+
+  @override
+  void initState() {
+    super.initState();
+    EAddressService.views(widget.addressId).then((v) {
+      if (mounted) setState(() => _views = v);
+    }).catchError((_) {
+      if (mounted) setState(() => _views = const []);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final views = _views;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const Text('مين فتح عنوانك', style: TextStyle(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 6),
+        if (views == null)
+          const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator(strokeWidth: 2)))
+        else if (views.isEmpty)
+          const Text('محدش فتحه لسه.', style: TextStyle(color: AppColors.inkMuted, fontSize: 12))
+        else
+          for (final v in views.take(15))
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(children: [
+                Icon(v['shop_name'] != null ? Icons.storefront_rounded : Icons.person_outline_rounded, size: 16, color: AppColors.inkMuted),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    v['shop_name'] != null ? '${v['shop_name']} (${v['viewer_name'] ?? ''})' : (v['viewer_name'] as String? ?? 'زائر من غير حساب'),
+                    style: const TextStyle(fontSize: 12.5),
+                  ),
+                ),
+                Text(_ago(DateTime.tryParse(v['viewed_at'] as String? ?? '')), style: const TextStyle(color: AppColors.inkMuted, fontSize: 11)),
+              ]),
+            ),
+      ]),
+    );
+  }
+
+  static String _ago(DateTime? t) {
+    if (t == null) return '';
+    final d = DateTime.now().difference(t.toLocal());
+    if (d.inMinutes < 1) return 'دلوقتي';
+    if (d.inHours < 1) return 'من ${d.inMinutes} دقيقة';
+    if (d.inDays < 1) return 'من ${d.inHours} ساعة';
+    return 'من ${d.inDays} يوم';
   }
 }

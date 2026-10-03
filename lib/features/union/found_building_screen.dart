@@ -15,7 +15,8 @@ const _egyptGovernorates = [
 ];
 
 /// Real "found your building" flow: creates the building + the founder's
-/// own unit, makes them its verified president, and generates a share-able
+/// own unit as a verified owner, files a president request for the
+/// platform admin (if asked), and generates a share-able
 /// invite code for the rest of the neighbors — see
 /// backend/migrations/0003_union_building_flow.sql.
 ///
@@ -217,7 +218,7 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
               const SizedBox(height: 18),
               Text(
                 _asPresident
-                    ? 'تهانينا! أصبحت رئيس اتحاد ملاك ${_nameCtrl.text.trim()}'
+                    ? 'تم تسجيل ${_nameCtrl.text.trim()} وطلب رئاستك اتبعت'
                     : 'تم تسجيل ${_nameCtrl.text.trim()} بنجاح',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, height: 1.5),
@@ -225,8 +226,8 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
               const SizedBox(height: 8),
               Text(
                 _asPresident
-                    ? 'شارك كود الدعوة التالي مع جيرانك لينضموا للعمارة'
-                    : 'انضممت كعضو مجلس مؤقت — شارك كود الدعوة مع جيرانك، ولما توصلوا للنصاب القانوني تقدروا تفتحوا انتخابات لرئيس فعلي من لوحة الاتحاد',
+                    ? 'إدارة مُجتمعي هتراجع طلب رئاستك وهيوصلك إشعار. وفي الوقت ده شارك كود الدعوة مع جيرانك، أو اعملوا انتخابات والفايز يبقى رئيس على طول.'
+                    : 'شارك كود الدعوة مع جيرانك، وبعدها اعملوا انتخابات للرئيس من لوحة الاتحاد، والفايز يبقى رئيس على طول.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 12.5, color: AppColors.inkMuted, height: 1.6),
               ),
@@ -441,7 +442,7 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
                   Expanded(
                     child: _RoleChoiceTile(
                       icon: Icons.military_tech_rounded,
-                      label: 'أنا رئيس الاتحاد',
+                      label: 'اطلب رئاسة الاتحاد',
                       selected: _asPresident,
                       onTap: () => setState(() => _asPresident = true),
                     ),
@@ -459,7 +460,7 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
                 if (!_asPresident) ...[
                   const SizedBox(height: 8),
                   const Text(
-                    'هتنضم كعضو مجلس مؤقت — تقدر توافق على انضمام الجيران وتفتح انتخابات رئيس حقيقي لما توصلوا للنصاب القانوني، من غير ما تكون رئيس دائم بنفسك.',
+                    'هتسجّل كمالك، والملاك يعملوا انتخابات للرئيس من التطبيق.',
                     style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted, height: 1.6),
                   ),
                 ],
