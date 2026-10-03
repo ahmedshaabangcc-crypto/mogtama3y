@@ -5,7 +5,7 @@
     "display": "standalone",
     "background_color": "#F4F6F2",
     "theme_color": "#12233F",
-    "description": "إدارة اتحاد الملاك والحي: مستحقات، قرارات، سوق مستعمل، متاجر المحلات، وخدمات الجيران.",
+    "description": "كل حيّك في تطبيق واحد: سوق مستعمل، محلات الحي، عقارات، وظائف، صيانة، وعنوانك الإلكتروني.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

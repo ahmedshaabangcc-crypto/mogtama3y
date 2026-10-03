@@ -62,6 +62,7 @@ jobs:
         run: |
           flutter build web --release --base-href / --dart-define=APP_FLAVOR=ittihad -o build/web_ittihad
           sed -i 's|<title>[^<]*</title>|<title>اتحاد الملاك أونلاين</title>|' build/web_ittihad/index.html
+          sed -i -E 's#(<meta (name="(description|twitter:description)"|property="og:description") content=")[^"]*#\1اتحاد ملاك عمارتك من الموبايل: المستحقات والقرارات والانتخابات والتقارير المالية والطوارئ وتصاريح الزوار.#; s#(<meta (name="twitter:title"|property="og:title") content=")[^"]*#\1اتحاد الملاك أونلاين#; s#(<meta property="og:url" content=")[^"]*#\1https://ittihad.mogtama3y.com/#' build/web_ittihad/index.html
           sed -i 's|"name": *"[^"]*"|"name": "اتحاد الملاك أونلاين"|; s|"short_name": *"[^"]*"|"short_name": "اتحاد الملاك"|' build/web_ittihad/manifest.json
           # No merchant store pages or مُجتمعي sitemap on the union site.
           sed -i '/store-lite.js/d' build/web_ittihad/index.html
