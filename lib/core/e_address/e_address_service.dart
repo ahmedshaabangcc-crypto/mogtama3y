@@ -49,6 +49,12 @@ class EAddressService {
     return code as String;
   }
 
+  /// Who opened this address (owner only): viewed_at, viewer_name, shop_name.
+  static Future<List<Map<String, dynamic>>> views(String id) async {
+    final rows = await _client.rpc('my_e_address_views', params: {'p_address_id': id});
+    return List<Map<String, dynamic>>.from(rows as List);
+  }
+
   static Future<void> delete(String id) => _client.from('e_addresses').delete().eq('id', id);
 
   /// Public lookup (guests too). Null when the code is wrong or disabled.

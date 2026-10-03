@@ -581,6 +581,14 @@ const denied = (r) => !!r.error;
   check('founding without asking for presidency files no request',
     ok(await as(db, Cu, `select public.found_building('عمارة النخيل','x','x','x','1','1', null, null, null, false)`)) &&
     (await admin(db, `select count(*)::int n from president_requests where user_id = $1`, [Cu]))[0].n === 0);
+  // Delivery transparency (0052)
+  const shopOwnerView = await as(db, Cu, `select public.get_e_address('salam') as a`);
+  check('a shop opens a customer address by its name', !!shopOwnerView.rows?.[0]?.a);
+  const salamId = (await admin(db, `select id from e_addresses where handle = 'salam'`))[0].id;
+  const views = await as(db, M, `select * from public.my_e_address_views($1)`, [salamId]);
+  check('the owner sees who opened the address', views.rows?.some((v) => v.viewer_name === 'customer'), views);
+  check('EXPLOIT blocked: someone else reads the view log', denied(await as(db, Cu, `select * from public.my_e_address_views($1)`, [salamId])));
+  check('EXPLOIT blocked: users read the view table directly', denied(await as(db, M, `select * from e_address_views`)));
   check('with a president in place, owners can no longer call elections themselves',
     denied(await as(db, F, `select public.create_election('تاني', now() + interval '2 days')`)));
 
