@@ -18,7 +18,8 @@ class AddListingScreen extends StatefulWidget {
 class _AddListingScreenState extends State<AddListingScreen> {
   int _condition = 2;
   bool _negotiable = true;
-  bool _hideFromBuilding = false;
+  // Building-level hiding belongs to the owners'-union app, not مُجتمعي.
+  static const _hideFromBuilding = false;
   bool _hidePhone = true;
   bool _submitting = false;
   String? _error;
@@ -238,14 +239,6 @@ class _AddListingScreenState extends State<AddListingScreen> {
           const Text('خصوصية الإعلان الذكية', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
           const Text('حماية بياناتك وأمان تعاملاتك أولوية مجتمعي', style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted)),
           const SizedBox(height: 12),
-          _ToggleRow(
-            icon: Icons.apartment_rounded,
-            title: 'حجب الإعلان عن سكان عمارتي',
-            subtitle: 'لن يظهر الإعلان لجيرانك في نفس العقار وسيظهر تلقائياً لباقي المستخدمين حسب الأقرب لموقعهم',
-            value: _hideFromBuilding,
-            onChanged: (v) => setState(() => _hideFromBuilding = v),
-          ),
-          const SizedBox(height: 10),
           const _InfoBanner(
             icon: Icons.auto_awesome_rounded,
             text: 'ظهور ذكي تلقائي: تُعرض السلع لجميع المشترين في مصر ويتم ترتيبها تلقائياً حسب الأقرب جغرافياً للمستخدم.',

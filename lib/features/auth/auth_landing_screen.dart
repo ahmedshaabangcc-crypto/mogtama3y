@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/app_flavor.dart';
+
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_logo.dart';
 import 'login_screen.dart';
@@ -31,7 +33,7 @@ class AuthLandingScreen extends StatelessWidget {
               const SizedBox(height: 20),
               const Text('مُجتمعي', style: TextStyle(color: AppColors.ink, fontSize: 26, fontWeight: FontWeight.w700)),
               const SizedBox(height: 6),
-              const Text('سجّل دخولك أو أنشئ حسابك لإدارة عمارتك وحيّك',
+              const Text(isUnionApp ? 'سجّل دخولك أو أنشئ حسابك لإدارة عمارتك' : 'سجّل دخولك أو أنشئ حسابك وابدأ مع جيرانك وحيّك',
                   textAlign: TextAlign.center, style: TextStyle(color: AppColors.inkMuted, fontSize: 13)),
               const Spacer(),
               SizedBox(

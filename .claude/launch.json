@@ -28,6 +28,20 @@
         "--silent"
       ],
       "port": 8735
+    },
+    {
+      "name": "web-ittihad",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "-y",
+        "http-server",
+        "build/web_ittihad",
+        "-p",
+        "8736",
+        "-c-1",
+        "--silent"
+      ],
+      "port": 8736
     }
   ]
 }

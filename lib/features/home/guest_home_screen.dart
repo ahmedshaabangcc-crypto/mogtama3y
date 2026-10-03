@@ -15,7 +15,6 @@ import '../e_address/e_address_widgets.dart';
 import '../marketplace/item_details_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../profile/profile_screen.dart';
-import '../union/find_building_screen.dart';
 
 class _Category {
   const _Category(this.label, this.sublabel, this.image);
@@ -28,12 +27,9 @@ const _img = 'assets/images/home';
 const _categories = [
   _Category('سوق المستعمل', 'سلع من الجيران', '$_img/used_market.jpg'),
   _Category('المحلات', 'محلات ومتاجر الحي', '$_img/shops.jpg'),
-  _Category('اتحاد الملاك', 'حوكمة واشتراكات', '$_img/union.jpg'),
   _Category('عقارات', 'بيع وإيجار بالمنطقة', '$_img/real_estate.jpg'),
   _Category('وظائف', 'شواغر قريبة منك', '$_img/jobs.jpg'),
   _Category('الصيانة والخدمات', 'فنيين وحجز بضمان', '$_img/maintenance.jpg'),
-  _Category('طوارئ SOS', 'تنبيه الجيران والطوارئ', '$_img/sos.jpg'),
-  _Category('المفقودات والأمانات', 'مفقود أو موجود', '$_img/lost_found.jpg'),
   _Category('تدوير وتوفير', 'مزادات الخردة والتدوير', '$_img/recycling.jpg'),
 ];
 
@@ -174,7 +170,7 @@ class _Header extends StatelessWidget {
           const Text('كل حيّك في تطبيق واحد',
               style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700, shadows: [Shadow(color: Colors.black54, blurRadius: 12)])),
           const SizedBox(height: 4),
-          const Text('اتحاد الملاك، المحلات، الصيانة والجيران… أسهل وأذكى',
+          const Text('السوق، المحلات، الصيانة والجيران… أسهل وأذكى',
               style: TextStyle(color: Colors.white70, fontSize: 12.5, shadows: [Shadow(color: Colors.black54, blurRadius: 10)])),
           const SizedBox(height: 22),
           const _ExploreLocationBox(),
@@ -319,7 +315,7 @@ class _ExploreLocationBoxState extends State<_ExploreLocationBox> {
   Widget build(BuildContext context) {
     return InkWell(
       borderRadius: BorderRadius.circular(18),
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FindBuildingScreen())),
+      onTap: () => context.go(AppRoutes.nearby),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -331,7 +327,7 @@ class _ExploreLocationBoxState extends State<_ExploreLocationBox> {
             if (_locating)
               const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold))
             else
-              Text(_resolvedArea != null ? 'استكشف عقارك: $_resolvedArea' : 'استكشف عقارك: حدد موقعك',
+              Text(_resolvedArea != null ? 'اكتشف حواليك: $_resolvedArea' : 'اكتشف حواليك: حدد موقعك',
                   style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
             const Spacer(),
             const Icon(Icons.expand_more_rounded, color: Colors.white60, size: 18),
@@ -386,11 +382,8 @@ class _CategoryGrid extends StatelessWidget {
           borderRadius: BorderRadius.circular(22),
           onTap: () => context.go(switch (c.label) {
             'سوق المستعمل' => AppRoutes.marketplace,
-            'اتحاد الملاك' => AppRoutes.union,
             'الصيانة والخدمات' => AppRoutes.technicians,
             'المحلات' => AppRoutes.shops,
-            'طوارئ SOS' => AppRoutes.sos,
-            'المفقودات والأمانات' => AppRoutes.lostFound,
             'تدوير وتوفير' => AppRoutes.recycling,
             'وظائف' => AppRoutes.jobs,
             'عقارات' => AppRoutes.realEstate,
@@ -623,15 +616,15 @@ class _SignupCta extends StatelessWidget {
                 ),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(100),
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => signedIn ? const FindBuildingScreen() : const AuthLandingScreen(),
-                  )),
+                  onTap: () => signedIn
+                      ? context.go(AppRoutes.post)
+                      : Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthLandingScreen())),
                   child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(signedIn ? Icons.groups_rounded : Icons.login_rounded, size: 19, color: Colors.white),
+                    Icon(signedIn ? Icons.add_circle_outline_rounded : Icons.login_rounded, size: 19, color: Colors.white),
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        signedIn ? 'ابحث عن عمارتك وانضم للاتحاد' : 'سجّل دخول أو اعمل حساب',
+                        signedIn ? 'انشر إعلان جديد' : 'سجّل دخول أو اعمل حساب',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15),

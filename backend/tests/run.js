@@ -517,6 +517,22 @@ const denied = (r) => !!r.error;
   check('the owner keeps the premium name when editing the address',
     ok(await as(db, M, `select public.save_my_e_address($1, $2::jsonb)`, [h1Id, JSON.stringify({ ...addr, handle: 'salam', street: 'شارع 10' })])));
 
+  // ------------------------------------------------------------------
+  console.log('\nBooking a technician without a union (0050)');
+  const R = await signUp(db, 'no-union resident', '01055555555');
+  await admin(db, `update wallets set available_balance = 500 where user_id = $1`, [R]);
+  check('no union and no digital address: booking is refused with a hint',
+    denied(await as(db, R, `select public.book_maintenance_service($1, 'كهرباء', 'فيشة', 50)`, [tech])));
+  await as(db, R, `select public.save_my_e_address(null, $1::jsonb)`, [JSON.stringify({ ...addr, landmark: 'جنب الجامع' })]);
+  const rb = await as(db, R, `select public.book_maintenance_service($1, 'كهرباء', 'فيشة', 50) as id`, [tech]);
+  check('with a digital address the resident books a technician', ok(rb), rb);
+  const techUser = (await admin(db, `select user_id from technicians where id = $1`, [tech]))[0].user_id;
+  const seen = await as(db, techUser, `select service_address, service_landmark, service_lat from maintenance_requests where id = $1`, [rb.rows?.[0]?.id]);
+  check('the technician sees where to go (address snapshot + landmark + pin)',
+    seen.rows?.[0]?.service_address?.includes('شارع 9') && seen.rows[0].service_landmark === 'جنب الجامع' && seen.rows[0].service_lat === 29.96, seen);
+  check('other users cannot see the booking address',
+    (await as(db, Cu, `select service_address from maintenance_requests where id = $1`, [rb.rows?.[0]?.id])).rows?.length === 0);
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

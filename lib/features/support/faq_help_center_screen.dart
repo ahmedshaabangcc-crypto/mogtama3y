@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/app_flavor.dart';
+
 import '../../core/theme/app_colors.dart';
 import 'support_contact_screen.dart';
 
@@ -17,6 +19,7 @@ const _faqs = [
         'عند حجز فني عبر التطبيق يُحجز رسم المعاينة من محفظتك ولا يذهب للفني فوراً. عندما يُبلغ الفني بإتمام العمل يصلك كود تأكيد في الإشعارات؛ لا تعطه للفني إلا بعد التأكد من العمل، فهو ما يُفرج عن المبلغ له. وإذا حدث خلاف يمكنك فتح نزاع تراجعه إدارة المنصة.',
     icon: Icons.shield_outlined,
   ),
+  if (isUnionApp)
   _Faq(
     question: 'كيف يتم توثيق شقتي في اتحاد الملاك؟',
     answer:
@@ -26,14 +29,16 @@ const _faqs = [
   _Faq(
     question: 'هل يمكنني إخفاء رقم هاتفي الشخصي عند بيع أغراض مستعملة؟',
     answer:
-        'نعم. عند إضافة الإعلان اختر إخفاء رقم الهاتف، وسيتواصل معك المشترون عبر المحادثة داخل التطبيق. ورقمك لا يظهر لجيرانك عموماً، يراه رئيس الاتحاد ومجلس الإدارة فقط.',
+        'نعم. عند إضافة الإعلان اختر إخفاء رقم الهاتف، وسيتواصل معك المشترون عبر المحادثة داخل التطبيق.',
     icon: Icons.phone_disabled_rounded,
   ),
+  if (!isUnionApp)
   _Faq(
     question: 'كيف يعمل سوق التدوير والخردة؟',
     answer: 'اعرض الخردة أو الأغراض القابلة للتدوير كمزاد، ويقدّم المهتمون عروض أسعار، ثم تختار أنت العرض الذي يناسبك.',
     icon: Icons.savings_outlined,
   ),
+  if (isUnionApp)
   _Faq(
     question: 'ماذا أفعل في حالات الطوارئ ونداء الجيران SOS؟',
     answer:
@@ -61,7 +66,7 @@ class _FaqHelpCenterScreenState extends State<FaqHelpCenterScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         children: [
-          const Text('إرشادات الأمان المالي، اتحاد الملاك، وخدمات الجيرة المتكاملة', style: TextStyle(fontSize: 11.5, color: AppColors.inkSecondary, height: 1.8)),
+          const Text(isUnionApp ? 'إرشادات الأمان المالي واتحاد الملاك' : 'إرشادات الأمان المالي وخدمات الجيرة المتكاملة', style: TextStyle(fontSize: 11.5, color: AppColors.inkSecondary, height: 1.8)),
           const SizedBox(height: 12),
           Container(
             height: 44,
@@ -104,7 +109,9 @@ class _FaqHelpCenterScreenState extends State<FaqHelpCenterScreen> {
                       ]),
                       const SizedBox(height: 6),
                       const Text(
-                        'دفعات الصيانة تُحجز بضمان مالي حقيقي في محفظتك ولا تُصرف للفني إلا بعد تأكيدك، وقرارات اتحاد الملاك محفوظة وموثقة داخل التطبيق.',
+                        isUnionApp
+                            ? 'مستحقات العمارة وقرارات المجلس محفوظة وموثقة داخل التطبيق.'
+                            : 'دفعات الصيانة تُحجز بضمان مالي حقيقي في محفظتك ولا تُصرف للفني إلا بعد تأكيدك.',
                         style: TextStyle(color: Colors.white70, fontSize: 10.5, height: 1.7),
                       ),
                     ],
@@ -222,7 +229,7 @@ class _FilterChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const chips = ['الكل', 'منظومة اتحاد الملاك', 'محفظة الضمان والصيانة'];
+    const chips = ['الكل', if (isUnionApp) 'منظومة اتحاد الملاك' else 'محفظة الضمان والصيانة'];
     return SizedBox(
       height: 34,
       child: ListView.separated(
