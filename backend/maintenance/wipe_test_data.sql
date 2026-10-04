@@ -26,7 +26,9 @@ union all select 'union members', count(*) from public.union_members
 union all select 'marketplace listings', count(*) from public.marketplace_listings
 union all select 'wallets with money', count(*) from public.wallets where available_balance <> 0 or held_balance <> 0
 union all select 'notifications', count(*) from public.notifications
-union all select 'shops (kept)', count(*) from public.shops;
+union all select 'digital addresses', count(*) from public.e_addresses
+union all select 'merchant test stores (deleted)', count(*) from public.shops where google_place_id is null
+union all select 'Google shops (kept)', count(*) from public.shops where google_place_id is not null;
 
 
 -- ---------------------------------------------------------------------
@@ -34,9 +36,12 @@ union all select 'shops (kept)', count(*) from public.shops;
 -- ---------------------------------------------------------------------
 begin;
 
--- Keep the imported shops, detached from any test owner.
-create temp table _kept_shops on commit drop as select * from public.shops;
-update _kept_shops set owner_id = null, is_claimed = false, claimed_at = null;
+-- Keep only the shops imported from Google Maps, detached from any test
+-- owner; test stores registered from the merchant panel go.
+create temp table _kept_shops on commit drop as
+  select * from public.shops where google_place_id is not null;
+update _kept_shops set owner_id = null, is_claimed = false, claimed_at = null,
+  slug = null, whatsapp = null, scan_count = 0;
 
 do $$
 declare
