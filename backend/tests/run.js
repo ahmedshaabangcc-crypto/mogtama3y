@@ -627,6 +627,17 @@ const denied = (r) => !!r.error;
   check('EXPLOIT blocked: someone else edits the store profile',
     denied(await as(db, Cu, `select public.update_my_shop_profile($1, 'hacked', '', '', '')`, [proShop])));
   check('guests see the shop logo', (await as(db, null, `select logo_url from shops where id = $1`, [proShop])).rows?.[0]?.logo_url === 'logo.png');
+  // Phone notifications (0055)
+  check('a user turns on phone notifications',
+    ok(await as(db, M, `select public.save_push_subscription('https://fcm.googleapis.com/fcm/send/abc', 'p256', 'authx', 'tajer')`)));
+  check('a non-https endpoint is refused',
+    denied(await as(db, M, `select public.save_push_subscription('http://evil/x', 'p', 'a')`)));
+  check('guests cannot register a device', denied(await as(db, null, `select public.save_push_subscription('https://x/y', 'p', 'a')`)));
+  check('notifications still work with push on (no pg_net here)',
+    ok(await admin(db, `insert into notifications (user_id, title) values ($1, 'test push')`, [M]).then(() => ({})).catch((e) => ({ error: e }))));
+  check('EXPLOIT blocked: another user reads someone\'s push devices',
+    (await as(db, Cu, `select id from push_subscriptions`)).rows?.length === 0);
+  check('EXPLOIT blocked: users read the push secret', denied(await as(db, M, `select * from private.push_settings`)));
   check('with a president in place, owners can no longer call elections themselves',
     denied(await as(db, F, `select public.create_election('تاني', now() + interval '2 days')`)));
 

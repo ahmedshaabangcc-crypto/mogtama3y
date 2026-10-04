@@ -16,6 +16,7 @@ import '../e_address/e_address_widgets.dart';
 import '../profile/profile_screen.dart';
 import '../shared/install_app_banner.dart';
 import '../shared/load_error_view.dart';
+import '../shared/push_opt_in.dart';
 import '../support/support_contact_screen.dart';
 
 String _money(num v) => '${NumberFormat('#,##0.##').format(v)} ج.م';
@@ -1162,6 +1163,7 @@ class _HomeTabState extends State<_HomeTab> {
         padding: const EdgeInsets.all(16),
         children: [
           if (isTajerApp) const InstallAppBanner(),
+          const PushOptInCard(),
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(gradient: AppColors.brandGradient, borderRadius: BorderRadius.circular(22)),

@@ -5,6 +5,7 @@ import '../../core/notifications/notifications_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
+import '../shared/push_opt_in.dart';
 
 String _timeAgo(DateTime dt) {
   final diff = DateTime.now().difference(dt.toLocal());
@@ -91,11 +92,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         actions: [
           TextButton(
             onPressed: _markAllRead,
-            child: const Text('تحديد الكل كمقروء', style: TextStyle(color: Colors.white, fontSize: 11.5)),
+            child: const Text('تحديد الكل كمقروء', style: TextStyle(fontSize: 11.5)),
           ),
         ],
       ),
-      body: RefreshIndicator(
+      body: Column(children: [
+        const Padding(padding: EdgeInsets.fromLTRB(16, 12, 16, 0), child: PushOptInCard(text: 'فعّل الإشعارات عشان توصلك على موبايلك حتى والتطبيق مقفول.')),
+        Expanded(child: RefreshIndicator(
         onRefresh: _load,
         child: _loading
             ? const Center(child: CircularProgressIndicator())
@@ -163,7 +166,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       );
                     },
                   ),
-      ),
+      )),
+      ]),
     );
   }
 }
