@@ -8,8 +8,9 @@
 //              name?: string, category?: string, notes?: string }
 // → { name, description, highlights: string[] }
 //
-// Signed-in shop owners only; 30 suggestions per user per day (the
-// bump_places_usage quota with an "ai:<user>" bucket). The Gemini key
+// Signed-in shop owners only; 30 suggestions per user per day — checked by
+// bump_my_ai_usage() (migration 0056) running as the merchant, so no
+// service-role key is needed. The Gemini key
 // lives only in the GEMINI_API_KEY secret.
 //
 // Deploy with JWT verification OFF (the function checks the user itself).
@@ -19,7 +20,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') ?? '';
 const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.6-flash';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
-const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 const DAILY_LIMIT = 30;
 
 const corsHeaders = {
@@ -28,17 +29,18 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
-
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 }
 
-async function currentUserId(req: Request): Promise<string | null> {
+// A client acting as the merchant (their own session token).
+function userClient(req: Request) {
   const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
   if (token.split('.').length !== 3) return null;
-  const { data, error } = await admin.auth.getUser(token);
-  return error ? null : data.user?.id ?? null;
+  return createClient(SUPABASE_URL, ANON_KEY, {
+    auth: { persistSession: false },
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
 }
 
 const clip = (v: unknown, n: number) => (typeof v === 'string' ? v.trim().slice(0, n) : '');
@@ -77,15 +79,18 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const userId = await currentUserId(req);
-    if (!userId) return json({ error: 'يجب تسجيل الدخول أولاً' }, 401);
+    const db = userClient(req);
+    if (!db) return json({ error: 'يجب تسجيل الدخول أولاً' }, 401);
 
-    const { count } = await admin.from('shops').select('id', { count: 'exact', head: true }).eq('owner_id', userId);
-    if (!count) return json({ error: 'الخدمة دي للتجار اللي مسجلين محل' }, 403);
-
-    const { data: allowed, error: qErr } = await admin.rpc('bump_places_usage', { p_bucket: `ai:${userId}`, p_limit: DAILY_LIMIT });
-    if (qErr) throw new Error('quota check failed');
-    if (allowed !== true) return json({ error: 'خلصت اقتراحات النهارده (30 اقتراح)، جرّب بكرة' }, 429);
+    const { data: gate, error: gErr } = await db.rpc('bump_my_ai_usage');
+    if (gErr) {
+      console.error('bump_my_ai_usage', gErr);
+      const expired = /jwt/i.test(gErr.message);
+      return json({ error: expired ? 'سجّل دخول تاني وجرّب' : 'حصلت مشكلة، جرّب تاني' }, expired ? 401 : 500);
+    }
+    if (gate === 'signed_out') return json({ error: 'يجب تسجيل الدخول أولاً' }, 401);
+    if (gate === 'no_shop') return json({ error: 'الخدمة دي للتجار اللي مسجلين محل' }, 403);
+    if (gate !== 'ok') return json({ error: `خلصت اقتراحات النهارده (${DAILY_LIMIT} اقتراح)، جرّب بكرة` }, 429);
 
     const parts: any[] = [];
     const urls: string[] = Array.isArray(payload.image_urls) ? payload.image_urls.filter((u: unknown) => typeof u === 'string').slice(0, 3) : [];

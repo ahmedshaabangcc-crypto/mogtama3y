@@ -589,6 +589,11 @@ const denied = (r) => !!r.error;
   check('the owner sees who opened the address', views.rows?.some((v) => v.viewer_name === 'customer'), views);
   check('EXPLOIT blocked: someone else reads the view log', denied(await as(db, Cu, `select * from public.my_e_address_views($1)`, [salamId])));
   check('EXPLOIT blocked: users read the view table directly', denied(await as(db, M, `select * from e_address_views`)));
+  // AI copywriter gate (0056)
+  check('a merchant may use the AI writer', (await as(db, M, `select public.bump_my_ai_usage() as g`)).rows?.[0]?.g === 'ok');
+  check('a user without a shop is told so', (await as(db, G, `select public.bump_my_ai_usage() as g`)).rows?.[0]?.g === 'no_shop');
+  check('guests cannot use the AI writer', denied(await as(db, null, `select public.bump_my_ai_usage()`)));
+
   // Professional products (0053)
   const proShop = (await admin(db, `select id from shops where owner_id = $1 limit 1`, [M]))[0].id;
   const pro = await as(db, M, `insert into shop_products (shop_id, name, price, old_price, images, highlights, description)
