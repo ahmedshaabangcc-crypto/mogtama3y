@@ -92,6 +92,14 @@ jobs:
           sed -i 's|"name": *"[^"]*"|"name": "متجري — مُجتمعي"|; s|"short_name": *"[^"]*"|"short_name": "متجري"|; s|"description": *"[^"]*"|"description": "لوحة التاجر: متجرك أونلاين، منتجاتك وطلباتك."|' build/web_tajer/manifest.json
           rm -f build/web_tajer/sitemap.xml
 
+      # Each deploy_key step starts its own ssh-agent on the same socket;
+      # clear the union deploy's agent first.
+      - name: Reset ssh-agent
+        if: env.TAJER_ENABLED == 'true'
+        run: |
+          pkill ssh-agent || true
+          rm -f /tmp/ssh-auth.sock
+
       - name: Deploy merchant app
         if: env.TAJER_ENABLED == 'true'
         uses: peaceiris/actions-gh-pages@v4
