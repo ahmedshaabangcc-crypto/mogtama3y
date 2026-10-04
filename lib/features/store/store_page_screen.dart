@@ -1,37 +1,53 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-import '../../core/auth/auth_service.dart';
 import '../../core/shops/store_service.dart';
 import '../../core/theme/app_colors.dart';
-import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
+import 'checkout_screen.dart';
+import 'product_screen.dart';
+import 'store_cart.dart';
 
-/// A merchant's public store at `mogtama3y.com/#/s/<slug>` — what opens
-/// when a customer scans the QR on the shop. Browsing needs no account;
-/// ordering does (the order is recorded for the merchant and also sent
-/// to the shop on WhatsApp).
+/// A merchant's storefront at `mogtama3y.com/#/s/<slug>` — what the QR on
+/// the shop and every shared product link open. Browsing and ordering need
+/// no account: the customer checks out with name, mobile and address and
+/// pays on delivery (migration 0054).
 class StorePageScreen extends StatefulWidget {
-  const StorePageScreen({super.key, required this.slug});
+  const StorePageScreen({super.key, required this.slug, this.productId});
   final String slug;
+
+  /// Opens this product right away (shared product links `/s/<slug>/p/<id>`).
+  final String? productId;
 
   @override
   State<StorePageScreen> createState() => _StorePageScreenState();
 }
 
 class _StorePageScreenState extends State<StorePageScreen> {
+  final _cart = StoreCart();
+  final _search = TextEditingController();
   bool _loading = true;
   bool _loadError = false;
   Map<String, dynamic>? _shop;
   List<Map<String, dynamic>> _products = [];
-  final Map<String, int> _cart = {};
+  String? _category;
 
   @override
   void initState() {
     super.initState();
     StoreService.recordScan(widget.slug);
+    _cart.addListener(_onCart);
     _load();
+  }
+
+  void _onCart() => setState(() {});
+
+  @override
+  void dispose() {
+    _cart.removeListener(_onCart);
+    _search.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -48,195 +64,194 @@ class _StorePageScreenState extends State<StorePageScreen> {
         _products = products;
         _loading = false;
       });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _loadError = true;
-      });
-    }
-  }
-
-  double get _total {
-    var total = 0.0;
-    for (final p in _products) {
-      total += ((p['price'] as num?)?.toDouble() ?? 0) * (_cart[p['id']] ?? 0);
-    }
-    return total;
-  }
-
-  int get _itemCount => _cart.values.fold(0, (a, b) => a + b);
-
-  void _changeQty(String productId, int delta) {
-    setState(() {
-      final q = (_cart[productId] ?? 0) + delta;
-      if (q <= 0) {
-        _cart.remove(productId);
-      } else {
-        _cart[productId] = q.clamp(1, 99);
+      final pid = widget.productId;
+      if (pid != null) {
+        final p = products.where((x) => x['id'] == pid).firstOrNull;
+        if (p != null) WidgetsBinding.instance.addPostFrameCallback((_) => _openProduct(p));
       }
-    });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loadError = true;
+          _loading = false;
+        });
+      }
+    }
   }
 
-  String _money(num v) => '${NumberFormat('#,##0.##').format(v)} ج.م';
+  bool get _acceptsOrders => _shop?['owner_id'] != null;
 
-  Future<void> _checkout() async {
-    if (!AuthService.isSignedIn) {
-      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthLandingScreen()));
-      if (!AuthService.isSignedIn || !mounted) return;
+  List<String> get _categories {
+    final set = <String>{};
+    for (final p in _products) {
+      final c = (p['category'] as String?)?.trim();
+      if (c != null && c.isNotEmpty) set.add(c);
     }
-    final profile = await AuthService.fetchCurrentProfile();
-    if (!mounted) return;
-    final phoneCtrl = TextEditingController(text: profile?['phone'] as String? ?? '');
-    final noteCtrl = TextEditingController();
-    final confirmed = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (sheetContext) => Padding(
-        padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + MediaQuery.of(sheetContext).viewInsets.bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('تأكيد الطلب', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-            const SizedBox(height: 6),
-            Text('$_itemCount منتج — الإجمالي ${_money(_total)}', style: const TextStyle(fontSize: 12.5, color: AppColors.inkSecondary)),
-            const SizedBox(height: 14),
-            TextField(controller: phoneCtrl, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'رقم موبايلك (عشان المحل يتواصل معاك)')),
-            const SizedBox(height: 10),
-            TextField(controller: noteCtrl, maxLines: 2, decoration: const InputDecoration(labelText: 'ملاحظات أو عنوان التوصيل (اختياري)')),
-            const SizedBox(height: 10),
-            const Text('الدفع والتوصيل بيتفق عليهم مع المحل مباشرة. هيتفتح واتساب برسالة الطلب عشان تبعتها للمحل.',
-                style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted, height: 1.6)),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: () => Navigator.of(sheetContext).pop(true),
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, foregroundColor: Colors.white),
-                child: const Text('اطلب وابعت للمحل على واتساب'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-    final phone = phoneCtrl.text.trim();
-    final note = noteCtrl.text.trim();
-    phoneCtrl.dispose();
-    noteCtrl.dispose();
-    if (confirmed != true || !mounted) return;
+    return set.toList();
+  }
 
-    final shop = _shop!;
-    try {
-      await StoreService.placeOrder(shopId: shop['id'] as String, items: Map.of(_cart), customerPhone: phone, note: note);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is PostgrestException ? e.message : 'تعذر إرسال الطلب، حاول مرة أخرى')));
-      return;
-    }
+  List<Map<String, dynamic>> get _visible {
+    final q = _search.text.trim().toLowerCase();
+    return _products.where((p) {
+      if (_category != null && p['category'] != _category) return false;
+      if (q.isEmpty) return true;
+      return '${p['name']} ${p['description'] ?? ''}'.toLowerCase().contains(q);
+    }).toList();
+  }
 
-    final lines = [
-      'طلب جديد من مُجتمعي 🛒',
-      for (final p in _products)
-        if ((_cart[p['id']] ?? 0) > 0) '• ${p['name']} × ${_cart[p['id']]} = ${_money(((p['price'] as num?) ?? 0) * _cart[p['id']]!)}',
-      'الإجمالي: ${_money(_total)}',
-      'موبايلي: $phone',
-      if (note.isNotEmpty) 'ملاحظات: $note',
-    ];
-    final whatsapp = shop['whatsapp'] as String?;
-    if (whatsapp != null && whatsapp.isNotEmpty) {
-      await StoreService.openWhatsAppOrder(shopWhatsapp: whatsapp, message: lines.join('\n'));
-    }
-    if (!mounted) return;
-    setState(_cart.clear);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال طلبك للمحل، وهيوصلك إشعار بكل تحديث')));
+  void _openProduct(Map<String, dynamic> p) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => ProductScreen(shop: _shop!, product: p, cart: _cart, canOrder: _acceptsOrders),
+    ));
+  }
+
+  void _openCart() {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => CheckoutScreen(shop: _shop!, cart: _cart)));
+  }
+
+  void _shareStore() {
+    final url = 'https://mogtama3y.com/#/s/${widget.slug}';
+    final text = 'اتفرّج على منتجات ${_shop?['name']} واطلب أونلاين: $url';
+    launchUrl(Uri.parse('https://wa.me/?text=${Uri.encodeComponent(text)}'), mode: LaunchMode.externalApplication);
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    if (_loadError) {
-      return Scaffold(backgroundColor: AppColors.bg, appBar: AppBar(title: const Text('المتجر')), body: LoadErrorView(onRetry: _load));
-    }
+    if (_loadError) return Scaffold(appBar: AppBar(), body: LoadErrorView(onRetry: _load));
     final shop = _shop;
     if (shop == null) {
       return Scaffold(
-        backgroundColor: AppColors.bg,
-        appBar: AppBar(title: const Text('المتجر')),
-        body: const Center(child: Text('المتجر ده مش موجود أو الرابط اتغيّر', style: TextStyle(color: AppColors.inkMuted))),
+        appBar: AppBar(),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text('المتجر ده مش موجود. اتأكد من اللينك.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.inkMuted)),
+          ),
+        ),
       );
     }
-    final acceptsOrders = shop['owner_id'] != null;
 
+    final visible = _visible;
+    final cats = _categories;
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: Text(shop['name'] as String? ?? 'المتجر')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: AppColors.navy, borderRadius: BorderRadius.circular(16)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(shop['name'] as String? ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18)),
-                if (shop['category'] != null) ...[
-                  const SizedBox(height: 4),
-                  Text(shop['category'] as String, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                ],
-                if (shop['address'] != null) ...[
-                  const SizedBox(height: 8),
-                  Row(children: [
-                    const Icon(Icons.location_on_outlined, size: 14, color: AppColors.gold),
-                    const SizedBox(width: 4),
-                    Expanded(child: Text(shop['address'] as String, style: const TextStyle(color: Colors.white70, fontSize: 11.5))),
-                  ]),
-                ],
-                if (shop['description'] != null && (shop['description'] as String).isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(shop['description'] as String, style: const TextStyle(color: Colors.white, fontSize: 12, height: 1.6)),
-                ],
-              ],
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            pinned: true,
+            expandedHeight: 210,
+            backgroundColor: AppColors.night,
+            foregroundColor: Colors.white,
+            title: Text(shop['name'] as String? ?? '', style: const TextStyle(color: Colors.white)),
+            actions: [
+              IconButton(tooltip: 'شارك المتجر', onPressed: _shareStore, icon: const Icon(Icons.share_rounded)),
+              IconButton(
+                tooltip: 'انسخ اللينك',
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: 'https://mogtama3y.com/#/s/${widget.slug}'));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اتنسخ لينك المتجر')));
+                },
+                icon: const Icon(Icons.link_rounded),
+              ),
+            ],
+            flexibleSpace: FlexibleSpaceBar(background: _StoreHeader(shop: shop)),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+              child: TextField(
+                controller: _search,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: 'دوّر في منتجات ${shop['name']}',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  isDense: true,
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 18),
-          Text('المنتجات (${_products.length})', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-          const SizedBox(height: 10),
-          if (_products.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 30),
-              child: Center(child: Text('المحل لسه مضافش منتجات', style: TextStyle(color: AppColors.inkMuted))),
+          if (cats.isNotEmpty)
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 48,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsetsDirectional.only(end: 8),
+                      child: ChoiceChip(label: const Text('الكل'), selected: _category == null, onSelected: (_) => setState(() => _category = null)),
+                    ),
+                    for (final c in cats)
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(end: 8),
+                        child: ChoiceChip(label: Text(c), selected: _category == c, onSelected: (_) => setState(() => _category = c)),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          if (visible.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(_products.isEmpty ? 'المحل لسه بيضيف منتجاته' : 'مفيش منتجات بالبحث ده',
+                      style: const TextStyle(color: AppColors.inkMuted)),
+                ),
+              ),
             )
           else
-            for (final p in _products) ...[
-              _ProductTile(
-                product: p,
-                quantity: _cart[p['id']] ?? 0,
-                canOrder: acceptsOrders,
-                onAdd: () => _changeQty(p['id'] as String, 1),
-                onRemove: () => _changeQty(p['id'] as String, -1),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+              sliver: SliverGrid(
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 240,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 0.62,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, i) => _ProductCard(
+                    product: visible[i],
+                    inCart: _cart.quantityOf(visible[i]['id'] as String),
+                    canOrder: _acceptsOrders,
+                    onOpen: () => _openProduct(visible[i]),
+                    onQuickAdd: () {
+                      final p = visible[i];
+                      if (StoreService.optionsOf(p).isNotEmpty) return _openProduct(p);
+                      _cart.add(p);
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('اتضاف «${p['name']}» للسلة'), duration: const Duration(seconds: 1)));
+                    },
+                  ),
+                  childCount: visible.length,
+                ),
               ),
-              const SizedBox(height: 10),
-            ],
+            ),
         ],
       ),
-      bottomSheet: _itemCount == 0
+      bottomNavigationBar: _cart.isEmpty
           ? null
           : SafeArea(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                 child: SizedBox(
-                  width: double.infinity,
-                  height: 52,
+                  height: 56,
                   child: ElevatedButton(
-                    onPressed: _checkout,
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-                    child: Text('اطلب $_itemCount منتج — ${_money(_total)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                    onPressed: _openCart,
+                    child: Row(children: [
+                      CircleAvatar(
+                        radius: 14,
+                        backgroundColor: AppColors.gold,
+                        child: Text('${_cart.count}', style: const TextStyle(color: AppColors.night, fontWeight: FontWeight.w800, fontSize: 13)),
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(child: Text('السلة — كمّل الطلب', style: TextStyle(fontWeight: FontWeight.w800))),
+                      Text(egp(_cart.total), style: const TextStyle(fontWeight: FontWeight.w800)),
+                    ]),
                   ),
                 ),
               ),
@@ -245,212 +260,130 @@ class _StorePageScreenState extends State<StorePageScreen> {
   }
 }
 
-String _price(num v) => '${NumberFormat('#,##0.##').format(v)} ج.م';
+class _StoreHeader extends StatelessWidget {
+  const _StoreHeader({required this.shop});
+  final Map<String, dynamic> shop;
 
-/// "−20%" when there's a real discount, else null.
-String? _discount(Map<String, dynamic> p) {
-  final price = (p['price'] as num?)?.toDouble();
-  final old = (p['old_price'] as num?)?.toDouble();
-  if (price == null || old == null || old <= price) return null;
-  return '−${((1 - price / old) * 100).round()}%';
+  @override
+  Widget build(BuildContext context) {
+    final cover = shop['cover_image_url'] as String?;
+    final logo = shop['logo_url'] as String?;
+    return Stack(fit: StackFit.expand, children: [
+      if (cover != null)
+        Image.network(cover, fit: BoxFit.cover, errorBuilder: (_, _, _) => const DecoratedBox(decoration: BoxDecoration(gradient: AppColors.brandGradient)))
+      else
+        const DecoratedBox(decoration: BoxDecoration(gradient: AppColors.brandGradient)),
+      const DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.black26, Colors.black87]),
+        ),
+      ),
+      PositionedDirectional(
+        start: 16,
+        end: 16,
+        bottom: 16,
+        child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white, width: 2),
+              image: logo != null ? DecorationImage(image: NetworkImage(logo), fit: BoxFit.cover) : null,
+            ),
+            child: logo == null ? const Icon(Icons.storefront_rounded, color: AppColors.crystal, size: 32) : null,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Text(shop['name'] as String? ?? '', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+              if (shop['category'] != null)
+                Text(shop['category'] as String, style: const TextStyle(color: AppColors.gold, fontSize: 12.5, fontWeight: FontWeight.w700)),
+              if ((shop['description'] as String?)?.isNotEmpty ?? false)
+                Text(shop['description'] as String, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            ]),
+          ),
+        ]),
+      ),
+    ]);
+  }
 }
 
-class _ProductTile extends StatelessWidget {
-  const _ProductTile({required this.product, required this.quantity, required this.canOrder, required this.onAdd, required this.onRemove});
+class _ProductCard extends StatelessWidget {
+  const _ProductCard({required this.product, required this.inCart, required this.canOrder, required this.onOpen, required this.onQuickAdd});
   final Map<String, dynamic> product;
-  final int quantity;
+  final int inCart;
   final bool canOrder;
-  final VoidCallback onAdd, onRemove;
-
-  void _open(BuildContext context) => showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        builder: (_) => _ProductDetails(product: product, canOrder: canOrder, onAdd: onAdd),
-      );
+  final VoidCallback onOpen;
+  final VoidCallback onQuickAdd;
 
   @override
   Widget build(BuildContext context) {
     final images = StoreService.imagesOf(product);
-    final price = (product['price'] as num?) ?? 0;
+    final discount = discountLabel(product);
+    final soldOut = isSoldOut(product);
     final old = product['old_price'] as num?;
-    final discount = _discount(product);
-    final placeholder = Container(width: 84, height: 84, color: AppColors.surfaceAlt, child: const Icon(Icons.inventory_2_outlined, color: AppColors.inkMuted));
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () => _open(context),
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-        child: Row(children: [
-          Stack(children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: images.isEmpty
-                  ? placeholder
-                  : Image.network(images.first, width: 84, height: 84, fit: BoxFit.cover, errorBuilder: (_, _, _) => placeholder),
-            ),
-            if (discount != null)
-              PositionedDirectional(
-                top: 4,
-                start: 4,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(8)),
-                  child: Text(discount, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.night)),
-                ),
-              ),
-            if (images.length > 1)
-              PositionedDirectional(
-                bottom: 4,
-                end: 4,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
-                  child: Text('${images.length} 📷', style: const TextStyle(fontSize: 10, color: Colors.white)),
-                ),
-              ),
-          ]),
-          const SizedBox(width: 12),
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onOpen,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(product['name'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
-              if (product['description'] != null && (product['description'] as String).isNotEmpty)
-                Text(product['description'] as String, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: AppColors.inkMuted, height: 1.5)),
-              const SizedBox(height: 4),
-              Row(children: [
-                Text(_price(price), style: const TextStyle(color: AppColors.crystal, fontWeight: FontWeight.w800, fontSize: 13.5)),
-                if (old != null && discount != null) ...[
-                  const SizedBox(width: 6),
-                  Text(_price(old), style: const TextStyle(color: AppColors.inkMuted, fontSize: 11.5, decoration: TextDecoration.lineThrough)),
-                ],
-              ]),
+            child: Stack(fit: StackFit.expand, children: [
+              if (images.isEmpty)
+                const ColoredBox(color: AppColors.surfaceAlt, child: Icon(Icons.inventory_2_outlined, color: AppColors.inkMuted, size: 36))
+              else
+                Image.network(images.first, fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: AppColors.surfaceAlt)),
+              if (discount != null)
+                PositionedDirectional(top: 8, start: 8, child: _Badge(text: discount, color: AppColors.gold, ink: AppColors.night)),
+              if (soldOut)
+                const PositionedDirectional(top: 8, end: 8, child: _Badge(text: 'نفدت', color: Colors.black87, ink: Colors.white)),
             ]),
           ),
-          if (canOrder)
-            quantity == 0
-                ? IconButton.filled(onPressed: onAdd, icon: const Icon(Icons.add_rounded))
-                : Row(mainAxisSize: MainAxisSize.min, children: [
-                    IconButton(onPressed: onRemove, icon: const Icon(Icons.remove_circle_outline_rounded, color: AppColors.inkSecondary)),
-                    Text('$quantity', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                    IconButton(onPressed: onAdd, icon: const Icon(Icons.add_circle_rounded, color: AppColors.crystal)),
-                  ]),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+            child: Text(product['name'] as String? ?? '', maxLines: 2, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, height: 1.35)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 0, 4, 8),
+            child: Row(children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(egp((product['price'] as num?) ?? 0), style: const TextStyle(color: AppColors.crystal, fontWeight: FontWeight.w800, fontSize: 14)),
+                  if (old != null && discount != null)
+                    Text(egp(old), style: const TextStyle(color: AppColors.inkMuted, fontSize: 11, decoration: TextDecoration.lineThrough)),
+                ]),
+              ),
+              if (canOrder && !soldOut)
+                IconButton.filled(
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onQuickAdd,
+                  icon: inCart > 0
+                      ? Text('$inCart', style: const TextStyle(fontWeight: FontWeight.w800, color: Colors.white))
+                      : const Icon(Icons.add_shopping_cart_rounded, size: 18),
+                ),
+            ]),
+          ),
         ]),
       ),
     );
   }
 }
 
-/// Full product page: swipeable photos, price/discount, highlights,
-/// description and "add to cart".
-class _ProductDetails extends StatefulWidget {
-  const _ProductDetails({required this.product, required this.canOrder, required this.onAdd});
-  final Map<String, dynamic> product;
-  final bool canOrder;
-  final VoidCallback onAdd;
+class _Badge extends StatelessWidget {
+  const _Badge({required this.text, required this.color, required this.ink});
+  final String text;
+  final Color color;
+  final Color ink;
 
   @override
-  State<_ProductDetails> createState() => _ProductDetailsState();
-}
-
-class _ProductDetailsState extends State<_ProductDetails> {
-  int _page = 0;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = widget.product;
-    final images = StoreService.imagesOf(p);
-    final highlights = List<String>.from(p['highlights'] as List? ?? const []);
-    final discount = _discount(p);
-    final old = p['old_price'] as num?;
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.92,
-      maxChildSize: 0.95,
-      builder: (context, controller) => ListView(
-        controller: controller,
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        children: [
-          if (images.isNotEmpty) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: AspectRatio(
-                aspectRatio: 1,
-                child: PageView.builder(
-                  itemCount: images.length,
-                  onPageChanged: (i) => setState(() => _page = i),
-                  itemBuilder: (_, i) => InteractiveViewer(
-                    child: Image.network(images[i], fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: AppColors.surfaceAlt)),
-                  ),
-                ),
-              ),
-            ),
-            if (images.length > 1)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  for (var i = 0; i < images.length; i++)
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      margin: const EdgeInsets.symmetric(horizontal: 3),
-                      width: i == _page ? 18 : 7,
-                      height: 7,
-                      decoration: BoxDecoration(
-                        color: i == _page ? AppColors.crystal : AppColors.border,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                ]),
-              ),
-            const SizedBox(height: 14),
-          ],
-          Text(p['name'] as String? ?? '', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 6),
-          Row(children: [
-            Text(_price((p['price'] as num?) ?? 0), style: const TextStyle(color: AppColors.crystal, fontSize: 20, fontWeight: FontWeight.w800)),
-            if (old != null && discount != null) ...[
-              const SizedBox(width: 8),
-              Text(_price(old), style: const TextStyle(color: AppColors.inkMuted, fontSize: 14, decoration: TextDecoration.lineThrough)),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(8)),
-                child: Text('خصم $discount', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: AppColors.night)),
-              ),
-            ],
-          ]),
-          if (highlights.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            for (final h in highlights)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(children: [
-                  const Icon(Icons.check_circle_rounded, size: 18, color: AppColors.success),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(h, style: const TextStyle(fontSize: 13.5))),
-                ]),
-              ),
-          ],
-          if (p['description'] != null && (p['description'] as String).isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text(p['description'] as String, style: const TextStyle(fontSize: 14, height: 1.8, color: AppColors.inkSecondary)),
-          ],
-          if (widget.canOrder) ...[
-            const SizedBox(height: 20),
-            SizedBox(
-              height: 52,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  widget.onAdd();
-                  Navigator.of(context).pop();
-                },
-                icon: const Icon(Icons.add_shopping_cart_rounded),
-                label: const Text('ضيف للطلب'),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(10)),
+        child: Text(text, style: TextStyle(color: ink, fontSize: 11, fontWeight: FontWeight.w800)),
+      );
 }

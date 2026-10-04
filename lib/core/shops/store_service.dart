@@ -32,7 +32,7 @@ class StoreService {
   static Future<Map<String, dynamic>?> fetchStoreBySlug(String slug) async {
     return _client
         .from('shops')
-        .select('id, name, category, description, cover_image_url, address, lat, lng, slug, whatsapp, owner_id, is_claimed')
+        .select('id, name, category, description, cover_image_url, logo_url, address, lat, lng, slug, whatsapp, owner_id, is_claimed')
         .eq('slug', slug.toLowerCase())
         .maybeSingle();
   }
@@ -123,9 +123,15 @@ class StoreService {
     List<String> images = const [],
     double? oldPrice,
     List<String> highlights = const [],
+    String? category,
+    int? stock,
+    List<Map<String, dynamic>> options = const [],
     required bool isAvailable,
   }) async {
     final data = {
+      'category': category,
+      'stock': stock,
+      'options': options,
       'shop_id': shopId,
       'name': name,
       'price': price,
@@ -142,6 +148,69 @@ class StoreService {
     } else {
       await _client.from('shop_products').update(data).eq('id', productId);
     }
+  }
+
+  // ---- storefront checkout (migration 0054) ----
+
+  /// Guest checkout (cash on delivery). [lines]: product_id, quantity and
+  /// the chosen options text. Returns the public tracking code.
+  static Future<String> placeStoreOrder({
+    required String shopId,
+    required List<Map<String, dynamic>> lines,
+    required String name,
+    required String phone,
+    required String address,
+    String? note,
+  }) async {
+    final code = await _client.rpc('place_store_order', params: {
+      'p_shop_id': shopId,
+      'p_items': lines,
+      'p_customer_name': name,
+      'p_customer_phone': phone,
+      'p_address': address,
+      'p_note': note,
+    });
+    return code as String;
+  }
+
+  static Future<Map<String, dynamic>?> trackOrder(String code) async {
+    final res = await _client.rpc('get_store_order', params: {'p_code': code});
+    return res == null ? null : Map<String, dynamic>.from(res as Map);
+  }
+
+  static Future<Map<String, dynamic>> shopStats(String shopId) async {
+    final res = await _client.rpc('my_shop_stats', params: {'p_shop_id': shopId});
+    return Map<String, dynamic>.from(res as Map);
+  }
+
+  static Future<void> updateShopProfile({
+    required String shopId,
+    required String name,
+    String? description,
+    String? logoUrl,
+    String? coverUrl,
+  }) async {
+    await _client.rpc('update_my_shop_profile', params: {
+      'p_shop_id': shopId,
+      'p_name': name,
+      'p_description': description,
+      'p_logo_url': logoUrl,
+      'p_cover_url': coverUrl,
+    });
+  }
+
+  static String productUrl(String slug, String productId) => 'https://mogtama3y.com/#/s/$slug/p/$productId';
+  static String trackUrl(String code) => 'https://mogtama3y.com/#/o/$code';
+
+  /// Option groups of a product: [{name: 'المقاس', values: ['S','M']}].
+  static List<({String name, List<String> values})> optionsOf(Map<String, dynamic> p) {
+    final raw = p['options'];
+    if (raw is! List) return const [];
+    return [
+      for (final o in raw)
+        if (o is Map && o['name'] is String && o['values'] is List)
+          (name: o['name'] as String, values: List<String>.from((o['values'] as List).whereType<String>())),
+    ].where((o) => o.values.isNotEmpty).toList();
   }
 
   /// AI copywriter (Edge Function product-ai): name, description and
@@ -181,7 +250,7 @@ class StoreService {
   static Future<List<Map<String, dynamic>>> fetchShopOrders(String shopId) async {
     final rows = await _client
         .from('shop_orders')
-        .select('*, items:shop_order_items(quantity, unit_price, product:shop_products(name))')
+        .select('*, items:shop_order_items(quantity, unit_price, chosen_options, product:shop_products(name))')
         .eq('shop_id', shopId)
         .neq('status', 'cart')
         .order('created_at', ascending: false)

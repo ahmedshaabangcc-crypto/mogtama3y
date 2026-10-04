@@ -600,6 +600,33 @@ const denied = (r) => !!r.error;
     denied(await as(db, M, `insert into shop_products (shop_id, name, price, old_price) values ($1, 'x', 100, 90)`, [proShop])));
   check('guests see the photos and the discount',
     (await as(db, null, `select cardinality(images) n, old_price::float o from shop_products where id = $1`, [pro.rows[0].id])).rows?.[0]?.n === 3);
+  // Storefront checkout (0054)
+  const stockP = (await as(db, M, `insert into shop_products (shop_id, name, price, stock, options)
+    values ($1, 'جاكيت', 300, 2, '[{"name":"المقاس","values":["M","L"]}]'::jsonb) returning id`, [proShop])).rows[0].id;
+  const guestItems = JSON.stringify([{ product_id: stockP, quantity: 2, options: 'المقاس: L' }]);
+  const gOrder = await as(db, null, `select public.place_store_order($1, $2::jsonb, 'منى', '01077777777', 'شارع 9، المعادي، عمارة 4 شقة 2') as code`, [proShop, guestItems]);
+  check('a guest orders with name, mobile and address (no account)', ok(gOrder) && /^T[2-9A-HJ-NP-Z]{7}$/.test(gOrder.rows?.[0]?.code || ''), gOrder);
+  check('the order takes the stock down', (await admin(db, `select stock from shop_products where id = $1`, [stockP]))[0].stock === 0);
+  check('ordering more than the stock is refused',
+    denied(await as(db, null, `select public.place_store_order($1, $2::jsonb, 'منى', '01077777778', 'شارع 9، المعادي، عمارة 4') as code`, [proShop, JSON.stringify([{ product_id: stockP, quantity: 1 }])])));
+  check('a short address is refused',
+    denied(await as(db, null, `select public.place_store_order($1, $2::jsonb, 'منى', '01077777779', 'المعادي')`, [proShop, JSON.stringify([{ product_id: p2.rows[0].id, quantity: 1 }])])));
+  const tracked = (await as(db, null, `select public.get_store_order($1) as o`, [gOrder.rows[0].code])).rows?.[0]?.o;
+  check('anyone with the code tracks the order (status, items, options)',
+    tracked?.status === 'placed' && tracked.items?.[0]?.options === 'المقاس: L' && tracked.total == 600, tracked);
+  check('tracking never reveals the phone or address', tracked && !('customer_phone' in tracked) && !('delivery_address' in tracked));
+  check('the merchant sees the guest order with name and address',
+    (await as(db, M, `select customer_name, delivery_address from shop_orders where order_code = $1`, [gOrder.rows[0].code])).rows?.[0]?.customer_name === 'منى');
+  check('other users cannot see the guest order',
+    (await as(db, Cu, `select id from shop_orders where order_code = $1`, [gOrder.rows[0].code])).rows?.length === 0);
+  const stats = (await as(db, M, `select public.my_shop_stats($1) as s`, [proShop])).rows?.[0]?.s;
+  check('merchant home numbers (new orders, sales today)', stats?.new_orders >= 1 && Number(stats.sales_today) >= 600, stats);
+  check('EXPLOIT blocked: another user reads the shop numbers', denied(await as(db, Cu, `select public.my_shop_stats($1)`, [proShop])));
+  check('owner edits the store profile (logo, cover, description)',
+    ok(await as(db, M, `select public.update_my_shop_profile($1, 'بقالة السلام', 'أحسن بقالة', 'logo.png', 'cover.png')`, [proShop])));
+  check('EXPLOIT blocked: someone else edits the store profile',
+    denied(await as(db, Cu, `select public.update_my_shop_profile($1, 'hacked', '', '', '')`, [proShop])));
+  check('guests see the shop logo', (await as(db, null, `select logo_url from shops where id = $1`, [proShop])).rows?.[0]?.logo_url === 'logo.png');
   check('with a president in place, owners can no longer call elections themselves',
     denied(await as(db, F, `select public.create_election('تاني', now() + interval '2 days')`)));
 
