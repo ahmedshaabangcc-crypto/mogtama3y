@@ -245,6 +245,16 @@ class _StorePageScreenState extends State<StorePageScreen> {
   }
 }
 
+String _price(num v) => '${NumberFormat('#,##0.##').format(v)} ج.م';
+
+/// "−20%" when there's a real discount, else null.
+String? _discount(Map<String, dynamic> p) {
+  final price = (p['price'] as num?)?.toDouble();
+  final old = (p['old_price'] as num?)?.toDouble();
+  if (price == null || old == null || old <= price) return null;
+  return '−${((1 - price / old) * 100).round()}%';
+}
+
 class _ProductTile extends StatelessWidget {
   const _ProductTile({required this.product, required this.quantity, required this.canOrder, required this.onAdd, required this.onRemove});
   final Map<String, dynamic> product;
@@ -252,38 +262,195 @@ class _ProductTile extends StatelessWidget {
   final bool canOrder;
   final VoidCallback onAdd, onRemove;
 
+  void _open(BuildContext context) => showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (_) => _ProductDetails(product: product, canOrder: canOrder, onAdd: onAdd),
+      );
+
   @override
   Widget build(BuildContext context) {
-    final image = product['image_url'] as String?;
+    final images = StoreService.imagesOf(product);
     final price = (product['price'] as num?) ?? 0;
-    final placeholder = Container(width: 64, height: 64, color: AppColors.surfaceAlt, child: const Icon(Icons.inventory_2_outlined, color: AppColors.inkMuted));
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
-      child: Row(children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: image == null ? placeholder : Image.network(image, width: 64, height: 64, fit: BoxFit.cover, errorBuilder: (_, _, _) => placeholder),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(product['name'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-            if (product['description'] != null && (product['description'] as String).isNotEmpty)
-              Text(product['description'] as String, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
-            const SizedBox(height: 4),
-            Text('${NumberFormat('#,##0.##').format(price)} ج.م', style: const TextStyle(color: AppColors.teal, fontWeight: FontWeight.w800, fontSize: 13)),
+    final old = product['old_price'] as num?;
+    final discount = _discount(product);
+    final placeholder = Container(width: 84, height: 84, color: AppColors.surfaceAlt, child: const Icon(Icons.inventory_2_outlined, color: AppColors.inkMuted));
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => _open(context),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+        child: Row(children: [
+          Stack(children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: images.isEmpty
+                  ? placeholder
+                  : Image.network(images.first, width: 84, height: 84, fit: BoxFit.cover, errorBuilder: (_, _, _) => placeholder),
+            ),
+            if (discount != null)
+              PositionedDirectional(
+                top: 4,
+                start: 4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(8)),
+                  child: Text(discount, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.night)),
+                ),
+              ),
+            if (images.length > 1)
+              PositionedDirectional(
+                bottom: 4,
+                end: 4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
+                  child: Text('${images.length} 📷', style: const TextStyle(fontSize: 10, color: Colors.white)),
+                ),
+              ),
           ]),
-        ),
-        if (canOrder)
-          quantity == 0
-              ? IconButton.filled(onPressed: onAdd, icon: const Icon(Icons.add_rounded), style: IconButton.styleFrom(backgroundColor: AppColors.teal))
-              : Row(mainAxisSize: MainAxisSize.min, children: [
-                  IconButton(onPressed: onRemove, icon: const Icon(Icons.remove_circle_outline_rounded, color: AppColors.inkSecondary)),
-                  Text('$quantity', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                  IconButton(onPressed: onAdd, icon: const Icon(Icons.add_circle_rounded, color: AppColors.teal)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(product['name'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+              if (product['description'] != null && (product['description'] as String).isNotEmpty)
+                Text(product['description'] as String, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: AppColors.inkMuted, height: 1.5)),
+              const SizedBox(height: 4),
+              Row(children: [
+                Text(_price(price), style: const TextStyle(color: AppColors.crystal, fontWeight: FontWeight.w800, fontSize: 13.5)),
+                if (old != null && discount != null) ...[
+                  const SizedBox(width: 6),
+                  Text(_price(old), style: const TextStyle(color: AppColors.inkMuted, fontSize: 11.5, decoration: TextDecoration.lineThrough)),
+                ],
+              ]),
+            ]),
+          ),
+          if (canOrder)
+            quantity == 0
+                ? IconButton.filled(onPressed: onAdd, icon: const Icon(Icons.add_rounded))
+                : Row(mainAxisSize: MainAxisSize.min, children: [
+                    IconButton(onPressed: onRemove, icon: const Icon(Icons.remove_circle_outline_rounded, color: AppColors.inkSecondary)),
+                    Text('$quantity', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                    IconButton(onPressed: onAdd, icon: const Icon(Icons.add_circle_rounded, color: AppColors.crystal)),
+                  ]),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Full product page: swipeable photos, price/discount, highlights,
+/// description and "add to cart".
+class _ProductDetails extends StatefulWidget {
+  const _ProductDetails({required this.product, required this.canOrder, required this.onAdd});
+  final Map<String, dynamic> product;
+  final bool canOrder;
+  final VoidCallback onAdd;
+
+  @override
+  State<_ProductDetails> createState() => _ProductDetailsState();
+}
+
+class _ProductDetailsState extends State<_ProductDetails> {
+  int _page = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.product;
+    final images = StoreService.imagesOf(p);
+    final highlights = List<String>.from(p['highlights'] as List? ?? const []);
+    final discount = _discount(p);
+    final old = p['old_price'] as num?;
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.92,
+      maxChildSize: 0.95,
+      builder: (context, controller) => ListView(
+        controller: controller,
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        children: [
+          if (images.isNotEmpty) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: PageView.builder(
+                  itemCount: images.length,
+                  onPageChanged: (i) => setState(() => _page = i),
+                  itemBuilder: (_, i) => InteractiveViewer(
+                    child: Image.network(images[i], fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: AppColors.surfaceAlt)),
+                  ),
+                ),
+              ),
+            ),
+            if (images.length > 1)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  for (var i = 0; i < images.length; i++)
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: i == _page ? 18 : 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: i == _page ? AppColors.crystal : AppColors.border,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
                 ]),
-      ]),
+              ),
+            const SizedBox(height: 14),
+          ],
+          Text(p['name'] as String? ?? '', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          Row(children: [
+            Text(_price((p['price'] as num?) ?? 0), style: const TextStyle(color: AppColors.crystal, fontSize: 20, fontWeight: FontWeight.w800)),
+            if (old != null && discount != null) ...[
+              const SizedBox(width: 8),
+              Text(_price(old), style: const TextStyle(color: AppColors.inkMuted, fontSize: 14, decoration: TextDecoration.lineThrough)),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(8)),
+                child: Text('خصم $discount', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: AppColors.night)),
+              ),
+            ],
+          ]),
+          if (highlights.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            for (final h in highlights)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(children: [
+                  const Icon(Icons.check_circle_rounded, size: 18, color: AppColors.success),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(h, style: const TextStyle(fontSize: 13.5))),
+                ]),
+              ),
+          ],
+          if (p['description'] != null && (p['description'] as String).isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(p['description'] as String, style: const TextStyle(fontSize: 14, height: 1.8, color: AppColors.inkSecondary)),
+          ],
+          if (widget.canOrder) ...[
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  widget.onAdd();
+                  Navigator.of(context).pop();
+                },
+                icon: const Icon(Icons.add_shopping_cart_rounded),
+                label: const Text('ضيف للطلب'),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
