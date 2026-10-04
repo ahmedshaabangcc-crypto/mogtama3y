@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/app_flavor.dart';
@@ -25,6 +26,17 @@ Future<void> main() async {
     debugPrint('Supabase.initialize failed: $e');
   }
   AuthService.listenAndSyncProfile();
+  // Keep the HTML splash up until the (bundled) Arabic fonts are ready, so
+  // the first frame never paints text as empty boxes.
+  try {
+    await GoogleFonts.pendingFonts([
+      GoogleFonts.ibmPlexSansArabic(),
+      GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w600),
+      GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700),
+      GoogleFonts.almarai(fontWeight: FontWeight.w700),
+      GoogleFonts.almarai(fontWeight: FontWeight.w800),
+    ]).timeout(const Duration(seconds: 6));
+  } catch (_) {}
   runApp(const MogtamayApp());
 }
 

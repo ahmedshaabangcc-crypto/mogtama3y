@@ -95,6 +95,8 @@ flutter:
   assets:
     - assets/images/building_header.png
     - assets/images/home/
+    # Arabic fonts bundled so text never shows as boxes while they download.
+    - assets/google_fonts/
 
   # To add assets to your application, add an assets section, like this:
   # assets:
