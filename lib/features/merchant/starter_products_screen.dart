@@ -74,6 +74,16 @@ class _StarterProductsScreenState extends State<StarterProductsScreen> {
               contentPadding: EdgeInsets.zero,
               value: _picked.contains(i),
               onChanged: (v) => setState(() => v == true ? _picked.add(i) : _picked.remove(i)),
+              secondary: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox.square(
+                  dimension: 52,
+                  child: items[i].imageUrl == null
+                      ? const ColoredBox(color: Colors.black12, child: Icon(Icons.image_outlined, color: AppColors.inkMuted))
+                      : Image.network(items[i].imageUrl!, fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => const ColoredBox(color: Colors.black12)),
+                ),
+              ),
               title: Text(items[i].name, style: const TextStyle(fontWeight: FontWeight.w700)),
               subtitle: Text(
                 [items[i].section, if (items[i].sizes.isNotEmpty) items[i].sizes.join('، ')].join(' • '),
