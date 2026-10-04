@@ -61,7 +61,13 @@ class AuthService {
   /// entries are `https://<site>/**`, which a bare origin does not match
   /// (Supabase would fall back to the Site URL, mogtama3y.com).
   static Future<void> signInWithGoogle() {
-    return _client.auth.signInWithOAuth(OAuthProvider.google, redirectTo: '${Uri.base.origin}/');
+    // select_account: always show Google's account picker, so on a shared
+    // or family device nobody is signed in silently with the last account.
+    return _client.auth.signInWithOAuth(
+      OAuthProvider.google,
+      redirectTo: '${Uri.base.origin}/',
+      queryParams: const {'prompt': 'select_account'},
+    );
   }
 
   /// Starts a process-lifetime listener that creates the profiles/
