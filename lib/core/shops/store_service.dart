@@ -32,7 +32,7 @@ class StoreService {
   static Future<Map<String, dynamic>?> fetchStoreBySlug(String slug) async {
     return _client
         .from('shops')
-        .select('id, name, category, description, cover_image_url, logo_url, address, lat, lng, slug, whatsapp, owner_id, is_claimed')
+        .select('id, name, category, description, cover_image_url, logo_url, address, lat, lng, slug, whatsapp, owner_id, is_claimed, delivery_fee, free_delivery_over')
         .eq('slug', slug.toLowerCase())
         .maybeSingle();
   }
@@ -86,7 +86,7 @@ class StoreService {
     if (userId == null) return [];
     final rows = await _client
         .from('shops')
-        .select('id, name, category, description, address, slug, whatsapp, scan_count, cover_image_url, logo_url')
+        .select('id, name, category, description, address, slug, whatsapp, scan_count, cover_image_url, logo_url, delivery_fee, free_delivery_over')
         .eq('owner_id', userId)
         .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(rows as List);
@@ -197,6 +197,27 @@ class StoreService {
       'p_logo_url': logoUrl,
       'p_cover_url': coverUrl,
     });
+  }
+
+  static Future<void> setShopDelivery({required String shopId, required double fee, double? freeOver}) async {
+    await _client.rpc('set_my_shop_delivery', params: {'p_shop_id': shopId, 'p_fee': fee, 'p_free_over': freeOver});
+  }
+
+  /// Delivery for an order of [subtotal] at [shop] (same rule as the server).
+  static double deliveryFor(Map<String, dynamic> shop, double subtotal) {
+    final fee = (shop['delivery_fee'] as num?)?.toDouble() ?? 0;
+    final freeOver = (shop['free_delivery_over'] as num?)?.toDouble();
+    if (freeOver != null && subtotal >= freeOver) return 0;
+    return fee;
+  }
+
+  /// "التوصيل 25 ج.م • مجاني فوق 500 ج.م" / "التوصيل مجاني".
+  static String deliveryLabel(Map<String, dynamic> shop) {
+    final fee = (shop['delivery_fee'] as num?)?.toDouble() ?? 0;
+    final freeOver = (shop['free_delivery_over'] as num?)?.toDouble();
+    String m(double v) => '${v == v.roundToDouble() ? v.toInt() : v} ج.م';
+    if (fee == 0) return 'التوصيل مجاني';
+    return 'التوصيل ${m(fee)}${freeOver != null ? ' • مجاني فوق ${m(freeOver)}' : ''}';
   }
 
   static String productUrl(String slug, String productId) => 'https://mogtama3y.com/#/s/$slug/p/$productId';

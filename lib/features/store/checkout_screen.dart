@@ -44,6 +44,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   void _refresh() => setState(() {});
 
+  double get _delivery => StoreService.deliveryFor(widget.shop, widget.cart.total);
+  double? get _freeOver => (widget.shop['free_delivery_over'] as num?)?.toDouble();
+  double get _grandTotal => widget.cart.total + _delivery;
+
   @override
   void dispose() {
     widget.cart.removeListener(_refresh);
@@ -82,7 +86,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       final summary = [
         for (final l in widget.cart.lines) '• ${l.product['name']}${l.options.isEmpty ? '' : ' (${l.options})'} × ${l.quantity}',
       ].join('\n');
-      final total = widget.cart.total;
+      final total = _grandTotal;
       widget.cart.clear();
       if (!mounted) return;
       Navigator.of(context).pushReplacement(MaterialPageRoute(
@@ -177,15 +181,32 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(16)),
                   child: Column(children: [
                     Row(children: [
-                      const Text('إجمالي المنتجات'),
+                      const Text('المنتجات'),
                       const Spacer(),
-                      Text(egp(cart.total), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                      Text(egp(cart.total)),
+                    ]),
+                    const SizedBox(height: 4),
+                    Row(children: [
+                      const Text('التوصيل'),
+                      const Spacer(),
+                      Text(_delivery == 0 ? 'مجاني' : egp(_delivery), style: TextStyle(color: _delivery == 0 ? AppColors.success : null, fontWeight: _delivery == 0 ? FontWeight.w800 : null)),
+                    ]),
+                    if (_freeOver != null && _delivery > 0)
+                      Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Text('زوّد ${egp(_freeOver! - cart.total)} والتوصيل يبقى مجاني', style: const TextStyle(fontSize: 11.5, color: AppColors.gold)),
+                      ),
+                    const Divider(height: 18),
+                    Row(children: [
+                      const Text('الإجمالي', style: TextStyle(fontWeight: FontWeight.w800)),
+                      const Spacer(),
+                      Text(egp(_grandTotal), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: AppColors.crystal)),
                     ]),
                     const SizedBox(height: 6),
                     const Row(children: [
                       Icon(Icons.payments_outlined, size: 18, color: AppColors.success),
                       SizedBox(width: 6),
-                      Expanded(child: Text('الدفع عند الاستلام — مصاريف التوصيل بتتفق عليها مع المحل', style: TextStyle(fontSize: 12, color: AppColors.inkSecondary))),
+                      Expanded(child: Text('الدفع كاش عند الاستلام', style: TextStyle(fontSize: 12, color: AppColors.inkSecondary))),
                     ]),
                   ]),
                 ),
@@ -198,7 +219,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     onPressed: _placing ? null : _place,
                     child: _placing
                         ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : Text('تأكيد الطلب — ${egp(cart.total)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                        : Text('تأكيد الطلب — ${egp(_grandTotal)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                   ),
                 ),
               ],

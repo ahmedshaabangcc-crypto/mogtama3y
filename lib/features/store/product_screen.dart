@@ -123,7 +123,7 @@ class _ProductScreenState extends State<ProductScreen> {
               Row(children: [
                 const Icon(Icons.local_shipping_outlined, size: 16, color: AppColors.inkMuted),
                 const SizedBox(width: 6),
-                Text(soldOut ? 'نفدت الكمية' : 'الدفع عند الاستلام', style: TextStyle(color: soldOut ? Colors.redAccent : AppColors.inkMuted, fontSize: 12.5)),
+                Text(soldOut ? 'نفدت الكمية' : '${StoreService.deliveryLabel(widget.shop)} • الدفع عند الاستلام', style: TextStyle(color: soldOut ? Colors.redAccent : AppColors.inkMuted, fontSize: 12.5)),
                 if (!soldOut && stock != null && stock <= 5) ...[
                   const SizedBox(width: 10),
                   Text('باقي $stock بس!', style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w800, fontSize: 12.5)),

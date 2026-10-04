@@ -300,6 +300,7 @@ class _StoreHeader extends StatelessWidget {
               Text(shop['name'] as String? ?? '', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
               if (shop['category'] != null)
                 Text(shop['category'] as String, style: const TextStyle(color: AppColors.gold, fontSize: 12.5, fontWeight: FontWeight.w700)),
+              Text('🚚 ${StoreService.deliveryLabel(shop)} • الدفع عند الاستلام', style: const TextStyle(color: Colors.white, fontSize: 11.5)),
               if ((shop['description'] as String?)?.isNotEmpty ?? false)
                 Text(shop['description'] as String, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 12)),
             ]),

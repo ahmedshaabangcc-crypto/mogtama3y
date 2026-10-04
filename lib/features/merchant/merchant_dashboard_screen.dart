@@ -910,6 +910,8 @@ class _OrdersTabState extends State<_OrdersTab> {
                   '• ${(it['product'] as Map?)?['name'] ?? ''}${(it['chosen_options'] as String?)?.isNotEmpty ?? false ? ' (${it['chosen_options']})' : ''} × ${it['quantity']}',
                   style: const TextStyle(fontSize: 12.5),
                 ),
+              if (((o['delivery_fee'] as num?) ?? 0) > 0)
+                Text('🚚 التوصيل: ${_money(o['delivery_fee'] as num)} (داخل الإجمالي)', style: const TextStyle(fontSize: 12, color: AppColors.inkSecondary)),
               if (o['note'] != null) ...[
                 const SizedBox(height: 6),
                 Text('ملاحظات: ${o['note']}', style: const TextStyle(fontSize: 11.5, color: AppColors.inkSecondary)),
@@ -1006,6 +1008,8 @@ class _MyStoreTabState extends State<_MyStoreTab> {
       padding: const EdgeInsets.all(16),
       children: [
         _StoreProfileCard(shop: widget.shop, onSaved: widget.onChanged),
+        const SizedBox(height: 14),
+        _DeliveryCard(shop: widget.shop, onSaved: widget.onChanged),
         const SizedBox(height: 14),
         Container(
           padding: const EdgeInsets.all(16),
@@ -1356,6 +1360,98 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
               child: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('حفظ شكل المتجر'),
             ),
           ]),
+        ),
+      ]),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------
+// Delivery fee (added to every order total, shown to customers)
+// ---------------------------------------------------------------------
+
+class _DeliveryCard extends StatefulWidget {
+  const _DeliveryCard({required this.shop, required this.onSaved});
+  final Map<String, dynamic> shop;
+  final VoidCallback onSaved;
+
+  @override
+  State<_DeliveryCard> createState() => _DeliveryCardState();
+}
+
+class _DeliveryCardState extends State<_DeliveryCard> {
+  late final _fee = TextEditingController(text: _num(widget.shop['delivery_fee']));
+  late final _freeOver = TextEditingController(text: _num(widget.shop['free_delivery_over']));
+  bool _busy = false;
+
+  static String _num(Object? v) {
+    final d = (v as num?)?.toDouble();
+    if (d == null || d == 0) return '';
+    return d == d.roundToDouble() ? '${d.toInt()}' : '$d';
+  }
+
+  @override
+  void dispose() {
+    _fee.dispose();
+    _freeOver.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final fee = _fee.text.trim().isEmpty ? 0.0 : double.tryParse(_fee.text.trim());
+    final freeOver = _freeOver.text.trim().isEmpty ? null : double.tryParse(_freeOver.text.trim());
+    if (fee == null || fee < 0 || (_freeOver.text.trim().isNotEmpty && (freeOver == null || freeOver <= 0))) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اكتب أرقام صحيحة')));
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await StoreService.setShopDelivery(shopId: widget.shop['id'] as String, fee: fee, freeOver: freeOver);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اتحفظت قيمة التوصيل')));
+      widget.onSaved();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_errorText(e, 'تعذر الحفظ'))));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const Row(children: [
+          Icon(Icons.local_shipping_rounded, color: AppColors.crystal),
+          SizedBox(width: 8),
+          Text('التوصيل', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+        ]),
+        const SizedBox(height: 4),
+        const Text('بيتضاف على إجمالي كل طلب، والزبون بيشوفه قبل ما يطلب.', style: TextStyle(fontSize: 12, color: AppColors.inkMuted)),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(
+            child: TextField(
+              controller: _fee,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'قيمة التوصيل (ج.م)', hintText: 'فاضية = مجاني'),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: _freeOver,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'مجاني لو الطلب فوق', hintText: 'اختياري'),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        ElevatedButton(
+          onPressed: _busy ? null : _save,
+          child: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('حفظ التوصيل'),
         ),
       ]),
     );
