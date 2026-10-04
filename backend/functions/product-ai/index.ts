@@ -113,24 +113,48 @@ Deno.serve(async (req) => {
 
     parts.push({ text: `${PROMPT}\n\n${facts || 'مفيش بيانات غير الصور.'}` });
 
-    const gem = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts }],
-        generationConfig: { temperature: 0.5, maxOutputTokens: 700, responseMimeType: 'application/json' },
-      }),
+    const body = JSON.stringify({
+      contents: [{ role: 'user', parts }],
+      generationConfig: {
+        temperature: 0.5,
+        // Room for the model's thinking + the answer (a small cap cut the
+        // JSON off mid-way).
+        maxOutputTokens: 4096,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            name: { type: 'STRING' },
+            description: { type: 'STRING' },
+            highlights: { type: 'ARRAY', items: { type: 'STRING' } },
+          },
+          required: ['name', 'description', 'highlights'],
+        },
+      },
     });
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
+
+    // The free tier has a per-minute cap; one patient retry covers most hiccups.
+    let gem = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+    if (gem.status === 429 || gem.status >= 500) {
+      console.error('gemini retry', gem.status, await gem.text());
+      await new Promise((r) => setTimeout(r, 2500));
+      gem = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+    }
     if (!gem.ok) {
       console.error('gemini', gem.status, await gem.text());
-      return json({ error: 'الذكاء الاصطناعي مش متاح دلوقتي، جرّب كمان شوية' }, 502);
+      return json({ error: gem.status === 429 ? 'الذكاء الاصطناعي مشغول، جرّب بعد دقيقة' : 'الذكاء الاصطناعي مش متاح دلوقتي، جرّب كمان شوية' }, 502);
     }
     const out = await gem.json();
-    const text: string = out?.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? '').join('') ?? '';
+    const text: string = out?.candidates?.[0]?.content?.parts?.filter((p: any) => !p.thought).map((p: any) => p.text ?? '').join('') ?? '';
     let parsed: any;
     try {
-      parsed = JSON.parse(text.replace(/^```(json)?|```$/g, '').trim());
+      // Tolerate stray text around the JSON object.
+      const start = text.indexOf('{');
+      const end = text.lastIndexOf('}');
+      parsed = JSON.parse(start >= 0 && end > start ? text.slice(start, end + 1) : text);
     } catch {
+      console.error('unparsable', out?.candidates?.[0]?.finishReason, text.slice(0, 300));
       return json({ error: 'معرفناش نطلع اقتراح، جرّب تاني' }, 502);
     }
     return json({
