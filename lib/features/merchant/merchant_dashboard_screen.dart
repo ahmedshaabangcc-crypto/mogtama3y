@@ -403,6 +403,17 @@ class _ProductEditorState extends State<_ProductEditor> {
   late final _highlights = TextEditingController(
       text: List<String>.from(widget.product?['highlights'] as List? ?? const []).join('\n'));
   late final List<String> _images = widget.product == null ? [] : StoreService.imagesOf(widget.product!);
+  late final _category = TextEditingController(text: widget.product?['category'] as String? ?? '');
+  late final _stock = TextEditingController(text: (widget.product?['stock'] as int?)?.toString() ?? '');
+  late final _sizes = TextEditingController(text: _optionValues('المقاس'));
+  late final _colors = TextEditingController(text: _optionValues('اللون'));
+
+  String _optionValues(String name) {
+    if (widget.product == null) return '';
+    return StoreService.optionsOf(widget.product!).where((o) => o.name == name).map((o) => o.values.join('، ')).firstOrNull ?? '';
+  }
+
+  List<String> _split(String s) => s.split(RegExp(r'[,،\n]')).map((v) => v.trim()).where((v) => v.isNotEmpty).take(20).toList();
   late bool _available = widget.product?['is_available'] as bool? ?? true;
   bool _uploading = false;
   bool _thinking = false;
@@ -416,6 +427,10 @@ class _ProductEditorState extends State<_ProductEditor> {
     _oldPrice.dispose();
     _desc.dispose();
     _highlights.dispose();
+    _category.dispose();
+    _stock.dispose();
+    _sizes.dispose();
+    _colors.dispose();
     super.dispose();
   }
 
@@ -490,6 +505,12 @@ class _ProductEditorState extends State<_ProductEditor> {
         description: _desc.text.trim().isEmpty ? null : _desc.text.trim(),
         images: _images,
         highlights: _highlights.text.split('\n').map((s) => s.trim()).where((s) => s.isNotEmpty).take(6).toList(),
+        category: _category.text.trim().isEmpty ? null : _category.text.trim(),
+        stock: int.tryParse(_stock.text.trim()),
+        options: [
+          if (_split(_sizes.text).isNotEmpty) {'name': 'المقاس', 'values': _split(_sizes.text)},
+          if (_split(_colors.text).isNotEmpty) {'name': 'اللون', 'values': _split(_colors.text)},
+        ],
         isAvailable: _available,
       );
       if (mounted) Navigator.of(context).pop(true);
@@ -638,6 +659,22 @@ class _ProductEditorState extends State<_ProductEditor> {
               maxLength: 2000,
               decoration: const InputDecoration(labelText: 'وصف المنتج', hintText: 'اكتب ملاحظاتك هنا، أو دوس «اكتبلي»', alignLabelWithHint: true),
             ),
+            Row(children: [
+              Expanded(child: TextField(controller: _category, decoration: const InputDecoration(labelText: 'القسم', hintText: 'مثلاً: تيشيرتات'))),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: _stock,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'الكمية المتاحة', hintText: 'فاضية = مفتوحة'),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 10),
+            TextField(controller: _sizes, decoration: const InputDecoration(labelText: 'المقاسات (اختياري)', hintText: 'S، M، L، XL')),
+            const SizedBox(height: 10),
+            TextField(controller: _colors, decoration: const InputDecoration(labelText: 'الألوان (اختياري)', hintText: 'أسود، أبيض، كحلي')),
+            const SizedBox(height: 10),
             TextField(
               controller: _highlights,
               maxLines: 4,
@@ -775,10 +812,21 @@ class _OrdersTabState extends State<_OrdersTab> {
                 const Spacer(),
                 Text(_money((o['total_amount'] as num?) ?? 0), style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.teal)),
               ]),
-              if (createdAt != null) Text(DateFormat('d/M – h:mm a').format(createdAt), style: const TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
+              if (createdAt != null)
+                Text('${o['order_code'] != null ? 'طلب ${o['order_code']} • ' : ''}${DateFormat('d/M – h:mm a').format(createdAt)}',
+                    style: const TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
+              if (o['customer_name'] != null) ...[
+                const SizedBox(height: 6),
+                Text('👤 ${o['customer_name']}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              ],
+              if (o['delivery_address'] != null)
+                Text('📍 ${o['delivery_address']}', style: const TextStyle(fontSize: 12, color: AppColors.inkSecondary, height: 1.5)),
               const SizedBox(height: 8),
               for (final it in items)
-                Text('• ${(it['product'] as Map?)?['name'] ?? ''} × ${it['quantity']}', style: const TextStyle(fontSize: 12.5)),
+                Text(
+                  '• ${(it['product'] as Map?)?['name'] ?? ''}${(it['chosen_options'] as String?)?.isNotEmpty ?? false ? ' (${it['chosen_options']})' : ''} × ${it['quantity']}',
+                  style: const TextStyle(fontSize: 12.5),
+                ),
               if (o['note'] != null) ...[
                 const SizedBox(height: 6),
                 Text('ملاحظات: ${o['note']}', style: const TextStyle(fontSize: 11.5, color: AppColors.inkSecondary)),

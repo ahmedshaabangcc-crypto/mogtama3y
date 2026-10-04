@@ -26,6 +26,7 @@ import '../../features/shell/tajer_shell.dart';
 import '../../features/shell/union_shell.dart';
 import '../../features/shops/neighborhood_shops_screen.dart';
 import '../../features/sos/sos_emergency_screen.dart';
+import '../../features/store/order_tracking_screen.dart';
 import '../../features/store/store_page_screen.dart';
 import '../../features/support/faq_help_center_screen.dart';
 import '../../features/support/support_contact_screen.dart';
@@ -141,7 +142,17 @@ final appRouter = GoRouter(
         for (final e in _sections.entries) _section(e.key, e.value),
         if (!isUnionApp) ...[
           GoRoute(path: 'a/:code', builder: (_, state) => PublicEAddressScreen(code: state.pathParameters['code']!)),
-          GoRoute(path: 's/:slug', builder: (_, state) => StorePageScreen(slug: state.pathParameters['slug']!)),
+          GoRoute(
+            path: 's/:slug',
+            builder: (_, state) => StorePageScreen(slug: state.pathParameters['slug']!),
+            routes: [
+              GoRoute(
+                path: 'p/:pid',
+                builder: (_, state) => StorePageScreen(slug: state.pathParameters['slug']!, productId: state.pathParameters['pid']),
+              ),
+            ],
+          ),
+          GoRoute(path: 'o/:code', builder: (_, state) => OrderTrackingScreen(code: state.pathParameters['code']!)),
         ],
       ],
     ),
@@ -152,10 +163,11 @@ final appRouter = GoRouter(
     final path = state.uri.path;
     if (path == '/' || path.isEmpty) return null;
     if (_sections.containsKey(path)) return null;
-    if (!isUnionApp && (_storePath.hasMatch(path.toLowerCase()) || _eAddressPath.hasMatch(path))) return null;
+    if (!isUnionApp && (_storePath.hasMatch(path.toLowerCase()) || _eAddressPath.hasMatch(path) || _orderPath.hasMatch(path))) return null;
     return '/';
   },
 );
 
-final _storePath = RegExp(r'^/s/[a-z0-9-]{3,40}$');
+final _storePath = RegExp(r'^/s/[a-z0-9-]{3,40}(/p/[0-9a-f-]{36})?$');
+final _orderPath = RegExp(r'^/o/T[0-9A-Z]{7}$');
 final _eAddressPath = RegExp(r'^/a/[A-Za-z0-9-]{4,30}$');

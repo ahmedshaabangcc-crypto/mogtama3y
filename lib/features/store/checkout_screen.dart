@@ -1,0 +1,275 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../core/auth/auth_service.dart';
+import '../../core/e_address/e_address_service.dart';
+import '../../core/shops/store_service.dart';
+import '../../core/theme/app_colors.dart';
+import 'order_tracking_screen.dart';
+import 'store_cart.dart';
+
+/// Cart + checkout: no account needed — name, mobile, address, cash on
+/// delivery. Signed-in customers can fill the address from their digital
+/// address.
+class CheckoutScreen extends StatefulWidget {
+  const CheckoutScreen({super.key, required this.shop, required this.cart});
+  final Map<String, dynamic> shop;
+  final StoreCart cart;
+
+  @override
+  State<CheckoutScreen> createState() => _CheckoutScreenState();
+}
+
+class _CheckoutScreenState extends State<CheckoutScreen> {
+  final _name = TextEditingController(text: AuthService.currentUser?.userMetadata?['full_name'] as String? ?? '');
+  final _phone = TextEditingController(text: AuthService.currentUser?.userMetadata?['phone'] as String? ?? '');
+  final _address = TextEditingController();
+  final _note = TextEditingController();
+  List<Map<String, dynamic>> _myAddresses = const [];
+  bool _placing = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.cart.addListener(_refresh);
+    if (AuthService.isSignedIn) {
+      EAddressService.myAddresses().then((a) {
+        if (mounted) setState(() => _myAddresses = a);
+      }).catchError((_) {});
+    }
+  }
+
+  void _refresh() => setState(() {});
+
+  @override
+  void dispose() {
+    widget.cart.removeListener(_refresh);
+    _name.dispose();
+    _phone.dispose();
+    _address.dispose();
+    _note.dispose();
+    super.dispose();
+  }
+
+  void _useAddress(Map<String, dynamic> a) {
+    final landmark = (a['landmark'] as String?)?.trim();
+    _address.text = [
+      EAddressService.oneLine(a),
+      if (landmark != null && landmark.isNotEmpty) 'علامة مميزة: $landmark',
+      'العنوان على الخريطة: ${EAddressService.shareLinkFor(a)}',
+    ].join('\n');
+    setState(() {});
+  }
+
+  Future<void> _place() async {
+    if (widget.cart.isEmpty) return;
+    setState(() {
+      _placing = true;
+      _error = null;
+    });
+    try {
+      final code = await StoreService.placeStoreOrder(
+        shopId: widget.shop['id'] as String,
+        lines: widget.cart.toOrderLines(),
+        name: _name.text.trim(),
+        phone: _phone.text.trim(),
+        address: _address.text.trim(),
+        note: _note.text.trim().isEmpty ? null : _note.text.trim(),
+      );
+      final summary = [
+        for (final l in widget.cart.lines) '• ${l.product['name']}${l.options.isEmpty ? '' : ' (${l.options})'} × ${l.quantity}',
+      ].join('\n');
+      final total = widget.cart.total;
+      widget.cart.clear();
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(MaterialPageRoute(
+        builder: (_) => _OrderPlacedScreen(shop: widget.shop, code: code, summary: summary, total: total, name: _name.text.trim()),
+      ));
+    } on PostgrestException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'تعذر إرسال الطلب، حاول مرة أخرى');
+    } finally {
+      if (mounted) setState(() => _placing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cart = widget.cart;
+    return Scaffold(
+      appBar: AppBar(title: const Text('السلة وإتمام الطلب')),
+      body: cart.isEmpty
+          ? const Center(child: Text('السلة فاضية', style: TextStyle(color: AppColors.inkMuted)))
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+              children: [
+                for (final l in cart.lines)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+                    child: Row(children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: StoreService.imagesOf(l.product).isEmpty
+                            ? Container(width: 64, height: 64, color: AppColors.surfaceAlt)
+                            : Image.network(StoreService.imagesOf(l.product).first, width: 64, height: 64, fit: BoxFit.cover),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(l.product['name'] as String? ?? '', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+                          if (l.options.isNotEmpty) Text(l.options, style: const TextStyle(color: AppColors.inkMuted, fontSize: 12)),
+                          Text(egp(l.total), style: const TextStyle(color: AppColors.crystal, fontWeight: FontWeight.w800)),
+                        ]),
+                      ),
+                      IconButton(onPressed: () => cart.setQuantity(l, l.quantity - 1), icon: const Icon(Icons.remove_circle_outline_rounded)),
+                      Text('${l.quantity}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                      IconButton(
+                        onPressed: l.stock != null && cart.quantityOf(l.product['id'] as String) >= l.stock! ? null : () => cart.setQuantity(l, l.quantity + 1),
+                        icon: const Icon(Icons.add_circle_rounded, color: AppColors.crystal),
+                      ),
+                    ]),
+                  ),
+                const SizedBox(height: 8),
+                const Text('بيانات التوصيل', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                const SizedBox(height: 10),
+                TextField(controller: _name, decoration: const InputDecoration(labelText: 'الاسم *', prefixIcon: Icon(Icons.person_outline_rounded))),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _phone,
+                  keyboardType: TextInputType.phone,
+                  textDirection: TextDirection.ltr,
+                  decoration: const InputDecoration(labelText: 'رقم الموبايل *', hintText: '01012345678', prefixIcon: Icon(Icons.phone_outlined)),
+                ),
+                const SizedBox(height: 10),
+                if (_myAddresses.isNotEmpty) ...[
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    for (final a in _myAddresses)
+                      ActionChip(
+                        avatar: const Icon(Icons.location_on_rounded, size: 16, color: AppColors.gold),
+                        label: Text('استخدم «${a['label']}»'),
+                        onPressed: () => _useAddress(a),
+                      ),
+                  ]),
+                  const SizedBox(height: 8),
+                ],
+                TextField(
+                  controller: _address,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'العنوان بالتفصيل *',
+                    hintText: 'المنطقة، الشارع، رقم العمارة، الدور، الشقة، علامة مميزة',
+                    prefixIcon: Icon(Icons.home_outlined),
+                    alignLabelWithHint: true,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(controller: _note, decoration: const InputDecoration(labelText: 'ملاحظة للمحل (اختياري)', prefixIcon: Icon(Icons.sticky_note_2_outlined))),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(16)),
+                  child: Column(children: [
+                    Row(children: [
+                      const Text('إجمالي المنتجات'),
+                      const Spacer(),
+                      Text(egp(cart.total), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                    ]),
+                    const SizedBox(height: 6),
+                    const Row(children: [
+                      Icon(Icons.payments_outlined, size: 18, color: AppColors.success),
+                      SizedBox(width: 6),
+                      Expanded(child: Text('الدفع عند الاستلام — مصاريف التوصيل بتتفق عليها مع المحل', style: TextStyle(fontSize: 12, color: AppColors.inkSecondary))),
+                    ]),
+                  ]),
+                ),
+                if (_error != null)
+                  Padding(padding: const EdgeInsets.only(top: 10), child: Text(_error!, style: const TextStyle(color: Colors.redAccent))),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _placing ? null : _place,
+                    child: _placing
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : Text('تأكيد الطلب — ${egp(cart.total)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _OrderPlacedScreen extends StatelessWidget {
+  const _OrderPlacedScreen({required this.shop, required this.code, required this.summary, required this.total, required this.name});
+  final Map<String, dynamic> shop;
+  final String code;
+  final String summary;
+  final double total;
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final whatsapp = shop['whatsapp'] as String?;
+    return Scaffold(
+      appBar: AppBar(automaticallyImplyLeading: false, title: const Text('تم الطلب')),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 72),
+          const SizedBox(height: 12),
+          const Text('طلبك وصل للمحل 🎉', textAlign: TextAlign.center, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          Text('${shop['name']} هيكلمك يأكد الطلب ومعاد التوصيل.', textAlign: TextAlign.center, style: const TextStyle(color: AppColors.inkSecondary)),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(gradient: AppColors.brandGradient, borderRadius: BorderRadius.circular(20)),
+            child: Column(children: [
+              const Text('رقم الطلب', style: TextStyle(color: Colors.white70)),
+              Directionality(
+                textDirection: TextDirection.ltr,
+                child: Text(code, style: const TextStyle(color: AppColors.gold, fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: 2)),
+              ),
+              const SizedBox(height: 6),
+              Text('الإجمالي ${egp(total)} — الدفع عند الاستلام', style: const TextStyle(color: Colors.white)),
+            ]),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => OrderTrackingScreen(code: code))),
+            icon: const Icon(Icons.local_shipping_outlined),
+            label: const Text('تابع طلبك'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: StoreService.trackUrl(code)));
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اتنسخ لينك متابعة الطلب')));
+            },
+            icon: const Icon(Icons.link_rounded),
+            label: const Text('انسخ لينك المتابعة'),
+          ),
+          if (whatsapp != null) ...[
+            const SizedBox(height: 8),
+            ElevatedButton.icon(
+              onPressed: () {
+                final text = 'أهلاً، أنا $name وعملت طلب رقم $code من متجركم على مُجتمعي:\n$summary\nالإجمالي ${egp(total)}';
+                launchUrl(Uri.parse('https://wa.me/2$whatsapp?text=${Uri.encodeComponent(text)}'), mode: LaunchMode.externalApplication);
+              },
+              icon: const Icon(Icons.chat_rounded),
+              label: const Text('كلّم المحل على واتساب'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
