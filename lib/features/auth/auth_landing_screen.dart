@@ -29,11 +29,17 @@ class AuthLandingScreen extends StatelessWidget {
           child: Column(
             children: [
               const Spacer(),
-              const MogtamayLogo(size: 84),
+              if (isTajerApp)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(22),
+                  child: Image.asset('assets/images/home/shops.jpg', width: 92, height: 92, fit: BoxFit.cover),
+                )
+              else
+                const MogtamayLogo(size: 84),
               const SizedBox(height: 20),
-              const Text('مُجتمعي', style: TextStyle(color: AppColors.ink, fontSize: 26, fontWeight: FontWeight.w700)),
+              const Text(appBrandName, style: TextStyle(color: AppColors.ink, fontSize: 26, fontWeight: FontWeight.w700)),
               const SizedBox(height: 6),
-              const Text(isUnionApp ? 'سجّل دخولك أو أنشئ حسابك لإدارة عمارتك' : 'سجّل دخولك أو أنشئ حسابك وابدأ مع جيرانك وحيّك',
+              const Text(appSignInTagline,
                   textAlign: TextAlign.center, style: TextStyle(color: AppColors.inkMuted, fontSize: 13)),
               const Spacer(),
               SizedBox(
@@ -66,7 +72,7 @@ class AuthLandingScreen extends StatelessWidget {
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('متابعة التصفح كزائر', style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5)),
+                child: const Text(isTajerApp ? 'رجوع' : 'متابعة التصفح كزائر', style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5)),
               ),
             ],
           ),

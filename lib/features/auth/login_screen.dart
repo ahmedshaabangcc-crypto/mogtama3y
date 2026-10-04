@@ -92,7 +92,7 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 16),
             const Text('أهلاً بعودتك', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
-            const Text(isUnionApp ? 'سجّل دخولك لمتابعة إدارة عمارتك' : 'سجّل دخولك وكمّل مع جيرانك وحيّك', style: TextStyle(fontSize: 12.5, color: AppColors.inkMuted)),
+            const Text(appLoginTagline, style: TextStyle(fontSize: 12.5, color: AppColors.inkMuted)),
             const SizedBox(height: 24),
             Form(
               key: _formKey,

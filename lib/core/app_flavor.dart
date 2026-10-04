@@ -16,6 +16,22 @@ const bool isUnionApp = _flavor == 'ittihad';
 
 const bool isTajerApp = _flavor == 'tajer';
 
+/// The name shown on this app's own screens (sign-in, sign-up…).
+const String appBrandName = isTajerApp ? 'متجري' : (isUnionApp ? 'اتحاد الملاك' : 'مُجتمعي');
+
+/// One-line pitch under the brand name on the sign-in screens.
+const String appSignInTagline = isTajerApp
+    ? 'سجّل دخولك أو اعمل حساب وابدأ متجرك أونلاين'
+    : (isUnionApp ? 'سجّل دخولك أو أنشئ حسابك لإدارة عمارتك' : 'سجّل دخولك أو أنشئ حسابك وابدأ مع جيرانك وحيّك');
+
+const String appLoginTagline = isTajerApp
+    ? 'سجّل دخولك وتابع طلباتك ومنتجاتك'
+    : (isUnionApp ? 'سجّل دخولك لمتابعة إدارة عمارتك' : 'سجّل دخولك وكمّل مع جيرانك وحيّك');
+
+const String appSignupTagline = isTajerApp
+    ? 'حساب واحد ومتجرك جاهز في دقيقتين'
+    : (isUnionApp ? 'أنشئ حسابك أولاً، وبعدها اربطه بعمارتك ووحدتك السكنية' : 'حساب واحد لكل خدمات حيّك: السوق والمحلات والصيانة وأكتر');
+
 const mogtama3yUrl = 'https://mogtama3y.com';
 
 const tajerUrl = 'https://tajer.mogtama3y.com';

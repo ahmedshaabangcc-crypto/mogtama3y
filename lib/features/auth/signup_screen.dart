@@ -149,7 +149,7 @@ class _SignupScreenState extends State<SignupScreen> {
           children: [
             const Text('انضم إلى مُجتمعي', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
-            const Text(isUnionApp ? 'أنشئ حسابك أولاً، وبعدها اربطه بعمارتك ووحدتك السكنية' : 'حساب واحد لكل خدمات حيّك: السوق والمحلات والصيانة وأكتر',
+            const Text(appSignupTagline,
                 style: TextStyle(fontSize: 12.5, color: AppColors.inkMuted)),
             const SizedBox(height: 22),
             Form(

@@ -63,6 +63,7 @@ jobs:
         run: |
           flutter build web --release --base-href / --dart-define=APP_FLAVOR=ittihad -o build/web_ittihad
           sed -i 's|<title>[^<]*</title>|<title>اتحاد الملاك أونلاين</title>|' build/web_ittihad/index.html
+          sed -i 's|<div class="name">[^<]*</div>|<div class="name">اتحاد الملاك</div>|' build/web_ittihad/index.html
           sed -i -E 's#(<meta (name="(description|twitter:description)"|property="og:description") content=")[^"]*#\1اتحاد ملاك عمارتك من الموبايل: المستحقات والقرارات والانتخابات والتقارير المالية والطوارئ وتصاريح الزوار.#; s#(<meta (name="twitter:title"|property="og:title") content=")[^"]*#\1اتحاد الملاك أونلاين#; s#(<meta property="og:url" content=")[^"]*#\1https://ittihad.mogtama3y.com/#' build/web_ittihad/index.html
           sed -i 's|"name": *"[^"]*"|"name": "اتحاد الملاك أونلاين"|; s|"short_name": *"[^"]*"|"short_name": "اتحاد الملاك"|' build/web_ittihad/manifest.json
           # No merchant store pages or مُجتمعي sitemap on the union site.
@@ -88,6 +89,7 @@ jobs:
           flutter build web --release --base-href / --dart-define=APP_FLAVOR=tajer -o build/web_tajer
           f=build/web_tajer/index.html
           sed -i 's|<title>[^<]*</title>|<title>متجري — محلك أونلاين ببلاش</title>|' $f
+          sed -i 's|<div class="name">[^<]*</div>|<div class="name">متجري</div>|' $f
           sed -i -E 's#(<meta (name="(description|twitter:description)"|property="og:description") content=")[^"]*#\1متجر باسم محلك، ومنتجاتك بالصور والأسعار، والطلبات توصلك على واتساب — ببلاش ومن غير عمولة.#; s#(<meta (name="twitter:title"|property="og:title") content=")[^"]*#\1متجري — محلك أونلاين ببلاش#; s#(<meta property="og:url" content=")[^"]*#\1https://tajer.mogtama3y.com/#; s#(<meta name="apple-mobile-web-app-title" content=")[^"]*#\1متجري#' $f
           sed -i 's|"name": *"[^"]*"|"name": "متجري — مُجتمعي"|; s|"short_name": *"[^"]*"|"short_name": "متجري"|; s|"description": *"[^"]*"|"description": "لوحة التاجر: متجرك أونلاين، منتجاتك وطلباتك."|' build/web_tajer/manifest.json
           rm -f build/web_tajer/sitemap.xml
