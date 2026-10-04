@@ -36,6 +36,7 @@ class _MerchantDashboardScreenState extends State<MerchantDashboardScreen> {
   bool _loadError = false;
   List<Map<String, dynamic>> _shops = [];
   int _selected = 0;
+  int _tab = 0;
 
   @override
   void initState() {
@@ -113,29 +114,34 @@ class _MerchantDashboardScreenState extends State<MerchantDashboardScreen> {
     }
 
     final shop = _shops[_selected];
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        backgroundColor: AppColors.bg,
-        appBar: AppBar(
-          title: _shops.length == 1
-              ? Text(shop['name'] as String? ?? 'لوحة التاجر')
-              : DropdownButton<int>(
-                  value: _selected,
-                  underline: const SizedBox.shrink(),
-                  items: [for (var i = 0; i < _shops.length; i++) DropdownMenuItem(value: i, child: Text(_shops[i]['name'] as String? ?? ''))],
-                  onChanged: (i) => setState(() => _selected = i ?? 0),
-                ),
-          actions: const [if (isTajerApp) _TajerAccountMenu()],
-          bottom: const TabBar(tabs: [Tab(text: 'المنتجات'), Tab(text: 'الطلبات'), Tab(text: 'متجري')]),
-        ),
-        body: TabBarView(
-          children: [
-            _ProductsTab(key: ValueKey('p${shop['id']}'), shopId: shop['id'] as String, shopCategory: shop['category'] as String?),
-            _OrdersTab(key: ValueKey('o${shop['id']}'), shopId: shop['id'] as String),
-            _MyStoreTab(key: ValueKey('s${shop['id']}'), shop: shop, onChanged: _load),
-          ],
-        ),
+    return Scaffold(
+      backgroundColor: AppColors.bg,
+      appBar: AppBar(
+        title: _shops.length == 1
+            ? Text(shop['name'] as String? ?? 'لوحة التاجر')
+            : DropdownButton<int>(
+                value: _selected,
+                underline: const SizedBox.shrink(),
+                items: [for (var i = 0; i < _shops.length; i++) DropdownMenuItem(value: i, child: Text(_shops[i]['name'] as String? ?? ''))],
+                onChanged: (i) => setState(() => _selected = i ?? 0),
+              ),
+        actions: const [if (isTajerApp) _TajerAccountMenu()],
+      ),
+      body: IndexedStack(index: _tab, children: [
+        _HomeTab(key: ValueKey('h${shop['id']}'), shop: shop, onGoTo: (i) => setState(() => _tab = i)),
+        _ProductsTab(key: ValueKey('p${shop['id']}'), shopId: shop['id'] as String, shopSlug: shop['slug'] as String?, shopName: shop['name'] as String? ?? '', shopCategory: shop['category'] as String?),
+        _OrdersTab(key: ValueKey('o${shop['id']}'), shopId: shop['id'] as String),
+        _MyStoreTab(key: ValueKey('s${shop['id']}'), shop: shop, onChanged: _load),
+      ]),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _tab,
+        onDestinationSelected: (i) => setState(() => _tab = i),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.space_dashboard_outlined), selectedIcon: Icon(Icons.space_dashboard_rounded), label: 'الرئيسية'),
+          NavigationDestination(icon: Icon(Icons.inventory_2_outlined), selectedIcon: Icon(Icons.inventory_2_rounded), label: 'المنتجات'),
+          NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long_rounded), label: 'الطلبات'),
+          NavigationDestination(icon: Icon(Icons.storefront_outlined), selectedIcon: Icon(Icons.storefront_rounded), label: 'متجري'),
+        ],
       ),
     );
   }
@@ -250,8 +256,10 @@ class _RegisterShopFormState extends State<_RegisterShopForm> {
 // ---------------------------------------------------------------------
 
 class _ProductsTab extends StatefulWidget {
-  const _ProductsTab({super.key, required this.shopId, this.shopCategory});
+  const _ProductsTab({super.key, required this.shopId, this.shopSlug, this.shopName = '', this.shopCategory});
   final String shopId;
+  final String? shopSlug;
+  final String shopName;
   final String? shopCategory;
 
   @override
@@ -323,6 +331,16 @@ class _ProductsTabState extends State<_ProductsTab> {
     }
   }
 
+  void _share(Map<String, dynamic> p) {
+    final slug = widget.shopSlug;
+    if (slug == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اختار رابط متجرك الأول من «متجري»')));
+      return;
+    }
+    final text = '${p['name']} — ${_money((p['price'] as num?) ?? 0)}\nمن ${widget.shopName}، اطلبه من هنا والدفع عند الاستلام:\n${StoreService.productUrl(slug, p['id'] as String)}';
+    launchUrl(Uri.parse('https://wa.me/?text=${Uri.encodeComponent(text)}'), mode: LaunchMode.externalApplication);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -346,35 +364,63 @@ class _ProductsTabState extends State<_ProductsTab> {
                     )
                   : RefreshIndicator(
                       onRefresh: _load,
-                      child: ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
+                      child: GridView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 240,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 0.66,
+                        ),
                         itemCount: _products.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 10),
                         itemBuilder: (context, i) {
                           final p = _products[i];
                           final available = p['is_available'] == true;
-                          final image = p['image_url'] as String?;
-                          return Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
-                            child: Row(children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: image == null
-                                    ? Container(width: 56, height: 56, color: AppColors.surfaceAlt, child: const Icon(Icons.inventory_2_outlined, color: AppColors.inkMuted))
-                                    : Image.network(image, width: 56, height: 56, fit: BoxFit.cover),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Text(p['name'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w700)),
-                                  Text(_money((p['price'] as num?) ?? 0), style: const TextStyle(color: AppColors.teal, fontWeight: FontWeight.w700, fontSize: 12.5)),
-                                  if (!available) const Text('مخفي عن الزباين', style: TextStyle(fontSize: 10.5, color: AppColors.categorySos)),
-                                ]),
-                              ),
-                              IconButton(onPressed: () => _edit(p), icon: const Icon(Icons.edit_outlined)),
-                              IconButton(onPressed: () => _delete(p), icon: const Icon(Icons.delete_outline_rounded, color: AppColors.categorySos)),
-                            ]),
+                          final images = StoreService.imagesOf(p);
+                          final stock = p['stock'] as int?;
+                          return Material(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(18),
+                            clipBehavior: Clip.antiAlias,
+                            child: InkWell(
+                              onTap: () => _edit(p),
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                                Expanded(
+                                  child: Stack(fit: StackFit.expand, children: [
+                                    images.isEmpty
+                                        ? const ColoredBox(color: AppColors.surfaceAlt, child: Icon(Icons.add_a_photo_outlined, color: AppColors.inkMuted))
+                                        : Image.network(images.first, fit: BoxFit.cover),
+                                    if (!available)
+                                      const PositionedDirectional(top: 8, start: 8, child: _Pill('مخفي', Colors.black87, Colors.white)),
+                                    if (stock != null)
+                                      PositionedDirectional(
+                                        top: 8,
+                                        end: 8,
+                                        child: _Pill(stock == 0 ? 'نفد' : 'متاح $stock', stock == 0 ? Colors.redAccent : AppColors.night, Colors.white),
+                                      ),
+                                  ]),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+                                  child: Text(p['name'] as String? ?? '', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(10, 0, 0, 4),
+                                  child: Row(children: [
+                                    Expanded(child: Text(_money((p['price'] as num?) ?? 0), style: const TextStyle(color: AppColors.crystal, fontWeight: FontWeight.w800))),
+                                    IconButton(tooltip: 'شارك على واتساب', visualDensity: VisualDensity.compact, onPressed: () => _share(p), icon: const Icon(Icons.share_rounded, size: 19, color: AppColors.success)),
+                                    PopupMenuButton<String>(
+                                      icon: const Icon(Icons.more_vert_rounded, size: 19),
+                                      onSelected: (v) => v == 'edit' ? _edit(p) : _delete(p),
+                                      itemBuilder: (_) => const [
+                                        PopupMenuItem(value: 'edit', child: Text('تعديل')),
+                                        PopupMenuItem(value: 'delete', child: Text('حذف')),
+                                      ],
+                                    ),
+                                  ]),
+                                ),
+                              ]),
+                            ),
                           );
                         },
                       ),
@@ -727,6 +773,7 @@ class _OrdersTabState extends State<_OrdersTab> {
   bool _loading = true;
   bool _loadError = false;
   List<Map<String, dynamic>> _orders = [];
+  String? _filter = 'placed';
 
   @override
   void initState() {
@@ -777,28 +824,53 @@ class _OrdersTabState extends State<_OrdersTab> {
     // Delivery: open the customer's digital address from the name, mobile
     // or code they gave the shop (every opening is shown to the customer).
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      const Padding(
-        padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
-        child: EAddressLookupBox(title: 'عنوان زبون للتوصيل'),
+      SizedBox(
+        height: 52,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+          children: [
+            for (final (key, label) in const [('placed', 'جديدة'), ('preparing', 'بتتجهّز'), ('delivering', 'في الطريق'), ('delivered', 'اتسلّمت'), ('cancelled', 'ملغية'), (null, 'الكل')])
+              Padding(
+                padding: const EdgeInsetsDirectional.only(end: 8),
+                child: ChoiceChip(
+                  label: Text('$label (${_orders.where((o) => key == null || o['status'] == key).length})'),
+                  selected: _filter == key,
+                  onSelected: (_) => setState(() => _filter = key),
+                ),
+              ),
+          ],
+        ),
       ),
       Expanded(child: _ordersList()),
+      const Padding(
+        padding: EdgeInsets.fromLTRB(16, 4, 16, 12),
+        child: EAddressLookupBox(title: 'عنوان زبون للتوصيل'),
+      ),
     ]);
   }
 
   Widget _ordersList() {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_loadError) return LoadErrorView(onRetry: _load);
-    if (_orders.isEmpty) {
-      return const Center(child: Padding(padding: EdgeInsets.all(24), child: Text('لسه مفيش طلبات. شارك رابط متجرك وعلّق الـ QR على المحل.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.inkMuted, height: 1.6))));
+    final orders = _orders.where((o) => _filter == null || o['status'] == _filter).toList();
+    if (orders.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(_orders.isEmpty ? 'لسه مفيش طلبات. شارك رابط متجرك ومنتجاتك على واتساب وفيسبوك.' : 'مفيش طلبات هنا',
+              textAlign: TextAlign.center, style: const TextStyle(color: AppColors.inkMuted, height: 1.6)),
+        ),
+      );
     }
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
         padding: const EdgeInsets.all(16),
-        itemCount: _orders.length,
+        itemCount: orders.length,
         separatorBuilder: (_, _) => const SizedBox(height: 12),
         itemBuilder: (context, i) {
-          final o = _orders[i];
+          final o = orders[i];
           final status = o['status'] as String? ?? 'placed';
           final items = List<Map<String, dynamic>>.from(o['items'] as List? ?? const []);
           final phone = o['customer_phone'] as String?;
@@ -922,6 +994,8 @@ class _MyStoreTabState extends State<_MyStoreTab> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        _StoreProfileCard(shop: widget.shop, onSaved: widget.onChanged),
+        const SizedBox(height: 14),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
@@ -997,6 +1071,281 @@ class _TajerAccountMenu extends StatelessWidget {
         PopupMenuItem(value: 'mogtama3y', child: Text('زور مُجتمعي')),
         PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج')),
       ],
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  const _Pill(this.text, this.color, this.ink);
+  final String text;
+  final Color color;
+  final Color ink;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(10)),
+        child: Text(text, style: TextStyle(color: ink, fontSize: 11, fontWeight: FontWeight.w800)),
+      );
+}
+
+// ---------------------------------------------------------------------
+// Home: today's numbers, best sellers, quick actions
+// ---------------------------------------------------------------------
+
+class _HomeTab extends StatefulWidget {
+  const _HomeTab({super.key, required this.shop, required this.onGoTo});
+  final Map<String, dynamic> shop;
+  final ValueChanged<int> onGoTo;
+
+  @override
+  State<_HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends State<_HomeTab> {
+  Map<String, dynamic>? _stats;
+  bool _error = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _error = false);
+    try {
+      final s = await StoreService.shopStats(widget.shop['id'] as String);
+      if (mounted) setState(() => _stats = s);
+    } catch (_) {
+      if (mounted) setState(() => _error = true);
+    }
+  }
+
+  Widget _stat(String label, String value, IconData icon, {VoidCallback? onTap, bool highlight = false}) => Expanded(
+        child: Material(
+          color: highlight ? AppColors.gold : AppColors.surface,
+          borderRadius: BorderRadius.circular(18),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(icon, color: highlight ? AppColors.night : AppColors.crystal),
+                const SizedBox(height: 8),
+                Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: highlight ? AppColors.night : AppColors.ink)),
+                Text(label, style: TextStyle(fontSize: 12, color: highlight ? AppColors.night : AppColors.inkMuted)),
+              ]),
+            ),
+          ),
+        ),
+      );
+
+  void _shareStore(String slug) {
+    final text = 'اتفرّج على منتجات ${widget.shop['name']} واطلب أونلاين والدفع عند الاستلام:\n${StoreService.storeUrl(slug)}';
+    launchUrl(Uri.parse('https://wa.me/?text=${Uri.encodeComponent(text)}'), mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_error) return LoadErrorView(onRetry: _load);
+    final s = _stats;
+    if (s == null) return const Center(child: CircularProgressIndicator());
+    final slug = widget.shop['slug'] as String?;
+    final newOrders = (s['new_orders'] as num?)?.toInt() ?? 0;
+    final top = List<Map<String, dynamic>>.from(s['top_products'] as List? ?? const []);
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (isTajerApp) const InstallAppBanner(),
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(gradient: AppColors.brandGradient, borderRadius: BorderRadius.circular(22)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('مبيعات النهارده', style: TextStyle(color: Colors.white70)),
+              Text(_money((s['sales_today'] as num?) ?? 0), style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              Text('${s['orders_today']} طلب النهارده • ${_money((s['sales_30d'] as num?) ?? 0)} آخر 30 يوم',
+                  style: const TextStyle(color: AppColors.gold, fontSize: 12.5)),
+            ]),
+          ),
+          const SizedBox(height: 12),
+          Row(children: [
+            _stat('طلبات جديدة', '$newOrders', Icons.notifications_active_rounded, highlight: newOrders > 0, onTap: () => widget.onGoTo(2)),
+            const SizedBox(width: 10),
+            _stat('زيارات المتجر', '${s['visits']}', Icons.visibility_rounded),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            _stat('طلبات آخر 30 يوم', '${s['orders_30d']}', Icons.receipt_long_rounded, onTap: () => widget.onGoTo(2)),
+            const SizedBox(width: 10),
+            _stat('المنتجات', '${s['products']}', Icons.inventory_2_rounded, onTap: () => widget.onGoTo(1)),
+          ]),
+          const SizedBox(height: 16),
+          const Text('بيع أكتر', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(
+              child: ElevatedButton.icon(onPressed: () => widget.onGoTo(1), icon: const Icon(Icons.add_rounded), label: const Text('أضف منتج')),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: slug == null ? () => widget.onGoTo(3) : () => _shareStore(slug),
+                icon: const Icon(Icons.share_rounded),
+                label: const Text('شارك متجرك'),
+              ),
+            ),
+          ]),
+          if (top.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            const Text('الأكثر مبيعاً (30 يوم)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            const SizedBox(height: 6),
+            for (final (i, t) in top.indexed)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(backgroundColor: AppColors.surfaceAlt, child: Text('${i + 1}', style: const TextStyle(fontWeight: FontWeight.w800))),
+                title: Text(t['name'] as String? ?? ''),
+                trailing: Text('${t['sold']} قطعة', style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.crystal)),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------
+// Store profile: name, description, logo, cover
+// ---------------------------------------------------------------------
+
+class _StoreProfileCard extends StatefulWidget {
+  const _StoreProfileCard({required this.shop, required this.onSaved});
+  final Map<String, dynamic> shop;
+  final VoidCallback onSaved;
+
+  @override
+  State<_StoreProfileCard> createState() => _StoreProfileCardState();
+}
+
+class _StoreProfileCardState extends State<_StoreProfileCard> {
+  late final _name = TextEditingController(text: widget.shop['name'] as String? ?? '');
+  late final _desc = TextEditingController(text: widget.shop['description'] as String? ?? '');
+  late String? _logo = widget.shop['logo_url'] as String?;
+  late String? _cover = widget.shop['cover_image_url'] as String?;
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _desc.dispose();
+    super.dispose();
+  }
+
+  Future<String?> _pick() async {
+    final file = await UploadService.pickImage(source: ImageSource.gallery);
+    if (file == null) return null;
+    setState(() => _busy = true);
+    try {
+      return await UploadService.uploadPublicPhoto(purpose: 'products', file: file);
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر رفع الصورة')));
+      return null;
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _pickCover() async {
+    final url = await _pick();
+    if (url != null) setState(() => _cover = url);
+  }
+
+  Future<void> _pickLogo() async {
+    final url = await _pick();
+    if (url != null) setState(() => _logo = url);
+  }
+
+  Future<void> _save() async {
+    setState(() => _busy = true);
+    try {
+      await StoreService.updateShopProfile(
+        shopId: widget.shop['id'] as String,
+        name: _name.text.trim(),
+        description: _desc.text.trim(),
+        logoUrl: _logo,
+        coverUrl: _cover,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اتحفظ شكل متجرك')));
+      widget.onSaved();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_errorText(e, 'تعذر الحفظ'))));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
+      clipBehavior: Clip.antiAlias,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        InkWell(
+          onTap: _busy ? null : _pickCover,
+          child: SizedBox(
+            height: 130,
+            child: Stack(fit: StackFit.expand, children: [
+              if (_cover == null)
+                const DecoratedBox(decoration: BoxDecoration(gradient: AppColors.brandGradient))
+              else
+                Image.network(_cover!, fit: BoxFit.cover),
+              const PositionedDirectional(bottom: 8, end: 8, child: _Pill('📷 غيّر الغلاف', Colors.black54, Colors.white)),
+            ]),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Row(children: [
+              InkWell(
+                onTap: _busy ? null : _pickLogo,
+                child: Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(16),
+                    image: _logo != null ? DecorationImage(image: NetworkImage(_logo!), fit: BoxFit.cover) : null,
+                  ),
+                  child: _logo == null ? const Icon(Icons.add_photo_alternate_outlined, color: AppColors.inkMuted) : null,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(child: Text('لوجو وغلاف متجرك بيظهروا للزبون أول ما يفتح المتجر', style: TextStyle(fontSize: 12, color: AppColors.inkMuted))),
+            ]),
+            const SizedBox(height: 12),
+            TextField(controller: _name, decoration: const InputDecoration(labelText: 'اسم المتجر')),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _desc,
+              maxLines: 3,
+              minLines: 2,
+              decoration: const InputDecoration(labelText: 'وصف المتجر', hintText: 'بتبيع إيه؟ بتوصّل فين؟ مواعيدك؟', alignLabelWithHint: true),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: _busy ? null : _save,
+              child: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('حفظ شكل المتجر'),
+            ),
+          ]),
+        ),
+      ]),
     );
   }
 }
