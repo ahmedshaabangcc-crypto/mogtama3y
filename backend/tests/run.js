@@ -643,6 +643,21 @@ const denied = (r) => !!r.error;
   check('EXPLOIT blocked: another user reads someone\'s push devices',
     (await as(db, Cu, `select id from push_subscriptions`)).rows?.length === 0);
   check('EXPLOIT blocked: users read the push secret', denied(await as(db, M, `select * from private.push_settings`)));
+  // Delivery fee (0057)
+  check('merchant sets a delivery fee and a free-delivery threshold',
+    ok(await as(db, M, `select public.set_my_shop_delivery($1, 25, 500)`, [proShop])));
+  check('EXPLOIT blocked: someone else sets the delivery fee', denied(await as(db, Cu, `select public.set_my_shop_delivery($1, 0)`, [proShop])));
+  check('a negative fee is refused', denied(await as(db, M, `select public.set_my_shop_delivery($1, -5)`, [proShop])));
+  await admin(db, `update shop_products set stock = null where id = $1`, [stockP]);
+  const small = await as(db, null, `select public.place_store_order($1, $2::jsonb, 'سارة', '01088888881', 'شارع 10، المعادي، عمارة 5') as code`,
+    [proShop, JSON.stringify([{ product_id: p2.rows[0].id, quantity: 1 }])]);
+  const smallO = (await as(db, null, `select public.get_store_order($1) as o`, [small.rows?.[0]?.code])).rows?.[0]?.o;
+  check('delivery is added to a small order (35 + 25 = 60)', Number(smallO?.total) === 60 && Number(smallO?.delivery_fee) === 25, smallO);
+  const big = await as(db, null, `select public.place_store_order($1, $2::jsonb, 'سارة', '01088888882', 'شارع 10، المعادي، عمارة 5') as code`,
+    [proShop, JSON.stringify([{ product_id: stockP, quantity: 2 }])]);
+  const bigO = (await as(db, null, `select public.get_store_order($1) as o`, [big.rows?.[0]?.code])).rows?.[0]?.o;
+  check('delivery is free above the threshold (600 ≥ 500)', Number(bigO?.total) === 600 && Number(bigO?.delivery_fee) === 0, bigO);
+
   check('with a president in place, owners can no longer call elections themselves',
     denied(await as(db, F, `select public.create_election('تاني', now() + interval '2 days')`)));
 
