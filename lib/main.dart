@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'core/app_flavor.dart';
 import 'core/auth/auth_service.dart';
 import 'core/supabase/supabase_config.dart';
 import 'core/theme/app_theme.dart';
@@ -33,7 +34,7 @@ class MogtamayApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'مُجتمعي',
+      title: appBrandName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       locale: const Locale('ar'),
