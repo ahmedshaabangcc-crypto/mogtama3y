@@ -86,7 +86,7 @@ class StoreService {
     if (userId == null) return [];
     final rows = await _client
         .from('shops')
-        .select('id, name, category, description, address, slug, whatsapp, scan_count, cover_image_url')
+        .select('id, name, category, description, address, slug, whatsapp, scan_count, cover_image_url, logo_url')
         .eq('owner_id', userId)
         .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(rows as List);
