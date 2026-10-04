@@ -18,6 +18,7 @@ import '../shared/install_app_banner.dart';
 import '../shared/load_error_view.dart';
 import '../shared/push_opt_in.dart';
 import '../support/support_contact_screen.dart';
+import 'starter_products_screen.dart';
 
 String _money(num v) => '${NumberFormat('#,##0.##').format(v)} ج.م';
 String _errorText(Object e, String fallback) => e is PostgrestException ? e.message : fallback;
@@ -332,6 +333,36 @@ class _ProductsTabState extends State<_ProductsTab> {
     }
   }
 
+  Future<void> _openStarter() async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => StarterProductsScreen(shopId: widget.shopId, shopCategory: widget.shopCategory),
+    ));
+    _load();
+  }
+
+  Future<void> _openPricing() async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => QuickPricingScreen(shopId: widget.shopId)));
+    _load();
+  }
+
+  Widget _unpricedBanner() {
+    final n = _products.where((p) => ((p['price'] as num?) ?? 0) == 0).length;
+    if (n == 0) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Material(
+        color: AppColors.gold.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(16),
+        child: ListTile(
+          leading: const Icon(Icons.sell_rounded, color: AppColors.gold),
+          title: Text('عندك $n منتج من غير سعر', style: const TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: const Text('مخفيين عن الزباين لحد ما تحط سعرهم'),
+          trailing: ElevatedButton(onPressed: _openPricing, child: const Text('حط الأسعار')),
+        ),
+      ),
+    );
+  }
+
   void _share(Map<String, dynamic> p) {
     final slug = widget.shopSlug;
     if (slug == null) {
@@ -357,16 +388,39 @@ class _ProductsTabState extends State<_ProductsTab> {
           : _loadError
               ? LoadErrorView(onRetry: _load)
               : _products.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Text('لسه مفيش منتجات. دوس "أضف منتج" وضيف أول منتج بصورة وسعر.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.inkMuted, height: 1.6)),
+                        padding: const EdgeInsets.all(24),
+                        child: Column(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(Icons.auto_awesome_rounded, color: AppColors.gold, size: 40),
+                          const SizedBox(height: 10),
+                          const Text('ابدأ بمنتجات جاهزة لنشاطك', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+                          const SizedBox(height: 6),
+                          const Text('هتلاقي منتجات نشاطك متجهزة بالاسم والوصف والأحجام، وإنت تكتب السعر بس.',
+                              textAlign: TextAlign.center, style: TextStyle(color: AppColors.inkMuted, height: 1.6)),
+                          const SizedBox(height: 14),
+                          ElevatedButton.icon(onPressed: _openStarter, icon: const Icon(Icons.playlist_add_rounded), label: const Text('ضيف منتجات نشاطك الجاهزة')),
+                          const SizedBox(height: 6),
+                          TextButton(onPressed: () => _edit(), child: const Text('أو ضيف منتج بنفسك')),
+                        ]),
                       ),
                     )
                   : RefreshIndicator(
                       onRefresh: _load,
-                      child: GridView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                      child: CustomScrollView(slivers: [
+                        SliverToBoxAdapter(child: _unpricedBanner()),
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                            child: Align(
+                              alignment: AlignmentDirectional.centerStart,
+                              child: TextButton.icon(onPressed: _openStarter, icon: const Icon(Icons.playlist_add_rounded, size: 18), label: const Text('ضيف منتجات جاهزة تانية')),
+                            ),
+                          ),
+                        ),
+                        SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                        sliver: SliverGrid.builder(
                         gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                           maxCrossAxisExtent: 240,
                           mainAxisSpacing: 12,
@@ -425,6 +479,8 @@ class _ProductsTabState extends State<_ProductsTab> {
                           );
                         },
                       ),
+                        ),
+                      ]),
                     ),
     );
   }
