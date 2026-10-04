@@ -93,6 +93,9 @@ jobs:
           sed -i -E 's#(<meta (name="(description|twitter:description)"|property="og:description") content=")[^"]*#\1متجر باسم محلك، ومنتجاتك بالصور والأسعار، والطلبات توصلك على واتساب — ببلاش ومن غير عمولة.#; s#(<meta (name="twitter:title"|property="og:title") content=")[^"]*#\1متجري — محلك أونلاين ببلاش#; s#(<meta property="og:url" content=")[^"]*#\1https://tajer.mogtama3y.com/#; s#(<meta name="apple-mobile-web-app-title" content=")[^"]*#\1متجري#' $f
           sed -i 's|"name": *"[^"]*"|"name": "متجري — مُجتمعي"|; s|"short_name": *"[^"]*"|"short_name": "متجري"|; s|"description": *"[^"]*"|"description": "لوحة التاجر: متجرك أونلاين، منتجاتك وطلباتك."|' build/web_tajer/manifest.json
           rm -f build/web_tajer/sitemap.xml
+          # Its own icon (gold bag) for the tab, home screen and install.
+          cp build/web_tajer/tajer_icons/favicon.png build/web_tajer/favicon.png
+          cp build/web_tajer/tajer_icons/Icon-*.png build/web_tajer/icons/
 
       # Each deploy_key step starts its own ssh-agent on the same socket;
       # clear the union deploy's agent first.

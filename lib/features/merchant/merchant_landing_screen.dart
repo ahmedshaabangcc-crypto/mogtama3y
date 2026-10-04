@@ -22,13 +22,16 @@ class MerchantLandingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final side = width > 600 ? (width - 560) / 2 : 18.0;
     return Scaffold(
       backgroundColor: AppColors.night,
       body: DecoratedBox(
         decoration: const BoxDecoration(gradient: AppColors.nightGradient),
         child: SafeArea(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 32),
+            // On a wide screen keep it a centred phone-width column.
+            padding: EdgeInsets.fromLTRB(side, 14, side, 32),
             children: [
               const InstallAppBanner(),
               Row(children: [
