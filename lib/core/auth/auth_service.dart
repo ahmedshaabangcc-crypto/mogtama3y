@@ -30,7 +30,7 @@ class AuthService {
       data: {'full_name': fullName, 'phone': phone},
       // The confirmation link returns to the app the user signed up in
       // (مُجتمعي, the union site or the merchant app), not the Site URL.
-      emailRedirectTo: kIsWeb ? Uri.base.origin : null,
+      emailRedirectTo: kIsWeb ? '${Uri.base.origin}/' : null,
     );
     final user = res.user;
     if (user == null) {
@@ -57,9 +57,11 @@ class AuthService {
   /// signed-in user are created by [listenAndSyncProfile]'s global
   /// listener (started once in main.dart), not here — signInWithOAuth
   /// is a full page redirect, so there's no "after this call" moment
-  /// to hook into on web.
+  /// to hook into on web. The trailing "/" matters: the allow-list
+  /// entries are "https://<site>/**", which a bare origin does not match
+  /// (Supabase would fall back to the Site URL, mogtama3y.com).
   static Future<void> signInWithGoogle() {
-    return _client.auth.signInWithOAuth(OAuthProvider.google, redirectTo: Uri.base.origin);
+    return _client.auth.signInWithOAuth(OAuthProvider.google, redirectTo: '${Uri.base.origin}/');
   }
 
   /// Starts a process-lifetime listener that creates the profiles/
