@@ -58,7 +58,7 @@ class AuthService {
   /// listener (started once in main.dart), not here — signInWithOAuth
   /// is a full page redirect, so there's no "after this call" moment
   /// to hook into on web. The trailing "/" matters: the allow-list
-  /// entries are "https://<site>/**", which a bare origin does not match
+  /// entries are `https://<site>/**`, which a bare origin does not match
   /// (Supabase would fall back to the Site URL, mogtama3y.com).
   static Future<void> signInWithGoogle() {
     return _client.auth.signInWithOAuth(OAuthProvider.google, redirectTo: '${Uri.base.origin}/');
