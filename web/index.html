@@ -81,6 +81,21 @@
     @keyframes slide { 0% { transform: translateX(260%); } 100% { transform: translateX(-120%); } }
   </style>
   <link rel="manifest" href="manifest.json">
+  <script>
+    // "Add to home screen": Chrome/Android fires beforeinstallprompt; we keep
+    // it so the app can offer its own install button (iOS has no prompt —
+    // the app shows Share → Add to Home Screen instructions instead).
+    window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); window.__installEvt = e; });
+    window.mogtama3yCanInstall = function () { return !!window.__installEvt; };
+    window.mogtama3yInstall = function () {
+      var e = window.__installEvt; if (!e) return false;
+      e.prompt(); window.__installEvt = null; return true;
+    };
+    window.mogtama3yIsStandalone = function () {
+      return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    };
+    window.mogtama3yIsIOS = function () { return /iphone|ipad|ipod/i.test(navigator.userAgent); };
+  </script>
 
   <!-- Google Analytics (GA4) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-LW5F70SQN3"></script>

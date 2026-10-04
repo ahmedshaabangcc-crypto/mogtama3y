@@ -14,7 +14,6 @@ import '../../features/legal/privacy_policy_screen.dart';
 import '../../features/legal/terms_conditions_screen.dart';
 import '../../features/lost_found/lost_found_hub_screen.dart';
 import '../../features/marketplace/marketplace_listing_screen.dart';
-import '../../features/merchant/merchant_dashboard_screen.dart';
 import '../../features/neighborhood/neighborhood_list_screen.dart';
 import '../../features/post/smart_post_picker_screen.dart';
 import '../../features/promote/token_wallet_screen.dart';
@@ -22,6 +21,8 @@ import '../../features/real_estate/real_estate_marketplace_screen.dart';
 import '../../features/recycling/recycling_marketplace_screen.dart';
 import '../../features/services/technicians_market_screen.dart';
 import '../../features/shell/app_shell.dart';
+import '../../features/shell/open_tajer_app.dart';
+import '../../features/shell/tajer_shell.dart';
 import '../../features/shell/union_shell.dart';
 import '../../features/shops/neighborhood_shops_screen.dart';
 import '../../features/sos/sos_emergency_screen.dart';
@@ -116,18 +117,26 @@ final _mogtama3ySections = <String, GoRouterWidgetBuilder>{
   AppRoutes.post: (_, _) => const SmartPostPickerScreen(),
   AppRoutes.bills: (_, _) => const BillPaymentHubScreen(),
   AppRoutes.about: (_, _) => const AboutPlatformScreen(),
-  AppRoutes.merchant: (_, _) => const MerchantDashboardScreen(),
+  // Merchants use their own app now; old /#/merchant links hand off to it.
+  AppRoutes.merchant: (_, _) => const OpenTajerApp(),
   AppRoutes.nearby: (_, _) => const DiscoverNearbyScreen(),
   AppRoutes.myAddress: (_, _) => const MyEAddressesScreen(),
 };
 
-final _sections = {..._sharedSections, ...(isUnionApp ? _unionSections : _mogtama3ySections)};
+final _tajerSections = <String, GoRouterWidgetBuilder>{
+  AppRoutes.merchant: (_, _) => const TajerShell(),
+};
+
+final _sections = {
+  ..._sharedSections,
+  ...(isUnionApp ? _unionSections : (isTajerApp ? _tajerSections : _mogtama3ySections)),
+};
 
 final appRouter = GoRouter(
   routes: [
     GoRoute(
       path: '/',
-      builder: (_, _) => isUnionApp ? const UnionShell() : const AppShell(),
+      builder: (_, _) => isUnionApp ? const UnionShell() : (isTajerApp ? const TajerShell() : const AppShell()),
       routes: [
         for (final e in _sections.entries) _section(e.key, e.value),
         if (!isUnionApp) ...[

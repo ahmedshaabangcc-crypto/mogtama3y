@@ -65,7 +65,9 @@
     '#store-lite .sl-order{background:#F2B661;color:#0B1530}' +
     '#store-lite .sl-wa{background:#1B3A6E;color:#fff;border:1px solid rgba(255,255,255,.18)}' +
     '#store-lite .sl-btn:focus-visible{outline:2px solid #fff;outline-offset:2px}' +
-    '#store-lite .sl-note{margin-top:8px;text-align:center;font-size:12px;color:rgba(255,255,255,.55)}';
+    '#store-lite .sl-note{margin-top:8px;text-align:center;font-size:12px;color:rgba(255,255,255,.55)}' +
+    '#store-lite .sl-add{display:block;width:100%;margin-top:10px;padding:11px;border-radius:14px;border:1px dashed rgba(242,182,97,.6);' +
+    'background:rgba(242,182,97,.08);color:#F2B661;font:inherit;font-size:14px;font-weight:700;cursor:pointer}';
 
   function el(tag, cls, text) {
     var e = document.createElement(tag);
@@ -125,6 +127,20 @@
     if (shop.category) head.appendChild(el('span', 'sl-cat', shop.category));
     wrap.appendChild(head);
 
+    // "Add this shop to your phone": the home-screen icon opens this store.
+    if (!(window.mogtama3yIsStandalone && window.mogtama3yIsStandalone())) {
+      var add = el('button', 'sl-add', '📲 ضيف المحل لشاشة موبايلك');
+      add.type = 'button';
+      add.addEventListener('click', function () {
+        if (window.mogtama3yInstall && window.mogtama3yInstall()) return;
+        var ios = window.mogtama3yIsIOS && window.mogtama3yIsIOS();
+        alert(ios
+          ? 'دوس زرار المشاركة ⬆️ تحت، وبعدين «إضافة إلى الشاشة الرئيسية».'
+          : 'من قايمة المتصفح (⋮) اختار «إضافة إلى الشاشة الرئيسية» أو «تثبيت التطبيق».');
+      });
+      wrap.appendChild(add);
+    }
+
     wrap.appendChild(el('h2', null, products.length ? 'المنتجات (' + products.length + ')' : 'المنتجات'));
     if (!products.length) {
       wrap.appendChild(el('div', 'sl-empty', 'المحل لسه بيضيف منتجاته. تقدر تكلّمه على واتساب وتسأله على اللي محتاجه.'));
@@ -172,6 +188,34 @@
 
     document.body.appendChild(root);
     document.title = shop.name + ' | مُجتمعي';
+    useShopAsApp(shop);
+  }
+
+  // Installing from a store page installs THE STORE: its name on the icon
+  // and the store link as the start page (Android via the manifest, iPhone
+  // via the apple title + the current URL).
+  function useShopAsApp(shop) {
+    try {
+      var manifest = {
+        name: shop.name,
+        short_name: shop.name.length > 12 ? shop.name.slice(0, 12) : shop.name,
+        start_url: location.href,
+        scope: location.origin + '/',
+        display: 'standalone',
+        background_color: '#0B1530',
+        theme_color: '#0B1530',
+        lang: 'ar',
+        dir: 'rtl',
+        icons: [
+          { src: location.origin + '/icons/Icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: location.origin + '/icons/Icon-512.png', sizes: '512x512', type: 'image/png' }
+        ]
+      };
+      var link = document.querySelector('link[rel="manifest"]');
+      if (link) link.href = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' }));
+      var t = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+      if (t) t.setAttribute('content', shop.name);
+    } catch (e) { /* the store still works without it */ }
   }
 
   function start() {

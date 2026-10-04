@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ITTIHAD_ENABLED: ${{ secrets.ITTIHAD_DEPLOY_KEY != '' }}
+      TAJER_ENABLED: ${{ secrets.TAJER_DEPLOY_KEY != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -77,3 +78,26 @@ jobs:
           publish_branch: gh-pages
           publish_dir: ./build/web_ittihad
           cname: ittihad.mogtama3y.com
+
+      # The merchant app "متجري": APP_FLAVOR=tajer, published to its own
+      # repo's GitHub Pages at tajer.mogtama3y.com and installable on the
+      # phone. Skipped until the TAJER_DEPLOY_KEY secret exists.
+      - name: Build merchant app (tajer)
+        if: env.TAJER_ENABLED == 'true'
+        run: |
+          flutter build web --release --base-href / --dart-define=APP_FLAVOR=tajer -o build/web_tajer
+          f=build/web_tajer/index.html
+          sed -i 's|<title>[^<]*</title>|<title>متجري — محلك أونلاين ببلاش</title>|' $f
+          sed -i -E 's#(<meta (name="(description|twitter:description)"|property="og:description") content=")[^"]*#\1متجر باسم محلك، ومنتجاتك بالصور والأسعار، والطلبات توصلك على واتساب — ببلاش ومن غير عمولة.#; s#(<meta (name="twitter:title"|property="og:title") content=")[^"]*#\1متجري — محلك أونلاين ببلاش#; s#(<meta property="og:url" content=")[^"]*#\1https://tajer.mogtama3y.com/#; s#(<meta name="apple-mobile-web-app-title" content=")[^"]*#\1متجري#' $f
+          sed -i 's|"name": *"[^"]*"|"name": "متجري — مُجتمعي"|; s|"short_name": *"[^"]*"|"short_name": "متجري"|; s|"description": *"[^"]*"|"description": "لوحة التاجر: متجرك أونلاين، منتجاتك وطلباتك."|' build/web_tajer/manifest.json
+          rm -f build/web_tajer/sitemap.xml
+
+      - name: Deploy merchant app
+        if: env.TAJER_ENABLED == 'true'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          deploy_key: ${{ secrets.TAJER_DEPLOY_KEY }}
+          external_repository: ahmedshaabangcc-crypto/tajer
+          publish_branch: gh-pages
+          publish_dir: ./build/web_tajer
+          cname: tajer.mogtama3y.com

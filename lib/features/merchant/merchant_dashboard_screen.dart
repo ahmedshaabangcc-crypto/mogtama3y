@@ -6,13 +6,17 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/app_flavor.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/shops/store_service.dart';
 import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../e_address/e_address_widgets.dart';
+import '../profile/profile_screen.dart';
+import '../shared/install_app_banner.dart';
 import '../shared/load_error_view.dart';
+import '../support/support_contact_screen.dart';
 
 String _money(num v) => '${NumberFormat('#,##0.##').format(v)} ج.م';
 String _errorText(Object e, String fallback) => e is PostgrestException ? e.message : fallback;
@@ -100,8 +104,11 @@ class _MerchantDashboardScreenState extends State<MerchantDashboardScreen> {
     if (_shops.isEmpty) {
       return Scaffold(
         backgroundColor: AppColors.bg,
-        appBar: AppBar(title: const Text('سجّل محلك')),
-        body: _RegisterShopForm(onCreated: _load),
+        appBar: AppBar(title: const Text('سجّل محلك'), actions: const [if (isTajerApp) _TajerAccountMenu()]),
+        body: Column(children: [
+          if (isTajerApp) const Padding(padding: EdgeInsets.fromLTRB(16, 12, 16, 0), child: InstallAppBanner()),
+          Expanded(child: _RegisterShopForm(onCreated: _load)),
+        ]),
       );
     }
 
@@ -119,6 +126,7 @@ class _MerchantDashboardScreenState extends State<MerchantDashboardScreen> {
                   items: [for (var i = 0; i < _shops.length; i++) DropdownMenuItem(value: i, child: Text(_shops[i]['name'] as String? ?? ''))],
                   onChanged: (i) => setState(() => _selected = i ?? 0),
                 ),
+          actions: const [if (isTajerApp) _TajerAccountMenu()],
           bottom: const TabBar(tabs: [Tab(text: 'المنتجات'), Tab(text: 'الطلبات'), Tab(text: 'متجري')]),
         ),
         body: TabBarView(
@@ -753,6 +761,36 @@ class _MyStoreTabState extends State<_MyStoreTab> {
           icon: const Icon(Icons.open_in_new_rounded, size: 16),
           label: const Text('شوف متجرك زي الزبون'),
         ),
+      ],
+    );
+  }
+}
+
+/// Account menu of the stand-alone merchant app (tajer.mogtama3y.com).
+class _TajerAccountMenu extends StatelessWidget {
+  const _TajerAccountMenu();
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.account_circle_outlined),
+      onSelected: (v) {
+        switch (v) {
+          case 'profile':
+            Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileScreen()));
+          case 'support':
+            Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SupportContactScreen()));
+          case 'mogtama3y':
+            launchUrl(Uri.parse(mogtama3yUrl), webOnlyWindowName: '_self');
+          case 'logout':
+            AuthService.signOut();
+        }
+      },
+      itemBuilder: (_) => const [
+        PopupMenuItem(value: 'profile', child: Text('حسابي')),
+        PopupMenuItem(value: 'support', child: Text('الدعم والمساعدة')),
+        PopupMenuItem(value: 'mogtama3y', child: Text('زور مُجتمعي')),
+        PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج')),
       ],
     );
   }

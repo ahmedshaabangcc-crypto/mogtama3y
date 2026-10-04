@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'contact_phones.dart';
@@ -27,6 +28,9 @@ class AuthService {
       email: email,
       password: password,
       data: {'full_name': fullName, 'phone': phone},
+      // The confirmation link returns to the app the user signed up in
+      // (مُجتمعي, the union site or the merchant app), not the Site URL.
+      emailRedirectTo: kIsWeb ? Uri.base.origin : null,
     );
     final user = res.user;
     if (user == null) {
