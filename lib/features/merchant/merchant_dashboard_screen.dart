@@ -482,21 +482,31 @@ class _ProductEditorState extends State<_ProductEditor> {
   }
 
   Future<void> _addImage(ImageSource source) async {
-    if (_images.length >= _maxImages) return;
-    final file = await UploadService.pickImage(source: source);
-    if (file == null) return;
+    final room = _maxImages - _images.length;
+    if (room <= 0) return;
+    // Camera: one shot. Gallery: pick several at once.
+    final files = source == ImageSource.camera
+        ? [?await UploadService.pickImage(source: source)]
+        : await UploadService.pickImages(limit: room);
+    if (files.isEmpty) return;
     setState(() {
       _uploading = true;
       _error = null;
     });
-    try {
-      final url = await UploadService.uploadPublicPhoto(purpose: 'products', file: file);
-      if (mounted) setState(() => _images.add(url));
-    } catch (_) {
-      if (mounted) setState(() => _error = 'تعذر رفع الصورة، حاول مرة أخرى');
-    } finally {
-      if (mounted) setState(() => _uploading = false);
-    }
+    final results = await Future.wait(files.take(room).map((f) async {
+      try {
+        return await UploadService.uploadPublicPhoto(purpose: 'products', file: f);
+      } catch (_) {
+        return null;
+      }
+    }));
+    if (!mounted) return;
+    final ok = results.whereType<String>().toList();
+    setState(() {
+      _images.addAll(ok);
+      _uploading = false;
+      if (ok.length < results.length) _error = 'فيه ${results.length - ok.length} صورة مارفعتش، جرّب تاني';
+    });
   }
 
   Future<void> _suggest() async {
@@ -631,7 +641,7 @@ class _ProductEditorState extends State<_ProductEditor> {
                       ),
                       IconButton(
                         visualDensity: VisualDensity.compact,
-                        tooltip: 'من المعرض',
+                        tooltip: 'من المعرض (كذا صورة مرة واحدة)',
                         onPressed: () => _addImage(ImageSource.gallery),
                         icon: const Icon(Icons.photo_library_rounded, color: AppColors.crystal),
                       ),

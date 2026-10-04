@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -14,9 +16,16 @@ class UploadService {
 
   static SupabaseClient get _client => Supabase.instance.client;
   static final ImagePicker _picker = ImagePicker();
+  static final _rand = Random();
 
   static Future<XFile?> pickImage({required ImageSource source}) {
     return _picker.pickImage(source: source, imageQuality: 85);
+  }
+
+  /// Several photos from the gallery in one go (up to [limit]).
+  static Future<List<XFile>> pickImages({int limit = 6}) async {
+    final files = await _picker.pickMultiImage(imageQuality: 85, limit: limit < 2 ? 2 : limit);
+    return files.take(limit).toList();
   }
 
   static Future<XFile?> pickVideo({required ImageSource source}) {
@@ -26,7 +35,8 @@ class UploadService {
   static String _pathFor(String purpose, XFile file) {
     final userId = AuthService.currentUser!.id;
     final ext = file.name.contains('.') ? file.name.split('.').last : 'jpg';
-    return '$userId/$purpose/${DateTime.now().millisecondsSinceEpoch}.$ext';
+    // Random suffix: several photos uploaded together share a millisecond.
+    return '$userId/$purpose/${DateTime.now().millisecondsSinceEpoch}_${_rand.nextInt(0x7fffffff).toRadixString(36)}.$ext';
   }
 
   /// Uploads to the public bucket and returns a directly-loadable URL.
