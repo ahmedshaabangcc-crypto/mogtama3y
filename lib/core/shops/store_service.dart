@@ -120,7 +120,9 @@ class StoreService {
     required String name,
     required double price,
     String? description,
-    String? imageUrl,
+    List<String> images = const [],
+    double? oldPrice,
+    List<String> highlights = const [],
     required bool isAvailable,
   }) async {
     final data = {
@@ -128,7 +130,11 @@ class StoreService {
       'name': name,
       'price': price,
       'description': description,
-      'image_url': imageUrl,
+      'images': images,
+      // The cover mirrors into image_url for older builds / store-lite.
+      'image_url': images.isEmpty ? null : images.first,
+      'old_price': oldPrice,
+      'highlights': highlights,
       'is_available': isAvailable,
     };
     if (productId == null) {
@@ -136,6 +142,36 @@ class StoreService {
     } else {
       await _client.from('shop_products').update(data).eq('id', productId);
     }
+  }
+
+  /// AI copywriter (Edge Function product-ai): name, description and
+  /// highlights suggested from the product photos and the merchant's notes.
+  static Future<({String name, String description, List<String> highlights})> suggestProductCopy({
+    List<String> imageUrls = const [],
+    String? name,
+    String? category,
+    String? notes,
+  }) async {
+    final res = await _client.functions.invoke('product-ai', body: {
+      'image_urls': imageUrls.take(3).toList(),
+      'name': name,
+      'category': category,
+      'notes': notes,
+    });
+    final data = Map<String, dynamic>.from(res.data as Map);
+    if (data['error'] != null) throw Exception(data['error']);
+    return (
+      name: data['name'] as String? ?? '',
+      description: data['description'] as String? ?? '',
+      highlights: List<String>.from(data['highlights'] as List? ?? const []),
+    );
+  }
+
+  /// All photos of a product (the images array, or the legacy single image).
+  static List<String> imagesOf(Map<String, dynamic> p) {
+    final list = List<String>.from(p['images'] as List? ?? const []);
+    if (list.isEmpty && p['image_url'] is String) list.add(p['image_url'] as String);
+    return list;
   }
 
   static Future<void> deleteProduct(String productId) async {

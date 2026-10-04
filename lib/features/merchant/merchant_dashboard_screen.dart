@@ -131,7 +131,7 @@ class _MerchantDashboardScreenState extends State<MerchantDashboardScreen> {
         ),
         body: TabBarView(
           children: [
-            _ProductsTab(key: ValueKey('p${shop['id']}'), shopId: shop['id'] as String),
+            _ProductsTab(key: ValueKey('p${shop['id']}'), shopId: shop['id'] as String, shopCategory: shop['category'] as String?),
             _OrdersTab(key: ValueKey('o${shop['id']}'), shopId: shop['id'] as String),
             _MyStoreTab(key: ValueKey('s${shop['id']}'), shop: shop, onChanged: _load),
           ],
@@ -250,8 +250,9 @@ class _RegisterShopFormState extends State<_RegisterShopForm> {
 // ---------------------------------------------------------------------
 
 class _ProductsTab extends StatefulWidget {
-  const _ProductsTab({super.key, required this.shopId});
+  const _ProductsTab({super.key, required this.shopId, this.shopCategory});
   final String shopId;
+  final String? shopCategory;
 
   @override
   State<_ProductsTab> createState() => _ProductsTabState();
@@ -295,7 +296,7 @@ class _ProductsTabState extends State<_ProductsTab> {
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => _ProductEditor(shopId: widget.shopId, product: product),
+      builder: (_) => _ProductEditor(shopId: widget.shopId, product: product, shopCategory: widget.shopCategory),
     );
     if (saved == true) _load();
   }
@@ -383,21 +384,28 @@ class _ProductsTabState extends State<_ProductsTab> {
 }
 
 class _ProductEditor extends StatefulWidget {
-  const _ProductEditor({required this.shopId, this.product});
+  const _ProductEditor({required this.shopId, this.product, this.shopCategory});
   final String shopId;
   final Map<String, dynamic>? product;
+  final String? shopCategory;
 
   @override
   State<_ProductEditor> createState() => _ProductEditorState();
 }
 
 class _ProductEditorState extends State<_ProductEditor> {
+  static const _maxImages = 6;
+
   late final _name = TextEditingController(text: widget.product?['name'] as String? ?? '');
   late final _price = TextEditingController(text: (widget.product?['price'] as num?)?.toString() ?? '');
+  late final _oldPrice = TextEditingController(text: (widget.product?['old_price'] as num?)?.toString() ?? '');
   late final _desc = TextEditingController(text: widget.product?['description'] as String? ?? '');
-  late String? _imageUrl = widget.product?['image_url'] as String?;
+  late final _highlights = TextEditingController(
+      text: List<String>.from(widget.product?['highlights'] as List? ?? const []).join('\n'));
+  late final List<String> _images = widget.product == null ? [] : StoreService.imagesOf(widget.product!);
   late bool _available = widget.product?['is_available'] as bool? ?? true;
   bool _uploading = false;
+  bool _thinking = false;
   bool _saving = false;
   String? _error;
 
@@ -405,30 +413,67 @@ class _ProductEditorState extends State<_ProductEditor> {
   void dispose() {
     _name.dispose();
     _price.dispose();
+    _oldPrice.dispose();
     _desc.dispose();
+    _highlights.dispose();
     super.dispose();
   }
 
-  Future<void> _pickImage(ImageSource source) async {
+  Future<void> _addImage(ImageSource source) async {
+    if (_images.length >= _maxImages) return;
     final file = await UploadService.pickImage(source: source);
     if (file == null) return;
-    setState(() => _uploading = true);
+    setState(() {
+      _uploading = true;
+      _error = null;
+    });
     try {
       final url = await UploadService.uploadPublicPhoto(purpose: 'products', file: file);
-      if (!mounted) return;
-      setState(() => _imageUrl = url);
+      if (mounted) setState(() => _images.add(url));
     } catch (_) {
-      if (!mounted) return;
-      setState(() => _error = 'تعذر رفع الصورة، حاول مرة أخرى');
+      if (mounted) setState(() => _error = 'تعذر رفع الصورة، حاول مرة أخرى');
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
   }
 
+  Future<void> _suggest() async {
+    setState(() {
+      _thinking = true;
+      _error = null;
+    });
+    try {
+      final s = await StoreService.suggestProductCopy(
+        imageUrls: _images,
+        name: _name.text.trim(),
+        category: widget.shopCategory,
+        notes: _desc.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() {
+        if (s.name.isNotEmpty && _name.text.trim().isEmpty) _name.text = s.name;
+        if (s.description.isNotEmpty) _desc.text = s.description;
+        if (s.highlights.isNotEmpty) _highlights.text = s.highlights.join('\n');
+      });
+    } on FunctionException catch (e) {
+      final details = e.details;
+      if (mounted) setState(() => _error = details is Map && details['error'] is String ? details['error'] as String : 'الذكاء الاصطناعي مش متاح دلوقتي');
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _thinking = false);
+    }
+  }
+
   Future<void> _save() async {
     final price = double.tryParse(_price.text.trim());
+    final oldPrice = _oldPrice.text.trim().isEmpty ? null : double.tryParse(_oldPrice.text.trim());
     if (_name.text.trim().isEmpty || price == null || price < 0) {
       setState(() => _error = 'اكتب اسم المنتج وسعر صحيح');
+      return;
+    }
+    if (oldPrice != null && oldPrice <= price) {
+      setState(() => _error = 'السعر قبل الخصم لازم يكون أكبر من السعر الحالي');
       return;
     }
     setState(() {
@@ -441,8 +486,10 @@ class _ProductEditorState extends State<_ProductEditor> {
         shopId: widget.shopId,
         name: _name.text.trim(),
         price: price,
+        oldPrice: oldPrice,
         description: _desc.text.trim().isEmpty ? null : _desc.text.trim(),
-        imageUrl: _imageUrl,
+        images: _images,
+        highlights: _highlights.text.split('\n').map((s) => s.trim()).where((s) => s.isNotEmpty).take(6).toList(),
         isAvailable: _available,
       );
       if (mounted) Navigator.of(context).pop(true);
@@ -452,6 +499,79 @@ class _ProductEditorState extends State<_ProductEditor> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Widget _photoStrip() {
+    return SizedBox(
+      height: 92,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          for (var i = 0; i < _images.length; i++)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8),
+              child: Stack(children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Image.network(_images[i], width: 92, height: 92, fit: BoxFit.cover),
+                ),
+                if (i == 0)
+                  PositionedDirectional(
+                    bottom: 4,
+                    start: 4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(8)),
+                      child: const Text('الغلاف', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.night)),
+                    ),
+                  ),
+                PositionedDirectional(
+                  top: 2,
+                  end: 2,
+                  child: InkWell(
+                    onTap: () => setState(() => _images.removeAt(i)),
+                    child: const CircleAvatar(radius: 11, backgroundColor: Colors.black54, child: Icon(Icons.close_rounded, size: 14, color: Colors.white)),
+                  ),
+                ),
+                if (i > 0)
+                  PositionedDirectional(
+                    bottom: 2,
+                    end: 2,
+                    child: InkWell(
+                      onTap: () => setState(() => _images.insert(0, _images.removeAt(i))),
+                      child: const CircleAvatar(radius: 11, backgroundColor: Colors.black54, child: Icon(Icons.star_rounded, size: 14, color: AppColors.gold)),
+                    ),
+                  ),
+              ]),
+            ),
+          if (_images.length < _maxImages)
+            Container(
+              width: 92,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceAlt,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: _uploading
+                  ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                  : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        tooltip: 'صوّر بالكاميرا',
+                        onPressed: () => _addImage(ImageSource.camera),
+                        icon: const Icon(Icons.photo_camera_rounded, color: AppColors.crystal),
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        tooltip: 'من المعرض',
+                        onPressed: () => _addImage(ImageSource.gallery),
+                        icon: const Icon(Icons.photo_library_rounded, color: AppColors.crystal),
+                      ),
+                    ]),
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -464,28 +584,66 @@ class _ProductEditorState extends State<_ProductEditor> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(widget.product == null ? 'منتج جديد' : 'تعديل المنتج', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            const SizedBox(height: 4),
+            Text('صور المنتج (لحد $_maxImages) — أول صورة هي الغلاف، ودوس ⭐ عشان تخلي صورة الغلاف',
+                style: const TextStyle(color: AppColors.inkMuted, fontSize: 11.5)),
+            const SizedBox(height: 10),
+            _photoStrip(),
             const SizedBox(height: 12),
-            Row(children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: _imageUrl == null
-                    ? Container(width: 80, height: 80, color: AppColors.surfaceAlt, child: _uploading ? const Center(child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.add_a_photo_outlined, color: AppColors.inkMuted))
-                    : Image.network(_imageUrl!, width: 80, height: 80, fit: BoxFit.cover),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  OutlinedButton.icon(onPressed: _uploading ? null : () => _pickImage(ImageSource.camera), icon: const Icon(Icons.photo_camera_outlined, size: 16), label: const Text('صوّر المنتج')),
-                  OutlinedButton.icon(onPressed: _uploading ? null : () => _pickImage(ImageSource.gallery), icon: const Icon(Icons.photo_library_outlined, size: 16), label: const Text('من المعرض')),
-                ]),
-              ),
-            ]),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(gradient: AppColors.brandGradient, borderRadius: BorderRadius.circular(16)),
+              child: Row(children: [
+                const Icon(Icons.auto_awesome_rounded, color: AppColors.gold),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text('خلّي الذكاء الاصطناعي يكتب الاسم والوصف والمميزات من صور المنتج',
+                      style: TextStyle(color: Colors.white, fontSize: 12.5, height: 1.5)),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.gold, foregroundColor: AppColors.night, padding: const EdgeInsets.symmetric(horizontal: 14)),
+                  onPressed: _thinking || _uploading ? null : _suggest,
+                  child: _thinking
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.night))
+                      : const Text('✨ اكتبلي'),
+                ),
+              ]),
+            ),
             const SizedBox(height: 12),
             TextField(controller: _name, decoration: const InputDecoration(labelText: 'اسم المنتج *')),
             const SizedBox(height: 10),
-            TextField(controller: _price, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'السعر بالجنيه *')),
+            Row(children: [
+              Expanded(
+                child: TextField(
+                  controller: _price,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'السعر بالجنيه *'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: _oldPrice,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'السعر قبل الخصم', hintText: 'اختياري'),
+                ),
+              ),
+            ]),
             const SizedBox(height: 10),
-            TextField(controller: _desc, maxLines: 2, decoration: const InputDecoration(labelText: 'وصف قصير (اختياري)')),
+            TextField(
+              controller: _desc,
+              maxLines: 5,
+              minLines: 3,
+              maxLength: 2000,
+              decoration: const InputDecoration(labelText: 'وصف المنتج', hintText: 'اكتب ملاحظاتك هنا، أو دوس «اكتبلي»', alignLabelWithHint: true),
+            ),
+            TextField(
+              controller: _highlights,
+              maxLines: 4,
+              minLines: 2,
+              decoration: const InputDecoration(labelText: 'مميزات المنتج', hintText: 'كل ميزة في سطر، مثلاً: قطن 100%', alignLabelWithHint: true),
+            ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: _available,
@@ -495,11 +653,10 @@ class _ProductEditorState extends State<_ProductEditor> {
             if (_error != null) Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
             const SizedBox(height: 10),
             SizedBox(
-              height: 48,
+              height: 50,
               child: ElevatedButton(
-                onPressed: _saving || _uploading ? null : _save,
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, foregroundColor: Colors.white),
-                child: const Text('حفظ'),
+                onPressed: _saving || _uploading || _thinking ? null : _save,
+                child: _saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('حفظ المنتج'),
               ),
             ),
           ],

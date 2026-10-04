@@ -589,6 +589,17 @@ const denied = (r) => !!r.error;
   check('the owner sees who opened the address', views.rows?.some((v) => v.viewer_name === 'customer'), views);
   check('EXPLOIT blocked: someone else reads the view log', denied(await as(db, Cu, `select * from public.my_e_address_views($1)`, [salamId])));
   check('EXPLOIT blocked: users read the view table directly', denied(await as(db, M, `select * from e_address_views`)));
+  // Professional products (0053)
+  const proShop = (await admin(db, `select id from shops where owner_id = $1 limit 1`, [M]))[0].id;
+  const pro = await as(db, M, `insert into shop_products (shop_id, name, price, old_price, images, highlights, description)
+    values ($1, 'تيشيرت', 150, 200, array['a.jpg','b.jpg','c.jpg'], array['قطن 100%','مقاسات كاملة'], 'وصف') returning id`, [proShop]);
+  check('owner adds a product with photos, old price and highlights', ok(pro), pro);
+  check('more than 6 photos are refused',
+    denied(await as(db, M, `insert into shop_products (shop_id, name, price, images) values ($1, 'x', 1, array['1','2','3','4','5','6','7'])`, [proShop])));
+  check('an "old price" lower than the price is refused',
+    denied(await as(db, M, `insert into shop_products (shop_id, name, price, old_price) values ($1, 'x', 100, 90)`, [proShop])));
+  check('guests see the photos and the discount',
+    (await as(db, null, `select cardinality(images) n, old_price::float o from shop_products where id = $1`, [pro.rows[0].id])).rows?.[0]?.n === 3);
   check('with a president in place, owners can no longer call elections themselves',
     denied(await as(db, F, `select public.create_election('تاني', now() + interval '2 days')`)));
 
