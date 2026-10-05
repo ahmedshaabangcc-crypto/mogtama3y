@@ -309,11 +309,11 @@ class _ExploreLocationBoxState extends State<_ExploreLocationBox> {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) return;
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) return;
+      // Only use the location silently when it's already allowed — never
+      // pop the browser's permission prompt just for opening the app. The
+      // prompt comes when the person taps "اكتشف حواليك".
+      final permission = await Geolocator.checkPermission();
+      if (permission != LocationPermission.always && permission != LocationPermission.whileInUse) return;
 
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
