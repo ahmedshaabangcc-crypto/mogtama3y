@@ -15,6 +15,8 @@ import '../e_address/e_address_widgets.dart';
 import '../marketplace/item_details_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../profile/profile_screen.dart';
+import '../shared/made_by_apex.dart';
+import 'home_feed.dart';
 
 class _Category {
   const _Category(this.label, this.sublabel, this.image);
@@ -40,7 +42,16 @@ BoxDecoration _glass({double radius = 22}) => BoxDecoration(
       border: Border.all(color: AppColors.glassBorder),
     );
 
-/// The pre-login / guest landing screen — matches design/screens/01_home_guest.png.
+/// Content column width on wide screens (desktop), so the page reads like a
+/// store front instead of stretching edge to edge.
+const _maxContentWidth = 1100.0;
+
+Widget _centered(Widget child) => Center(
+      child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: _maxContentWidth), child: child),
+    );
+
+/// The home page: hero, offers and new products from the online stores,
+/// sections, new stores, quick services and the latest listings.
 class GuestHomeScreen extends StatelessWidget {
   const GuestHomeScreen({super.key});
 
@@ -54,15 +65,20 @@ class GuestHomeScreen extends StatelessWidget {
         slivers: [
           SliverToBoxAdapter(child: _Header()),
           SliverToBoxAdapter(
-            child: Padding(
+            child: _centered(Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const HomePromoBanners(),
+                  const SizedBox(height: 28),
+                  const StoreProductsRail(title: 'عروض وخصومات', subtitle: 'أقوى تخفيضات محلات الحي دلوقتي', offersOnly: true),
                   const _SectionHeader(title: 'أقسام الحي والخدمات'),
                   const SizedBox(height: 12),
                   _CategoryGrid(),
                   const SizedBox(height: 28),
+                  const StoreProductsRail(title: 'وصل جديد في المتاجر', subtitle: 'أحدث المنتجات من محلات منطقتك'),
+                  const NewStoresRail(),
                   const _SectionHeader(title: 'خدمات سريعة'),
                   const SizedBox(height: 12),
                   _QuickServicesRow(),
@@ -74,9 +90,11 @@ class GuestHomeScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   const _LatestListings(),
+                  const SizedBox(height: 24),
+                  const MadeByApex(),
                 ],
               ),
-            ),
+            )),
           ),
         ],
         ),
@@ -117,7 +135,7 @@ class _Header extends StatelessWidget {
             ),
           ),
         ),
-        Padding(
+        _centered(Padding(
       padding: const EdgeInsets.fromLTRB(16, 44, 16, 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -178,7 +196,7 @@ class _Header extends StatelessWidget {
           const EAddressSearchBar(),
         ],
       ),
-        ),
+        )),
       ],
     );
   }
@@ -366,12 +384,13 @@ class _SectionHeader extends StatelessWidget {
 class _CategoryGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: _categories.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: width >= 900 ? 6 : (width >= 600 ? 4 : 3),
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
         childAspectRatio: 0.74,
@@ -489,7 +508,7 @@ class _LatestListingsState extends State<_LatestListings> {
           .select('*, seller:profiles(full_name, is_verified)')
           .eq('status', 'active')
           .order('created_at', ascending: false)
-          .limit(2);
+          .limit(4);
       if (!mounted) return;
       setState(() => _listings = List<Map<String, dynamic>>.from(rows as List));
     } catch (_) {

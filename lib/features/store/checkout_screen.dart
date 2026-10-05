@@ -9,6 +9,7 @@ import '../../core/shops/store_service.dart';
 import '../../core/theme/app_colors.dart';
 import 'order_tracking_screen.dart';
 import 'store_cart.dart';
+import '../legal/privacy_policy_screen.dart';
 
 /// Cart + checkout: no account needed — name, mobile, address, cash on
 /// delivery. Signed-in customers can fill the address from their digital
@@ -222,6 +223,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         : Text('تأكيد الطلب — ${egp(_grandTotal)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                   ),
                 ),
+                const SizedBox(height: 8),
+                Wrap(alignment: WrapAlignment.center, children: [
+                  const Text('بتأكيد الطلب بيوصل اسمك ورقمك وعنوانك للمحل بس لتوصيل الطلب. ', style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted)),
+                  InkWell(
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen())),
+                    child: const Text('سياسة الخصوصية', style: TextStyle(fontSize: 11.5, color: AppColors.crystal, decoration: TextDecoration.underline)),
+                  ),
+                ]),
               ],
             ),
     );

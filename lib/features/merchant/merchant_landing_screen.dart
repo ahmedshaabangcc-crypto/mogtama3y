@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/install_app_banner.dart';
+import '../shared/made_by_apex.dart';
 
 /// The merchant app's front page (tajer.mogtama3y.com) — "مشروعك أونلاين":
 /// what the merchant gets, three steps, and one button to start.
@@ -120,6 +121,8 @@ class MerchantLandingScreen extends StatelessWidget {
                   child: const Text('ابدأ دلوقتي ببلاش'),
                 ),
               ),
+              const SizedBox(height: 20),
+              const MadeByApex(),
             ],
           ),
         ),

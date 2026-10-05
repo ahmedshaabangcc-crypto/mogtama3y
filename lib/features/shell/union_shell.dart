@@ -16,6 +16,7 @@ import '../profile/profile_screen.dart';
 import '../sos/sos_emergency_screen.dart';
 import '../union/union_dashboard_screen.dart';
 import '../union/union_landing_screen.dart';
+import '../shared/made_by_apex.dart';
 
 /// Shell of the separate owners'-union app (APP_FLAVOR=ittihad): only
 /// building governance, plus a permanent "اذهب إلى مُجتمعي" button.
@@ -144,6 +145,8 @@ class UnionMoreScreen extends StatelessWidget {
           const SizedBox(height: 8),
           const Text('نفس حسابك بيشتغل على مُجتمعي: سوق الجيران والمحلات والصيانة وأكتر.',
               textAlign: TextAlign.center, style: TextStyle(color: AppColors.inkMuted, fontSize: 11.5)),
+          const SizedBox(height: 12),
+          const MadeByApex(dark: false),
         ],
       ),
     );

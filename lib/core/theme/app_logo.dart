@@ -1,9 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
-/// The real مُجتمعي logo (house + three neighbors) — extracted from
-/// guest_home_screen.dart so auth_landing_screen.dart (and anywhere
-/// else that needs real branding instead of a generic icon) can reuse
-/// the exact same mark.
+/// The مُجتمعي mark: a gold roof over three neighbours on the night-crystal
+/// tile used across the app. tool/make_brand_icons.ps1 draws the same mark
+/// for the favicon and the home-screen icons — keep the two in step.
 class MogtamayLogo extends StatelessWidget {
   const MogtamayLogo({super.key, this.size = 72});
   final double size;
@@ -14,9 +15,13 @@ class MogtamayLogo extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(size * 0.28),
-        border: Border.all(color: Colors.black, width: 2),
+        borderRadius: BorderRadius.circular(size * 0.26),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF243F7A), Color(0xFF0B1530)],
+        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18), width: size / 72),
       ),
       child: CustomPaint(painter: _LogoPainter()),
     );
@@ -24,39 +29,43 @@ class MogtamayLogo extends StatelessWidget {
 }
 
 class _LogoPainter extends CustomPainter {
+  static const _goldTop = Color(0xFFF8CB7E);
+  static const _goldBottom = Color(0xFFE8A245);
+
   @override
   void paint(Canvas canvas, Size size) {
     final s = size.width / 200;
-    final stroke = Paint()
-      ..color = Colors.black
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 7 * s
-      ..strokeJoin = StrokeJoin.round
-      ..strokeCap = StrokeCap.round;
-    final path = Path()
-      ..moveTo(100 * s, 42 * s)
-      ..lineTo(150 * s, 84 * s)
-      ..lineTo(150 * s, 152 * s)
-      ..lineTo(50 * s, 152 * s)
-      ..lineTo(50 * s, 84 * s)
-      ..close();
-    canvas.drawPath(path, stroke);
+    final gold = Paint()
+      ..shader = const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [_goldTop, _goldBottom])
+          .createShader(Offset.zero & size);
 
-    void person(double cx, Color color, double headR, double top, double bottom) {
-      final fill = Paint()..color = color;
-      canvas.drawCircle(Offset(cx * s, top * s), headR * s, fill);
-      final body = Path()
-        ..moveTo((cx - headR) * s, bottom * s)
-        ..lineTo((cx - headR) * s, (top + headR + 6) * s)
-        ..quadraticBezierTo(cx * s, (top + headR - 5) * s, (cx + headR) * s, (top + headR + 6) * s)
-        ..lineTo((cx + headR) * s, bottom * s)
-        ..close();
-      canvas.drawPath(body, fill);
+    // Roof.
+    final roof = Path()
+      ..moveTo(42 * s, 96 * s)
+      ..lineTo(100 * s, 46 * s)
+      ..lineTo(158 * s, 96 * s);
+    canvas.drawPath(
+      roof,
+      Paint()
+        ..shader = gold.shader
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 13 * s
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+
+    // Three neighbours: head + shoulders, the middle one in gold.
+    void person(double cx, double headY, double r, Paint paint) {
+      canvas.drawCircle(Offset(cx * s, headY * s), r * s, paint);
+      final top = headY + r + 5;
+      final w = r * 3.6;
+      canvas.drawArc(Rect.fromLTWH((cx - w / 2) * s, top * s, w * s, r * 3.4 * s), math.pi, math.pi, true, paint);
     }
 
-    person(76, const Color(0xFF2E7FD6), 9, 112, 142);
-    person(100, const Color(0xFF189E6C), 11, 100, 145);
-    person(124, const Color(0xFFE8912B), 9, 112, 142);
+    final white = Paint()..color = Colors.white.withValues(alpha: 0.88);
+    person(66, 118, 10.5, white);
+    person(134, 118, 10.5, white);
+    person(100, 108, 13.5, gold);
   }
 
   @override
