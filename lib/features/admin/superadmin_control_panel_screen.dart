@@ -11,6 +11,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/wallet/wallet_service.dart';
 import '../auth/auth_landing_screen.dart';
 import 'admin_governance_screen.dart';
+import 'admin_reports_screen.dart';
 
 String _money(num v) => '${NumberFormat('#,##0.00').format(v)} ج.م';
 
@@ -241,6 +242,15 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
                 subtitle: const Text('طلبات رئاسة الاتحاد، انضمام لعمارات ملهاش رئيس، وبيع الأسماء المميزة'),
                 trailing: const Icon(Icons.chevron_left_rounded),
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminGovernanceScreen())),
+              ),
+            ),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.campaign_rounded, color: AppColors.crystal),
+                title: const Text('البلاغات', style: TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: const Text('بلاغات الناس: حوّلها للجهة المختصة وحدّث حالتها'),
+                trailing: const Icon(Icons.chevron_left_rounded),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminReportsScreen())),
               ),
             ),
             const SizedBox(height: 14),

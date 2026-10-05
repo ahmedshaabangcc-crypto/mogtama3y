@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/notifications/notifications_service.dart';
@@ -67,6 +68,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       await NotificationsService.markRead(n['id'] as String);
       _load();
     }
+    // In-app link (e.g. '/#/r/<id>' for a report update) → open it.
+    final link = (n['deep_link'] as String?)?.replaceFirst('/#', '');
+    if (link != null && link.startsWith('/') && link.length > 1 && mounted) context.push(link);
   }
 
   @override

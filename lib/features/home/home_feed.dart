@@ -327,3 +327,46 @@ class _NewStoresRailState extends State<NewStoresRail> {
     );
   }
 }
+
+/// "بلّغ عن مشكلة في حيّك" — the community-reports entry on the home page.
+class ReportCallout extends StatelessWidget {
+  const ReportCallout({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [Color(0xFF8E1F2B), Color(0xFF3A0B12)]),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+      ),
+      child: Row(children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('شايف مشكلة في حيّك؟', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            const Text('زبالة، حفر، إشغالات، مخالفة خطرة… صوّرها وبلّغ، وإحنا نوصّلها للجهة المختصة ونتابع.',
+                style: TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.5)),
+            const SizedBox(height: 10),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              ElevatedButton.icon(
+                onPressed: () => context.push(AppRoutes.newReport),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.gold, foregroundColor: AppColors.night, visualDensity: VisualDensity.compact),
+                icon: const Icon(Icons.campaign_rounded, size: 18),
+                label: const Text('بلّغ دلوقتي', style: TextStyle(fontWeight: FontWeight.w800)),
+              ),
+              OutlinedButton(
+                onPressed: () => context.push(AppRoutes.reports),
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white38), visualDensity: VisualDensity.compact),
+                child: const Text('بلاغات حيّك'),
+              ),
+            ]),
+          ]),
+        ),
+        const SizedBox(width: 8),
+        Icon(Icons.campaign_rounded, size: 60, color: Colors.white.withValues(alpha: 0.85)),
+      ]),
+    );
+  }
+}

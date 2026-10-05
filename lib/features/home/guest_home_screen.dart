@@ -70,6 +70,8 @@ class GuestHomeScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const ReportCallout(),
+                  const SizedBox(height: 16),
                   const HomePromoBanners(),
                   const SizedBox(height: 28),
                   const StoreProductsRail(title: 'عروض وخصومات', subtitle: 'أقوى تخفيضات محلات الحي دلوقتي', offersOnly: true),

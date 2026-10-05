@@ -675,6 +675,39 @@ const denied = (r) => !!r.error;
   check('EXPLOIT blocked: a user adds a fake directory place',
     denied(await as(db, Cu, `insert into directory_places (id, name, category, lat, lng) values ('x', 'x', 'x', 0, 0)`)));
 
+  // Community reports (0060)
+  const rep = await as(db, Cu, `select public.submit_report('نظافة وقمامة', 'زبالة متكومة قدام المدرسة', array['https://x/1.jpg'], 31.2, 29.9, 'الإسكندرية', 'سموحة', true) as id`);
+  const repId = rep.rows?.[0]?.id;
+  check('a signed-in user submits a report', !!repId, rep.error);
+  check('EXPLOIT blocked: a guest submits a report',
+    denied(await as(db, null, `select public.submit_report('نظافة وقمامة', 'زبالة كتير هنا', '{}', 31.2, 29.9)`)));
+  check('an unknown report category is refused',
+    denied(await as(db, Cu, `select public.submit_report('سياسة', 'كلام كتير هنا', '{}', 31.2, 29.9)`)));
+  check('a serious violation can be reported',
+    ok(await as(db, M, `select public.submit_report('مخالفة شديدة الخطورة', 'سلك كهربا مكشوف في الشارع', '{}', 31.2, 29.9)`)));
+  const pubRep = (await as(db, null, `select public.get_report($1) as r`, [repId])).rows?.[0]?.r;
+  check('guests can read a report, with the reporter hidden when asked', pubRep?.id === repId && pubRep?.reporter === null, pubRep);
+  check('EXPLOIT blocked: reading the reports table directly', denied(await as(db, M, `select user_id from reports`)));
+  const repNear = await as(db, null, `select public.list_reports(31.2, 29.9, 3) as r`);
+  check('the neighbourhood feed lists nearby reports', repNear.rows?.length === 2, repNear.rows?.length);
+  check('a user backs a report ("وأنا كمان")', (await as(db, M, `select public.toggle_report_vote($1) as v`, [repId])).rows?.[0]?.v === true);
+  check('the vote is counted once', (await admin(db, `select votes_count from reports where id = $1`, [repId]))[0].votes_count === 1);
+  check('EXPLOIT blocked: a normal user changes a report status',
+    denied(await as(db, Cu, `select public.admin_update_report($1, 'resolved')`, [repId])));
+  check('EXPLOIT blocked: a normal user reads the admin queue', denied(await as(db, Cu, `select public.admin_list_reports()`)));
+  check('the admin routes a report to the responsible body',
+    ok(await as(db, SA, `select public.admin_update_report($1, 'routed', 'اتبعت لحي شرق', 'حي شرق', 'واتساب الشكاوى')`, [repId])));
+  const notes = (await admin(db, `select user_id from notifications where deep_link = $1`, ['/#/r/' + repId])).map((r) => r.user_id).sort();
+  check('the reporter and the voter are both notified of the status change', notes.length === 2 && notes.includes(Cu) && notes.includes(M), notes);
+  const afterRoute = (await as(db, null, `select public.get_report($1) as r`, [repId])).rows?.[0]?.r;
+  check('the public sees who it was sent to, but not the admin note',
+    afterRoute?.routed_to === 'حي شرق' && afterRoute?.routed_note === undefined && afterRoute?.events?.length === 2, afterRoute);
+  await as(db, SA, `select public.admin_update_report($1, 'routed', null, null, null, null, true)`, [repId]);
+  check('a hidden report disappears from the public', (await as(db, null, `select public.get_report($1) as r`, [repId])).rows?.[0]?.r == null);
+  for (let i = 0; i < 4; i++) await as(db, Cu, `select public.submit_report('حفر ورصف', 'حفرة كبيرة في الشارع', '{}', 31.2, 29.9)`);
+  check('the daily limit stops report spam (5 a day)',
+    denied(await as(db, Cu, `select public.submit_report('حفر ورصف', 'حفرة تانية', '{}', 31.2, 29.9)`)));
+
   check('with a president in place, owners can no longer call elections themselves',
     denied(await as(db, F, `select public.create_election('تاني', now() + interval '2 days')`)));
 

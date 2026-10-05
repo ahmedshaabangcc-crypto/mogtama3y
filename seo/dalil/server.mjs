@@ -231,6 +231,35 @@ async function searchPage(q) {
   });
 }
 
+// ------------------------------------------------------- community reports
+
+const REPORT_STATUS = { new: 'جديد', reviewing: 'قيد المراجعة', routed: 'اتبعت للجهة المختصة', resolved: 'اتحلّ', rejected: 'مرفوض' };
+
+// Share target for a report: rich preview (photo, title) for TikTok,
+// Facebook and WhatsApp, then straight into the app's report page.
+async function reportPage(id) {
+  const r = await rpc('get_report', { p_id: id });
+  if (!r) return null;
+  const where = [r.district, r.governorate].filter(Boolean).join('، ');
+  const appUrl = `${APP}/#/r/${r.id}`;
+  const title = `بلاغ: ${r.category}${where ? ' — ' + where : ''} | مُجتمعي`;
+  const description = `${r.description} · ${REPORT_STATUS[r.status] || ''} · ${r.votes_count} ساكن معاه. ادخل واضغط «وأنا كمان».`;
+  const image = (r.photos && r.photos[0]) || `${APP}/icons/Icon-512.png`;
+  return `<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(title)}</title>
+<meta name="description" content="${esc(description)}">
+<meta name="robots" content="noindex">
+<meta property="og:type" content="article"><meta property="og:site_name" content="مُجتمعي">
+<meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(description)}">
+<meta property="og:image" content="${esc(image)}"><meta property="og:url" content="${SITE}/r/${esc(r.id)}">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(image)}">
+<meta http-equiv="refresh" content="0; url=${esc(appUrl)}">
+<style>body{font-family:system-ui,Tahoma,sans-serif;background:#0B1530;color:#fff;display:grid;place-items:center;min-height:100vh;margin:0;text-align:center}a{color:#F2B661}</style>
+</head><body><div><p>بنفتحلك البلاغ على مُجتمعي…</p><p><a href="${esc(appUrl)}">لو الصفحة ماتفتحتش اضغط هنا</a></p></div>
+<script>location.replace(${JSON.stringify(appUrl)})</script></body></html>`;
+}
+
 // ------------------------------------------------- registered online stores
 
 const egp = (n) => `${Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م`;
@@ -420,6 +449,10 @@ const server = http.createServer(async (req, res) => {
     if ((m = path.match(/^\/s\/([a-z0-9-]{3,40})\/p\/([0-9a-f-]{36})$/i))) {
       const html = await cached(`sp:${m[1]}:${m[2]}`, 600e3, () => productPage(m[1], m[2]));
       return html ? send(res, 200, html, 'text/html; charset=utf-8', 600) : send(res, 404, await cached('home', 3600e3, homePage));
+    }
+    if ((m = path.match(/^\/r\/([0-9a-f-]{36})$/i))) {
+      const html = await cached('r:' + m[1], 120e3, () => reportPage(m[1]));
+      return html ? send(res, 200, html, 'text/html; charset=utf-8', 120) : send(res, 404, await cached('home', 3600e3, homePage));
     }
     if ((m = path.match(/^\/s\/([a-z0-9-]{3,40})$/i))) {
       const html = await cached('s:' + m[1], 600e3, () => storePage(m[1]));
