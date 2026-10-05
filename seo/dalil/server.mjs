@@ -439,6 +439,56 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import nodePath from 'node:path';
 import crypto from 'node:crypto';
+import { spawn } from 'node:child_process';
+
+// Phones record in many formats (iPhones: HEVC .mov, which most Android
+// phones and desktop Chrome can't play). Every upload is converted, one at
+// a time, to H.264 MP4 with the longer side ≤ 1280 px (also ~4x smaller);
+// until that finishes the original is served under the .mp4 name.
+const queue = [];
+let converting = false;
+function enqueue(src, dst) {
+  queue.push([src, dst]);
+  if (!converting) runQueue();
+}
+async function runQueue() {
+  converting = true;
+  while (queue.length) {
+    const [src, dst] = queue.shift();
+    const tmp = dst + '.tmp.mp4';
+    const ok = await new Promise((resolve) => {
+      const p = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-i', src, '-threads', '1',
+        '-vf', "scale='if(gt(iw,ih),min(1280,iw),-2)':'if(gt(iw,ih),-2,min(1280,ih))'",
+        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26', '-pix_fmt', 'yuv420p',
+        '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', tmp]);
+      p.on('error', () => resolve(false));
+      p.on('close', (code) => resolve(code === 0));
+    });
+    if (ok) {
+      await fsp.rename(tmp, dst);
+      await fsp.rm(src, { force: true });
+      console.log('converted', nodePath.basename(dst));
+    } else {
+      await fsp.rm(tmp, { force: true });
+      console.error('convert failed', src);
+    }
+  }
+  converting = false;
+}
+// Convert anything left from before this existed (or interrupted by a restart).
+async function convertLeftovers() {
+  const root = nodePath.join(MEDIA_DIR, 'v');
+  let users = [];
+  try { users = await fsp.readdir(root); } catch { return; }
+  for (const u of users) {
+    for (const f of await fsp.readdir(nodePath.join(root, u))) {
+      if (f.endsWith('.tmp.mp4')) { await fsp.rm(nodePath.join(root, u, f), { force: true }); continue; }
+      const m = /^([a-z0-9]{8,40})(?:.src)?.(webm|mov|3gp|mp4)$/.exec(f);
+      if (!m || f === m[1] + '.mp4') continue;
+      enqueue(nodePath.join(root, u, f), nodePath.join(root, u, m[1] + '.mp4'));
+    }
+  }
+}
 
 const MEDIA_DIR = process.env.MEDIA_DIR || '/app/media';
 const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
@@ -483,11 +533,14 @@ async function handleUpload(req, res) {
   const dir = nodePath.join(MEDIA_DIR, 'v', userId);
   await fsp.mkdir(dir, { recursive: true });
   const dayAgo = Date.now() - 24 * 3600e3;
-  const today = (await Promise.all((await fsp.readdir(dir)).map((f) => fsp.stat(nodePath.join(dir, f))))).filter((s) => s.mtimeMs > dayAgo).length;
+  const files = (await fsp.readdir(dir)).filter((f) => !f.endsWith('.tmp.mp4'));
+  const stats = await Promise.all(files.map(async (f) => [f.split('.')[0], await fsp.stat(nodePath.join(dir, f))]));
+  const today = new Set(stats.filter(([, st]) => st.mtimeMs > dayAgo).map(([id]) => id)).size;
   if (today >= VIDEOS_PER_DAY) return json(res, 429, { error: 'وصلت لحد الفيديوهات النهارده' });
 
-  const name = `${Date.now().toString(36)}${crypto.randomBytes(6).toString('hex')}.${ext}`;
-  const file = nodePath.join(dir, name);
+  const id = `${Date.now().toString(36)}${crypto.randomBytes(6).toString('hex')}`;
+  const name = `${id}.mp4`;
+  const file = nodePath.join(dir, `${id}.src.${ext}`);
   const out = fs.createWriteStream(file);
   let size = 0;
   let tooBig = false;
@@ -511,20 +564,30 @@ async function handleUpload(req, res) {
     return json(res, tooBig ? 413 : 400, { error: tooBig ? 'الفيديو أكبر من 25 ميجا — قصّره شوية' : 'الفيديو فاضي' });
   }
   await new Promise((r) => (out.writableFinished ? r() : out.on('finish', r)));
+  enqueue(file, nodePath.join(dir, name));
   return json(res, 200, { url: `${SITE}/media/v/${userId}/${name}` });
 }
 
 async function serveVideo(req, res, userId, name) {
-  const file = nodePath.join(MEDIA_DIR, 'v', userId, name);
+  const dir = nodePath.join(MEDIA_DIR, 'v', userId);
+  const id = name.split('.')[0];
+  // Prefer the converted MP4; otherwise the original (still converting,
+  // or an old link that named the original's extension).
+  const candidates = [`${id}.mp4`, name, ...['mov', 'webm', '3gp', 'mp4'].map((e) => `${id}.src.${e}`)];
+  let file;
   let stat;
-  try {
-    stat = await fsp.stat(file);
-  } catch {
-    return send(res, 404, 'not found', 'text/plain', 60);
+  for (const c of candidates) {
+    try {
+      stat = await fsp.stat(nodePath.join(dir, c));
+      file = nodePath.join(dir, c);
+      break;
+    } catch {}
   }
-  const type = MIME[name.split('.').pop()] || 'application/octet-stream';
+  if (!file) return send(res, 404, 'not found', 'text/plain', 60);
+  const converted = file.endsWith(`${id}.mp4`);
+  const type = MIME[file.split('.').pop()] || 'application/octet-stream';
   const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
-  const headers = { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' };
+  const headers = { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': converted ? 'public, max-age=31536000, immutable' : 'no-cache', 'X-Content-Type-Options': 'nosniff' };
   if (range) {
     const start = range[1] ? Number(range[1]) : Math.max(stat.size - Number(range[2] || 0), 0);
     const end = range[1] && range[2] ? Math.min(Number(range[2]), stat.size - 1) : stat.size - 1;
@@ -612,4 +675,5 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`dalil listening on ${PORT}`);
   allIds().catch((e) => console.error('sitemap preload failed', e.message));
+  convertLeftovers().catch((e) => console.error('convert leftovers failed', e.message));
 });

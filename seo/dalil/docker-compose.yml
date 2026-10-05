@@ -4,11 +4,11 @@
 #   docker compose up -d
 services:
   web:
-    image: node:22-alpine
+    build: .
+    image: mogtama3y-dalil:latest
     container_name: mogtama3y-dalil
     restart: unless-stopped
     working_dir: /app
-    command: ["node", "server.mjs"]
     volumes:
       - ./server.mjs:/app/server.mjs:ro
       # Report videos uploaded by users (served at /media/v/...).
@@ -19,7 +19,7 @@ services:
       SUPABASE_KEY: ${SUPABASE_KEY}
       SITE: https://dalil.mogtama3y.com
       PORT: "8080"
-    mem_limit: 256m
+    mem_limit: 512m
     cpus: 0.5
     networks: [n8n_default]
     labels:
