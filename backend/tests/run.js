@@ -721,6 +721,51 @@ const denied = (r) => !!r.error;
   check('EXPLOIT blocked: guests post a listing',
     denied(await as(db, null, `insert into marketplace_listings (seller_id, title, price) values ($1, 'x', 1)`, [Cu])));
 
+  // People nearby, friends, chat (0062)
+  const P1 = await signUp(db, 'pal one', '01055555551');
+  const P2 = await signUp(db, 'pal two', '01055555552');
+  const P3 = await signUp(db, 'pal three', '01055555553');
+  check('nobody shows up nearby before opting in',
+    (await as(db, P1, `select * from public.nearby_people(31.2, 29.9)`)).rows?.length === 0);
+  check('opting in needs a location', denied(await as(db, P2, `select public.set_discoverable(true)`)));
+  await as(db, P2, `select public.set_discoverable(true, 31.2013, 29.9021, 'سموحة')`);
+  await as(db, P3, `select public.set_discoverable(true, 31.2050, 29.9050, 'سموحة')`);
+  const pplNear = await as(db, P1, `select * from public.nearby_people(31.2, 29.9)`);
+  check('people who opted in appear nearby, with a rough distance only',
+    pplNear.rows?.length === 2 && pplNear.rows.every((r) => /كم/.test(r.distance_label) && r.lat === undefined), pplNear.rows);
+  check('the stored position is rounded to the ~550 m grid',
+    Math.abs((await admin(db, `select lat_grid from people_presence where user_id = $1`, [P2]))[0].lat_grid - 31.2) < 1e-9);
+  check('EXPLOIT blocked: guests list people nearby', denied(await as(db, null, `select * from public.nearby_people(31.2, 29.9)`)));
+  check('EXPLOIT blocked: reading positions directly', denied(await as(db, P1, `select * from people_presence`)));
+  check('a user sends a friend request', (await as(db, P1, `select public.send_friend_request($1) as s`, [P2])).rows?.[0]?.s === 'sent');
+  check('the request notifies the other person',
+    (await admin(db, `select count(*)::int as n from notifications where user_id = $1 and deep_link = '/#/friends'`, [P2]))[0].n === 1);
+  check('EXPLOIT blocked: chatting before being friends', denied(await as(db, P1, `select public.send_direct_message($1, 'ازيك')`, [P2])));
+  await as(db, P2, `select public.respond_friend_request($1, true)`, [P1]);
+  check('accepting makes them friends', (await as(db, P1, `select public.friend_state($1) as s`, [P2])).rows?.[0]?.s === 'friends');
+  check('friends can chat', ok(await as(db, P1, `select public.send_direct_message($1, 'ازيك يا جار')`, [P2])));
+  await as(db, P1, `select public.send_direct_message($1, 'عامل ايه')`, [P2]);
+  check('a burst of messages sends one notification',
+    (await admin(db, `select count(*)::int as n from notifications where user_id = $1 and deep_link like '/#/chat/%'`, [P2]))[0].n === 1);
+  const thread = await as(db, P2, `select * from public.fetch_direct_messages($1)`, [P1]);
+  check('the other side reads the conversation in order', thread.rows?.length === 2 && thread.rows[0].body === 'ازيك يا جار' && thread.rows[0].mine === false, thread.rows);
+  check('opening the chat marks it read',
+    (await as(db, P2, `select unread from public.my_friends() where user_id = $1`, [P1])).rows?.[0]?.unread === 0);
+  check('EXPLOIT blocked: a third person reads the chat', (await as(db, P3, `select * from public.fetch_direct_messages($1)`, [P1])).rows?.length === 0);
+  check('EXPLOIT blocked: reading messages directly', denied(await as(db, P3, `select * from direct_messages`)));
+  await as(db, P2, `select public.block_user($1)`, [P1]);
+  check('blocking ends the friendship and stops messages',
+    denied(await as(db, P1, `select public.send_direct_message($1, 'تاني')`, [P2])) &&
+    (await as(db, P1, `select public.friend_state($1) as s`, [P2])).rows?.[0]?.s === 'none');
+  check('a blocked person disappears from nearby', !(await as(db, P1, `select user_id from public.nearby_people(31.2, 29.9)`)).rows?.some((r) => r.user_id === P2));
+  check('blocked users cannot send a new request', denied(await as(db, P1, `select public.send_friend_request($1)`, [P2])));
+  check('users can report someone', ok(await as(db, P3, `select public.flag_user($1, 'رسايل مزعجة')`, [P1])));
+  check('EXPLOIT blocked: a normal user reads reports about people', denied(await as(db, P3, `select * from public.admin_list_user_flags()`)));
+  await as(db, P3, `select public.set_discoverable(false)`);
+  check('switching off hides you and erases your position',
+    !(await as(db, P1, `select user_id from public.nearby_people(31.2, 29.9)`)).rows?.some((r) => r.user_id === P3) &&
+    (await admin(db, `select lat_grid from people_presence where user_id = $1`, [P3]))[0].lat_grid === null);
+
   check('with a president in place, owners can no longer call elections themselves',
     denied(await as(db, F, `select public.create_election('تاني', now() + interval '2 days')`)));
 

@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 
 import '../../core/places/directory_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../people/nearby_people_tab.dart';
 import '../shared/load_error_view.dart';
 import 'directory_place_screen.dart';
 
@@ -35,7 +36,10 @@ const _categories = <(String?, String, IconData)>[
 /// by name. Each one opens as a store page you can order from on WhatsApp.
 /// Works without an account, and costs nothing per search.
 class DiscoverNearbyScreen extends StatefulWidget {
-  const DiscoverNearbyScreen({super.key});
+  const DiscoverNearbyScreen({super.key, this.showPeople = false});
+
+  /// Open on the "ناس" tab instead of "أماكن".
+  final bool showPeople;
 
   @override
   State<DiscoverNearbyScreen> createState() => _DiscoverNearbyScreenState();
@@ -45,6 +49,8 @@ class _DiscoverNearbyScreenState extends State<DiscoverNearbyScreen> {
   Position? _position;
   String? _locationError;
   String? _category;
+  /// The "أماكن" | "ناس" toggle: true shows people nearby.
+  late bool _people = widget.showPeople;
   bool _loading = true;
   bool _loadError = false;
   List<Map<String, dynamic>> _places = [];
@@ -140,6 +146,24 @@ class _DiscoverNearbyScreenState extends State<DiscoverNearbyScreen> {
         children: [
           Padding(
             padding: EdgeInsets.fromLTRB(side, 10, side, 0),
+            child: SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(value: false, label: Text('أماكن'), icon: Icon(Icons.storefront_rounded, size: 18)),
+                  ButtonSegment(value: true, label: Text('ناس'), icon: Icon(Icons.people_alt_rounded, size: 18)),
+                ],
+                selected: {_people},
+                showSelectedIcon: false,
+                onSelectionChanged: (s) => setState(() => _people = s.first),
+              ),
+            ),
+          ),
+          if (_people)
+            Expanded(child: Padding(padding: EdgeInsets.fromLTRB(side, 10, side, 0), child: const NearbyPeopleTab()))
+          else ...[
+          Padding(
+            padding: EdgeInsets.fromLTRB(side, 10, side, 0),
             child: TextField(
               controller: _search,
               onChanged: _onSearchChanged,
@@ -187,6 +211,7 @@ class _DiscoverNearbyScreenState extends State<DiscoverNearbyScreen> {
             ),
           ),
           Expanded(child: Padding(padding: EdgeInsets.symmetric(horizontal: side), child: _body())),
+          ],
         ],
       ),
     );

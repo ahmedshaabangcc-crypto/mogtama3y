@@ -12,6 +12,7 @@ import '../../core/wallet/wallet_service.dart';
 import '../auth/auth_landing_screen.dart';
 import 'admin_governance_screen.dart';
 import 'admin_reports_screen.dart';
+import 'admin_user_flags_screen.dart';
 
 String _money(num v) => '${NumberFormat('#,##0.00').format(v)} ج.م';
 
@@ -251,6 +252,15 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
                 subtitle: const Text('بلاغات الناس: حوّلها للجهة المختصة وحدّث حالتها'),
                 trailing: const Icon(Icons.chevron_left_rounded),
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminReportsScreen())),
+              ),
+            ),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.person_off_rounded, color: AppColors.crystal),
+                title: const Text('بلاغات عن أشخاص', style: TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: const Text('بلاغات الناس عن مستخدمين في "ناس حواليك" والشات'),
+                trailing: const Icon(Icons.chevron_left_rounded),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminUserFlagsScreen())),
               ),
             ),
             const SizedBox(height: 14),

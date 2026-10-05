@@ -18,13 +18,18 @@ class UploadService {
   static final ImagePicker _picker = ImagePicker();
   static final _rand = Random();
 
+  // Phone photos come in at 3–4 MB; shrinking them before upload keeps the
+  // pages fast and the storage/bandwidth bill (Supabase free tier) small.
+  static const _maxSide = 1280.0;
+  static const _quality = 80;
+
   static Future<XFile?> pickImage({required ImageSource source}) {
-    return _picker.pickImage(source: source, imageQuality: 85);
+    return _picker.pickImage(source: source, maxWidth: _maxSide, maxHeight: _maxSide, imageQuality: _quality);
   }
 
   /// Several photos from the gallery in one go (up to [limit]).
   static Future<List<XFile>> pickImages({int limit = 6}) async {
-    final files = await _picker.pickMultiImage(imageQuality: 85, limit: limit < 2 ? 2 : limit);
+    final files = await _picker.pickMultiImage(maxWidth: _maxSide, maxHeight: _maxSide, imageQuality: _quality, limit: limit < 2 ? 2 : limit);
     return files.take(limit).toList();
   }
 

@@ -37,6 +37,8 @@ import '../../features/discover/directory_place_screen.dart';
 import '../../features/reports/reports_feed_screen.dart';
 import '../../features/reports/report_form_screen.dart';
 import '../../features/reports/report_details_screen.dart';
+import '../../features/people/friends_screen.dart';
+import '../../features/people/chat_screen.dart';
 
 /// URLs for the app's main sections, so a browser refresh or a shared
 /// link lands back in the same section instead of always on home.
@@ -83,6 +85,11 @@ class AppRoutes {
   /// "بلاغات حيّك" and "بلّغ عن مشكلة".
   static const reports = '/reports';
   static const newReport = '/report';
+  /// "أصحابي والرسائل" — friends, requests and private chats.
+  static const friends = '/friends';
+
+  /// A private chat with a friend.
+  static String chat(String userId) => '/chat/$userId';
 
   /// A merchant's public store (the QR on the shop opens this).
   static String store(String slug) => '/s/$slug';
@@ -131,6 +138,7 @@ final _mogtama3ySections = <String, GoRouterWidgetBuilder>{
   AppRoutes.myAddress: (_, _) => const MyEAddressesScreen(),
   AppRoutes.reports: (_, _) => const ReportsFeedScreen(),
   AppRoutes.newReport: (_, _) => const ReportFormScreen(),
+  AppRoutes.friends: (_, _) => const FriendsScreen(),
 };
 
 final _tajerSections = <String, GoRouterWidgetBuilder>{
@@ -164,6 +172,7 @@ final appRouter = GoRouter(
           GoRoute(path: 'o/:code', builder: (_, state) => OrderTrackingScreen(code: state.pathParameters['code']!)),
           GoRoute(path: 'd/:id', builder: (_, state) => DirectoryPlaceScreen(placeId: state.pathParameters['id']!)),
           GoRoute(path: 'r/:id', builder: (_, state) => ReportDetailsScreen(reportId: state.pathParameters['id']!)),
+          GoRoute(path: 'chat/:userId', builder: (_, state) => ChatScreen(userId: state.pathParameters['userId']!)),
         ],
       ],
     ),
@@ -174,7 +183,7 @@ final appRouter = GoRouter(
     final path = state.uri.path;
     if (path == '/' || path.isEmpty) return null;
     if (_sections.containsKey(path)) return null;
-    if (!isUnionApp && (_storePath.hasMatch(path.toLowerCase()) || _eAddressPath.hasMatch(path) || _orderPath.hasMatch(path) || _placePath.hasMatch(path) || _reportPath.hasMatch(path))) return null;
+    if (!isUnionApp && (_storePath.hasMatch(path.toLowerCase()) || _eAddressPath.hasMatch(path) || _orderPath.hasMatch(path) || _placePath.hasMatch(path) || _reportPath.hasMatch(path) || _chatPath.hasMatch(path))) return null;
     return '/';
   },
 );
@@ -184,3 +193,4 @@ final _orderPath = RegExp(r'^/o/T[0-9A-Z]{7}$');
 final _placePath = RegExp(r'^/d/[0-9a-zA-Z-]{8,64}$');
 final _eAddressPath = RegExp(r'^/a/[A-Za-z0-9-]{4,30}$');
 final _reportPath = RegExp(r'^/r/[0-9a-f-]{36}$');
+final _chatPath = RegExp(r'^/chat/[0-9a-f-]{36}$');

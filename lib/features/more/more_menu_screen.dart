@@ -157,6 +157,13 @@ class _MoreMenuScreenState extends State<MoreMenuScreen> {
             onTap: () => context.go(AppRoutes.myAddress),
           ),
           _MenuTile(
+            icon: Icons.forum_rounded,
+            iconColor: AppColors.teal,
+            title: 'أصحابي والرسائل',
+            subtitle: 'طلبات الصداقة والشات مع جيرانك',
+            onTap: () => context.go(AppRoutes.friends),
+          ),
+          _MenuTile(
             icon: Icons.storefront_rounded,
             iconColor: AppColors.teal,
             title: 'لوحة التاجر',
