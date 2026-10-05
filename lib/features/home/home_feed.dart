@@ -298,11 +298,15 @@ class _NewStoresRailState extends State<NewStoresRail> {
 
   Future<void> _loadNearby({required bool ask}) async {
     try {
-      var perm = await Geolocator.checkPermission();
-      if (ask && perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
-      if (perm != LocationPermission.always && perm != LocationPermission.whileInUse) {
-        if (mounted) setState(() => _needsLocation = true);
-        return;
+      // On a tap, ask the browser for the position directly (that is what
+      // shows the prompt; iPhone Safari can't report the permission state).
+      // Without a tap, only go ahead when it's known to be allowed.
+      if (!ask) {
+        final perm = await Geolocator.checkPermission();
+        if (perm != LocationPermission.always && perm != LocationPermission.whileInUse) {
+          if (mounted) setState(() => _needsLocation = true);
+          return;
+        }
       }
       if (mounted) setState(() => _locating = true);
       final p = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium));
@@ -323,7 +327,11 @@ class _NewStoresRailState extends State<NewStoresRail> {
         });
       }
     } catch (_) {
-      // Location off or unavailable — keep just the registered stores.
+      // Location off, refused or unknown: offer the "شوف محلات حواليك" tile.
+      if (mounted) setState(() => _needsLocation = true);
+      if (ask && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('مقدرناش نحدد موقعك — اسمح للموقع من إعدادات المتصفح وجرّب تاني')));
+      }
     } finally {
       if (mounted) setState(() => _locating = false);
     }
