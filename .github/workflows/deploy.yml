@@ -66,9 +66,10 @@ jobs:
           sed -i 's|<div class="name">[^<]*</div>|<div class="name">اتحاد الملاك</div>|' build/web_ittihad/index.html
           sed -i -E 's#(<meta (name="(description|twitter:description)"|property="og:description") content=")[^"]*#\1اتحاد ملاك عمارتك من الموبايل: المستحقات والقرارات والانتخابات والتقارير المالية والطوارئ وتصاريح الزوار.#; s#(<meta (name="twitter:title"|property="og:title") content=")[^"]*#\1اتحاد الملاك أونلاين#; s#(<meta property="og:url" content=")[^"]*#\1https://ittihad.mogtama3y.com/#' build/web_ittihad/index.html
           sed -i 's|"name": *"[^"]*"|"name": "اتحاد الملاك أونلاين"|; s|"short_name": *"[^"]*"|"short_name": "اتحاد الملاك"|' build/web_ittihad/manifest.json
-          # No merchant store pages or مُجتمعي sitemap on the union site.
+          # No merchant store pages on the union site; its own sitemap/robots.
           sed -i '/store-lite.js/d' build/web_ittihad/index.html
-          rm -f build/web_ittihad/store-lite.js build/web_ittihad/sitemap.xml
+          rm -f build/web_ittihad/store-lite.js
+          sed -i 's#https://mogtama3y.com/#https://ittihad.mogtama3y.com/#g' build/web_ittihad/sitemap.xml build/web_ittihad/robots.txt
 
       - name: Deploy union app
         if: env.ITTIHAD_ENABLED == 'true'
@@ -92,7 +93,8 @@ jobs:
           sed -i 's|<div class="name">[^<]*</div>|<div class="name">متجري</div>|' $f
           sed -i -E 's#(<meta (name="(description|twitter:description)"|property="og:description") content=")[^"]*#\1متجر باسم محلك، ومنتجاتك بالصور والأسعار، والطلبات توصلك على واتساب — ببلاش ومن غير عمولة.#; s#(<meta (name="twitter:title"|property="og:title") content=")[^"]*#\1متجري — محلك أونلاين ببلاش#; s#(<meta property="og:url" content=")[^"]*#\1https://tajer.mogtama3y.com/#; s#(<meta name="apple-mobile-web-app-title" content=")[^"]*#\1متجري#' $f
           sed -i 's|"name": *"[^"]*"|"name": "متجري — مُجتمعي"|; s|"short_name": *"[^"]*"|"short_name": "متجري"|; s|"description": *"[^"]*"|"description": "لوحة التاجر: متجرك أونلاين، منتجاتك وطلباتك."|' build/web_tajer/manifest.json
-          rm -f build/web_tajer/sitemap.xml
+          # Its own sitemap/robots (search engines index the merchant landing).
+          sed -i 's#https://mogtama3y.com/#https://tajer.mogtama3y.com/#g' build/web_tajer/sitemap.xml build/web_tajer/robots.txt
           # Its own icon (gold bag) for the tab, home screen and install.
           cp build/web_tajer/tajer_icons/favicon.png build/web_tajer/favicon.png
           cp build/web_tajer/tajer_icons/Icon-*.png build/web_tajer/icons/
