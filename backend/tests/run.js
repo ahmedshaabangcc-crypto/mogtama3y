@@ -766,6 +766,18 @@ const denied = (r) => !!r.error;
     !(await as(db, P1, `select user_id from public.nearby_people(31.2, 29.9)`)).rows?.some((r) => r.user_id === P3) &&
     (await admin(db, `select lat_grid from people_presence where user_id = $1`, [P3]))[0].lat_grid === null);
 
+  // Report media (0063)
+  const many = Array.from({ length: 12 }, (_, i) => 'https://x/' + i + '.jpg');
+  const vidOk = await as(db, P3, `select public.submit_report('حفر ورصف', 'حفرة كبيرة جدا', $1::text[], 31.2, 29.9, null, null, false, $2, 'https://www.tiktok.com/@mogtama3y/video/1') as id`,
+    [many, 'https://dalil.mogtama3y.com/media/v/' + P3 + '/a1.mp4']);
+  check('a report takes 12 photos, an uploaded video and a TikTok link', !!vidOk.rows?.[0]?.id, vidOk.error);
+  const vidPub = (await as(db, null, `select public.get_report($1) as r`, [vidOk.rows?.[0]?.id])).rows?.[0]?.r;
+  check('the public report shows the video and the link', vidPub?.video_url?.endsWith('/a1.mp4') && vidPub?.video_link?.includes('tiktok'), vidPub);
+  check("EXPLOIT blocked: attaching someone else's uploaded video",
+    denied(await as(db, P3, `select public.submit_report('حفر ورصف', 'حفرة كبيرة', '{}', 31.2, 29.9, null, null, false, $1)`, ['https://dalil.mogtama3y.com/media/v/' + P1 + '/x.mp4'])));
+  check('EXPLOIT blocked: a video link to any other website',
+    denied(await as(db, P3, `select public.submit_report('حفر ورصف', 'حفرة كبيرة', '{}', 31.2, 29.9, null, null, false, null, 'https://evil.example/x')`)));
+
   check('with a president in place, owners can no longer call elections themselves',
     denied(await as(db, F, `select public.create_election('تاني', now() + interval '2 days')`)));
 

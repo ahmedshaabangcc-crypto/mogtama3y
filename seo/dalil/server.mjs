@@ -428,6 +428,117 @@ async function sitemapPart(n) {
   return part.length ? urlset(part.map((id) => `${SITE}/p/${encodeURIComponent(id)}`)) : null;
 }
 
+// ------------------------------------------------- report videos (uploads)
+//
+// Short report videos live on this VPS (Supabase's free tier can't carry
+// video): POST /media/upload with the user's Supabase access token as a
+// Bearer token and the raw video as the body (≤ 25 MB, 10 a day per user).
+// Files are served from /media/v/<user id>/<file> with Range support.
+
+import fs from 'node:fs';
+import fsp from 'node:fs/promises';
+import nodePath from 'node:path';
+import crypto from 'node:crypto';
+
+const MEDIA_DIR = process.env.MEDIA_DIR || '/app/media';
+const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+const VIDEOS_PER_DAY = 10;
+const VIDEO_TYPES = { 'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov', 'video/3gpp': '3gp' };
+const MIME = { mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', '3gp': 'video/3gpp' };
+const ALLOWED_ORIGINS = new Set(['https://mogtama3y.com', 'https://www.mogtama3y.com', 'https://tajer.mogtama3y.com', 'https://ittihad.mogtama3y.com']);
+
+function cors(req, res) {
+  const origin = req.headers.origin || '';
+  if (ALLOWED_ORIGINS.has(origin) || /^http:\/\/localhost:\d+$/.test(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    res.setHeader('Access-Control-Max-Age', '86400');
+  }
+}
+
+async function userFromToken(req) {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (!token) return null;
+  const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}` } });
+  if (!r.ok) return null;
+  const u = await r.json();
+  return /^[0-9a-f-]{36}$/.test(u?.id || '') ? u.id : null;
+}
+
+function json(res, status, body) {
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+  res.end(JSON.stringify(body));
+}
+
+async function handleUpload(req, res) {
+  const userId = await userFromToken(req);
+  if (!userId) return json(res, 401, { error: 'سجّل دخول الأول' });
+  const ext = VIDEO_TYPES[(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase()];
+  if (!ext) return json(res, 415, { error: 'نوع الفيديو مش مدعوم (mp4 / webm / mov)' });
+  const declared = Number(req.headers['content-length'] || 0);
+  if (declared > MAX_VIDEO_BYTES) return json(res, 413, { error: 'الفيديو أكبر من 25 ميجا — قصّره شوية' });
+
+  const dir = nodePath.join(MEDIA_DIR, 'v', userId);
+  await fsp.mkdir(dir, { recursive: true });
+  const dayAgo = Date.now() - 24 * 3600e3;
+  const today = (await Promise.all((await fsp.readdir(dir)).map((f) => fsp.stat(nodePath.join(dir, f))))).filter((s) => s.mtimeMs > dayAgo).length;
+  if (today >= VIDEOS_PER_DAY) return json(res, 429, { error: 'وصلت لحد الفيديوهات النهارده' });
+
+  const name = `${Date.now().toString(36)}${crypto.randomBytes(6).toString('hex')}.${ext}`;
+  const file = nodePath.join(dir, name);
+  const out = fs.createWriteStream(file);
+  let size = 0;
+  let tooBig = false;
+  await new Promise((resolve, reject) => {
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > MAX_VIDEO_BYTES && !tooBig) {
+        tooBig = true;
+        req.unpipe(out);
+        out.destroy();
+        req.resume();
+      }
+    });
+    req.pipe(out);
+    req.on('end', resolve);
+    req.on('error', reject);
+    out.on('error', (e) => (tooBig ? resolve() : reject(e)));
+  });
+  if (tooBig || size === 0) {
+    await fsp.rm(file, { force: true });
+    return json(res, tooBig ? 413 : 400, { error: tooBig ? 'الفيديو أكبر من 25 ميجا — قصّره شوية' : 'الفيديو فاضي' });
+  }
+  await new Promise((r) => (out.writableFinished ? r() : out.on('finish', r)));
+  return json(res, 200, { url: `${SITE}/media/v/${userId}/${name}` });
+}
+
+async function serveVideo(req, res, userId, name) {
+  const file = nodePath.join(MEDIA_DIR, 'v', userId, name);
+  let stat;
+  try {
+    stat = await fsp.stat(file);
+  } catch {
+    return send(res, 404, 'not found', 'text/plain', 60);
+  }
+  const type = MIME[name.split('.').pop()] || 'application/octet-stream';
+  const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+  const headers = { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' };
+  if (range) {
+    const start = range[1] ? Number(range[1]) : Math.max(stat.size - Number(range[2] || 0), 0);
+    const end = range[1] && range[2] ? Math.min(Number(range[2]), stat.size - 1) : stat.size - 1;
+    if (start > end || start >= stat.size) {
+      res.writeHead(416, { 'Content-Range': `bytes */${stat.size}` });
+      return res.end();
+    }
+    res.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${stat.size}`, 'Content-Length': end - start + 1 });
+    return fs.createReadStream(file, { start, end }).pipe(res);
+  }
+  res.writeHead(200, { ...headers, 'Content-Length': stat.size });
+  fs.createReadStream(file).pipe(res);
+}
+
 // ---------------------------------------------------------------- server
 
 function send(res, status, body, type = 'text/html; charset=utf-8', maxAge = 3600) {
@@ -440,6 +551,16 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, SITE);
     const path = url.pathname;
     let m;
+    if (path.startsWith('/media/')) {
+      cors(req, res);
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204);
+        return res.end();
+      }
+      if (path === '/media/upload' && req.method === 'POST') return await handleUpload(req, res);
+      if ((m = path.match(/^\/media\/v\/([0-9a-f-]{36})\/([a-z0-9]{8,40}\.(?:mp4|webm|mov|3gp))$/))) return await serveVideo(req, res, m[1], m[2]);
+      return send(res, 404, 'not found', 'text/plain', 60);
+    }
     if (path === '/') return send(res, 200, await cached('home', 3600e3, homePage));
     if (path === '/robots.txt') return send(res, 200, `User-agent: *\nAllow: /\nDisallow: /search\nSitemap: ${SITE}/sitemap.xml\n`, 'text/plain; charset=utf-8', 86400);
     if (path === '/healthz') return send(res, 200, 'ok', 'text/plain', 0);

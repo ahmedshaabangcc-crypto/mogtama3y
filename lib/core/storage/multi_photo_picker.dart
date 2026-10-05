@@ -22,20 +22,31 @@ class _MultiPhotoPickerState extends State<MultiPhotoPicker> {
   final List<String> _urls = [];
   bool _uploading = false;
 
+  // Several photos at once from the gallery, uploaded one after another.
   Future<void> _add() async {
-    final file = await UploadService.pickImage(source: ImageSource.gallery);
-    if (file == null) return;
+    final remaining = widget.maxPhotos - _urls.length;
+    if (remaining <= 0) return;
+    final files = remaining == 1
+        ? [?await UploadService.pickImage(source: ImageSource.gallery)]
+        : await UploadService.pickImages(limit: remaining);
+    if (files.isEmpty) return;
     setState(() => _uploading = true);
-    try {
-      final url = await UploadService.uploadPublicPhoto(purpose: widget.purpose, file: file);
-      if (!mounted) return;
-      setState(() => _urls.add(url));
-      widget.onChanged(_urls);
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر رفع الصورة، حاول مرة أخرى.')));
-    } finally {
-      if (mounted) setState(() => _uploading = false);
+    var failed = 0;
+    for (final file in files) {
+      try {
+        final url = await UploadService.uploadPublicPhoto(purpose: widget.purpose, file: file);
+        if (!mounted) return;
+        setState(() => _urls.add(url));
+        widget.onChanged(_urls);
+      } catch (_) {
+        failed++;
+      }
+    }
+    if (mounted) {
+      setState(() => _uploading = false);
+      if (failed > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر رفع $failed صورة، حاول مرة أخرى.')));
+      }
     }
   }
 

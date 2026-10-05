@@ -148,6 +148,24 @@ class _ReportDetailsScreenState extends State<ReportDetailsScreen> {
                 ),
             ]),
           ),
+        if (photos.length > 1)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text('${photos.length} صور — اسحب عشان تشوف الباقي', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11.5, color: AppColors.inkMuted)),
+          ),
+        if (r['video_url'] != null) ...[
+          const SizedBox(height: 10),
+          ReportVideo(r['video_url'] as String),
+        ],
+        if (r['video_link'] != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: OutlinedButton.icon(
+              onPressed: () => launchUrl(Uri.parse(r['video_link'] as String), mode: LaunchMode.externalApplication),
+              icon: const Icon(Icons.smart_display_rounded),
+              label: const Text('شوف فيديو البلاغ'),
+            ),
+          ),
         const SizedBox(height: 12),
         Row(children: [
           Icon(icon, color: color),

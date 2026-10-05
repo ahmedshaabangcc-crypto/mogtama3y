@@ -11,6 +11,8 @@ services:
     command: ["node", "server.mjs"]
     volumes:
       - ./server.mjs:/app/server.mjs:ro
+      # Report videos uploaded by users (served at /media/v/...).
+      - ./media:/app/media
     environment:
       SUPABASE_URL: https://pxiabifybakbsqlycffc.supabase.co
       # Publishable key (public, same one the web app ships) — read-only data.

@@ -8,6 +8,7 @@ import '../../core/reports/report_service.dart';
 import '../../core/storage/multi_photo_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../../core/storage/video_upload.dart';
 
 /// "📢 بلّغ عن مشكلة": category, up to 4 photos, the spot (GPS), a short
 /// description and "hide my name". Signed-in users only (5 a day).
@@ -28,6 +29,9 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
   bool _locating = false;
   String? _locationError;
   bool _sending = false;
+  String? _videoUrl;
+  bool _videoUploading = false;
+  final _videoLink = TextEditingController();
 
   @override
   void initState() {
@@ -38,6 +42,7 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
   @override
   void dispose() {
     _description.dispose();
+    _videoLink.dispose();
     super.dispose();
   }
 
@@ -65,8 +70,27 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
     }
   }
 
+  Future<void> _pickVideo() async {
+    final file = await VideoUpload.pick();
+    if (file == null) return;
+    setState(() => _videoUploading = true);
+    try {
+      final url = await VideoUpload.upload(file);
+      if (mounted) setState(() => _videoUrl = url);
+    } catch (e) {
+      _snack(e is String ? e : 'تعذر رفع الفيديو، جرّب تاني');
+    } finally {
+      if (mounted) setState(() => _videoUploading = false);
+    }
+  }
+
   Future<void> _send() async {
     final p = _position;
+    final link = _videoLink.text.trim();
+    if (link.isNotEmpty && !ReportService.videoLinkPattern.hasMatch(link)) {
+      return _snack('لينك الفيديو لازم يكون من تيك توك أو يوتيوب أو فيسبوك أو إنستجرام');
+    }
+    if (_videoUploading) return _snack('استنى الفيديو يخلص رفع');
     if (_category == null) return _snack('اختار نوع المشكلة');
     if (_description.text.trim().length < 5) return _snack('اكتب وصف قصير للمشكلة');
     if (p == null) return _snack('حدد مكان المشكلة الأول');
@@ -81,6 +105,8 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
         governorate: governorateOf(p.latitude, p.longitude),
         district: _district,
         hideIdentity: _hideIdentity,
+        videoUrl: _videoUrl,
+        videoLink: link.isEmpty ? null : link,
       );
       if (!mounted) return;
       _snack('اتسجّل بلاغك، وهنبلغك بكل تحديث');
@@ -140,9 +166,34 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
               ),
           ]),
           const SizedBox(height: 18),
-          const Text('صور المشكلة (لحد 4)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+          const Text('صور المشكلة (اختار كذا صورة مرة واحدة)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
           const SizedBox(height: 8),
-          MultiPhotoPicker(purpose: 'reports', maxPhotos: 4, onChanged: (urls) => setState(() => _photos = List.of(urls))),
+          MultiPhotoPicker(purpose: 'reports', maxPhotos: 30, onChanged: (urls) => setState(() => _photos = List.of(urls))),
+          const SizedBox(height: 18),
+          const Text('فيديو (اختياري)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+          const SizedBox(height: 8),
+          Row(children: [
+            OutlinedButton.icon(
+              onPressed: _videoUploading ? null : _pickVideo,
+              icon: _videoUploading
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Icon(_videoUrl == null ? Icons.video_call_outlined : Icons.check_circle_rounded, color: _videoUrl == null ? null : AppColors.teal),
+              label: Text(_videoUploading ? 'بيترفع…' : (_videoUrl == null ? 'ارفع فيديو قصير' : 'اترفع الفيديو — غيّره')),
+            ),
+            if (_videoUrl != null)
+              IconButton(onPressed: () => setState(() => _videoUrl = null), icon: const Icon(Icons.close_rounded), tooltip: 'شيل الفيديو'),
+          ]),
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Text('لحد دقيقة و25 ميجا. الفيديو الأطول انشره على تيك توك وحط لينكه تحت.', style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted)),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _videoLink,
+            keyboardType: TextInputType.url,
+            textDirection: TextDirection.ltr,
+            decoration: const InputDecoration(labelText: 'أو لينك فيديو (تيك توك / يوتيوب / فيسبوك / إنستجرام)', hintText: 'https://www.tiktok.com/@…'),
+          ),
           const SizedBox(height: 18),
           const Text('المكان', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
           const SizedBox(height: 8),

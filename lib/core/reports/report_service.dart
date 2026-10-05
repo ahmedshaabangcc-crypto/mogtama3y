@@ -72,6 +72,9 @@ class ReportService {
 
   /// Share link with a preview (photo + title) for TikTok/Facebook/WhatsApp;
   /// it opens the report in the app.
+  /// Video links people can attach (must match the check in migration 0063).
+  static final videoLinkPattern = RegExp(r'^https://([a-z0-9-]+\.)*(tiktok\.com|youtube\.com|youtu\.be|facebook\.com|fb\.watch|instagram\.com)/', caseSensitive: false);
+
   static String shareUrl(String id) => 'https://dalil.mogtama3y.com/r/$id';
 
   static Future<String> submit({
@@ -83,6 +86,8 @@ class ReportService {
     String? governorate,
     String? district,
     bool hideIdentity = false,
+    String? videoUrl,
+    String? videoLink,
   }) async {
     final id = await _db.rpc('submit_report', params: {
       'p_category': category,
@@ -93,6 +98,8 @@ class ReportService {
       'p_governorate': governorate,
       'p_district': district,
       'p_hide_identity': hideIdentity,
+      'p_video_url': videoUrl,
+      'p_video_link': videoLink,
     });
     return id as String;
   }
