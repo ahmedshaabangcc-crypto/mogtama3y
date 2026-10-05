@@ -244,7 +244,8 @@ async function reportPage(id) {
   const appUrl = `${APP}/#/r/${r.id}`;
   const title = `بلاغ: ${r.category}${where ? ' — ' + where : ''} | مُجتمعي`;
   const description = `${r.description} · ${REPORT_STATUS[r.status] || ''} · ${r.votes_count} ساكن معاه. ادخل واضغط «وأنا كمان».`;
-  const image = (r.photos && r.photos[0]) || `${APP}/icons/Icon-512.png`;
+  const poster = r.video_url ? r.video_url.replace(/\.[a-z0-9]+$/, '.jpg') : null;
+  const image = (r.photos && r.photos[0]) || poster || `${APP}/icons/Icon-512.png`;
   return `<!doctype html>
 <html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>
@@ -466,6 +467,12 @@ async function runQueue() {
     });
     if (ok) {
       await fsp.rename(tmp, dst);
+      // A still from the first second: the share preview for video-only reports.
+      await new Promise((resolve) => {
+        const p = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-ss', '1', '-i', dst, '-frames:v', '1', '-vf', 'scale=720:-2', '-q:v', '4', dst.replace(/\.mp4$/, '.jpg')]);
+        p.on('error', resolve);
+        p.on('close', resolve);
+      });
       await fsp.rm(src, { force: true });
       console.log('converted', nodePath.basename(dst));
     } else {
@@ -622,6 +629,14 @@ const server = http.createServer(async (req, res) => {
       }
       if (path === '/media/upload' && req.method === 'POST') return await handleUpload(req, res);
       if ((m = path.match(/^\/media\/v\/([0-9a-f-]{36})\/([a-z0-9]{8,40}\.(?:mp4|webm|mov|3gp))$/))) return await serveVideo(req, res, m[1], m[2]);
+      if ((m = path.match(/^\/media\/v\/([0-9a-f-]{36})\/([a-z0-9]{8,40})\.jpg$/))) {
+        try {
+          const img = await fsp.readFile(nodePath.join(MEDIA_DIR, 'v', m[1], `${m[2]}.jpg`));
+          return send(res, 200, img, 'image/jpeg', 31536000);
+        } catch {
+          return send(res, 404, 'not found', 'text/plain', 60);
+        }
+      }
       return send(res, 404, 'not found', 'text/plain', 60);
     }
     if (path === '/') return send(res, 200, await cached('home', 3600e3, homePage));
