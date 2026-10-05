@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../core/places/directory_service.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -253,7 +255,9 @@ class _ProductCard extends StatelessWidget {
   }
 }
 
-/// Stores that opened online most recently.
+/// "محلات حواليك": stores registered on مُجتمعي first, then the nearest
+/// shops from the Egypt directory (order on WhatsApp). The location is used
+/// silently only when already allowed; otherwise a tile asks for it.
 class NewStoresRail extends StatefulWidget {
   const NewStoresRail({super.key});
 
@@ -262,12 +266,22 @@ class NewStoresRail extends StatefulWidget {
 }
 
 class _NewStoresRailState extends State<NewStoresRail> {
+  // Directory groups that are shops people order from (not offices, mosques…).
+  static const _shopCategories = {
+    'سوبر ماركت وبقالة', 'صيدليات', 'مطاعم', 'كافيهات', 'حلويات ومخبوزات', 'ملابس وأزياء',
+    'إلكترونيات وموبايلات', 'أدوات منزلية وأثاث', 'تجميل وعناية', 'هدايا ومكتبات', 'محلات متنوعة',
+  };
+
   List<Map<String, dynamic>> _shops = const [];
+  List<Map<String, dynamic>> _nearby = const [];
+  bool _needsLocation = false;
+  bool _locating = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _loadNearby(ask: false);
   }
 
   Future<void> _load() async {
@@ -282,50 +296,129 @@ class _NewStoresRailState extends State<NewStoresRail> {
     } catch (_) {}
   }
 
+  Future<void> _loadNearby({required bool ask}) async {
+    try {
+      var perm = await Geolocator.checkPermission();
+      if (ask && perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
+      if (perm != LocationPermission.always && perm != LocationPermission.whileInUse) {
+        if (mounted) setState(() => _needsLocation = true);
+        return;
+      }
+      if (mounted) setState(() => _locating = true);
+      final p = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium));
+      var rows = await DirectoryService.nearby(lat: p.latitude, lng: p.longitude, km: 1.5, limit: 120);
+      if (rows.where((r) => _shopCategories.contains(r['category'])).length < 8) {
+        rows = await DirectoryService.nearby(lat: p.latitude, lng: p.longitude, km: 5, limit: 150);
+      }
+      final shops = rows.where((r) => _shopCategories.contains(r['category']) && r['claimed_shop_id'] == null).toList()
+        // Shops you can order from on WhatsApp first, then by distance.
+        ..sort((a, b) {
+          final wa = (b['whatsapp'] != null ? 1 : 0) - (a['whatsapp'] != null ? 1 : 0);
+          return wa != 0 ? wa : ((a['distance_km'] as num) - (b['distance_km'] as num)).sign.toInt();
+        });
+      if (mounted) {
+        setState(() {
+          _nearby = shops.take(20).toList();
+          _needsLocation = false;
+        });
+      }
+    } catch (_) {
+      // Location off or unavailable — keep just the registered stores.
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_shops.isEmpty) return const SizedBox.shrink();
+    if (_shops.isEmpty && _nearby.isEmpty && !_needsLocation && !_locating) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(bottom: 28),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        const _RailHeader('متاجر الحي أونلاين', subtitle: 'اطلب من محلات منطقتك والدفع عند الاستلام'),
+        Row(children: [
+          const Expanded(child: _RailHeader('محلات حواليك', subtitle: 'اطلب من محلات منطقتك على مُجتمعي أو واتساب')),
+          TextButton(onPressed: () => context.push(AppRoutes.nearby), child: const Text('الكل', style: TextStyle(color: AppColors.gold))),
+        ]),
         SizedBox(
-          height: 128,
-          child: ListView.separated(
+          height: 136,
+          child: ListView(
             scrollDirection: Axis.horizontal,
-            itemCount: _shops.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 12),
-            itemBuilder: (context, i) {
-              final s = _shops[i];
-              final logo = s['logo_url'] as String?;
-              return InkWell(
-                borderRadius: BorderRadius.circular(18),
-                onTap: () => context.push('/s/${s['slug']}'),
-                child: Container(
-                  width: 112,
-                  padding: const EdgeInsets.all(10),
-                  decoration: _glass(),
-                  child: Column(children: [
-                    CircleAvatar(
-                      radius: 30,
-                      backgroundColor: AppColors.nightMid,
-                      backgroundImage: logo == null ? null : NetworkImage(logo),
-                      child: logo == null ? const Icon(Icons.storefront_rounded, color: AppColors.gold) : null,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(s['name'] as String? ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
-                    Text(s['category'] as String? ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white54, fontSize: 10.5)),
-                  ]),
-                ),
-              );
-            },
+            children: [
+              for (final s in _shops) ...[_registeredTile(s), const SizedBox(width: 12)],
+              if (_locating) const SizedBox(width: 112, child: Center(child: CircularProgressIndicator(color: AppColors.gold))),
+              if (_needsLocation) _askLocationTile(),
+              for (final p in _nearby) ...[_directoryTile(p), const SizedBox(width: 12)],
+            ],
           ),
         ),
       ]),
     );
   }
+
+  Widget _tile({required VoidCallback onTap, required Widget avatar, required String name, required String sub, Widget? badge}) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Container(
+        width: 116,
+        padding: const EdgeInsets.all(10),
+        decoration: _glass(),
+        child: Column(children: [
+          Stack(clipBehavior: Clip.none, children: [avatar, if (badge != null) Positioned(bottom: -4, left: -6, child: badge)]),
+          const SizedBox(height: 8),
+          Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
+          Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white54, fontSize: 10.5)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _registeredTile(Map<String, dynamic> s) {
+    final logo = s['logo_url'] as String?;
+    return _tile(
+      onTap: () => context.push('/s/${s['slug']}'),
+      avatar: CircleAvatar(
+        radius: 30,
+        backgroundColor: AppColors.nightMid,
+        backgroundImage: logo == null ? null : NetworkImage(logo),
+        child: logo == null ? const Icon(Icons.storefront_rounded, color: AppColors.gold) : null,
+      ),
+      name: s['name'] as String? ?? '',
+      sub: s['category'] as String? ?? '',
+      badge: _badge('متجر', AppColors.gold, AppColors.night),
+    );
+  }
+
+  Widget _directoryTile(Map<String, dynamic> p) {
+    final km = (p['distance_km'] as num?)?.toDouble();
+    final dist = km == null ? '' : (km < 1 ? '${(km * 1000).round()} م' : '${km.toStringAsFixed(1)} كم');
+    return _tile(
+      onTap: () => context.push('/d/${p['id']}'),
+      avatar: const CircleAvatar(radius: 30, backgroundColor: AppColors.nightMid, child: Icon(Icons.store_mall_directory_rounded, color: Colors.white70)),
+      name: p['name'] as String? ?? '',
+      sub: [p['category'], dist].where((x) => x != null && '$x'.isNotEmpty).join(' · '),
+      badge: p['whatsapp'] != null ? _badge('اطلب', const Color(0xFF1FA855), Colors.white) : null,
+    );
+  }
+
+  Widget _askLocationTile() {
+    return Padding(
+      padding: const EdgeInsets.only(left: 12),
+      child: _tile(
+        onTap: () => _loadNearby(ask: true),
+        avatar: const CircleAvatar(radius: 30, backgroundColor: AppColors.gold, child: Icon(Icons.my_location_rounded, color: AppColors.night)),
+        name: 'شوف محلات حواليك',
+        sub: 'فعّل الموقع',
+      ),
+    );
+  }
+
+  Widget _badge(String text, Color bg, Color fg) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(100)),
+        child: Text(text, style: TextStyle(color: fg, fontSize: 10, fontWeight: FontWeight.w800)),
+      );
 }
 
 /// "بلّغ عن مشكلة في حيّك" — the community-reports entry on the home page.
