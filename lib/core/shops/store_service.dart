@@ -27,8 +27,29 @@ class StoreService {
     'أدوات منزلية',
     'حلويات ومخبوزات',
     'عطارة / خضار وفاكهة',
-    'نشاط تاني',
+    otherActivity,
   ];
+
+  /// The "something else" entry: picking it asks the merchant to type the activity.
+  static const otherActivity = 'نشاط تاني';
+
+  /// Activities other merchants typed themselves (not in [categories]),
+  /// most used first — offered to the next merchant who registers.
+  static Future<List<String>> learnedActivities() async {
+    try {
+      final rows = await _client.from('shops').select('category').not('slug', 'is', null).limit(2000);
+      final counts = <String, int>{};
+      for (final r in rows as List) {
+        final c = (r['category'] as String?)?.trim().replaceAll(RegExp(r'\s+'), ' ') ?? '';
+        if (c.length < 2 || categories.contains(c)) continue;
+        counts[c] = (counts[c] ?? 0) + 1;
+      }
+      final list = counts.keys.toList()..sort((a, b) => counts[b]!.compareTo(counts[a]!));
+      return list.take(30).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
 
   // ---- public store page ----
 

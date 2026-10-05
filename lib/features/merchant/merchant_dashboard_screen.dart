@@ -166,12 +166,26 @@ class _RegisterShopFormState extends State<_RegisterShopForm> {
   final _slug = TextEditingController();
   final _whatsapp = TextEditingController();
   final _address = TextEditingController();
+  final _otherActivity = TextEditingController();
   String _category = StoreService.categories.first;
+  // Activities earlier merchants typed under "نشاط تاني".
+  List<String> _learned = const [];
   bool _saving = false;
   String? _error;
 
+  bool get _isOther => _category == StoreService.otherActivity;
+
+  @override
+  void initState() {
+    super.initState();
+    StoreService.learnedActivities().then((l) {
+      if (mounted) setState(() => _learned = l);
+    });
+  }
+
   @override
   void dispose() {
+    _otherActivity.dispose();
     _name.dispose();
     _slug.dispose();
     _whatsapp.dispose();
@@ -180,6 +194,11 @@ class _RegisterShopFormState extends State<_RegisterShopForm> {
   }
 
   Future<void> _submit() async {
+    final typed = _otherActivity.text.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (_isOther && typed.length < 2) {
+      setState(() => _error = 'اكتب نشاط محلك');
+      return;
+    }
     setState(() {
       _saving = true;
       _error = null;
@@ -187,7 +206,7 @@ class _RegisterShopFormState extends State<_RegisterShopForm> {
     try {
       await StoreService.createMyShop(
         name: _name.text.trim(),
-        category: _category,
+        category: _isOther ? typed : _category,
         slug: _slug.text.trim(),
         whatsapp: _whatsapp.text.trim(),
         address: _address.text.trim(),
@@ -215,9 +234,28 @@ class _RegisterShopFormState extends State<_RegisterShopForm> {
         DropdownButtonFormField<String>(
           initialValue: _category,
           decoration: const InputDecoration(labelText: 'النشاط *'),
-          items: [for (final c in StoreService.categories) DropdownMenuItem(value: c, child: Text(c))],
+          items: [
+            for (final c in StoreService.categories)
+              if (c != StoreService.otherActivity) DropdownMenuItem(value: c, child: Text(c)),
+            for (final c in _learned) DropdownMenuItem(value: c, child: Text(c)),
+            const DropdownMenuItem(value: StoreService.otherActivity, child: Text('${StoreService.otherActivity} (اكتبه بنفسك)')),
+          ],
           onChanged: (v) => setState(() => _category = v ?? _category),
         ),
+        if (_isOther) ...[
+          const SizedBox(height: 10),
+          TextField(
+            controller: _otherActivity,
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(labelText: 'اكتب نشاط محلك *', hintText: 'مثلاً: مكتبة، ورد، أدوات صحية'),
+          ),
+          // Matching activities other merchants already typed — one tap picks it.
+          if (_otherActivity.text.trim().isNotEmpty)
+            Wrap(spacing: 6, children: [
+              for (final a in _learned.where((a) => a.contains(_otherActivity.text.trim())).take(6))
+                ActionChip(label: Text(a), onPressed: () => setState(() => _category = a)),
+            ]),
+        ],
         const SizedBox(height: 10),
         TextField(
           controller: _slug,
