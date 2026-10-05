@@ -22,11 +22,11 @@ services:
     networks: [n8n_default]
     labels:
       - traefik.enable=true
-      - traefik.http.routers.dalil.entrypoints=web,websecure
-      - traefik.http.routers.dalil.rule=Host(`dalil.mogtama3y.com`)
-      - traefik.http.routers.dalil.tls=true
-      - traefik.http.routers.dalil.tls.certresolver=mytlschallenge
-      - traefik.http.services.dalil.loadbalancer.server.port=8080
+      - traefik.http.routers.dalil-web.entrypoints=web,websecure
+      - traefik.http.routers.dalil-web.rule=Host(`dalil.mogtama3y.com`)
+      - traefik.http.routers.dalil-web.tls=true
+      - traefik.http.routers.dalil-web.tls.certresolver=mytlschallenge
+      - traefik.http.services.dalil-web.loadbalancer.server.port=8080
 
 networks:
   n8n_default:
