@@ -1,0 +1,33 @@
+# دليل مُجتمعي (dalil.mogtama3y.com) on the VPS, next to n8n.
+# Lives in /docker/mogtama3y-dalil/ like the other sites; Traefik (in the
+# n8n stack) routes the host name and gets the TLS certificate.
+#   docker compose up -d
+services:
+  web:
+    image: node:22-alpine
+    container_name: mogtama3y-dalil
+    restart: unless-stopped
+    working_dir: /app
+    command: ["node", "server.mjs"]
+    volumes:
+      - ./server.mjs:/app/server.mjs:ro
+    environment:
+      SUPABASE_URL: https://pxiabifybakbsqlycffc.supabase.co
+      # Publishable key (public, same one the web app ships) — read-only data.
+      SUPABASE_KEY: ${SUPABASE_KEY}
+      SITE: https://dalil.mogtama3y.com
+      PORT: "8080"
+    mem_limit: 256m
+    cpus: 0.5
+    networks: [n8n_default]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.dalil.entrypoints=web,websecure
+      - traefik.http.routers.dalil.rule=Host(`dalil.mogtama3y.com`)
+      - traefik.http.routers.dalil.tls=true
+      - traefik.http.routers.dalil.tls.certresolver=mytlschallenge
+      - traefik.http.services.dalil.loadbalancer.server.port=8080
+
+networks:
+  n8n_default:
+    external: true
