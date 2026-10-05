@@ -38,6 +38,7 @@ class MarketplaceChatService {
   /// One row per conversation the caller is part of (as buyer or as the
   /// listing's seller), newest first — powers the "المحادثات" inbox.
   static Future<List<Map<String, dynamic>>> fetchMyConversations() async {
+    if (_client.auth.currentUser == null) return const []; // guests have no inbox
     final rows = await _client.rpc('fetch_marketplace_conversations');
     final list = List<Map<String, dynamic>>.from(rows as List);
     list.sort((a, b) => (b['last_message_at'] as String).compareTo(a['last_message_at'] as String));

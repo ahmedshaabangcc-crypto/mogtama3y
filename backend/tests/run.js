@@ -708,6 +708,19 @@ const denied = (r) => !!r.error;
   check('the daily limit stops report spam (5 a day)',
     denied(await as(db, Cu, `select public.submit_report('حفر ورصف', 'حفرة تانية', '{}', 31.2, 29.9)`)));
 
+  // Guest browsing (0061)
+  check('guests can browse marketplace listings', ok(await as(db, null, `select id, title, price from marketplace_listings limit 5`)));
+  check('guests can browse real-estate listings', ok(await as(db, null, `select id from real_estate_listings limit 5`)));
+  check('guests can browse technicians', ok(await as(db, null, `select id, category, rating from technicians limit 5`)));
+  check('EXPLOIT blocked: guests read technician ID documents', denied(await as(db, null, `select id_card_url from technicians limit 1`)));
+  check('EXPLOIT blocked: guests read phone numbers', denied(await as(db, null, `select phone from profiles limit 1`)));
+  const guestProfiles = await as(db, null, `select id, full_name from profiles`);
+  check('guests see no profile rows (names only via listings embeds, RLS-filtered)', ok(guestProfiles) && guestProfiles.rows.length === 0, guestProfiles.rows?.slice(0, 3));
+  check('guests can load listings with the seller name embed (no error)',
+    ok(await as(db, null, `select l.id, (select p.full_name from profiles p where p.id = l.seller_id) as seller from marketplace_listings l limit 5`)));
+  check('EXPLOIT blocked: guests post a listing',
+    denied(await as(db, null, `insert into marketplace_listings (seller_id, title, price) values ($1, 'x', 1)`, [Cu])));
+
   check('with a president in place, owners can no longer call elections themselves',
     denied(await as(db, F, `select public.create_election('تاني', now() + interval '2 days')`)));
 
