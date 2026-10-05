@@ -658,6 +658,23 @@ const denied = (r) => !!r.error;
   const bigO = (await as(db, null, `select public.get_store_order($1) as o`, [big.rows?.[0]?.code])).rows?.[0]?.o;
   check('delivery is free above the threshold (600 ≥ 500)', Number(bigO?.total) === 600 && Number(bigO?.delivery_fee) === 0, bigO);
 
+  // Business directory (0058)
+  await admin(db, `insert into directory_places (id, name, category, whatsapp, lat, lng, confidence) values
+    ('ov1', 'صيدلية الشفاء', 'صيدليات', '01011111111', 31.2001, 29.9001, 0.9),
+    ('ov2', 'سوبر ماركت النور', 'سوبر ماركت وبقالة', null, 31.2100, 29.9100, 0.5),
+    ('ov3', 'صيدلية بعيدة', 'صيدليات', null, 30.0444, 31.2357, 0.9)`);
+  const near = await as(db, null, `select * from public.nearby_directory(31.2, 29.9, 3, null, 10)`);
+  check('guests see directory places near them, nearest first (far ones excluded)',
+    near.rows?.length === 2 && near.rows[0].id === 'ov1', near.rows);
+  const nearPh = await as(db, null, `select * from public.nearby_directory(31.2, 29.9, 3, 'صيدليات', 10)`);
+  check('the directory filters by category', nearPh.rows?.length === 1 && nearPh.rows[0].id === 'ov1', nearPh.rows);
+  const dirFound = await as(db, null, `select * from public.search_directory('صيدلية', 31.2, 29.9, 10)`);
+  check('directory name search ranks the closest first', dirFound.rows?.length === 2 && dirFound.rows[0].id === 'ov1', dirFound.rows);
+  check('EXPLOIT blocked: a user edits a directory place', denied(await as(db, Cu, `update directory_places set phone = '0' where id = 'ov1'`)) ||
+    (await admin(db, `select phone from directory_places where id = 'ov1'`)).rows[0].phone === null);
+  check('EXPLOIT blocked: a user adds a fake directory place',
+    denied(await as(db, Cu, `insert into directory_places (id, name, category, lat, lng) values ('x', 'x', 'x', 0, 0)`)));
+
   check('with a president in place, owners can no longer call elections themselves',
     denied(await as(db, F, `select public.create_election('تاني', now() + interval '2 days')`)));
 
