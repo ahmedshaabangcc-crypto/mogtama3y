@@ -11,6 +11,15 @@ import 'core/routing/app_router.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Start loading the bundled Arabic fonts right away, alongside Supabase;
+  // the HTML splash stays up until they're ready so the first frame never
+  // paints text as empty boxes. Every bundled weight is listed: the Material
+  // text styles use Medium (w500), so leaving one out shows boxes briefly.
+  final fonts = GoogleFonts.pendingFonts([
+    for (final w in [FontWeight.w400, FontWeight.w500, FontWeight.w600, FontWeight.w700])
+      GoogleFonts.ibmPlexSansArabic(fontWeight: w),
+    for (final w in [FontWeight.w400, FontWeight.w700, FontWeight.w800]) GoogleFonts.almarai(fontWeight: w),
+  ]).timeout(const Duration(seconds: 15)).catchError((_) => const <void>[]);
   try {
     await Supabase.initialize(
       url: SupabaseConfig.url,
@@ -26,17 +35,7 @@ Future<void> main() async {
     debugPrint('Supabase.initialize failed: $e');
   }
   AuthService.listenAndSyncProfile();
-  // Keep the HTML splash up until the (bundled) Arabic fonts are ready, so
-  // the first frame never paints text as empty boxes.
-  try {
-    await GoogleFonts.pendingFonts([
-      GoogleFonts.ibmPlexSansArabic(),
-      GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w600),
-      GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700),
-      GoogleFonts.almarai(fontWeight: FontWeight.w700),
-      GoogleFonts.almarai(fontWeight: FontWeight.w800),
-    ]).timeout(const Duration(seconds: 6));
-  } catch (_) {}
+  await fonts;
   runApp(const MogtamayApp());
 }
 
