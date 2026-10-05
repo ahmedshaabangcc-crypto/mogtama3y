@@ -152,6 +152,11 @@ async function placePage(id) {
   const rows = await rest(`directory_places?id=eq.${encodeURIComponent(id)}&select=*`);
   const p = rows[0];
   if (!p) return null;
+  if (p.claimed_shop_id) {
+    // Claimed by its owner: the real online store page replaces this one.
+    const shop = (await rest(`shops?id=eq.${p.claimed_shop_id}&select=slug`))[0];
+    if (shop?.slug) return { redirect: `${SITE}/s/${shop.slug}` };
+  }
   const city = cityOf(p.lat, p.lng);
   const near = await rpc('nearby_directory', { p_lat: p.lat, p_lng: p.lng, p_km: 1.5, p_category: p.category, p_limit: 11 }).catch(() => []);
   const where = city ? ` في ${city}` : '';
@@ -226,6 +231,127 @@ async function searchPage(q) {
   });
 }
 
+// ------------------------------------------------- registered online stores
+
+const egp = (n) => `${Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م`;
+const imagesOf = (p) => (Array.isArray(p.images) && p.images.length ? p.images : p.image_url ? [p.image_url] : []);
+const SHOP_COLS = 'id,name,category,description,address,lat,lng,slug,logo_url,cover_image_url,delivery_fee,free_delivery_over';
+const PRODUCT_COLS = 'id,name,description,category,price,old_price,images,image_url,stock';
+
+async function storeData(slugName) {
+  const shops = await rest(`shops?slug=eq.${encodeURIComponent(slugName.toLowerCase())}&select=${SHOP_COLS}`);
+  const shop = shops[0];
+  if (!shop) return null;
+  const products = await rest(`shop_products?shop_id=eq.${shop.id}&is_available=eq.true&price=gt.0&select=${PRODUCT_COLS}&order=created_at.desc&limit=500`);
+  return { shop, products };
+}
+
+function offerOf(p, url) {
+  return {
+    '@type': 'Offer',
+    price: Number(p.price),
+    priceCurrency: 'EGP',
+    url,
+    availability: typeof p.stock === 'number' && p.stock <= 0 ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
+  };
+}
+
+async function storePage(slugName) {
+  const data = await storeData(slugName);
+  if (!data) return null;
+  const { shop, products } = data;
+  const city = shop.lat != null ? cityOf(shop.lat, shop.lng) : null;
+  const where = city ? ` في ${city}` : '';
+  const appUrl = `${APP}/#/s/${shop.slug}`;
+  const canonical = `${SITE}/s/${shop.slug}`;
+  const delivery = shop.delivery_fee > 0 ? `توصيل ${egp(shop.delivery_fee)}${shop.free_delivery_over ? ` — مجاني فوق ${egp(shop.free_delivery_over)}` : ''}` : 'توصيل مجاني';
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Store',
+    name: shop.name,
+    url: canonical,
+    ...(shop.logo_url ? { image: shop.logo_url } : {}),
+    ...(shop.description ? { description: shop.description } : {}),
+    ...(shop.lat != null ? { geo: { '@type': 'GeoCoordinates', latitude: shop.lat, longitude: shop.lng } } : {}),
+    address: { '@type': 'PostalAddress', addressCountry: 'EG', ...(city ? { addressLocality: city } : {}), ...(shop.address ? { streetAddress: shop.address } : {}) },
+    hasOfferCatalog: {
+      '@type': 'OfferCatalog',
+      name: `منتجات ${shop.name}`,
+      itemListElement: products.slice(0, 100).map((p) => ({
+        '@type': 'Offer',
+        ...offerOf(p, `${canonical}/p/${p.id}`),
+        itemOffered: { '@type': 'Product', name: p.name, ...(imagesOf(p)[0] ? { image: imagesOf(p)[0] } : {}) },
+      })),
+    },
+  };
+  const items = products
+    .map((p) => {
+      const img = imagesOf(p)[0];
+      const off = p.old_price && Number(p.old_price) > Number(p.price) ? ` <s class="muted">${egp(p.old_price)}</s>` : '';
+      return `<li style="display:flex;gap:12px;align-items:center">${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" width="64" height="64" loading="lazy" style="border-radius:12px;object-fit:cover">` : ''}<div><a href="${SITE}/s/${esc(shop.slug)}/p/${esc(p.id)}">${esc(p.name)}</a><br><b style="color:#b7791f">${egp(p.price)}</b>${off}</div></li>`;
+    })
+    .join('');
+  return page({
+    title: `${shop.name} — ${shop.category || 'متجر'}${where} | اطلب أونلاين على مُجتمعي`,
+    description: `${shop.name}${where}: ${products.length} منتج بالأسعار${shop.description ? ' — ' + shop.description.slice(0, 120) : ''}. اطلب أونلاين والدفع عند الاستلام.`,
+    canonical,
+    jsonLd,
+    body: `<p class="muted"><a href="${SITE}/">الدليل</a>${city ? ` › <a href="${SITE}/city/${encodeURIComponent(slug(city))}">${esc(city)}</a>` : ''}</p>
+<div class="card">
+${shop.cover_image_url ? `<img src="${esc(shop.cover_image_url)}" alt="" style="width:100%;max-height:220px;object-fit:cover;border-radius:12px">` : ''}
+<h1>${shop.logo_url ? `<img src="${esc(shop.logo_url)}" alt="" width="44" height="44" style="border-radius:12px;vertical-align:middle;margin-left:8px">` : ''}${esc(shop.name)}</h1>
+<p class="muted">${esc(shop.category || '')}${esc(where)} · ${esc(delivery)} · الدفع عند الاستلام</p>
+${shop.description ? `<p>${esc(shop.description)}</p>` : ''}
+${shop.address ? `<p>📍 ${esc(shop.address)}</p>` : ''}
+<a class="btn wa" href="${appUrl}">اطلب من المتجر</a>
+</div>
+<div class="card"><h2>المنتجات والأسعار</h2><ul class="list">${items || '<li class="muted">المتجر بيضيف منتجاته.</li>'}</ul></div>`,
+  });
+}
+
+async function productPage(slugName, productId) {
+  const data = await storeData(slugName);
+  const p = data?.products.find((x) => x.id === productId);
+  if (!p) return null;
+  const { shop } = data;
+  const city = shop.lat != null ? cityOf(shop.lat, shop.lng) : null;
+  const canonical = `${SITE}/s/${shop.slug}/p/${p.id}`;
+  const imgs = imagesOf(p);
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: p.name,
+    ...(imgs.length ? { image: imgs } : {}),
+    ...(p.description ? { description: p.description } : {}),
+    brand: { '@type': 'Brand', name: shop.name },
+    offers: { ...offerOf(p, canonical), seller: { '@type': 'Organization', name: shop.name } },
+  };
+  return page({
+    title: `${p.name} بسعر ${egp(p.price)} — ${shop.name}${city ? ' ' + city : ''} | مُجتمعي`,
+    description: `${p.name} بـ ${egp(p.price)} من ${shop.name}${city ? ' في ' + city : ''}. ${p.description ? p.description.slice(0, 120) + ' ' : ''}اطلب أونلاين والدفع عند الاستلام.`,
+    canonical,
+    jsonLd,
+    body: `<p class="muted"><a href="${SITE}/">الدليل</a> › <a href="${SITE}/s/${esc(shop.slug)}">${esc(shop.name)}</a></p>
+<div class="card">
+${imgs[0] ? `<img src="${esc(imgs[0])}" alt="${esc(p.name)}" style="width:100%;max-height:420px;object-fit:contain;border-radius:12px;background:#fff">` : ''}
+<h1>${esc(p.name)}</h1>
+<p style="font-size:22px"><b style="color:#b7791f">${egp(p.price)}</b>${p.old_price && Number(p.old_price) > Number(p.price) ? ` <s class="muted">${egp(p.old_price)}</s>` : ''}</p>
+${p.description ? `<p>${esc(p.description)}</p>` : ''}
+<a class="btn wa" href="${APP}/#/s/${encodeURIComponent(shop.slug)}/p/${encodeURIComponent(p.id)}">اطلب دلوقتي</a>
+<a class="btn line" href="${SITE}/s/${esc(shop.slug)}">كل منتجات ${esc(shop.name)}</a>
+</div>`,
+  });
+}
+
+async function storeUrls() {
+  const shops = await rest('shops?slug=not.is.null&select=id,slug&limit=10000');
+  const urls = shops.map((s) => `${SITE}/s/${encodeURIComponent(s.slug)}`);
+  const bySlug = new Map(shops.map((s) => [s.id, s.slug]));
+  const prods = await rest('shop_products?is_available=eq.true&price=gt.0&select=id,shop_id&limit=50000');
+  for (const p of prods) if (bySlug.has(p.shop_id)) urls.push(`${SITE}/s/${encodeURIComponent(bySlug.get(p.shop_id))}/p/${p.id}`);
+  return urls;
+}
+
 // ---------------------------------------------------------------- sitemaps
 
 const PER_SITEMAP = 40000;
@@ -256,7 +382,7 @@ const urlset = (urls) =>
 
 async function sitemapIndex() {
   const n = Math.ceil((await allIds()).length / PER_SITEMAP);
-  const maps = [`${SITE}/sitemap-hubs.xml`, ...Array.from({ length: n }, (_, i) => `${SITE}/sitemap-${i + 1}.xml`)];
+  const maps = [`${SITE}/sitemap-hubs.xml`, `${SITE}/sitemap-stores.xml`, ...Array.from({ length: n }, (_, i) => `${SITE}/sitemap-${i + 1}.xml`)];
   return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${maps.map((m) => `<sitemap><loc>${m}</loc></sitemap>`).join('\n')}\n</sitemapindex>`;
 }
 function sitemapHubs() {
@@ -290,12 +416,25 @@ const server = http.createServer(async (req, res) => {
     if (path === '/healthz') return send(res, 200, 'ok', 'text/plain', 0);
     if (path === '/sitemap.xml') return send(res, 200, await sitemapIndex(), 'application/xml; charset=utf-8', 86400);
     if (path === '/sitemap-hubs.xml') return send(res, 200, sitemapHubs(), 'application/xml; charset=utf-8', 86400);
+    if (path === '/sitemap-stores.xml') return send(res, 200, urlset(await cached('stores-urls', 3600e3, storeUrls)), 'application/xml; charset=utf-8', 3600);
+    if ((m = path.match(/^\/s\/([a-z0-9-]{3,40})\/p\/([0-9a-f-]{36})$/i))) {
+      const html = await cached(`sp:${m[1]}:${m[2]}`, 600e3, () => productPage(m[1], m[2]));
+      return html ? send(res, 200, html, 'text/html; charset=utf-8', 600) : send(res, 404, await cached('home', 3600e3, homePage));
+    }
+    if ((m = path.match(/^\/s\/([a-z0-9-]{3,40})$/i))) {
+      const html = await cached('s:' + m[1], 600e3, () => storePage(m[1]));
+      return html ? send(res, 200, html, 'text/html; charset=utf-8', 600) : send(res, 404, await cached('home', 3600e3, homePage));
+    }
     if ((m = path.match(/^\/sitemap-(\d+)\.xml$/))) {
       const xml = await sitemapPart(Number(m[1]));
       return xml ? send(res, 200, xml, 'application/xml; charset=utf-8', 86400) : send(res, 404, 'not found', 'text/plain');
     }
     if ((m = path.match(/^\/p\/([0-9a-zA-Z-]{8,64})$/))) {
       const html = await cached('p:' + m[1], 6 * 3600e3, () => placePage(m[1]));
+      if (html?.redirect) {
+        res.writeHead(301, { Location: html.redirect });
+        return res.end();
+      }
       return html ? send(res, 200, html) : send(res, 404, await cached('home', 3600e3, homePage));
     }
     if ((m = path.match(/^\/c\/([^/]+)\/([^/]+)$/))) {
