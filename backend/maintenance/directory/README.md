@@ -7,5 +7,5 @@ Apache-2.0 / CC0 — attribution "© Overture Maps Foundation").
    the Overture release straight from S3 (update the release date inside).
 2. `duckdb egypt.db -c ".read 2_clean.sql"` — drops nameless/natural features,
    maps the categories to Arabic groups, normalises WhatsApp numbers.
-3. `duckdb egypt.db -c ".read 3_load.sql"` — loads into `public.directory_places`
+3. `./load.sh duckdb egypt.db` — loads into `public.directory_places`
    (migration 0058). Needs `backend/supabase-db.secret.txt` (git-ignored).
