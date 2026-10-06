@@ -19,7 +19,8 @@ class PhoneVerify {
     final token = await confirmSmsCode(smsCode);
     if (token.startsWith('ERR:')) return _message(token.substring(4));
     try {
-      final res = await Supabase.instance.client.functions.invoke('verify-phone', body: {'id_token': token});
+      // Deployed under the slug 'smooth-action' (set by the dashboard editor).
+      final res = await Supabase.instance.client.functions.invoke('smooth-action', body: {'id_token': token});
       final data = res.data;
       if (data is Map && data['ok'] == true) return null;
       return (data is Map ? data['error'] as String? : null) ?? 'تعذر تأكيد الرقم، جرّب تاني';

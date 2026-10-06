@@ -60,7 +60,8 @@ public keys (no secret), takes the number from it, and calls
 `confirm_phone_verified()` with the service role.
 
 Deploy: dashboard → Edge Functions → Deploy a new function → Via editor →
-name `verify-phone`, paste `verify-phone/index.ts`, and turn **Enforce JWT
+name `verify-phone`, paste `verify-phone/index.ts` (the dashboard gave it the slug
+**`smooth-action`**, which the app calls), and turn **Enforce JWT
 verification OFF** (the function checks the Supabase session itself).
 
 Firebase console: Authentication → Phone enabled; Authorized domains
