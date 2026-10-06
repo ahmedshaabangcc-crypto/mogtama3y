@@ -63,9 +63,15 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
               else
                 SvgPicture.string(_googleG, width: 22, height: 22),
               const SizedBox(width: 12),
-              const Text(
-                'المتابعة بحساب جوجل',
-                style: TextStyle(color: Color(0xFF1F1F1F), fontSize: 15, fontWeight: FontWeight.w600),
+              // Shrinks rather than overflowing on very narrow phones.
+              const Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'المتابعة بحساب جوجل',
+                    style: TextStyle(color: Color(0xFF1F1F1F), fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
+                ),
               ),
             ],
           ),

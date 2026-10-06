@@ -19,76 +19,92 @@ class AuthLandingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(
-        backgroundColor: AppColors.bg,
-        foregroundColor: AppColors.ink,
-        elevation: 0,
-      ),
+      appBar: AppBar(backgroundColor: AppColors.bg, foregroundColor: AppColors.ink, elevation: 0),
+      // Scrolls on short screens (small phones, browser bars) instead of
+      // clipping the buttons; on tall ones the Spacers still centre things.
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 40, 24, 32),
-          child: Column(
-            children: [
-              const Spacer(),
-              if (isTajerApp)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(22),
-                  child: Image.asset('assets/images/home/shops.jpg', width: 92, height: 92, fit: BoxFit.cover),
-                )
-              else
-                const MogtamayLogo(size: 84),
-              const SizedBox(height: 20),
-              const Text(appBrandName, style: TextStyle(color: AppColors.ink, fontSize: 26, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 6),
-              const Text(appSignInTagline,
-                  textAlign: TextAlign.center, style: TextStyle(color: AppColors.inkMuted, fontSize: 13)),
-              const Spacer(),
-              GoogleSignInButton(
-                onError: (m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m))),
-              ),
-              const SizedBox(height: 16),
-              const Row(children: [
-                Expanded(child: Divider(color: AppColors.border)),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 10),
-                  child: Text('أو بالإيميل', style: TextStyle(color: AppColors.inkMuted, fontSize: 11.5)),
-                ),
-                Expanded(child: Divider(color: AppColors.border)),
-              ]),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen())),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.navy,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        child: LayoutBuilder(
+          builder: (context, box) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: box.maxHeight),
+              child: IntrinsicHeight(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 40, 24, 32),
+                  child: Column(
+                    children: [
+                      const Spacer(),
+                      if (isTajerApp)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(22),
+                          child: Image.asset('assets/images/home/shops.jpg', width: 92, height: 92, fit: BoxFit.cover),
+                        )
+                      else
+                        const MogtamayLogo(size: 84),
+                      const SizedBox(height: 20),
+                      const Text(
+                        appBrandName,
+                        style: TextStyle(color: AppColors.ink, fontSize: 26, fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        appSignInTagline,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
+                      ),
+                      const Spacer(),
+                      GoogleSignInButton(onError: (m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)))),
+                      const SizedBox(height: 16),
+                      const Row(
+                        children: [
+                          Expanded(child: Divider(color: AppColors.border)),
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 10),
+                            child: Text('أو بالإيميل', style: TextStyle(color: AppColors.inkMuted, fontSize: 11.5)),
+                          ),
+                          Expanded(child: Divider(color: AppColors.border)),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen())),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.navy,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          child: const Text('تسجيل الدخول', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SignupScreen())),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.navy,
+                            side: const BorderSide(color: AppColors.border),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          child: const Text('إنشاء حساب جديد', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text(
+                          isTajerApp ? 'رجوع' : 'متابعة التصفح كزائر',
+                          style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
+                        ),
+                      ),
+                    ],
                   ),
-                  child: const Text('تسجيل الدخول', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                 ),
               ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: OutlinedButton(
-                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SignupScreen())),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.navy,
-                    side: const BorderSide(color: AppColors.border),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: const Text('إنشاء حساب جديد', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text(isTajerApp ? 'رجوع' : 'متابعة التصفح كزائر', style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5)),
-              ),
-            ],
+            ),
           ),
         ),
       ),
