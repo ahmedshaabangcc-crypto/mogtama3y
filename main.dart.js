@@ -42874,7 +42874,7 @@ j=j.ax
 j===$&&A.b()
 i=t.N
 s=8
-return A.c(j.nk("verify-phone",A.a2(["id_token",g],i,i)),$async$a5c)
+return A.c(j.nk("smooth-action",A.a2(["id_token",g],i,i)),$async$a5c)
 case 8:n=c
 m=n.a
 j=t.f
