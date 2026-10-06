@@ -47,6 +47,8 @@ import '../../features/halls/halls_market_screen.dart';
 import '../../features/halls/hall_details_screen.dart';
 import '../../features/pets/pets_home_screen.dart';
 import '../../features/pets/pet_details_screen.dart';
+import '../../features/kids/kids_market_screen.dart';
+import '../../features/kids/kids_item_details_screen.dart';
 
 /// URLs for the app's main sections, so a browser refresh or a shared
 /// link lands back in the same section instead of always on home.
@@ -116,6 +118,11 @@ class AppRoutes {
 
   /// One pet listing (its share link opens this).
   static String pet(String id) => '/pets/$id';
+  /// "مستلزمات الأطفال" — kids & baby gear, new and used.
+  static const kids = '/kids';
+
+  /// One kids-gear listing (its share link opens this).
+  static String kidsItem(String id) => '/kids/$id';
 
   /// A private chat with a friend.
   static String chat(String userId) => '/chat/$userId';
@@ -176,6 +183,7 @@ final _mogtama3ySections = <String, GoRouterWidgetBuilder>{
   AppRoutes.tutoring: (_, _) => const TutoringMarketScreen(),
   AppRoutes.halls: (_, _) => const HallsMarketScreen(),
   AppRoutes.pets: (_, _) => const PetsHomeScreen(),
+  AppRoutes.kids: (_, _) => const KidsMarketScreen(),
 };
 
 final _tajerSections = <String, GoRouterWidgetBuilder>{
@@ -213,6 +221,7 @@ final appRouter = GoRouter(
           GoRoute(path: 'tutoring/:id', builder: (_, state) => TutorDetailsScreen(listingId: state.pathParameters['id']!, initial: state.extra as Map<String, dynamic>?)),
           GoRoute(path: 'halls/:id', builder: (_, state) => HallDetailsScreen(hallId: state.pathParameters['id']!, initial: state.extra as Map<String, dynamic>?)),
           GoRoute(path: 'pets/:id', builder: (_, state) => PetDetailsScreen(listingId: state.pathParameters['id']!, initial: state.extra as Map<String, dynamic>?)),
+          GoRoute(path: 'kids/:id', builder: (_, state) => KidsItemDetailsScreen(listingId: state.pathParameters['id']!, initial: state.extra as Map<String, dynamic>?)),
           GoRoute(path: 'chat/:userId', builder: (_, state) => ChatScreen(userId: state.pathParameters['userId']!)),
         ],
       ],
@@ -232,7 +241,7 @@ bool isInAppPath(String path) {
   if (!isUnionApp && _hallPath.hasMatch(path)) return true;
   if (!isUnionApp && _petPath.hasMatch(path)) return true;
   return !isUnionApp &&
-      (_storePath.hasMatch(path.toLowerCase()) || _eAddressPath.hasMatch(path) || _orderPath.hasMatch(path) || _placePath.hasMatch(path) || _reportPath.hasMatch(path) || _carPath.hasMatch(path) || _tutorPath.hasMatch(path) || _chatPath.hasMatch(path));
+      (_storePath.hasMatch(path.toLowerCase()) || _eAddressPath.hasMatch(path) || _orderPath.hasMatch(path) || _placePath.hasMatch(path) || _reportPath.hasMatch(path) || _carPath.hasMatch(path) || _tutorPath.hasMatch(path) || _kidsPath.hasMatch(path) || _chatPath.hasMatch(path));
 }
 
 /// Where to open an in-app [path] this app can't show: union sections live
@@ -253,3 +262,4 @@ final _carPath = RegExp(r'^/cars/[0-9a-f-]{36}$');
 final _tutorPath = RegExp(r'^/tutoring/[0-9a-f-]{36}$');
 final _hallPath = RegExp(r'^/halls/[0-9a-f-]{36}$');
 final _petPath = RegExp(r'^/pets/[0-9a-f-]{36}$');
+final _kidsPath = RegExp(r'^/kids/[0-9a-f-]{36}$');
