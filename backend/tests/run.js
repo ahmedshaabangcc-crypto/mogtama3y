@@ -752,7 +752,14 @@ const denied = (r) => !!r.error;
   check('opening the chat marks it read',
     (await as(db, P2, `select unread from public.my_friends() where user_id = $1`, [P1])).rows?.[0]?.unread === 0);
   check('EXPLOIT blocked: a third person reads the chat', (await as(db, P3, `select * from public.fetch_direct_messages($1)`, [P1])).rows?.length === 0);
-  check('EXPLOIT blocked: reading messages directly', denied(await as(db, P3, `select * from direct_messages`)));
+  // 0073: a recipient may read rows sent to them (that's what Realtime
+  // delivers); nobody reads anyone else's messages.
+  check('EXPLOIT blocked: a third person reads messages directly', (await as(db, P3, `select * from direct_messages`)).rows?.length === 0);
+  check('the recipient reads only the messages sent to them',
+    (await as(db, P2, `select * from direct_messages`)).rows?.every((r) => r.recipient_id === P2) &&
+    (await as(db, P2, `select * from direct_messages`)).rows?.length === 2);
+  check('EXPLOIT blocked: the sender cannot list messages directly either', (await as(db, P1, `select * from direct_messages`)).rows?.length === 0);
+  check('EXPLOIT blocked: writing messages directly', denied(await as(db, P1, `insert into direct_messages (sender_id, recipient_id, body) values ($1, $2, 'x')`, [P1, P2])));
   await as(db, P2, `select public.block_user($1)`, [P1]);
   check('blocking ends the friendship and stops messages',
     denied(await as(db, P1, `select public.send_direct_message($1, 'تاني')`, [P2])) &&

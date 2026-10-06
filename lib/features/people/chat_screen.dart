@@ -2,17 +2,20 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show RealtimeChannel;
 
 import '../../core/auth/auth_service.dart';
 import '../../core/people/people_service.dart';
+import '../../core/realtime/realtime_inserts.dart';
 import '../../core/routing/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'people_widgets.dart';
 
-/// A private, friends-only conversation (route `/chat/:userId`). Polls for
-/// new messages every 5 seconds while open; fetching also marks theirs read.
+/// A private, friends-only conversation (route `/chat/:userId`). New
+/// messages arrive live (Realtime on direct_messages, 0073); a slow poll
+/// covers a dropped connection. Fetching also marks theirs read.
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, required this.userId});
 
@@ -31,6 +34,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _loadError = false;
   bool _sending = false;
   Timer? _poll;
+  RealtimeChannel? _live;
 
   @override
   void initState() {
@@ -38,12 +42,21 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!AuthService.isSignedIn) return;
     _loadTitle();
     _load(initial: true);
-    _poll = Timer.periodic(const Duration(seconds: 5), (_) => _load());
+    _live = subscribeToInserts(
+      table: 'direct_messages',
+      column: 'recipient_id',
+      value: AuthService.currentUser!.id,
+      onInsert: (row) {
+        if (row['sender_id'] == widget.userId) _load();
+      },
+    );
+    _poll = Timer.periodic(const Duration(seconds: 30), (_) => _load());
   }
 
   @override
   void dispose() {
     _poll?.cancel();
+    if (_live != null) unsubscribe(_live!);
     _input.dispose();
     _scroll.dispose();
     super.dispose();
