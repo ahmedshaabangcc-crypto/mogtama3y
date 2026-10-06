@@ -7,6 +7,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import 'signup_screen.dart';
 import 'widgets/auth_text_field.dart';
+import 'widgets/google_sign_in_button.dart';
 
 /// Real Supabase email/password sign-in.
 class LoginScreen extends StatefulWidget {
@@ -29,24 +30,6 @@ class _LoginScreenState extends State<LoginScreen> {
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
-  }
-
-  bool _googleLoading = false;
-
-  Future<void> _signInWithGoogle() async {
-    setState(() {
-      _googleLoading = true;
-      _error = null;
-    });
-    try {
-      await AuthService.signInWithGoogle();
-      // signInWithOAuth redirects the whole page away on web; nothing
-      // after this line runs until the app reloads at Google's callback.
-    } catch (e) {
-      if (mounted) setState(() => _error = 'تعذر بدء تسجيل الدخول بجوجل: $e');
-    } finally {
-      if (mounted) setState(() => _googleLoading = false);
-    }
   }
 
   Future<void> _submit() async {
@@ -152,17 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Expanded(child: Divider(color: AppColors.border)),
             ]),
             const SizedBox(height: 18),
-            SizedBox(
-              height: 50,
-              child: OutlinedButton.icon(
-                onPressed: _googleLoading ? null : _signInWithGoogle,
-                style: OutlinedButton.styleFrom(foregroundColor: AppColors.ink, side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-                icon: _googleLoading
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.g_mobiledata_rounded, size: 26),
-                label: const Text('المتابعة بحساب جوجل', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
-              ),
-            ),
+            GoogleSignInButton(height: 50, onError: (m) => setState(() => _error = m)),
             const SizedBox(height: 14),
             Center(
               child: TextButton(

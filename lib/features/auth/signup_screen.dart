@@ -9,6 +9,7 @@ import '../../core/theme/app_colors.dart';
 import '../legal/terms_conditions_screen.dart';
 import 'login_screen.dart';
 import 'widgets/auth_text_field.dart';
+import 'widgets/google_sign_in_button.dart';
 
 /// Real Supabase email/password sign-up. Creates the `profiles` +
 /// `wallets` rows for the new account (see AuthService).
@@ -40,22 +41,6 @@ class _SignupScreenState extends State<SignupScreen> {
     _passwordCtrl.dispose();
     _confirmCtrl.dispose();
     super.dispose();
-  }
-
-  bool _googleLoading = false;
-
-  Future<void> _signInWithGoogle() async {
-    setState(() {
-      _googleLoading = true;
-      _error = null;
-    });
-    try {
-      await AuthService.signInWithGoogle();
-    } catch (e) {
-      if (mounted) setState(() => _error = 'تعذر بدء التسجيل بجوجل: $e');
-    } finally {
-      if (mounted) setState(() => _googleLoading = false);
-    }
   }
 
   Future<void> _submit() async {
@@ -270,17 +255,7 @@ class _SignupScreenState extends State<SignupScreen> {
               Expanded(child: Divider(color: AppColors.border)),
             ]),
             const SizedBox(height: 18),
-            SizedBox(
-              height: 50,
-              child: OutlinedButton.icon(
-                onPressed: _googleLoading ? null : _signInWithGoogle,
-                style: OutlinedButton.styleFrom(foregroundColor: AppColors.ink, side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-                icon: _googleLoading
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.g_mobiledata_rounded, size: 26),
-                label: const Text('المتابعة بحساب جوجل', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
-              ),
-            ),
+            GoogleSignInButton(height: 50, onError: (m) => setState(() => _error = m)),
             const SizedBox(height: 14),
             Center(
               child: TextButton(

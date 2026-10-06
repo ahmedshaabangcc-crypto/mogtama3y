@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_logo.dart';
 import 'login_screen.dart';
 import 'signup_screen.dart';
+import 'widgets/google_sign_in_button.dart';
 
 /// Entry point offering login vs. sign-up, reached from the guest home
 /// screen's CTA and from the More menu when no one is signed in. Light
@@ -42,6 +43,19 @@ class AuthLandingScreen extends StatelessWidget {
               const Text(appSignInTagline,
                   textAlign: TextAlign.center, style: TextStyle(color: AppColors.inkMuted, fontSize: 13)),
               const Spacer(),
+              GoogleSignInButton(
+                onError: (m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m))),
+              ),
+              const SizedBox(height: 16),
+              const Row(children: [
+                Expanded(child: Divider(color: AppColors.border)),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10),
+                  child: Text('أو بالإيميل', style: TextStyle(color: AppColors.inkMuted, fontSize: 11.5)),
+                ),
+                Expanded(child: Divider(color: AppColors.border)),
+              ]),
+              const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 height: 52,

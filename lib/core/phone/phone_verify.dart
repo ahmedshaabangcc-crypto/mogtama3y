@@ -41,6 +41,7 @@ class PhoneVerify {
         'auth/captcha-check-failed' || 'auth/internal-error' => 'حصلت مشكلة في التحقق، اعمل تحديث للصفحة وجرّب تاني',
         'unsupported' => 'تأكيد الرقم متاح من الموقع على المتصفح',
         'sdk-load-failed' => 'تعذر التحميل، اتأكد من النت وجرّب تاني',
-        _ => 'تعذر إرسال الكود، جرّب تاني',
+        // Unknown: show the code so a screenshot tells us what happened.
+        _ => 'تعذر إرسال الكود، جرّب تاني ($code)',
       };
 }
