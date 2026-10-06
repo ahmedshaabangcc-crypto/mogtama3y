@@ -831,6 +831,65 @@ const denied = (r) => !!r.error;
     ok(await as(db, Cu, `update car_listings set status = 'sold' where id = $1`, [carId])) &&
     !(await as(db, null, `select id from car_listings`)).rows?.some((r) => r.id === carId));
 
+  // Private tutoring (0069)
+  const tut = await as(db, Cu, `insert into tutor_listings (owner_id, tutor_name, subjects, stages, curricula, modes, price, price_unit, governorate, area, experience_years, bio, whatsapp)
+    values ($1, 'اسم مزيف', '{math,physics}', '{secondary}', '{languages}', '{student_home,online}', 250, 'session', 'القاهرة', 'مدينة نصر', 8, 'مدرس رياضيات وفيزيا', '01022222222') returning id, tutor_name`, [Cu]);
+  const tutId = tut.rows?.[0]?.id;
+  check('a user posts a tutoring listing', !!tutId, tut.error);
+  check('the tutor name comes from the profile, not the client', tut.rows?.[0]?.tutor_name === 'customer', tut.rows);
+  const guestTut = await as(db, null, `select id, tutor_name, price from tutor_listings where 'math' = any(subjects) and 'secondary' = any(stages) and price <= 300`);
+  check('guests browse active tutoring listings with filters', guestTut.rows?.some((r) => r.id === tutId), guestTut.error || guestTut.rows);
+  check('EXPLOIT blocked: a guest posts a tutoring listing',
+    denied(await as(db, null, `insert into tutor_listings (owner_id, subjects, stages, modes, price, phone) values ($1, '{math}', '{primary}', '{online}', 100, '01022222222')`, [Cu])));
+  check('EXPLOIT blocked: posting a tutoring listing as someone else',
+    denied(await as(db, M, `insert into tutor_listings (owner_id, subjects, stages, modes, price, phone) values ($1, '{math}', '{primary}', '{online}', 100, '01022222222')`, [Cu])));
+  check('the owner edits their tutoring listing',
+    ok(await as(db, Cu, `update tutor_listings set price = 300, tutor_name = 'حد تاني' where id = $1`, [tutId])) &&
+    (await admin(db, `select price::float p, tutor_name from tutor_listings where id = $1`, [tutId]))[0].p === 300 &&
+    (await admin(db, `select tutor_name from tutor_listings where id = $1`, [tutId]))[0].tutor_name === 'customer');
+  await as(db, M, `update tutor_listings set price = 1 where id = $1`, [tutId]);
+  check("EXPLOIT blocked: a user edits someone else's tutoring listing",
+    Number((await admin(db, `select price from tutor_listings where id = $1`, [tutId]))[0].price) === 300);
+  await as(db, M, `delete from tutor_listings where id = $1`, [tutId]);
+  check("EXPLOIT blocked: a user deletes someone else's tutoring listing",
+    (await admin(db, `select 1 from tutor_listings where id = $1`, [tutId])).length === 1);
+  check('an unknown subject is refused',
+    denied(await as(db, Cu, `insert into tutor_listings (owner_id, subjects, stages, modes, price, phone) values ($1, '{cooking}', '{primary}', '{online}', 100, '01022222222')`, [Cu])));
+  check('an unknown stage / mode / curriculum is refused',
+    denied(await as(db, Cu, `insert into tutor_listings (owner_id, subjects, stages, modes, price, phone) values ($1, '{math}', '{kg}', '{online}', 100, '01022222222')`, [Cu])) &&
+    denied(await as(db, Cu, `insert into tutor_listings (owner_id, subjects, stages, modes, price, phone) values ($1, '{math}', '{primary}', '{mosque}', 100, '01022222222')`, [Cu])) &&
+    denied(await as(db, Cu, `insert into tutor_listings (owner_id, subjects, stages, curricula, modes, price, phone) values ($1, '{math}', '{primary}', '{french}', '{online}', 100, '01022222222')`, [Cu])));
+  check('a listing needs at least one subject, stage and mode',
+    denied(await as(db, Cu, `insert into tutor_listings (owner_id, subjects, stages, modes, price, phone) values ($1, '{}', '{primary}', '{online}', 100, '01022222222')`, [Cu])) &&
+    denied(await as(db, Cu, `insert into tutor_listings (owner_id, subjects, stages, modes, price, phone) values ($1, '{math}', '{}', '{online}', 100, '01022222222')`, [Cu])) &&
+    denied(await as(db, Cu, `insert into tutor_listings (owner_id, subjects, stages, modes, price, phone) values ($1, '{math}', '{primary}', '{}', 100, '01022222222')`, [Cu])));
+  check('a zero price or unknown price unit is refused',
+    denied(await as(db, Cu, `insert into tutor_listings (owner_id, subjects, stages, modes, price, phone) values ($1, '{math}', '{primary}', '{online}', 0, '01022222222')`, [Cu])) &&
+    denied(await as(db, Cu, `insert into tutor_listings (owner_id, subjects, stages, modes, price, price_unit, phone) values ($1, '{math}', '{primary}', '{online}', 100, 'hour', '01022222222')`, [Cu])));
+  check('a listing needs a valid Egyptian phone or WhatsApp',
+    denied(await as(db, Cu, `insert into tutor_listings (owner_id, subjects, stages, modes, price) values ($1, '{math}', '{primary}', '{online}', 100)`, [Cu])) &&
+    denied(await as(db, Cu, `insert into tutor_listings (owner_id, subjects, stages, modes, price, phone) values ($1, '{math}', '{primary}', '{online}', 100, '12345')`, [Cu])));
+  check('impossible years of experience are refused',
+    denied(await as(db, Cu, `insert into tutor_listings (owner_id, subjects, stages, modes, price, phone, experience_years) values ($1, '{math}', '{primary}', '{online}', 100, '01022222222', 99)`, [Cu])));
+  check('a user asks to book with a tutor', ok(await as(db, M, `select public.express_interest_in_tutor($1)`, [tutId])));
+  check('the tutor is notified with the deep link',
+    (await admin(db, `select count(*)::int as n from notifications where user_id = $1 and deep_link = $2`, [Cu, '/#/tutoring/' + tutId]))[0].n === 1);
+  check('EXPLOIT blocked: asking to book your own tutoring listing',
+    denied(await as(db, Cu, `select public.express_interest_in_tutor($1)`, [tutId])));
+  check('EXPLOIT blocked: a guest asks to book', denied(await as(db, null, `select public.express_interest_in_tutor($1)`, [tutId])));
+  check('the owner deactivates the listing and it leaves the public list',
+    ok(await as(db, Cu, `update tutor_listings set is_active = false where id = $1`, [tutId])) &&
+    !(await as(db, null, `select id from tutor_listings`)).rows?.some((r) => r.id === tutId) &&
+    !(await as(db, M, `select id from tutor_listings`)).rows?.some((r) => r.id === tutId));
+  check('the owner still sees their inactive listing',
+    (await as(db, Cu, `select id from tutor_listings where id = $1`, [tutId])).rows?.length === 1);
+  check('nobody can ask to book an inactive listing', denied(await as(db, M, `select public.express_interest_in_tutor($1)`, [tutId])));
+  check('a super admin can moderate a tutoring listing',
+    (await as(db, SA, `select id from tutor_listings where id = $1`, [tutId])).rows?.length === 1 &&
+    ok(await as(db, SA, `update tutor_listings set bio = 'تمت المراجعة' where id = $1`, [tutId])));
+  await as(db, Cu, `delete from tutor_listings where id = $1`, [tutId]);
+  check('the owner deletes their tutoring listing', (await admin(db, `select 1 from tutor_listings where id = $1`, [tutId])).length === 0);
+
   // Hardening (0068)
   const noRls = await admin(db, `select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity`);
   check('every public table has RLS enabled', noRls.length === 0, noRls.map((r) => r.relname));

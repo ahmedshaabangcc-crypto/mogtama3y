@@ -20,10 +20,13 @@ import '../shared/made_by_apex.dart';
 import 'home_feed.dart';
 
 class _Category {
-  const _Category(this.label, this.sublabel, this.image);
+  const _Category(this.label, this.sublabel, this.image, {this.icon = Icons.directions_car_filled_rounded});
   final String label;
   final String sublabel;
   final String image;
+
+  /// Shown on a gradient while the tile's photo isn't shipped yet.
+  final IconData icon;
 }
 
 const _img = 'assets/images/home';
@@ -35,6 +38,7 @@ const _categories = [
   _Category('الصيانة والخدمات', 'فنيين وحجز بضمان', '$_img/maintenance.jpg'),
   _Category('تدوير وتوفير', 'مزادات الخردة والتدوير', '$_img/recycling.jpg'),
   _Category('سيارات', 'بيع وإيجار وقطع غيار', '$_img/cars.jpg'),
+  _Category('دروس خصوصية', 'مدرسين لكل المواد', '$_img/tutoring.jpg', icon: Icons.school_rounded),
 ];
 
 /// Frosted-glass panel used across the night-styled home.
@@ -409,6 +413,7 @@ class _CategoryGrid extends StatelessWidget {
             'وظائف' => AppRoutes.jobs,
             'عقارات' => AppRoutes.realEstate,
             'سيارات' => AppRoutes.cars,
+            'دروس خصوصية' => AppRoutes.tutoring,
             _ => '/',
           }),
           child: Container(
@@ -424,9 +429,15 @@ class _CategoryGrid extends StatelessWidget {
                     fit: BoxFit.cover,
                     width: double.infinity,
                     // A photo not shipped yet (e.g. a new section) shows a plain tile.
-                    errorBuilder: (_, _, _) => const ColoredBox(
-                      color: AppColors.nightMid,
-                      child: Center(child: Icon(Icons.directions_car_filled_rounded, color: Colors.white54, size: 34)),
+                    errorBuilder: (_, _, _) => DecoratedBox(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [AppColors.teal, AppColors.nightMid],
+                        ),
+                      ),
+                      child: Center(child: Icon(c.icon, color: Colors.white70, size: 34)),
                     ),
                   ),
                 ),

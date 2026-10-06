@@ -9,17 +9,20 @@ import 'upload_service.dart';
 /// bucket as it's picked and reports the growing URL list back via
 /// [onChanged]. See backend/migrations/0027_storage_and_verification.sql.
 class MultiPhotoPicker extends StatefulWidget {
-  const MultiPhotoPicker({super.key, required this.purpose, required this.onChanged, this.maxPhotos = 6});
+  const MultiPhotoPicker({super.key, required this.purpose, required this.onChanged, this.maxPhotos = 6, this.initial = const []});
   final String purpose;
   final ValueChanged<List<String>> onChanged;
   final int maxPhotos;
+
+  /// Photos already on the listing (when editing one).
+  final List<String> initial;
 
   @override
   State<MultiPhotoPicker> createState() => _MultiPhotoPickerState();
 }
 
 class _MultiPhotoPickerState extends State<MultiPhotoPicker> {
-  final List<String> _urls = [];
+  late final List<String> _urls = List.of(widget.initial);
   bool _uploading = false;
 
   // Several photos at once from the gallery, uploaded one after another.
