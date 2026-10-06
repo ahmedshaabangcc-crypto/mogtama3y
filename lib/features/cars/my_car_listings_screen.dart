@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/routing/app_router.dart';
 import '../../core/cars/car_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
 import 'add_car_listing_screen.dart';
-import 'car_details_screen.dart';
 
 /// "إعلاناتي" for cars: the signed-in user's listings, with mark-as-sold
 /// and remove.
@@ -117,7 +118,7 @@ class _MyCarListingsScreenState extends State<MyCarListingsScreen> {
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CarDetailsScreen(listingId: c['id'] as String, initial: c))),
+        onTap: () => context.push(AppRoutes.car(c['id'] as String), extra: c),
         child: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),

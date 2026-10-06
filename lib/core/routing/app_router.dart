@@ -182,9 +182,9 @@ final appRouter = GoRouter(
             ],
           ),
           GoRoute(path: 'o/:code', builder: (_, state) => OrderTrackingScreen(code: state.pathParameters['code']!)),
-          GoRoute(path: 'd/:id', builder: (_, state) => DirectoryPlaceScreen(placeId: state.pathParameters['id']!)),
+          GoRoute(path: 'd/:id', builder: (_, state) => DirectoryPlaceScreen(placeId: state.pathParameters['id']!, place: state.extra as Map<String, dynamic>?)),
           GoRoute(path: 'r/:id', builder: (_, state) => ReportDetailsScreen(reportId: state.pathParameters['id']!)),
-          GoRoute(path: 'cars/:id', builder: (_, state) => CarDetailsScreen(listingId: state.pathParameters['id']!)),
+          GoRoute(path: 'cars/:id', builder: (_, state) => CarDetailsScreen(listingId: state.pathParameters['id']!, initial: state.extra as Map<String, dynamic>?)),
           GoRoute(path: 'chat/:userId', builder: (_, state) => ChatScreen(userId: state.pathParameters['userId']!)),
         ],
       ],
@@ -192,14 +192,26 @@ final appRouter = GoRouter(
   ],
   // Unknown or stale links (and OAuth callbacks carrying ?code=...) go home.
   // That includes the other app's sections (e.g. /union on مُجتمعي).
-  redirect: (_, state) {
-    final path = state.uri.path;
-    if (path == '/' || path.isEmpty) return null;
-    if (_sections.containsKey(path)) return null;
-    if (!isUnionApp && (_storePath.hasMatch(path.toLowerCase()) || _eAddressPath.hasMatch(path) || _orderPath.hasMatch(path) || _placePath.hasMatch(path) || _reportPath.hasMatch(path) || _carPath.hasMatch(path) || _chatPath.hasMatch(path))) return null;
-    return '/';
-  },
+  redirect: (_, state) => isInAppPath(state.uri.path) ? null : '/',
 );
+
+/// Whether [path] opens a screen in this app (flavour). Anything else —
+/// unknown links, OAuth callbacks, another app's sections (e.g. /union on
+/// مُجتمعي, /friends in the union app) — would just bounce to home.
+bool isInAppPath(String path) {
+  if (path == '/' || path.isEmpty) return true;
+  if (_sections.containsKey(path)) return true;
+  return !isUnionApp &&
+      (_storePath.hasMatch(path.toLowerCase()) || _eAddressPath.hasMatch(path) || _orderPath.hasMatch(path) || _placePath.hasMatch(path) || _reportPath.hasMatch(path) || _carPath.hasMatch(path) || _chatPath.hasMatch(path));
+}
+
+/// Where to open an in-app [path] this app can't show: union sections live
+/// on the union app, everything else on مُجتمعي.
+Uri otherAppUrlFor(String path) {
+  const union = {AppRoutes.union, AppRoutes.ittihad, AppRoutes.sos, AppRoutes.lostFound};
+  final base = union.contains(path) ? 'https://ittihad.mogtama3y.com' : mogtama3yUrl;
+  return Uri.parse('$base/#$path');
+}
 
 final _storePath = RegExp(r'^/s/[a-z0-9-]{3,40}(/p/[0-9a-f-]{36})?$');
 final _orderPath = RegExp(r'^/o/T[0-9A-Z]{7}$');

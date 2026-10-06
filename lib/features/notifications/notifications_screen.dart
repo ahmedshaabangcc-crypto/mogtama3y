@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/notifications/notifications_service.dart';
+import '../../core/routing/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
@@ -68,9 +70,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       await NotificationsService.markRead(n['id'] as String);
       _load();
     }
-    // In-app link (e.g. '/#/r/<id>' for a report update) → open it.
+    // In-app link (e.g. '/#/r/<id>' for a report update) → open it here,
+    // or in the app that has that screen (the same account is signed in
+    // on both, e.g. a friend request seen from the union app).
     final link = (n['deep_link'] as String?)?.replaceFirst('/#', '');
-    if (link != null && link.startsWith('/') && link.length > 1 && mounted) context.push(link);
+    if (link == null || !link.startsWith('/') || link.length < 2 || !mounted) return;
+    final path = Uri.parse(link).path;
+    if (isInAppPath(path)) {
+      context.push(link);
+    } else {
+      await launchUrl(otherAppUrlFor(link), webOnlyWindowName: '_blank');
+    }
   }
 
   @override

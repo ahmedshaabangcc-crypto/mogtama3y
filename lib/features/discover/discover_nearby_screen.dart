@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../core/places/directory_service.dart';
@@ -9,7 +10,6 @@ import '../../core/location/where.dart';
 import '../people/nearby_people_tab.dart';
 import '../shared/load_error_view.dart';
 import '../../core/places/place_images.dart';
-import 'directory_place_screen.dart';
 
 // Directory categories (Arabic groups from backend/maintenance/directory/2_clean.sql).
 const _categories = <(String?, String, IconData)>[
@@ -263,9 +263,8 @@ class _DiscoverNearbyScreenState extends State<DiscoverNearbyScreen> {
           final canOrder = place['whatsapp'] != null;
           return InkWell(
             borderRadius: BorderRadius.circular(14),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => DirectoryPlaceScreen(placeId: place['id'] as String, place: place),
-            )),
+            // Through the router so the URL is /d/<id>: refresh and share keep the place.
+            onTap: () => context.push('/d/${place['id']}', extra: place),
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),

@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/routing/app_router.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/cars/car_service.dart';
 import '../../core/reports/report_service.dart' show reportGovernorates;
@@ -9,7 +11,6 @@ import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'add_car_listing_screen.dart';
-import 'car_details_screen.dart';
 import 'my_car_listings_screen.dart';
 
 /// "سيارات" (`/cars`) — cars, motorcycles and tuktuks for sale or rent,
@@ -225,7 +226,7 @@ class _CarsMarketScreenState extends State<CarsMarketScreen> {
         itemBuilder: (_, i) => CarCard(
           item: _items[i],
           onTap: () async {
-            await Navigator.of(context).push(MaterialPageRoute(builder: (_) => CarDetailsScreen(listingId: _items[i]['id'] as String, initial: _items[i])));
+            await context.push(AppRoutes.car(_items[i]['id'] as String), extra: _items[i]);
           },
         ),
       ),
