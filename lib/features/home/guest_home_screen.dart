@@ -35,6 +35,7 @@ const _categories = [
   _Category('الصيانة والخدمات', 'فنيين وحجز بضمان', '$_img/maintenance.jpg'),
   _Category('تدوير وتوفير', 'مزادات الخردة والتدوير', '$_img/recycling.jpg'),
   _Category('سيارات', 'بيع وإيجار وقطع غيار', '$_img/cars.jpg'),
+  _Category('الحيوانات الأليفة', 'بيع وتبني ومفقودات', '$_img/pets.jpg'),
 ];
 
 /// Frosted-glass panel used across the night-styled home.
@@ -409,6 +410,7 @@ class _CategoryGrid extends StatelessWidget {
             'وظائف' => AppRoutes.jobs,
             'عقارات' => AppRoutes.realEstate,
             'سيارات' => AppRoutes.cars,
+            'الحيوانات الأليفة' => AppRoutes.pets,
             _ => '/',
           }),
           child: Container(
@@ -424,10 +426,12 @@ class _CategoryGrid extends StatelessWidget {
                     fit: BoxFit.cover,
                     width: double.infinity,
                     // A photo not shipped yet (e.g. a new section) shows a plain tile.
-                    errorBuilder: (_, _, _) => const ColoredBox(
-                      color: AppColors.nightMid,
-                      child: Center(child: Icon(Icons.directions_car_filled_rounded, color: Colors.white54, size: 34)),
-                    ),
+                    errorBuilder: (_, _, _) => c.label == 'الحيوانات الأليفة'
+                        ? const _GradientTile(icon: Icons.pets_rounded)
+                        : const ColoredBox(
+                            color: AppColors.nightMid,
+                            child: Center(child: Icon(Icons.directions_car_filled_rounded, color: Colors.white54, size: 34)),
+                          ),
                   ),
                 ),
                 Padding(
@@ -453,6 +457,24 @@ class _CategoryGrid extends StatelessWidget {
       },
     );
   }
+}
+
+/// Stand-in for a section photo that isn't shipped yet: gradient + icon.
+class _GradientTile extends StatelessWidget {
+  const _GradientTile({required this.icon});
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppColors.crystalLight, AppColors.nightMid],
+          ),
+        ),
+        child: Center(child: Icon(icon, color: Colors.white70, size: 36)),
+      );
 }
 
 class _QuickServicesRow extends StatelessWidget {
