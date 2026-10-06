@@ -4,8 +4,49 @@ import '../auth/auth_service.dart';
 import '../promote/ad_token_service.dart';
 import '../union/union_service.dart';
 
+/// Offer types (migration 0065) — value → Arabic label.
+const realEstateOfferTypes = <String, String>{
+  'sale': 'تمليك',
+  'rent': 'إيجار',
+  'rent_furnished': 'إيجار مفروش',
+  'rent_old': 'إيجار قديم',
+  'rent_daily': 'إيجار يومي / مصيفي',
+};
+
+/// Property types (migration 0065) — value → (Arabic label, group).
+const realEstatePropertyTypes = <String, (String, String)>{
+  'apartment': ('شقة', 'شقق'),
+  'duplex': ('دوبلكس', 'شقق'),
+  'penthouse': ('بنتهاوس', 'شقق'),
+  'studio': ('ستوديو', 'شقق'),
+  'roof': ('روف', 'شقق'),
+  'villa': ('فيلا', 'فيلات وشاليهات'),
+  'townhouse': ('تاون هاوس', 'فيلات وشاليهات'),
+  'chalet': ('شاليه', 'فيلات وشاليهات'),
+  'building': ('عمارة كاملة', 'عمارات'),
+  'land_residential': ('أرض سكني', 'أراضي'),
+  'land_agricultural': ('أرض زراعي', 'أراضي'),
+  'land_commercial': ('أرض تجاري', 'أراضي'),
+  'land_industrial': ('أرض صناعي', 'أراضي'),
+  'shop': ('محل', 'تجاري وإداري'),
+  'office': ('مكتب إداري', 'تجاري وإداري'),
+  'clinic': ('عيادة', 'تجاري وإداري'),
+  'warehouse': ('مخزن', 'تجاري وإداري'),
+  'garage': ('جراج', 'تجاري وإداري'),
+};
+
+/// Property groups in display order.
+const realEstateGroups = ['شقق', 'فيلات وشاليهات', 'عمارات', 'أراضي', 'تجاري وإداري'];
+
+const realEstateFinishing = <String, String>{'super_lux': 'سوبر لوكس', 'lux': 'لوكس', 'semi': 'نص تشطيب', 'bare': 'على الطوب'};
+const realEstatePayment = <String, String>{'cash': 'كاش', 'installments': 'تقسيط', 'both': 'كاش أو تقسيط'};
+
+/// Land, warehouses and garages have no rooms/floor to ask about.
+bool realEstateHasRooms(String propertyType) =>
+    !propertyType.startsWith('land_') && !const {'warehouse', 'garage', 'building'}.contains(propertyType);
+
 /// Real peer-to-peer real estate listings — see
-/// backend/migrations/0023_real_estate.sql.
+/// backend/migrations/0023_real_estate.sql and 0065_real_estate_details.sql.
 class RealEstateService {
   RealEstateService._();
 
@@ -14,12 +55,29 @@ class RealEstateService {
   /// Active listings, with [hide_from_own_building] actually enforced
   /// client-side against the caller's own building (unlike the
   /// pre-existing marketplace flag, which nothing ever filters on).
-  static Future<List<Map<String, dynamic>>> fetchListings({String? dealType}) async {
+  static Future<List<Map<String, dynamic>>> fetchListings({
+    String? dealType,
+    String? offerType,
+    String? group,
+    String? governorate,
+    double? priceMax,
+    int? bedroomsMin,
+    String? search,
+  }) async {
     var query = _client.from('real_estate_listings').select('*, owner:profiles(full_name), building:buildings(lat, lng)').eq('status', 'active');
-    if (dealType != null) {
-      query = query.eq('deal_type', dealType);
+    if (dealType != null) query = query.eq('deal_type', dealType);
+    if (offerType != null) query = query.eq('offer_type', offerType);
+    if (group != null) {
+      query = query.inFilter('property_type', [for (final e in realEstatePropertyTypes.entries) if (e.value.$2 == group) e.key]);
     }
-    final rows = await query.order('created_at', ascending: false).limit(30);
+    if (governorate != null) query = query.eq('governorate', governorate);
+    if (priceMax != null) query = query.lte('price', priceMax);
+    if (bedroomsMin != null) query = query.gte('bedrooms', bedroomsMin);
+    if (search != null && search.trim().length >= 2) {
+      final q = search.trim().replaceAll(RegExp(r'[%,()]'), ' ');
+      query = query.or('title.ilike.%$q%,area_name.ilike.%$q%,description.ilike.%$q%');
+    }
+    final rows = await query.order('created_at', ascending: false).limit(60);
     final listings = List<Map<String, dynamic>>.from(rows as List);
 
     final membership = await UnionService.fetchMyMembership();
@@ -38,7 +96,14 @@ class RealEstateService {
   }
 
   static Future<String> createListing({
-    required String dealType,
+    required String offerType,
+    required String propertyType,
+    int? floor,
+    String? finishing,
+    bool furnished = false,
+    String? payment,
+    String? governorate,
+    String? areaName,
     required String title,
     required String description,
     required double price,
@@ -60,7 +125,14 @@ class RealEstateService {
       'owner_id': userId,
       'building_id': membership['building_id'],
       'unit_id': membership['unit_id'],
-      'deal_type': dealType,
+      'offer_type': offerType,
+      'property_type': propertyType,
+      'floor': floor,
+      'finishing': finishing,
+      'furnished': furnished || offerType == 'rent_furnished',
+      'payment': payment,
+      'governorate': governorate,
+      'area_name': areaName,
       'title': title,
       'description': description,
       'price': price,

@@ -784,6 +784,53 @@ const denied = (r) => !!r.error;
   check('guests find plumbers from the directory near them', svc.rows?.length === 1 && svc.rows[0].id === 'ov2', svc.rows || svc.error);
   check('an unknown trade is refused', !!(await admin(db, "select 1")) && denied(await as(db, null, "update directory_places set trade = 'x'")));
 
+  // Real estate details (0065)
+  const reOld = await as(db, Cu, `insert into real_estate_listings (owner_id, title, price, offer_type, property_type, floor, finishing, payment, governorate, area_name)
+    values ($1, 'شقة إيجار قديم', 300, 'rent_old', 'apartment', 3, 'lux', 'cash', 'الإسكندرية', 'سموحة') returning id, deal_type`, [Cu]);
+  check('a user lists an old-rent apartment (deal_type follows as rent)', reOld.rows?.[0]?.deal_type === 'rent', reOld.error || reOld.rows);
+  const reLand = await as(db, M, `insert into real_estate_listings (owner_id, title, price, offer_type, property_type, area_sqm)
+    values ($1, 'أرض زراعي', 900000, 'sale', 'land_agricultural', 4200) returning deal_type`, [M]);
+  check('agricultural land for sale is listed as a sale', reLand.rows?.[0]?.deal_type === 'sale', reLand.error || reLand.rows);
+  check('an unknown property type is refused',
+    denied(await as(db, Cu, `insert into real_estate_listings (owner_id, title, price, offer_type, property_type) values ($1, 'x', 1, 'sale', 'castle')`, [Cu])));
+  check('guests filter real estate by offer and property type',
+    (await as(db, null, `select id from real_estate_listings where offer_type = 'rent_old' and property_type = 'apartment'`)).rows?.length === 1);
+
+  // Cars marketplace (0066)
+  const car = await as(db, Cu, `insert into car_listings (owner_id, offer_type, brand, model, year, km, transmission, fuel, title, price, negotiable, governorate)
+    values ($1, 'sale', 'تويوتا (Toyota)', 'كورولا', 2019, 85000, 'automatic', 'benzine', 'تويوتا كورولا 2019 فابريكا', 650000, true, 'القاهرة') returning id`, [Cu]);
+  const carId = car.rows?.[0]?.id;
+  check('a user lists a car for sale', !!carId, car.error);
+  const guestCars = await as(db, null, `select id, title, price from car_listings where status = 'active' and offer_type = 'sale'`);
+  check('guests browse active car listings', guestCars.rows?.some((r) => r.id === carId), guestCars.error || guestCars.rows);
+  check('EXPLOIT blocked: a guest posts a car listing',
+    denied(await as(db, null, `insert into car_listings (owner_id, offer_type, brand, title, price) values ($1, 'sale', 'كيا', 'كيا سيراتو', 1)`, [Cu])));
+  await as(db, M, `update car_listings set price = 1 where id = $1`, [carId]);
+  check("EXPLOIT blocked: a user edits someone else's car listing",
+    Number((await admin(db, `select price from car_listings where id = $1`, [carId]))[0].price) === 650000);
+  const featIns = await as(db, M, `insert into car_listings (owner_id, offer_type, brand, title, price, is_featured)
+    values ($1, 'rent_daily', 'هيونداي', 'هيونداي إلنترا للإيجار', 1500, true) returning id, is_featured`, [M]);
+  await as(db, Cu, `update car_listings set is_featured = true where id = $1`, [carId]);
+  check('EXPLOIT blocked: an owner makes their own car listing featured',
+    featIns.rows?.[0]?.is_featured === false &&
+    (await admin(db, `select is_featured from car_listings where id = $1`, [carId]))[0].is_featured === false, featIns);
+  check('an impossible model year is refused',
+    denied(await as(db, Cu, `insert into car_listings (owner_id, offer_type, brand, year, title, price) values ($1, 'sale', 'كيا', 1900, 'كيا قديمة', 1000)`, [Cu])));
+  check('an unknown offer type is refused',
+    denied(await as(db, Cu, `insert into car_listings (owner_id, offer_type, brand, title, price) values ($1, 'swap', 'كيا', 'كيا للبدل', 1000)`, [Cu])));
+  check('a vehicle listing needs a brand (parts do not)',
+    denied(await as(db, Cu, `insert into car_listings (owner_id, offer_type, title, price) values ($1, 'sale', 'عربية', 1000)`, [Cu])) &&
+    ok(await as(db, Cu, `insert into car_listings (owner_id, offer_type, title, price) values ($1, 'parts', 'كاوتش 16 بوصة', 1000)`, [Cu])));
+  check('a user says "أنا مهتم" on a car', ok(await as(db, M, `select public.express_interest_in_car($1)`, [carId])));
+  check('the car owner is notified with the deep link',
+    (await admin(db, `select count(*)::int as n from notifications where user_id = $1 and deep_link = $2`, [Cu, '/#/cars/' + carId]))[0].n === 1);
+  check('EXPLOIT blocked: showing interest in your own car listing',
+    denied(await as(db, Cu, `select public.express_interest_in_car($1)`, [carId])));
+  check('EXPLOIT blocked: a guest shows interest', denied(await as(db, null, `select public.express_interest_in_car($1)`, [carId])));
+  check('the owner marks the car sold and it leaves the public list',
+    ok(await as(db, Cu, `update car_listings set status = 'sold' where id = $1`, [carId])) &&
+    !(await as(db, null, `select id from car_listings`)).rows?.some((r) => r.id === carId));
+
   check('with a president in place, owners can no longer call elections themselves',
     denied(await as(db, F, `select public.create_election('تاني', now() + interval '2 days')`)));
 

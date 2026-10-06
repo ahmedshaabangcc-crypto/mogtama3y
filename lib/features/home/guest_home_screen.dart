@@ -34,6 +34,7 @@ const _categories = [
   _Category('وظائف', 'شواغر قريبة منك', '$_img/jobs.jpg'),
   _Category('الصيانة والخدمات', 'فنيين وحجز بضمان', '$_img/maintenance.jpg'),
   _Category('تدوير وتوفير', 'مزادات الخردة والتدوير', '$_img/recycling.jpg'),
+  _Category('سيارات', 'بيع وإيجار وقطع غيار', '$_img/cars.jpg'),
 ];
 
 /// Frosted-glass panel used across the night-styled home.
@@ -407,6 +408,7 @@ class _CategoryGrid extends StatelessWidget {
             'تدوير وتوفير' => AppRoutes.recycling,
             'وظائف' => AppRoutes.jobs,
             'عقارات' => AppRoutes.realEstate,
+            'سيارات' => AppRoutes.cars,
             _ => '/',
           }),
           child: Container(
@@ -416,7 +418,18 @@ class _CategoryGrid extends StatelessWidget {
             ),
             child: Column(
               children: [
-                Expanded(child: Image.asset(c.image, fit: BoxFit.cover, width: double.infinity)),
+                Expanded(
+                  child: Image.asset(
+                    c.image,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    // A photo not shipped yet (e.g. a new section) shows a plain tile.
+                    errorBuilder: (_, _, _) => const ColoredBox(
+                      color: AppColors.nightMid,
+                      child: Center(child: Icon(Icons.directions_car_filled_rounded, color: Colors.white54, size: 34)),
+                    ),
+                  ),
+                ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(6, 7, 6, 9),
                   child: Column(children: [

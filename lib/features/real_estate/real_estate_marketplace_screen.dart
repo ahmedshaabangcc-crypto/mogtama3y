@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/maps/maps_launcher.dart';
 import '../../core/promote/ad_token_service.dart';
 import '../../core/real_estate/real_estate_service.dart';
+import '../../core/reports/report_service.dart';
 import '../../core/support/support_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
@@ -32,7 +35,20 @@ class _RealEstateMarketplaceScreenState extends State<RealEstateMarketplaceScree
   bool _loading = true;
   bool _loadError = false;
   List<Map<String, dynamic>> _listings = [];
-  int _filterIndex = 0;
+  String? _offer;
+  String? _group;
+  String? _governorate;
+  double? _priceMax;
+  int? _roomsMin;
+  final _search = TextEditingController();
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _search.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -45,13 +61,15 @@ class _RealEstateMarketplaceScreenState extends State<RealEstateMarketplaceScree
       _loading = true;
       _loadError = false;
     });
-    final dealType = switch (_filterIndex) {
-      1 => 'sale',
-      2 => 'rent',
-      _ => null,
-    };
     try {
-      final rows = await RealEstateService.fetchListings(dealType: dealType);
+      final rows = await RealEstateService.fetchListings(
+        offerType: _offer,
+        group: _group,
+        governorate: _governorate,
+        priceMax: _priceMax,
+        bedroomsMin: _roomsMin,
+        search: _search.text,
+      );
       if (!mounted) return;
       setState(() {
         _listings = rows;
@@ -70,7 +88,7 @@ class _RealEstateMarketplaceScreenState extends State<RealEstateMarketplaceScree
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('سوق العقارات الموثق')),
+      appBar: AppBar(title: const Text('العقارات')),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -142,20 +160,52 @@ class _RealEstateMarketplaceScreenState extends State<RealEstateMarketplaceScree
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
                 icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
-                label: const Text('أضف عقاراً للبيع أو الإيجار', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                label: const Text('أضف عقار: تمليك أو إيجار أو أرض', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
               ),
             ),
             const SizedBox(height: 16),
+            TextField(
+              controller: _search,
+              onChanged: (_) {
+                _debounce?.cancel();
+                _debounce = Timer(const Duration(milliseconds: 450), _load);
+              },
+              decoration: InputDecoration(
+                hintText: 'دوّر بالمنطقة أو الكلمة (مثلاً: سموحة، بحري)',
+                prefixIcon: const Icon(Icons.search_rounded),
+                isDense: true,
+                suffixIcon: IconButton(
+                  tooltip: 'فلاتر',
+                  icon: Badge(isLabelVisible: _activeFilters > 0, label: Text('$_activeFilters'), child: const Icon(Icons.tune_rounded)),
+                  onPressed: _openFilters,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
             SizedBox(
               height: 34,
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 children: [
-                  _FilterChip(label: 'الكل', selected: _filterIndex == 0, onTap: () { setState(() => _filterIndex = 0); _load(); }),
-                  const SizedBox(width: 8),
-                  _FilterChip(label: 'للبيع', selected: _filterIndex == 1, onTap: () { setState(() => _filterIndex = 1); _load(); }),
-                  const SizedBox(width: 8),
-                  _FilterChip(label: 'للإيجار', selected: _filterIndex == 2, onTap: () { setState(() => _filterIndex = 2); _load(); }),
+                  _FilterChip(label: 'الكل', selected: _offer == null, onTap: () { setState(() => _offer = null); _load(); }),
+                  for (final e in realEstateOfferTypes.entries) ...[
+                    const SizedBox(width: 8),
+                    _FilterChip(label: e.value, selected: _offer == e.key, onTap: () { setState(() => _offer = e.key); _load(); }),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 34,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  _FilterChip(label: 'كل الأنواع', selected: _group == null, onTap: () { setState(() => _group = null); _load(); }),
+                  for (final g in realEstateGroups) ...[
+                    const SizedBox(width: 8),
+                    _FilterChip(label: g, selected: _group == g, onTap: () { setState(() => _group = g); _load(); }),
+                  ],
                 ],
               ),
             ),
@@ -178,6 +228,66 @@ class _RealEstateMarketplaceScreenState extends State<RealEstateMarketplaceScree
         ),
       ),
     );
+  }
+}
+
+extension on _RealEstateMarketplaceScreenState {
+  int get _activeFilters => [_governorate, _priceMax, _roomsMin].where((x) => x != null).length;
+
+  Future<void> _openFilters() async {
+    String? gov = _governorate;
+    final price = TextEditingController(text: _priceMax?.toStringAsFixed(0) ?? '');
+    int? rooms = _roomsMin;
+    final apply = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.viewInsetsOf(ctx).bottom),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            const Text('فلاتر العقارات', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String?>(
+              initialValue: gov,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'المحافظة'),
+              items: [
+                const DropdownMenuItem<String?>(value: null, child: Text('كل المحافظات')),
+                for (final g in reportGovernorates) DropdownMenuItem<String?>(value: g, child: Text(g)),
+              ],
+              onChanged: (v) => setSheet(() => gov = v),
+            ),
+            const SizedBox(height: 10),
+            TextField(controller: price, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'أقصى سعر (ج.م)')),
+            const SizedBox(height: 10),
+            const Text('أقل عدد غرف'),
+            const SizedBox(height: 6),
+            Wrap(spacing: 6, children: [
+              for (final n in const [null, 1, 2, 3, 4, 5])
+                ChoiceChip(
+                  label: Text(n == null ? 'أي عدد' : '$n+'),
+                  selected: rooms == n,
+                  onSelected: (_) => setSheet(() => rooms = n),
+                ),
+            ]),
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('مسح الفلاتر'))),
+              const SizedBox(width: 8),
+              Expanded(child: ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('تطبيق'))),
+            ]),
+          ]),
+        ),
+      ),
+    );
+    if (apply == null) return;
+    // ignore: invalid_use_of_protected_member
+    setState(() {
+      _governorate = apply ? gov : null;
+      _priceMax = apply ? double.tryParse(price.text.trim()) : null;
+      _roomsMin = apply ? rooms : null;
+    });
+    _load();
   }
 }
 
@@ -368,11 +478,27 @@ class _ListingCardState extends State<_ListingCard> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                     decoration: BoxDecoration(color: AppColors.teal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(100)),
-                    child: Text(isSale ? 'للبيع' : 'للإيجار', style: const TextStyle(fontSize: 9, color: AppColors.teal, fontWeight: FontWeight.w700)),
+                    child: Text(
+                      '${realEstateOfferTypes[l['offer_type']] ?? (isSale ? 'تمليك' : 'إيجار')} · ${realEstatePropertyTypes[l['property_type']]?.$1 ?? 'شقة'}',
+                      style: const TextStyle(fontSize: 10, color: AppColors.teal, fontWeight: FontWeight.w700),
+                    ),
                   ),
                   const Spacer(),
-                  Text(isSale ? '$price ج.م' : '$price ج.م / شهرياً', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                  Text(
+                    isSale ? '$price ج.م' : (l['offer_type'] == 'rent_daily' ? '$price ج.م / ليلة' : '$price ج.م / شهرياً'),
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                  ),
                 ]),
+                if (l['governorate'] != null || l['area_name'] != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Row(children: [
+                      const Icon(Icons.place_outlined, size: 14, color: AppColors.inkMuted),
+                      const SizedBox(width: 3),
+                      Text([l['area_name'], l['governorate']].whereType<String>().join('، '),
+                          style: const TextStyle(fontSize: 11.5, color: AppColors.inkSecondary)),
+                    ]),
+                  ),
                 const SizedBox(height: 8),
                 Text(l['title'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, height: 1.4)),
                 if (l['description'] != null && (l['description'] as String).isNotEmpty) ...[
@@ -380,12 +506,13 @@ class _ListingCardState extends State<_ListingCard> {
                   Text(l['description'] as String, style: const TextStyle(fontSize: 11, color: AppColors.inkSecondary), maxLines: 2, overflow: TextOverflow.ellipsis),
                 ],
                 const SizedBox(height: 10),
-                Row(children: [
+                Wrap(spacing: 8, runSpacing: 6, children: [
                   if (l['area_sqm'] != null) _SpecChip(icon: Icons.straighten_rounded, label: '${(l['area_sqm'] as num).toStringAsFixed(0)} م²'),
-                  if (l['area_sqm'] != null) const SizedBox(width: 8),
                   if (l['bedrooms'] != null) _SpecChip(icon: Icons.bed_outlined, label: '${l['bedrooms']} غرف'),
-                  if (l['bedrooms'] != null) const SizedBox(width: 8),
                   if (l['bathrooms'] != null) _SpecChip(icon: Icons.bathtub_outlined, label: '${l['bathrooms']} حمام'),
+                  if (l['floor'] != null) _SpecChip(icon: Icons.stairs_outlined, label: l['floor'] == 0 ? 'دور أرضي' : 'الدور ${l['floor']}'),
+                  if (realEstateFinishing[l['finishing']] != null) _SpecChip(icon: Icons.format_paint_outlined, label: realEstateFinishing[l['finishing']]!),
+                  if (realEstatePayment[l['payment']] != null) _SpecChip(icon: Icons.payments_outlined, label: realEstatePayment[l['payment']]!),
                 ]),
                 const SizedBox(height: 10),
                 Container(
