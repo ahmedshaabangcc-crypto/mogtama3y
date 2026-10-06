@@ -952,6 +952,82 @@ const denied = (r) => !!r.error;
   check('the owner deletes their hall',
     ok(await as(db, Cu, `delete from event_halls where id = $1`, [hallId])) &&
     (await admin(db, `select id from event_halls where id = $1`, [hallId])).length === 0);
+  // Pets (0071)
+  const petCols = 'id, owner_id, kind, animal, title, price, is_active, outcome';
+  const petIns = await as(db, Cu, `insert into pet_listings (owner_id, kind, animal, breed, age_text, gender, vaccinated, title, price, governorate, area, phone)
+    values ($1, 'sale', 'cat', 'شيرازي', '3 شهور', 'female', true, 'قطة شيرازي 3 شهور', 2500, 'القاهرة', 'مدينة نصر', '01022222222') returning id`, [Cu]);
+  const petId = petIns.rows?.[0]?.id;
+  check('a user lists a cat for sale', !!petId, petIns.error);
+  const guestPets = await as(db, null, `select ${petCols} from pet_listings where kind = 'sale' and animal = 'cat'`);
+  check('guests browse active pet listings', guestPets.rows?.some((r) => r.id === petId), guestPets.error || guestPets.rows);
+  check('EXPLOIT blocked: a guest posts a pet listing',
+    denied(await as(db, null, `insert into pet_listings (owner_id, kind, animal, title, price, phone) values ($1, 'sale', 'dog', 'كلب جولدن', 5000, '01022222222')`, [Cu])));
+  check("EXPLOIT blocked: a user posts a pet listing in someone else's name",
+    denied(await as(db, M, `insert into pet_listings (owner_id, kind, animal, title, price, phone) values ($1, 'sale', 'dog', 'كلب جولدن', 5000, '01011111111')`, [Cu])));
+  check("EXPLOIT blocked: a guest reads posters' phones from the table",
+    denied(await as(db, null, `select phone from pet_listings`)));
+  check("EXPLOIT blocked: a signed-in user reads posters' phones from the table",
+    denied(await as(db, M, `select phone from pet_listings`)));
+  check('EXPLOIT blocked: a guest gets the phone through the RPC',
+    denied(await as(db, null, `select public.pet_listing_phone($1)`, [petId])));
+  check('a signed-in user gets the phone of an active listing',
+    (await as(db, M, `select public.pet_listing_phone($1) as p`, [petId])).rows?.[0]?.p === '01022222222');
+  check('the owner edits their own pet listing',
+    ok(await as(db, Cu, `update pet_listings set price = 2200, description = 'متطعمة ومدربة' where id = $1`, [petId])) &&
+    Number((await admin(db, `select price from pet_listings where id = $1`, [petId]))[0].price) === 2200);
+  await as(db, M, `update pet_listings set price = 1 where id = $1`, [petId]);
+  check("EXPLOIT blocked: a user edits someone else's pet listing",
+    Number((await admin(db, `select price from pet_listings where id = $1`, [petId]))[0].price) === 2200);
+  await as(db, M, `update pet_listings set owner_id = $2 where id = $1`, [petId, M]);
+  check("EXPLOIT blocked: a user takes over someone else's pet listing",
+    (await admin(db, `select owner_id from pet_listings where id = $1`, [petId]))[0].owner_id === Cu);
+  await as(db, M, `delete from pet_listings where id = $1`, [petId]);
+  check("EXPLOIT blocked: a user deletes someone else's pet listing",
+    (await admin(db, `select 1 from pet_listings where id = $1`, [petId])).length === 1);
+  check('adoption with a price is refused',
+    denied(await as(db, Cu, `insert into pet_listings (owner_id, kind, animal, title, price, phone) values ($1, 'adoption', 'dog', 'كلب للتبني', 500, '01022222222')`, [Cu])));
+  const petAdopt = await as(db, Cu, `insert into pet_listings (owner_id, kind, animal, title, phone) values ($1, 'adoption', 'dog', 'كلب بلدي للتبني', '01022222222') returning id`, [Cu]);
+  const petAdoptId = petAdopt.rows?.[0]?.id;
+  check('free adoption (no price) is accepted', !!petAdoptId, petAdopt.error);
+  check('a sale without a price is refused',
+    denied(await as(db, Cu, `insert into pet_listings (owner_id, kind, animal, title, phone) values ($1, 'sale', 'bird', 'كناريا', '01022222222')`, [Cu])));
+  check('a lost pet needs the last-seen date',
+    denied(await as(db, Cu, `insert into pet_listings (owner_id, kind, animal, title, phone) values ($1, 'lost', 'cat', 'قطة ضايعة', '01022222222')`, [Cu])));
+  check('a lost pet with a price is refused',
+    denied(await as(db, Cu, `insert into pet_listings (owner_id, kind, animal, title, price, phone, last_seen_date) values ($1, 'lost', 'cat', 'قطة ضايعة', 100, '01022222222', current_date)`, [Cu])));
+  const petLost = await as(db, Cu, `insert into pet_listings (owner_id, kind, animal, title, phone, last_seen_date, last_seen_area)
+    values ($1, 'lost', 'cat', 'قطة رمادي ضايعة', '01022222222', current_date - 1, 'شارع مكرم عبيد') returning id`, [Cu]);
+  const petLostId = petLost.rows?.[0]?.id;
+  check('a user reports a lost cat', !!petLostId, petLost.error);
+  check('an invalid phone is refused',
+    denied(await as(db, Cu, `insert into pet_listings (owner_id, kind, animal, title, price, phone) values ($1, 'supplies', 'cat', 'قفص', 300, '12345')`, [Cu])));
+  check('an unknown kind or animal is refused',
+    denied(await as(db, Cu, `insert into pet_listings (owner_id, kind, animal, title, price, phone) values ($1, 'swap', 'cat', 'بدل', 1, '01022222222')`, [Cu])) &&
+    denied(await as(db, Cu, `insert into pet_listings (owner_id, kind, animal, title, price, phone) values ($1, 'sale', 'lion', 'أسد', 1, '01022222222')`, [Cu])));
+  check('a user says "عندي معلومة" on a lost pet', ok(await as(db, M, `select public.express_interest_in_pet($1)`, [petLostId])));
+  check('the pet owner is notified with the deep link',
+    (await admin(db, `select count(*)::int as n from notifications where user_id = $1 and deep_link = $2`, [Cu, '/#/pets/' + petLostId]))[0].n === 1);
+  check('EXPLOIT blocked: showing interest in your own pet listing',
+    denied(await as(db, Cu, `select public.express_interest_in_pet($1)`, [petLostId])));
+  check('EXPLOIT blocked: a guest shows interest in a pet', denied(await as(db, null, `select public.express_interest_in_pet($1)`, [petLostId])));
+  check('the owner closes the lost pet as found and it leaves the public list',
+    ok(await as(db, Cu, `update pet_listings set outcome = 'reunited' where id = $1`, [petLostId])) &&
+    (await admin(db, `select is_active from pet_listings where id = $1`, [petLostId]))[0].is_active === false &&
+    !(await as(db, null, `select id from pet_listings`)).rows?.some((r) => r.id === petLostId));
+  await as(db, Cu, `update pet_listings set is_active = false where id = $1`, [petId]);
+  check('an inactive pet listing is hidden from guests and other users',
+    !(await as(db, null, `select id from pet_listings`)).rows?.some((r) => r.id === petId) &&
+    !(await as(db, M, `select id from pet_listings`)).rows?.some((r) => r.id === petId));
+  check('…but the owner still sees it in "إعلاناتي"',
+    (await as(db, Cu, `select id from pet_listings where owner_id = $1`, [Cu])).rows?.some((r) => r.id === petId));
+  check('no phone for an inactive pet listing (other users)',
+    (await as(db, M, `select public.pet_listing_phone($1) as p`, [petId])).rows?.[0]?.p === null);
+  check('a super admin hides any pet listing',
+    ok(await as(db, SA, `update pet_listings set is_active = false where id = $1`, [petAdoptId])) &&
+    (await admin(db, `select is_active from pet_listings where id = $1`, [petAdoptId]))[0].is_active === false);
+  check('the owner deletes their own pet listing',
+    ok(await as(db, Cu, `delete from pet_listings where id = $1`, [petId])) &&
+    (await admin(db, `select 1 from pet_listings where id = $1`, [petId])).length === 0);
 
   // Hardening (0068)
   const noRls = await admin(db, `select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity`);
