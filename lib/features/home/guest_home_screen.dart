@@ -10,6 +10,7 @@ import '../../core/notifications/notifications_service.dart';
 import '../../core/places/places_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_logo.dart';
+import '../../core/location/where.dart';
 import '../auth/auth_landing_screen.dart';
 import '../e_address/e_address_widgets.dart';
 import '../marketplace/item_details_screen.dart';
@@ -317,9 +318,7 @@ class _ExploreLocationBoxState extends State<_ExploreLocationBox> {
       final permission = await Geolocator.checkPermission();
       if (permission != LocationPermission.always && permission != LocationPermission.whileInUse) return;
 
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
-      );
+      final position = await Where.current();
       final area = await PlacesService.resolveAreaLabel(lat: position.latitude, lng: position.longitude);
       if (!mounted || area == null) return;
       setState(() => _resolvedArea = area);

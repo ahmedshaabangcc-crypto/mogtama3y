@@ -9,6 +9,8 @@ import '../../core/app_flavor.dart';
 import '../../core/routing/app_router.dart';
 import '../../core/shops/store_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/location/where.dart';
+import '../../core/places/place_images.dart';
 import '../store/store_cart.dart';
 
 /// Live content for the home page: offers and new products from the
@@ -309,7 +311,7 @@ class _NewStoresRailState extends State<NewStoresRail> {
         }
       }
       if (mounted) setState(() => _locating = true);
-      final p = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium));
+      final p = await Where.current();
       var rows = await DirectoryService.nearby(lat: p.latitude, lng: p.longitude, km: 1.5, limit: 120);
       if (rows.where((r) => _shopCategories.contains(r['category'])).length < 8) {
         rows = await DirectoryService.nearby(lat: p.latitude, lng: p.longitude, km: 5, limit: 150);
@@ -403,7 +405,12 @@ class _NewStoresRailState extends State<NewStoresRail> {
     final dist = km == null ? '' : (km < 1 ? '${(km * 1000).round()} م' : '${km.toStringAsFixed(1)} كم');
     return _tile(
       onTap: () => context.push('/d/${p['id']}'),
-      avatar: const CircleAvatar(radius: 30, backgroundColor: AppColors.nightMid, child: Icon(Icons.store_mall_directory_rounded, color: Colors.white70)),
+      avatar: CircleAvatar(
+        radius: 30,
+        backgroundColor: AppColors.nightMid,
+        backgroundImage: placeImage(p['category'] as String?),
+        child: placeImage(p['category'] as String?) == null ? const Icon(Icons.store_mall_directory_rounded, color: Colors.white70) : null,
+      ),
       name: p['name'] as String? ?? '',
       sub: [p['category'], dist].where((x) => x != null && '$x'.isNotEmpty).join(' · '),
       badge: p['whatsapp'] != null ? _badge('اطلب', const Color(0xFF1FA855), Colors.white) : null,

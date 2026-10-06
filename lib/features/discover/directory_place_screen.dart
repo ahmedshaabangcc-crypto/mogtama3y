@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/maps/maps_launcher.dart';
 import '../../core/places/directory_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/places/place_images.dart';
 import '../shared/load_error_view.dart';
 
 /// A business from the Egypt directory (not on مُجتمعي yet) as a store page:
@@ -124,7 +125,12 @@ class _DirectoryPlaceScreenState extends State<DirectoryPlaceScreen> {
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(gradient: AppColors.nightGradient, borderRadius: BorderRadius.circular(20)),
           child: Row(children: [
-            const CircleAvatar(radius: 28, backgroundColor: AppColors.nightMid, child: Icon(Icons.storefront_rounded, color: AppColors.gold, size: 28)),
+            CircleAvatar(
+              radius: 32,
+              backgroundColor: AppColors.nightMid,
+              backgroundImage: placeImage(p['category'] as String?),
+              child: placeImage(p['category'] as String?) == null ? const Icon(Icons.storefront_rounded, color: AppColors.gold, size: 28) : null,
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

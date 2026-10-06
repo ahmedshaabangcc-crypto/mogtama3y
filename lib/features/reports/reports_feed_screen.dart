@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/reports/report_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/location/where.dart';
 import '../shared/load_error_view.dart';
 import 'report_widgets.dart';
 
@@ -37,7 +38,7 @@ class _ReportsFeedScreenState extends State<ReportsFeedScreen> {
     try {
       final perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.always || perm == LocationPermission.whileInUse) {
-        _position = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium));
+        _position = await Where.current();
       }
     } catch (_) {}
     await _load();

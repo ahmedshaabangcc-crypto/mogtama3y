@@ -5,8 +5,10 @@ import 'package:geolocator/geolocator.dart';
 
 import '../../core/places/directory_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/location/where.dart';
 import '../people/nearby_people_tab.dart';
 import '../shared/load_error_view.dart';
+import '../../core/places/place_images.dart';
 import 'directory_place_screen.dart';
 
 // Directory categories (Arabic groups from backend/maintenance/directory/2_clean.sql).
@@ -88,7 +90,7 @@ class _DiscoverNearbyScreenState extends State<DiscoverNearbyScreen> {
       if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
         throw 'محتاجين إذن الموقع عشان نعرض الأماكن القريبة منك — أو دوّر بالاسم فوق';
       }
-      final position = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium));
+      final position = await Where.current();
       if (!mounted) return;
       _position = position;
       await _load();
@@ -268,10 +270,17 @@ class _DiscoverNearbyScreenState extends State<DiscoverNearbyScreen> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
               child: Row(children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: AppColors.teal.withValues(alpha: 0.1),
-                  child: Icon(_iconFor(place['category'] as String?), color: AppColors.teal, size: 20),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox.square(
+                    dimension: 52,
+                    child: placeImage(place['category'] as String?) != null
+                        ? Image(image: placeImage(place['category'] as String?)!, fit: BoxFit.cover)
+                        : ColoredBox(
+                            color: AppColors.teal.withValues(alpha: 0.1),
+                            child: Icon(_iconFor(place['category'] as String?), color: AppColors.teal, size: 22),
+                          ),
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(

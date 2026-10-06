@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/places/places_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/location/where.dart';
 import '../shared/load_error_view.dart';
 import 'claim_business_hub_screen.dart';
 import 'shop_details_screen.dart';
@@ -50,7 +51,7 @@ class _NeighborhoodShopsScreenState extends State<NeighborhoodShopsScreen> {
       }
       if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) return;
 
-      final position = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium));
+      final position = await Where.current();
       final area = await PlacesService.resolveAreaLabel(lat: position.latitude, lng: position.longitude);
       if (!mounted || area == null || _searchCtrl.text.isNotEmpty) return;
       setState(() => _searchCtrl.text = 'سوبر ماركت وصيدليات في $area');

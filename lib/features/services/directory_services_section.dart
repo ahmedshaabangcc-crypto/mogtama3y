@@ -6,6 +6,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/places/directory_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/location/where.dart';
+import '../../core/places/place_images.dart';
 
 /// Maintenance businesses near the user from the Egypt directory (migration
 /// 0064), under the registered technicians. They are not verified: contact
@@ -42,7 +44,7 @@ class _DirectoryServicesSectionState extends State<DirectoryServicesSection> {
         }
       }
       if (mounted) setState(() => _loading = true);
-      final p = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium));
+      final p = await Where.current();
       final rows = await Supabase.instance.client.rpc('nearby_services', params: {
         'p_lat': p.latitude,
         'p_lng': p.longitude,
@@ -115,7 +117,7 @@ class _DirectoryServicesSectionState extends State<DirectoryServicesSection> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
         child: Row(children: [
-          CircleAvatar(radius: 22, backgroundColor: AppColors.surfaceAlt, child: const Icon(Icons.build_rounded, color: AppColors.inkSecondary, size: 20)),
+          CircleAvatar(radius: 22, backgroundColor: AppColors.surfaceAlt, backgroundImage: placeImage(s['trade'] as String?)),
           const SizedBox(width: 10),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

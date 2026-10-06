@@ -10,6 +10,7 @@ import '../../core/people/people_service.dart';
 import '../../core/routing/app_router.dart';
 import '../../core/places/places_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/location/where.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'people_widgets.dart';
@@ -62,7 +63,7 @@ class _NearbyPeopleTabState extends State<NearbyPeopleTab> {
     if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
       throw 'محتاجين إذن الموقع عشان نعرض الناس القريبين منك';
     }
-    return Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium));
+    return Where.current();
   }
 
   Future<String?> _area(Position p) async {
