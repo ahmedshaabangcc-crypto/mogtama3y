@@ -25,12 +25,9 @@ class _AddListingScreenState extends State<AddListingScreen> {
   String? _error;
   List<String> _images = [];
 
-  final _titleCtrl = TextEditingController(text: 'ماكينة قهوة ديلونجي ديديكا بحالة ممتازة');
-  final _priceCtrl = TextEditingController(text: '3850');
-  final _descriptionCtrl = TextEditingController(
-    text: 'استعمال شخصي راقٍ لمدة 4 أشهر فقط، تم عمل دورة إزالة ترسبات بانتظام. '
-        'تأتي مع كافة الملحقات الأصلية (البورتافلتر)، باكستك سنجل ودبل.',
-  );
+  final _titleCtrl = TextEditingController();
+  final _priceCtrl = TextEditingController();
+  final _descriptionCtrl = TextEditingController();
 
   static const _conditions = ['بحالة متوسطة', 'استعمال خفيف', 'شبه جديد (كالجديد)'];
   static const _conditionValues = ['used', 'light_use', 'like_new'];
@@ -105,7 +102,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
           const SizedBox(height: 20),
           const _FieldLabel('عنوان الإعلان *'),
           const SizedBox(height: 6),
-          _EditableBox(controller: _titleCtrl),
+          _EditableBox(controller: _titleCtrl, hint: 'مثلاً: ماكينة قهوة بحالة ممتازة'),
           const SizedBox(height: 16),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -327,8 +324,9 @@ class _FieldLabel extends StatelessWidget {
 }
 
 class _EditableBox extends StatelessWidget {
-  const _EditableBox({required this.controller});
+  const _EditableBox({required this.controller, this.hint});
   final TextEditingController controller;
+  final String? hint;
 
   @override
   Widget build(BuildContext context) {
@@ -343,7 +341,13 @@ class _EditableBox extends StatelessWidget {
       child: TextField(
         controller: controller,
         style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-        decoration: const InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 9)),
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 9),
+          hintText: hint,
+          hintStyle: const TextStyle(color: AppColors.inkMuted, fontWeight: FontWeight.w400),
+        ),
       ),
     );
   }

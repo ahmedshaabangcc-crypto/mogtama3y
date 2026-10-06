@@ -68,21 +68,27 @@ async function rest(path, init = {}) {
 }
 const rpc = (fn, params) => rest(`rpc/${fn}`, { method: 'POST', body: JSON.stringify(params) });
 
-// Small LRU-ish cache for rendered pages.
+// Small LRU cache for rendered pages. 2 000 entries × ~40 KB ≈ 80 MB max;
+// the container has 512 MB. Re-inserting on hit keeps it least-recently-used.
+const CACHE_MAX = 2000;
 const cache = new Map();
 function cached(key, ttlMs, make) {
   const hit = cache.get(key);
-  if (hit && hit.until > Date.now()) return hit.value;
+  if (hit && hit.until > Date.now()) {
+    cache.delete(key);
+    cache.set(key, hit);
+    return hit.value;
+  }
   const value = make();
   cache.set(key, { until: Date.now() + ttlMs, value });
-  if (cache.size > 20000) cache.delete(cache.keys().next().value);
+  while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
   value.catch(() => cache.delete(key));
   return value;
 }
 
 // ---------------------------------------------------------------- layout
 
-function page({ title, description, canonical, body, jsonLd }) {
+function page({ title, description, canonical, body, jsonLd, noindex = false, image }) {
   return `<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
@@ -91,6 +97,9 @@ function page({ title, description, canonical, body, jsonLd }) {
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}">
 <link rel="canonical" href="${esc(canonical)}">
+${noindex ? '<meta name="robots" content="noindex, follow">' : ''}
+<meta property="og:type" content="website">
+${image ? `<meta property="og:image" content="${esc(image)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(image)}">` : ''}
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:url" content="${esc(canonical)}">
@@ -198,8 +207,10 @@ async function hubPage(category, city) {
   const c = CITIES.find(([n]) => n === city);
   if (!c || !CATEGORIES.includes(category)) return null;
   const places = await rpc('nearby_directory', { p_lat: c[1], p_lng: c[2], p_km: 10, p_category: category, p_limit: 200 });
+  const noindex = places.length === 0;
   const otherCats = CATEGORIES.filter((x) => x !== category).map((x) => `<a href="${SITE}/c/${encodeURIComponent(slug(x))}/${encodeURIComponent(slug(city))}">${esc(x)}</a>`).join('');
   return page({
+    noindex,
     title: `${category} في ${city} — العناوين والتليفونات | دليل مُجتمعي`,
     description: `${places.length} من ${category} في ${city} بالعنوان على الخريطة ورقم التليفون، واطلب أونلاين على مُجتمعي.`,
     canonical: `${SITE}/c/${slug(category)}/${slug(city)}`,
@@ -287,7 +298,7 @@ function offerOf(p, url) {
 }
 
 async function storePage(slugName) {
-  const data = await storeData(slugName);
+  const data = await cached('sd:' + slugName.toLowerCase(), 600e3, () => storeData(slugName));
   if (!data) return null;
   const { shop, products } = data;
   const city = shop.lat != null ? cityOf(shop.lat, shop.lng) : null;
@@ -322,6 +333,7 @@ async function storePage(slugName) {
     })
     .join('');
   return page({
+    image: shop.cover_image_url || shop.logo_url || imagesOf(products[0] || {})[0],
     title: `${shop.name} — ${shop.category || 'متجر'}${where} | اطلب أونلاين على مُجتمعي`,
     description: `${shop.name}${where}: ${products.length} منتج بالأسعار${shop.description ? ' — ' + shop.description.slice(0, 120) : ''}. اطلب أونلاين والدفع عند الاستلام.`,
     canonical,
@@ -340,7 +352,7 @@ ${shop.address ? `<p>📍 ${esc(shop.address)}</p>` : ''}
 }
 
 async function productPage(slugName, productId) {
-  const data = await storeData(slugName);
+  const data = await cached('sd:' + slugName.toLowerCase(), 600e3, () => storeData(slugName));
   const p = data?.products.find((x) => x.id === productId);
   if (!p) return null;
   const { shop } = data;
@@ -357,6 +369,7 @@ async function productPage(slugName, productId) {
     offers: { ...offerOf(p, canonical), seller: { '@type': 'Organization', name: shop.name } },
   };
   return page({
+    image: imgs[0],
     title: `${p.name} بسعر ${egp(p.price)} — ${shop.name}${city ? ' ' + city : ''} | مُجتمعي`,
     description: `${p.name} بـ ${egp(p.price)} من ${shop.name}${city ? ' في ' + city : ''}. ${p.description ? p.description.slice(0, 120) + ' ' : ''}اطلب أونلاين والدفع عند الاستلام.`,
     canonical,
@@ -385,48 +398,79 @@ async function storeUrls() {
 // ---------------------------------------------------------------- sitemaps
 
 const PER_SITEMAP = 40000;
-let ids = { list: [], until: 0, loading: null };
+const PAGE = 1000;
 
-async function loadIds() {
-  const list = [];
-  let last = '';
-  for (;;) {
-    const page = await rest(`directory_places?select=id&order=id.asc&limit=1000${last ? `&id=gt.${encodeURIComponent(last)}` : ''}`);
-    for (const r of page) list.push(r.id);
-    if (page.length < 1000) break;
-    last = page[page.length - 1].id;
+// Total places (refreshed daily) — the only sitemap state kept in memory.
+let total = { n: 0, until: 0, loading: null };
+async function placeCount() {
+  if (total.until > Date.now()) return total.n;
+  if (!total.loading) {
+    total.loading = (async () => {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/directory_places?select=id&limit=1`, {
+        headers: { apikey: SUPABASE_KEY, Prefer: 'count=exact', Range: '0-0' },
+      });
+      const range = res.headers.get('content-range') || '';
+      const n = Number(range.split('/')[1]);
+      if (!Number.isFinite(n)) throw new Error('count unavailable');
+      total = { n, until: Date.now() + 24 * 3600e3, loading: null };
+      console.log(`sitemap: ${n} places`);
+    })().catch((e) => { total.loading = null; throw e; });
   }
-  ids = { list, until: Date.now() + 24 * 3600e3, loading: null };
-  console.log(`sitemap: ${list.length} places`);
-}
-async function allIds() {
-  if (ids.until > Date.now()) return ids.list;
-  if (!ids.loading) ids.loading = loadIds().catch((e) => { ids.loading = null; throw e; });
-  if (ids.list.length) return ids.list; // serve the old list while refreshing
-  await ids.loading;
-  return ids.list;
+  if (total.n) return total.n;
+  await total.loading;
+  return total.n;
 }
 
 const urlset = (urls) =>
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `<url><loc>${esc(u)}</loc></url>`).join('\n')}\n</urlset>`;
 
 async function sitemapIndex() {
-  const n = Math.ceil((await allIds()).length / PER_SITEMAP);
-  const maps = [`${SITE}/sitemap-hubs.xml`, `${SITE}/sitemap-stores.xml`, ...Array.from({ length: n }, (_, i) => `${SITE}/sitemap-${i + 1}.xml`)];
+  const parts = Math.ceil((await placeCount()) / PER_SITEMAP);
+  const storeParts = Math.max(1, Math.ceil((await cached('stores-urls', 3600e3, storeUrls)).length / PER_SITEMAP));
+  const maps = [
+    `${SITE}/sitemap-hubs.xml`,
+    ...Array.from({ length: storeParts }, (_, i) => `${SITE}/sitemap-stores-${i + 1}.xml`),
+    ...Array.from({ length: parts }, (_, i) => `${SITE}/sitemap-${i + 1}.xml`),
+  ];
   return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${maps.map((m) => `<sitemap><loc>${m}</loc></sitemap>`).join('\n')}\n</sitemapindex>`;
 }
-function sitemapHubs() {
+
+// Hub pages: only city × category pairs that actually have places, so Google
+// never gets an empty page from the sitemap.
+async function sitemapHubs() {
   const urls = [`${SITE}/`];
-  for (const [city] of CITIES) {
+  for (const [city, lat, lng] of CITIES) {
     urls.push(`${SITE}/city/${encodeURIComponent(slug(city))}`);
-    for (const c of CATEGORIES) urls.push(`${SITE}/c/${encodeURIComponent(slug(c))}/${encodeURIComponent(slug(city))}`);
+    const cats = await cached('hubcats:' + city, 24 * 3600e3, async () => {
+      const rows = await rpc('nearby_directory', { p_lat: lat, p_lng: lng, p_km: 10, p_category: null, p_limit: 200 }).catch(() => []);
+      return [...new Set(rows.map((r) => r.category))].filter((c) => CATEGORIES.includes(c));
+    });
+    for (const c of cats) urls.push(`${SITE}/c/${encodeURIComponent(slug(c))}/${encodeURIComponent(slug(city))}`);
   }
   return urlset(urls);
 }
+
+// Part n of the places sitemap: page through ids in order with a keyset
+// cursor, PAGE rows at a time, never more than one page in memory at once.
 async function sitemapPart(n) {
-  const list = await allIds();
-  const part = list.slice((n - 1) * PER_SITEMAP, n * PER_SITEMAP);
-  return part.length ? urlset(part.map((id) => `${SITE}/p/${encodeURIComponent(id)}`)) : null;
+  const skip = (n - 1) * PER_SITEMAP;
+  if (skip >= (await placeCount())) return null;
+  // Jump to the part's first id with offset paging (fast enough on the pk).
+  const first = await rest(`directory_places?select=id&order=id.asc&limit=1&offset=${skip}`);
+  if (!first.length) return null;
+  const chunks = [];
+  let last = first[0].id;
+  chunks.push(`<url><loc>${esc(`${SITE}/p/${encodeURIComponent(last)}`)}</loc></url>`);
+  let got = 1;
+  while (got < PER_SITEMAP) {
+    const page = await rest(`directory_places?select=id&order=id.asc&limit=${Math.min(PAGE, PER_SITEMAP - got)}&id=gt.${encodeURIComponent(last)}`);
+    if (!page.length) break;
+    for (const r of page) chunks.push(`<url><loc>${esc(`${SITE}/p/${encodeURIComponent(r.id)}`)}</loc></url>`);
+    got += page.length;
+    last = page[page.length - 1].id;
+    if (page.length < PAGE) break;
+  }
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${chunks.join('\n')}\n</urlset>`;
 }
 
 // ------------------------------------------------- report videos (uploads)
@@ -643,8 +687,13 @@ const server = http.createServer(async (req, res) => {
     if (path === '/robots.txt') return send(res, 200, `User-agent: *\nAllow: /\nDisallow: /search\nSitemap: ${SITE}/sitemap.xml\n`, 'text/plain; charset=utf-8', 86400);
     if (path === '/healthz') return send(res, 200, 'ok', 'text/plain', 0);
     if (path === '/sitemap.xml') return send(res, 200, await sitemapIndex(), 'application/xml; charset=utf-8', 86400);
-    if (path === '/sitemap-hubs.xml') return send(res, 200, sitemapHubs(), 'application/xml; charset=utf-8', 86400);
-    if (path === '/sitemap-stores.xml') return send(res, 200, urlset(await cached('stores-urls', 3600e3, storeUrls)), 'application/xml; charset=utf-8', 3600);
+    if (path === '/sitemap-hubs.xml') return send(res, 200, await cached('sitemap-hubs', 24 * 3600e3, sitemapHubs), 'application/xml; charset=utf-8', 86400);
+    if ((m = path.match(/^\/sitemap-stores-(\d+)\.xml$/))) {
+      const all = await cached('stores-urls', 3600e3, storeUrls);
+      const part = all.slice((Number(m[1]) - 1) * PER_SITEMAP, Number(m[1]) * PER_SITEMAP);
+      return part.length || m[1] === '1' ? send(res, 200, urlset(part), 'application/xml; charset=utf-8', 3600) : send(res, 404, 'not found', 'text/plain');
+    }
+    if (path === '/sitemap-stores.xml') return send(res, 200, urlset((await cached('stores-urls', 3600e3, storeUrls)).slice(0, PER_SITEMAP)), 'application/xml; charset=utf-8', 3600);
     if ((m = path.match(/^\/s\/([a-z0-9-]{3,40})\/p\/([0-9a-f-]{36})$/i))) {
       const html = await cached(`sp:${m[1]}:${m[2]}`, 600e3, () => productPage(m[1], m[2]));
       return html ? send(res, 200, html, 'text/html; charset=utf-8', 600) : send(res, 404, await cached('home', 3600e3, homePage));
@@ -658,7 +707,7 @@ const server = http.createServer(async (req, res) => {
       return html ? send(res, 200, html, 'text/html; charset=utf-8', 600) : send(res, 404, await cached('home', 3600e3, homePage));
     }
     if ((m = path.match(/^\/sitemap-(\d+)\.xml$/))) {
-      const xml = await sitemapPart(Number(m[1]));
+      const xml = await cached('sitemap-part:' + m[1], 24 * 3600e3, () => sitemapPart(Number(m[1])));
       return xml ? send(res, 200, xml, 'application/xml; charset=utf-8', 86400) : send(res, 404, 'not found', 'text/plain');
     }
     if ((m = path.match(/^\/p\/([0-9a-zA-Z-]{8,64})$/))) {
@@ -689,6 +738,6 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`dalil listening on ${PORT}`);
-  allIds().catch((e) => console.error('sitemap preload failed', e.message));
+  placeCount().catch((e) => console.error('sitemap count failed', e.message));
   convertLeftovers().catch((e) => console.error('convert leftovers failed', e.message));
 });

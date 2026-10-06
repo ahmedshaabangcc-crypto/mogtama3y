@@ -831,6 +831,21 @@ const denied = (r) => !!r.error;
     ok(await as(db, Cu, `update car_listings set status = 'sold' where id = $1`, [carId])) &&
     !(await as(db, null, `select id from car_listings`)).rows?.some((r) => r.id === carId));
 
+  // Hardening (0068)
+  const noRls = await admin(db, `select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity`);
+  check('every public table has RLS enabled', noRls.length === 0, noRls.map((r) => r.relname));
+  check('EXPLOIT blocked: a job posting in the name of someone else\'s shop',
+    denied(await as(db, Cu, `insert into job_postings (poster_id, shop_id, title, employment_type) values ($1, $2, 'كاشير', 'full_time')`, [Cu, proShop])));
+  check('a merchant posts a job for their own shop',
+    ok(await as(db, M, `insert into job_postings (poster_id, shop_id, title, employment_type) values ($1, $2, 'كاشير', 'full_time')`, [M, proShop])));
+  await admin(db, `update shop_products set stock = 5 where id = $1`, [stockP]);
+  const restockOrder = await as(db, null, `select public.place_store_order($1, $2::jsonb, 'سارة', '01088888883', 'شارع 10 عمارة 5 الدور 2') as code`,
+    [proShop, JSON.stringify([{ product_id: stockP, quantity: 2 }])]);
+  const restockId = (await admin(db, `select id from shop_orders where order_code = $1`, [restockOrder.rows?.[0]?.code]))[0]?.id;
+  check('stock is deducted when the order is placed', (await admin(db, `select stock from shop_products where id = $1`, [stockP]))[0].stock === 3);
+  check('a merchant can cancel a guest order (no buyer account to notify)', ok(await as(db, M, `select public.update_shop_order_status($1, 'cancelled')`, [restockId])));
+  check('cancelling an order gives the stock back', (await admin(db, `select stock from shop_products where id = $1`, [stockP]))[0].stock === 5);
+
   check('with a president in place, owners can no longer call elections themselves',
     denied(await as(db, F, `select public.create_election('تاني', now() + interval '2 days')`)));
 
