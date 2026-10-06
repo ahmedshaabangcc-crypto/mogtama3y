@@ -1,6 +1,8 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -174,12 +176,74 @@ class _MessageBubble extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           border: message.isUser ? null : Border.all(color: AppColors.border),
         ),
-        child: Text(
-          message.text,
-          style: TextStyle(fontSize: 12.5, height: 1.6, color: message.isUser ? Colors.white : AppColors.ink),
-        ),
+        child: message.isUser
+            ? Text(message.text, style: const TextStyle(fontSize: 12.5, height: 1.6, color: Colors.white))
+            : _withLinks(context, message.text),
       ),
     );
+  }
+
+  // [label](url) and bare https:// links in the assistant's reply become
+  // buttons under the text; app links (mogtama3y.com/#/…) open in-app.
+  static final _md = RegExp(r'\[([^\]]{1,60})\]\((https?://[^\s)]+)\)');
+  static final _bare = RegExp(r'https?://[^\s)\]،]+');
+
+  Widget _withLinks(BuildContext context, String raw) {
+    final links = <(String, String)>[];
+    // Markdown bold/headers from the model are shown as plain text.
+    var text = raw.replaceAll('**', '').replaceAll(RegExp(r'^#+\s*', multiLine: true), '').replaceAllMapped(_md, (m) {
+      links.add((m[1]!, m[2]!));
+      return m[1]!;
+    });
+    text = text.replaceAllMapped(_bare, (m) {
+      final url = m[0]!.replaceAll(RegExp(r'[.,]$'), '');
+      if (!links.any((l) => l.$2 == url)) links.add((_labelFor(url), url));
+      return '';
+    }).replaceAll(RegExp(r'[ \t]+\n'), '\n').trim();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+      if (text.isNotEmpty) Text(text, style: const TextStyle(fontSize: 12.5, height: 1.6, color: AppColors.ink)),
+      if (links.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        Wrap(spacing: 6, runSpacing: 6, children: [
+          for (final (label, url) in links)
+            ActionChip(
+              avatar: const Icon(Icons.open_in_new_rounded, size: 15, color: AppColors.teal),
+              label: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              onPressed: () => _open(context, url),
+            ),
+        ]),
+      ],
+    ]);
+  }
+
+  static String _labelFor(String url) {
+    final path = _appPath(url) ?? '';
+    for (final (prefix, label) in const [
+      ('/nearby', 'اكتشف حواليك'), ('/reports', 'بلاغات حيّك'), ('/report', 'بلّغ عن مشكلة'), ('/marketplace', 'سوق المستعمل'),
+      ('/technicians', 'الفنيين'), ('/real-estate', 'العقارات'), ('/jobs', 'الوظائف'), ('/my-address', 'عنوانك الإلكتروني'),
+      ('/friends', 'أصحابي'), ('/wallet', 'المحفظة'), ('/post', 'انشر إعلان'), ('/support', 'الدعم'), ('/d/', 'صفحة المحل'),
+      ('/s/', 'المتجر'), ('/r/', 'البلاغ'),
+    ]) {
+      if (path.startsWith(prefix)) return label;
+    }
+    if (url.contains('tajer.mogtama3y.com')) return 'افتح متجرك';
+    if (url.contains('ittihad.mogtama3y.com')) return 'اتحاد الملاك';
+    return 'افتح الرابط';
+  }
+
+  /// '/nearby?q=…' for https://mogtama3y.com/#/nearby?q=…, else null.
+  static String? _appPath(String url) {
+    final m = RegExp(r'^https?://(www\.)?mogtama3y\.com/#(/.*)$').firstMatch(url);
+    return m?[2];
+  }
+
+  static void _open(BuildContext context, String url) {
+    final path = _appPath(url);
+    if (path != null) {
+      context.push(path);
+    } else {
+      launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    }
   }
 }
 

@@ -5,6 +5,7 @@ import '../../core/maintenance/technician_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
+import 'directory_services_section.dart';
 import 'escrow_booking_confirm_screen.dart';
 import 'my_maintenance_requests_screen.dart';
 import 'register_technician_screen.dart';
@@ -168,6 +169,10 @@ class _TechniciansMarketScreenState extends State<TechniciansMarketScreen> {
                 _TechnicianCard(technician: t),
                 const SizedBox(height: 14),
               ],
+            DirectoryServicesSection(
+              key: ValueKey(_categoryIndex),
+              trade: _categoryIndex == 0 ? null : _categories[_categoryIndex],
+            ),
             SizedBox(
               width: double.infinity,
               height: 48,

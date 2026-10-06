@@ -778,6 +778,12 @@ const denied = (r) => !!r.error;
   check('EXPLOIT blocked: a video link to any other website',
     denied(await as(db, P3, `select public.submit_report('حفر ورصف', 'حفرة كبيرة', '{}', 31.2, 29.9, null, null, false, null, 'https://evil.example/x')`)));
 
+  // Maintenance trades from the directory (0064)
+  await admin(db, "update directory_places set trade = 'سباكة' where id = 'ov2'");
+  const svc = await as(db, null, "select * from public.nearby_services(31.2, 29.9, 'سباكة')");
+  check('guests find plumbers from the directory near them', svc.rows?.length === 1 && svc.rows[0].id === 'ov2', svc.rows || svc.error);
+  check('an unknown trade is refused', !!(await admin(db, "select 1")) && denied(await as(db, null, "update directory_places set trade = 'x'")));
+
   check('with a president in place, owners can no longer call elections themselves',
     denied(await as(db, F, `select public.create_election('تاني', now() + interval '2 days')`)));
 

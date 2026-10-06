@@ -36,10 +36,14 @@ const _categories = <(String?, String, IconData)>[
 /// by name. Each one opens as a store page you can order from on WhatsApp.
 /// Works without an account, and costs nothing per search.
 class DiscoverNearbyScreen extends StatefulWidget {
-  const DiscoverNearbyScreen({super.key, this.showPeople = false});
+  const DiscoverNearbyScreen({super.key, this.showPeople = false, this.initialQuery, this.initialCategory});
 
   /// Open on the "ناس" tab instead of "أماكن".
   final bool showPeople;
+
+  /// From a link (e.g. the assistant): /nearby?q=صيدلية or ?cat=صيدليات.
+  final String? initialQuery;
+  final String? initialCategory;
 
   @override
   State<DiscoverNearbyScreen> createState() => _DiscoverNearbyScreenState();
@@ -48,13 +52,13 @@ class DiscoverNearbyScreen extends StatefulWidget {
 class _DiscoverNearbyScreenState extends State<DiscoverNearbyScreen> {
   Position? _position;
   String? _locationError;
-  String? _category;
+  late String? _category = widget.initialCategory;
   /// The "أماكن" | "ناس" toggle: true shows people nearby.
   late bool _people = widget.showPeople;
   bool _loading = true;
   bool _loadError = false;
   List<Map<String, dynamic>> _places = [];
-  final _search = TextEditingController();
+  late final _search = TextEditingController(text: widget.initialQuery ?? '');
   Timer? _debounce;
 
   @override
@@ -94,6 +98,8 @@ class _DiscoverNearbyScreenState extends State<DiscoverNearbyScreen> {
         _loading = false;
         _locationError = e is String ? e : 'تعذر تحديد موقعك';
       });
+      // A search from a link still works without the location.
+      if (_search.text.trim().length >= 2) _load();
     }
   }
 

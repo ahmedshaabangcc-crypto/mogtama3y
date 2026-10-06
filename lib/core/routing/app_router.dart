@@ -134,7 +134,11 @@ final _mogtama3ySections = <String, GoRouterWidgetBuilder>{
   AppRoutes.about: (_, _) => const AboutPlatformScreen(),
   // Merchants use their own app now; old /#/merchant links hand off to it.
   AppRoutes.merchant: (_, _) => const OpenTajerApp(),
-  AppRoutes.nearby: (_, _) => const DiscoverNearbyScreen(),
+  AppRoutes.nearby: (_, state) => DiscoverNearbyScreen(
+        showPeople: state.uri.queryParameters['tab'] == 'people',
+        initialQuery: state.uri.queryParameters['q'],
+        initialCategory: state.uri.queryParameters['cat'],
+      ),
   AppRoutes.myAddress: (_, _) => const MyEAddressesScreen(),
   AppRoutes.reports: (_, _) => const ReportsFeedScreen(),
   AppRoutes.newReport: (_, _) => const ReportFormScreen(),
