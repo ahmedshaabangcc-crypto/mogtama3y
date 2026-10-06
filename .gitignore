@@ -60,3 +60,6 @@ apis.txt
 .n8n-api-key
 .assistant-secret
 .push-keys.json
+
+# Agent worktrees
+.claude/worktrees/

@@ -896,6 +896,62 @@ const denied = (r) => !!r.error;
     ok(await as(db, SA, `update tutor_listings set bio = 'تمت المراجعة' where id = $1`, [tutId])));
   await as(db, Cu, `delete from tutor_listings where id = $1`, [tutId]);
   check('the owner deletes their tutoring listing', (await admin(db, `select 1 from tutor_listings where id = $1`, [tutId])).length === 0);
+  // Event halls (0070)
+  const hallIns = (owner, extra = {}) => {
+    const h = { name: 'قاعة الياسمين', hall_type: 'wedding', occasions: '{wedding,engagement}', capacity_min: 100, capacity_max: 400,
+      price_from: 30000, included: '{buffet,dj,air_conditioned}', governorate: 'القاهرة', area: 'مدينة نصر', phone: '01012345678', ...extra };
+    const cols = Object.keys(h);
+    return as(db, owner, `insert into event_halls (owner_id, ${cols.join(', ')}) values ($1, ${cols.map((_, i) => '$' + (i + 2)).join(', ')}) returning id, is_featured`,
+      [owner, ...cols.map((c) => h[c])]);
+  };
+  const hall = await hallIns(Cu, { is_featured: true, whatsapp: '01112345678' });
+  const hallId = hall.rows?.[0]?.id;
+  check('a venue owner lists a hall', !!hallId, hall.error);
+  check('EXPLOIT blocked: an owner lists their hall as featured', hall.rows?.[0]?.is_featured === false);
+  const guestHalls = await as(db, null, `select id, name, phone from event_halls where is_active`);
+  check('guests browse active halls (with the contact phone)', guestHalls.rows?.some((r) => r.id === hallId && r.phone === '01012345678'), guestHalls.error || guestHalls.rows);
+  check('guests filter halls by occasion and guest count',
+    (await as(db, null, `select id from event_halls where occasions @> '{wedding}' and capacity_max >= 250 and coalesce(capacity_min, 0) <= 250`)).rows?.some((r) => r.id === hallId) &&
+    !(await as(db, null, `select id from event_halls where capacity_max >= 1000`)).rows?.some((r) => r.id === hallId));
+  check('EXPLOIT blocked: a guest lists a hall', denied(await hallIns(null)) && denied(await as(db, null, `insert into event_halls (owner_id, name, hall_type, capacity_max, governorate, phone) values ($1, 'قاعة', 'events', 50, 'الجيزة', '01012345678')`, [Cu])));
+  check('EXPLOIT blocked: listing a hall in someone else\'s name',
+    denied(await as(db, M, `insert into event_halls (owner_id, name, hall_type, capacity_max, governorate, phone) values ($1, 'قاعة مزيفة', 'events', 50, 'الجيزة', '01012345678')`, [Cu])));
+  await as(db, M, `update event_halls set price_from = 1, is_active = false where id = $1`, [hallId]);
+  await as(db, M, `delete from event_halls where id = $1`, [hallId]);
+  const afterM = await admin(db, `select price_from, is_active from event_halls where id = $1`, [hallId]);
+  check("EXPLOIT blocked: a user edits or deletes someone else's hall",
+    afterM.length === 1 && Number(afterM[0].price_from) === 30000 && afterM[0].is_active === true, afterM);
+  check('a hall with min guests above max guests is refused', denied(await hallIns(Cu, { capacity_min: 500, capacity_max: 200 })));
+  check('an unknown hall type is refused', denied(await hallIns(Cu, { hall_type: 'stadium' })));
+  check('an unknown occasion is refused', denied(await hallIns(Cu, { occasions: '{wedding,divorce}' })));
+  check('an unknown "included" tag is refused', denied(await hallIns(Cu, { included: '{buffet,pool}' })));
+  check('a bad phone or WhatsApp number is refused',
+    denied(await hallIns(Cu, { phone: '12345' })) && denied(await hallIns(Cu, { whatsapp: '0225551234' })));
+  check('a zero or negative price is refused', denied(await hallIns(Cu, { price_from: 0 })));
+  check('a hall without a capacity is refused', denied(await hallIns(Cu, { capacity_max: null })));
+  check('a per-person price with no minimum capacity is fine',
+    ok(await hallIns(Cu, { name: 'روف النيل', hall_type: 'rooftop_garden', capacity_min: null, capacity_max: 60, price_from: 450, price_per_person: true })));
+  check('the owner edits their hall', ok(await as(db, Cu, `update event_halls set price_from = 35000, included = '{buffet,dj,photography,bride_room}' where id = $1`, [hallId])) &&
+    Number((await admin(db, `select price_from from event_halls where id = $1`, [hallId]))[0].price_from) === 35000);
+  check('a user says "أنا مهتم" on a hall', ok(await as(db, M, `select public.express_interest_in_hall($1)`, [hallId])));
+  check('the hall owner is notified with the deep link',
+    (await admin(db, `select count(*)::int as n from notifications where user_id = $1 and deep_link = $2`, [Cu, '/#/halls/' + hallId]))[0].n === 1);
+  check('EXPLOIT blocked: showing interest in your own hall', denied(await as(db, Cu, `select public.express_interest_in_hall($1)`, [hallId])));
+  check('EXPLOIT blocked: a guest shows interest in a hall', denied(await as(db, null, `select public.express_interest_in_hall($1)`, [hallId])));
+  check('the owner hides the hall', ok(await as(db, Cu, `update event_halls set is_active = false where id = $1`, [hallId])));
+  check('a hidden hall is gone for guests and other users',
+    !(await as(db, null, `select id from event_halls`)).rows?.some((r) => r.id === hallId) &&
+    !(await as(db, M, `select id from event_halls`)).rows?.some((r) => r.id === hallId));
+  check('…but the owner still sees it in "إعلاناتي"', (await as(db, Cu, `select id from event_halls where owner_id = $1`, [Cu])).rows?.some((r) => r.id === hallId));
+  check('nobody can show interest in a hidden hall', denied(await as(db, M, `select public.express_interest_in_hall($1)`, [hallId])));
+  const modHall = (await hallIns(M, { name: 'قاعة مخالفة' })).rows?.[0]?.id;
+  check('a super admin hides a hall and features another',
+    ok(await as(db, SA, `update event_halls set is_active = false where id = $1`, [modHall])) &&
+    ok(await as(db, SA, `update event_halls set is_featured = true where id = $1`, [hallId])) &&
+    (await admin(db, `select is_featured from event_halls where id = $1`, [hallId]))[0].is_featured === true);
+  check('the owner deletes their hall',
+    ok(await as(db, Cu, `delete from event_halls where id = $1`, [hallId])) &&
+    (await admin(db, `select id from event_halls where id = $1`, [hallId])).length === 0);
 
   // Hardening (0068)
   const noRls = await admin(db, `select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity`);
