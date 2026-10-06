@@ -849,6 +849,74 @@ const denied = (r) => !!r.error;
   check('with a president in place, owners can no longer call elections themselves',
     denied(await as(db, F, `select public.create_election('تاني', now() + interval '2 days')`)));
 
+  // Kids & baby gear (0072)
+  {
+    const KO = await signUp(db, 'kids owner', '01000000721');
+    const KB = await signUp(db, 'kids buyer', '01000000722');
+    const kIns = await as(db, KO, `insert into kids_listings (owner_id, category, title, condition, age_range, gender, brand, price, swap_allowed, governorate, area, phone)
+      values ($1, 'stroller', 'عربية أطفال شيكو', 'like_new', '0_6m', 'any', 'Chicco', 2500, true, 'القاهرة', 'مدينة نصر', '01000000721') returning id`, [KO]);
+    const kidId = kIns.rows?.[0]?.id;
+    check('a parent lists a stroller', !!kidId, kIns.error);
+    const kFree = await as(db, KO, `insert into kids_listings (owner_id, category, title, clothes_size, is_free, phone)
+      values ($1, 'clothes', 'هدوم بنات 4 سنين', 'مقاس 4 سنين', true, '01000000721') returning id`, [KO]);
+    check('a parent gives clothes away for free (no price)', ok(kFree), kFree.error);
+    check('a free giveaway with a price is refused',
+      denied(await as(db, KO, `insert into kids_listings (owner_id, category, title, price, is_free, phone) values ($1, 'toys', 'لعب ببلاش', 100, true, '01000000721')`, [KO])));
+    check('a sale without a price is refused',
+      denied(await as(db, KO, `insert into kids_listings (owner_id, category, title, phone) values ($1, 'toys', 'لعب من غير سعر', '01000000721')`, [KO])));
+    check('an unknown category / condition / age range is refused',
+      denied(await as(db, KO, `insert into kids_listings (owner_id, category, title, price, phone) values ($1, 'cars', 'xxx', 1, '01000000721')`, [KO])) &&
+      denied(await as(db, KO, `insert into kids_listings (owner_id, category, title, price, condition, phone) values ($1, 'toys', 'xxx', 1, 'broken', '01000000721')`, [KO])) &&
+      denied(await as(db, KO, `insert into kids_listings (owner_id, category, title, price, age_range, phone) values ($1, 'toys', 'xxx', 1, '99y', '01000000721')`, [KO])));
+    check('a bad phone number is refused',
+      denied(await as(db, KO, `insert into kids_listings (owner_id, category, title, price, phone) values ($1, 'toys', 'xxx', 1, '12345')`, [KO])));
+    const gKids = await as(db, null, `select id, title, price, swap_allowed from kids_listings where is_active and not is_sold and category = 'stroller'`);
+    check('guests browse active kids listings', gKids.rows?.some((r) => r.id === kidId), gKids.error || gKids.rows);
+    check("guests can't read the poster's phone", denied(await as(db, null, `select phone from kids_listings where id = $1`, [kidId])));
+    check('signed-in users see the phone to call / WhatsApp',
+      (await as(db, KB, `select phone from kids_listings where id = $1`, [kidId])).rows?.[0]?.phone === '01000000721');
+    check('EXPLOIT blocked: a guest posts a kids listing',
+      denied(await as(db, null, `insert into kids_listings (owner_id, category, title, price, phone) values ($1, 'toys', 'لعب', 50, '01000000721')`, [KO])));
+    check('EXPLOIT blocked: posting a kids listing in someone else\'s name',
+      denied(await as(db, KB, `insert into kids_listings (owner_id, category, title, price, phone) values ($1, 'toys', 'لعب', 50, '01000000722')`, [KO])));
+    check('the owner edits their listing',
+      ok(await as(db, KO, `update kids_listings set price = 2200, title = 'عربية أطفال شيكو زي الجديدة' where id = $1`, [kidId])) &&
+      Number((await admin(db, `select price from kids_listings where id = $1`, [kidId]))[0].price) === 2200);
+    await as(db, KB, `update kids_listings set price = 1 where id = $1`, [kidId]);
+    check("EXPLOIT blocked: a user edits someone else's kids listing",
+      Number((await admin(db, `select price from kids_listings where id = $1`, [kidId]))[0].price) === 2200);
+    await as(db, KB, `update kids_listings set owner_id = $2 where id = $1`, [kidId, KB]);
+    check("EXPLOIT blocked: a user takes over someone else's kids listing",
+      (await admin(db, `select owner_id from kids_listings where id = $1`, [kidId]))[0].owner_id === KO);
+    await as(db, KB, `delete from kids_listings where id = $1`, [kidId]);
+    check("EXPLOIT blocked: a user deletes someone else's kids listing",
+      (await admin(db, `select 1 from kids_listings where id = $1`, [kidId])).length === 1);
+    check('a user says "أنا مهتم" on a kids item', ok(await as(db, KB, `select public.express_interest_in_kids_item($1)`, [kidId])));
+    check('the kids item owner is notified with the deep link',
+      (await admin(db, `select count(*)::int as n from notifications where user_id = $1 and deep_link = $2`, [KO, '/#/kids/' + kidId]))[0].n === 1);
+    check('EXPLOIT blocked: showing interest in your own kids item',
+      denied(await as(db, KO, `select public.express_interest_in_kids_item($1)`, [kidId])));
+    check('EXPLOIT blocked: a guest shows interest in a kids item',
+      denied(await as(db, null, `select public.express_interest_in_kids_item($1)`, [kidId])));
+    check('the owner deactivates the listing',
+      ok(await as(db, KO, `update kids_listings set is_active = false where id = $1`, [kidId])));
+    check('an inactive kids listing is hidden from guests and other users',
+      !(await as(db, null, `select id from kids_listings`)).rows?.some((r) => r.id === kidId) &&
+      !(await as(db, KB, `select id from kids_listings`)).rows?.some((r) => r.id === kidId));
+    check('…but the owner still sees it in "إعلاناتي"',
+      (await as(db, KO, `select id from kids_listings where owner_id = $1`, [KO])).rows?.some((r) => r.id === kidId));
+    check('the owner marks it sold',
+      ok(await as(db, KO, `update kids_listings set is_active = true, is_sold = true where id = $1`, [kidId])));
+    check('interest in a sold kids item is refused',
+      denied(await as(db, KB, `select public.express_interest_in_kids_item($1)`, [kidId])));
+    check('a super admin can take down a kids listing',
+      ok(await as(db, SA, `update kids_listings set is_active = false where id = $1`, [kFree.rows?.[0]?.id])) &&
+      (await admin(db, `select is_active from kids_listings where id = $1`, [kFree.rows?.[0]?.id]))[0].is_active === false);
+    check('the owner deletes their listing',
+      ok(await as(db, KO, `delete from kids_listings where id = $1`, [kidId])) &&
+      (await admin(db, `select 1 from kids_listings where id = $1`, [kidId])).length === 0);
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

@@ -35,6 +35,7 @@ const _categories = [
   _Category('الصيانة والخدمات', 'فنيين وحجز بضمان', '$_img/maintenance.jpg'),
   _Category('تدوير وتوفير', 'مزادات الخردة والتدوير', '$_img/recycling.jpg'),
   _Category('سيارات', 'بيع وإيجار وقطع غيار', '$_img/cars.jpg'),
+  _Category('مستلزمات الأطفال', 'جديد ومستعمل وببلاش', '$_img/kids.jpg'),
 ];
 
 /// Frosted-glass panel used across the night-styled home.
@@ -409,6 +410,7 @@ class _CategoryGrid extends StatelessWidget {
             'وظائف' => AppRoutes.jobs,
             'عقارات' => AppRoutes.realEstate,
             'سيارات' => AppRoutes.cars,
+            'مستلزمات الأطفال' => AppRoutes.kids,
             _ => '/',
           }),
           child: Container(
@@ -424,10 +426,12 @@ class _CategoryGrid extends StatelessWidget {
                     fit: BoxFit.cover,
                     width: double.infinity,
                     // A photo not shipped yet (e.g. a new section) shows a plain tile.
-                    errorBuilder: (_, _, _) => const ColoredBox(
-                      color: AppColors.nightMid,
-                      child: Center(child: Icon(Icons.directions_car_filled_rounded, color: Colors.white54, size: 34)),
-                    ),
+                    errorBuilder: (_, _, _) => c.label == 'مستلزمات الأطفال'
+                        ? const _KidsTileFallback()
+                        : const ColoredBox(
+                            color: AppColors.nightMid,
+                            child: Center(child: Icon(Icons.directions_car_filled_rounded, color: Colors.white54, size: 34)),
+                          ),
                   ),
                 ),
                 Padding(
@@ -453,6 +457,23 @@ class _CategoryGrid extends StatelessWidget {
       },
     );
   }
+}
+
+/// The kids tile until its photo (assets/images/home/kids.jpg) ships.
+class _KidsTileFallback extends StatelessWidget {
+  const _KidsTileFallback();
+
+  @override
+  Widget build(BuildContext context) => const DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFF48FB1), Color(0xFF7E57C2)],
+          ),
+        ),
+        child: Center(child: Icon(Icons.child_friendly_rounded, color: Colors.white, size: 38)),
+      );
 }
 
 class _QuickServicesRow extends StatelessWidget {
