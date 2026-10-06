@@ -8,6 +8,7 @@ import '../auth/auth_landing_screen.dart';
 import '../promote/token_wallet_screen.dart';
 import '../shared/load_error_view.dart';
 import '../wallet/wallet_screen.dart';
+import 'phone_verify_screen.dart';
 
 /// Real profile page — there was previously no profile screen anywhere
 /// in the app at all; tapping the profile icon on the home screen did
@@ -41,6 +42,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _verifyPhone() async {
+    final done = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => PhoneVerifyScreen(initialPhone: _profile?['phone'] as String?)),
+    );
+    if (done == true && mounted) _load();
   }
 
   Future<void> _load() async {
@@ -134,6 +142,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final avatarUrl = _profile?['avatar_url'] as String?;
     final isVerified = _profile?['is_verified'] == true;
+    final phoneVerified = _profile?['phone_verified_at'] != null;
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -201,7 +210,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   if (isVerified) const Padding(padding: EdgeInsets.only(right: 6), child: Icon(Icons.verified_rounded, color: AppColors.teal, size: 18)),
                 ]),
                 const SizedBox(height: 4),
-                Text(_profile?['phone'] as String? ?? 'لا يوجد رقم هاتف مسجّل', style: const TextStyle(color: AppColors.inkMuted, fontSize: 12.5)),
+                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Text(_profile?['phone'] as String? ?? 'لا يوجد رقم هاتف مسجّل', style: const TextStyle(color: AppColors.inkMuted, fontSize: 12.5)),
+                  if (phoneVerified)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 6),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.verified_user_rounded, color: AppColors.success, size: 15),
+                        SizedBox(width: 3),
+                        Text('موثّق', style: TextStyle(color: AppColors.success, fontSize: 11.5, fontWeight: FontWeight.w700)),
+                      ]),
+                    ),
+                ]),
+                if (!phoneVerified) ...[
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: _verifyPhone,
+                    icon: const Icon(Icons.verified_user_outlined, size: 18),
+                    label: const Text('أكّد رقمك برسالة'),
+                  ),
+                ],
               ]),
             ),
             const SizedBox(height: 28),

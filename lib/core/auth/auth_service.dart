@@ -97,7 +97,7 @@ class AuthService {
     // back through get_contact_phones instead.
     final profile = await _client
         .from('profiles')
-        .select('id, full_name, phone_hidden, avatar_url, is_verified, role, ad_token_balance, created_at, updated_at')
+        .select('id, full_name, phone_hidden, avatar_url, is_verified, role, ad_token_balance, created_at, updated_at, phone_verified_at')
         .eq('id', user.id)
         .maybeSingle();
     if (profile == null) return null;

@@ -510,12 +510,34 @@ const denied = (r) => !!r.error;
     denied(await as(db, Cu, `select public.save_my_e_address(null, $1::jsonb)`, [JSON.stringify({ ...addr, handle: 'بيت احمد' })])));
   check('EXPLOIT blocked: a name equal to someone\'s random code (QR hijack)',
     denied(await as(db, Cu, `select public.save_my_e_address(null, $1::jsonb)`, [JSON.stringify({ ...addr, handle: h1.rows[0].code.toLowerCase() })])));
+  // 0074: the number only opens the address once it's verified by SMS.
+  check('an unverified number opens nothing', (await as(db, null, `select public.get_e_address('01011111111') as a`)).rows?.[0]?.a == null);
+  const verifyPhone = async (user, phone) => {
+    await db.exec('begin; set local role service_role;');
+    try { await db.query('select public.confirm_phone_verified($1, $2)', [user, phone]); } finally { await db.exec('commit'); }
+  };
+  await verifyPhone(M, '01011111111');
+  check('verifying sets phone_verified_at', !!(await admin(db, 'select phone_verified_at from profiles where id = $1', [M]))[0].phone_verified_at);
+  check('EXPLOIT blocked: a user calls confirm_phone_verified', denied(await as(db, Cu, 'select public.confirm_phone_verified($1, $2)', [Cu, '01011111111'])));
+  check('EXPLOIT blocked: a user marks their number verified', denied(await as(db, Cu, 'update profiles set phone_verified_at = now() where id = $1', [Cu])));
   check('opens by mobile number when enabled', (await as(db, null, `select public.get_e_address('01011111111') as a`)).rows?.[0]?.a?.handle === 'salam-maadi');
   check('…also written as +20 1011111111', (await as(db, null, `select public.get_e_address('+20 1011111111') as a`)).rows?.[0]?.a?.handle === 'salam-maadi');
   const h2 = await as(db, M, `select public.save_my_e_address(null, $1::jsonb) as code`, [JSON.stringify({ ...addr, label: 'الشغل', phone_lookup: true })]);
   check('only one address per person answers the mobile number',
     ok(h2) && (await admin(db, `select count(*)::int n from e_addresses where owner_id = $1 and phone_lookup`, [M]))[0].n === 1);
   check('the number now opens the newer choice', (await as(db, null, `select public.get_e_address('01011111111') as a`)).rows?.[0]?.a?.label === 'الشغل');
+  // A squatter types a number that isn't theirs (its real owner hasn't signed up yet).
+  const realOwner = await signUp(db, 'real owner', '01099999991');
+  const squatter = await signUp(db, 'squatter', '01099999992');
+  await as(db, squatter, 'update profiles set phone = $1 where id = $2', ['01099999990', squatter]);
+  check('a typed number stays unverified', !(await admin(db, 'select phone_verified_at from profiles where id = $1', [squatter]))[0].phone_verified_at);
+  await verifyPhone(realOwner, '01099999990');
+  check('proving a number takes it from whoever only typed it',
+    (await admin(db, 'select phone, phone_verified_at from profiles where id = $1', [realOwner]))[0].phone === '01099999990' &&
+    !!(await admin(db, 'select phone_verified_at from profiles where id = $1', [realOwner]))[0].phone_verified_at &&
+    (await admin(db, 'select phone from profiles where id = $1', [squatter]))[0].phone === null);
+  await as(db, realOwner, 'update profiles set phone = $1 where id = $2', ['01099999993', realOwner]);
+  check('changing the number in the app clears the verification', !(await admin(db, 'select phone_verified_at from profiles where id = $1', [realOwner]))[0].phone_verified_at);
   check('a number without phone lookup opens nothing', (await as(db, null, `select public.get_e_address('01022222222') as a`)).rows?.[0]?.a == null);
   check('the random code still works alongside the name',
     (await as(db, null, `select public.get_e_address($1) as a`, [h1.rows[0].code])).rows?.[0]?.a?.handle === 'salam-maadi');

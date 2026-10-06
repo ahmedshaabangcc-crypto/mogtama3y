@@ -49,3 +49,21 @@ the admin panel.
   The app and the n8n ticket tool call `/functions/v1/hyper-api`.
 - Gemini free tier is ~5 requests/minute (shared with the Apex agent); the
   workflow retries, but enable billing on the Gemini key before launch.
+
+## `verify-phone` — SMS-verified mobile numbers (migration 0074)
+
+The app proves a number with **Firebase Phone Auth** (Firebase project
+`mogtama3y-dad8d`; `web/phone-verify.js` loads the Firebase SDK only on the
+"أكّد رقمك" screen). Firebase sends and checks the SMS code and hands the app
+an ID token; this function verifies that token's signature against Google's
+public keys (no secret), takes the number from it, and calls
+`confirm_phone_verified()` with the service role.
+
+Deploy: dashboard → Edge Functions → Deploy a new function → Via editor →
+name `verify-phone`, paste `verify-phone/index.ts`, and turn **Enforce JWT
+verification OFF** (the function checks the Supabase session itself).
+
+Firebase console: Authentication → Phone enabled; Authorized domains
+mogtama3y.com, tajer.mogtama3y.com, ittihad.mogtama3y.com; SMS region policy
+Allow → Egypt only. New projects can send 10 SMS/day until a billing account
+is linked (Blaze).

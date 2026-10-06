@@ -242,7 +242,8 @@ class _EAddressFormScreenState extends State<EAddressFormScreen> {
             value: _phoneLookup,
             onChanged: (v) => setState(() => _phoneLookup = v),
             title: const Text('افتح عنواني برقم موبايلي', style: TextStyle(fontSize: 13.5)),
-            subtitle: const Text('أي حد يكتب رقمك على مُجتمعي هيوصل للعنوان ده. عنوان واحد بس لكل رقم.', style: TextStyle(fontSize: 11.5)),
+            subtitle: const Text('أي حد يكتب رقمك على مُجتمعي هيوصل للعنوان ده. عنوان واحد بس لكل رقم. '
+                'بيشتغل بعد ما تأكّد رقمك برسالة من صفحة "ملفي الشخصي".', style: TextStyle(fontSize: 11.5)),
           ),
           const Divider(height: 24),
           SwitchListTile(
