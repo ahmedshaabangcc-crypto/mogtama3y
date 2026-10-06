@@ -225,6 +225,7 @@ class _ListingCard extends StatelessWidget {
                       )
                     : Image.network(
                         images.first,
+                        cacheWidth: 600,
                         height: 150,
                         width: double.infinity,
                         fit: BoxFit.cover,

@@ -482,7 +482,7 @@ class _ProductsTabState extends State<_ProductsTab> {
                                   child: Stack(fit: StackFit.expand, children: [
                                     images.isEmpty
                                         ? const ColoredBox(color: AppColors.surfaceAlt, child: Icon(Icons.add_a_photo_outlined, color: AppColors.inkMuted))
-                                        : Image.network(images.first, fit: BoxFit.cover),
+                                        : Image.network(images.first, cacheWidth: 300, fit: BoxFit.cover),
                                     if (!available)
                                       const PositionedDirectional(top: 8, start: 8, child: _Pill('مخفي', Colors.black87, Colors.white)),
                                     if (stock != null)
@@ -685,7 +685,7 @@ class _ProductEditorState extends State<_ProductEditor> {
               child: Stack(children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(14),
-                  child: Image.network(_images[i], width: 92, height: 92, fit: BoxFit.cover),
+                  child: Image.network(_images[i], cacheWidth: 300, width: 92, height: 92, fit: BoxFit.cover),
                 ),
                 if (i == 0)
                   PositionedDirectional(

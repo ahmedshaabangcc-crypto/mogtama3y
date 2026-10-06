@@ -418,6 +418,7 @@ class _ListingCardState extends State<_ListingCard> {
                   ? Container(height: 140, color: AppColors.surfaceAlt, child: const Center(child: Icon(Icons.villa_outlined, size: 36, color: AppColors.inkMuted)))
                   : Image.network(
                       images.first,
+                      cacheWidth: 600,
                       height: 140,
                       width: double.infinity,
                       fit: BoxFit.cover,

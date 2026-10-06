@@ -8,6 +8,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/routing/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../profile/profile_screen.dart';
 import '../shared/made_by_apex.dart';
 
 /// The "المزيد" (More) menu — the bottom-nav hamburger tab. A plain
@@ -72,7 +73,10 @@ class _MoreMenuScreenState extends State<MoreMenuScreen> {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
           if (signedIn)
-            Container(
+            InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileScreen())),
+              child: Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
               child: Row(children: [
@@ -96,6 +100,7 @@ class _MoreMenuScreenState extends State<MoreMenuScreen> {
                 ),
                 TextButton(onPressed: _signOut, child: const Text('تسجيل الخروج', style: TextStyle(fontSize: 11.5, color: AppColors.gold))),
               ]),
+            ),
             )
           else
             Container(
@@ -121,6 +126,14 @@ class _MoreMenuScreenState extends State<MoreMenuScreen> {
             ),
           const SizedBox(height: 18),
           const _SectionLabel('الحساب والمال'),
+          if (signedIn)
+            _MenuTile(
+              icon: Icons.person_outline_rounded,
+              iconColor: AppColors.teal,
+              title: 'ملفي الشخصي',
+              subtitle: 'اسمك وصورتك وبياناتك',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileScreen())),
+            ),
           _MenuTile(
             icon: Icons.account_balance_wallet_outlined,
             iconColor: AppColors.teal,
@@ -147,6 +160,7 @@ class _MoreMenuScreenState extends State<MoreMenuScreen> {
             iconColor: AppColors.gold,
             title: 'دفع الفواتير والخدمات',
             subtitle: 'كهرباء، غاز، مياه، فواتير موبايل وأكتر',
+            badge: 'قريباً',
             onTap: () => context.go(AppRoutes.bills),
           ),
           _MenuTile(
@@ -171,6 +185,22 @@ class _MoreMenuScreenState extends State<MoreMenuScreen> {
             onTap: () => context.go(AppRoutes.merchant),
           ),
           const SizedBox(height: 18),
+          const _SectionLabel('حيّك'),
+          _MenuTile(
+            icon: Icons.campaign_rounded,
+            iconColor: AppColors.categorySos,
+            title: 'بلاغات حيّك',
+            subtitle: 'شوف المشاكل اللي جيرانك بلّغوا عنها أو بلّغ إنت',
+            onTap: () => context.go(AppRoutes.reports),
+          ),
+          _MenuTile(
+            icon: Icons.groups_rounded,
+            iconColor: AppColors.teal,
+            title: 'جروب الحي',
+            subtitle: 'اتكلم مع جيرانك واعرف أخبار منطقتك',
+            onTap: () => context.go(AppRoutes.neighborhoods),
+          ),
+          const SizedBox(height: 18),
           const _SectionLabel('المساعدة والقانون'),
           _MenuTile(
             icon: Icons.support_agent_rounded,
@@ -178,6 +208,12 @@ class _MoreMenuScreenState extends State<MoreMenuScreen> {
             title: 'الدعم والمساعدة',
             subtitle: 'تواصل مع فريق علاقات السكان',
             onTap: () => context.go(AppRoutes.support),
+          ),
+          _MenuTile(
+            icon: Icons.help_outline_rounded,
+            iconColor: AppColors.inkSecondary,
+            title: 'الأسئلة الشائعة',
+            onTap: () => context.go(AppRoutes.faq),
           ),
           _MenuTile(
             icon: Icons.gavel_rounded,
@@ -199,6 +235,7 @@ class _MoreMenuScreenState extends State<MoreMenuScreen> {
           ),
           const SizedBox(height: 8),
           const MadeByApex(dark: false),
+          if (_profile?['role'] == 'super_admin') ...[
           const SizedBox(height: 18),
           const _SectionLabel('الإدارة'),
           _MenuTile(
@@ -208,6 +245,7 @@ class _MoreMenuScreenState extends State<MoreMenuScreen> {
             subtitle: 'فض النزاعات والرقابة العامة',
             onTap: () => context.go(AppRoutes.admin),
           ),
+          ],
         ],
       ),
     );
@@ -228,11 +266,12 @@ class _SectionLabel extends StatelessWidget {
 }
 
 class _MenuTile extends StatelessWidget {
-  const _MenuTile({required this.icon, required this.iconColor, required this.title, required this.onTap, this.subtitle});
+  const _MenuTile({required this.icon, required this.iconColor, required this.title, required this.onTap, this.subtitle, this.badge});
   final IconData icon;
   final Color iconColor;
   final String title;
   final String? subtitle;
+  final String? badge;
   final VoidCallback onTap;
 
   @override
@@ -250,7 +289,17 @@ class _MenuTile extends StatelessWidget {
           decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
           child: Icon(icon, color: iconColor, size: 20),
         ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+        title: Row(children: [
+          Flexible(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
+          if (badge != null) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(20)),
+              child: Text(badge!, style: const TextStyle(fontSize: 11, color: AppColors.gold, fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ]),
         subtitle: subtitle == null ? null : Text(subtitle!, style: const TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
         trailing: const Icon(Icons.chevron_left_rounded, color: AppColors.inkMuted),
       ),

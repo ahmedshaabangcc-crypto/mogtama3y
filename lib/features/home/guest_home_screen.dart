@@ -604,7 +604,7 @@ class _ListingCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               child: images.isEmpty
                   ? placeholder
-                  : Image.network(images.first, width: 64, height: 64, fit: BoxFit.cover, errorBuilder: (_, _, _) => placeholder),
+                  : Image.network(images.first, cacheWidth: 200, width: 64, height: 64, fit: BoxFit.cover, errorBuilder: (_, _, _) => placeholder),
             ),
             const SizedBox(width: 12),
             Expanded(

@@ -25,6 +25,9 @@ const N8N_URL = Deno.env.get('N8N_ASSISTANT_URL') ?? 'https://n8n.srv1967321.hst
 
 const USER_DAILY_LIMIT = 60;
 const GUEST_DAILY_LIMIT = 15;
+// All guests together, per day. The per-IP bucket reads X-Forwarded-For,
+// whose first entry the caller can set, so this is the cap that holds.
+const ALL_GUESTS_DAILY_LIMIT = 500;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -110,7 +113,8 @@ Deno.serve(async (req) => {
     const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
     const allowed = userId
       ? await withinQuota(`assistant-user:${userId}`, USER_DAILY_LIMIT)
-      : await withinQuota(`assistant-ip:${ip}`, GUEST_DAILY_LIMIT);
+      : (await withinQuota(`assistant-ip:${ip}`, GUEST_DAILY_LIMIT)) &&
+        (await withinQuota(`assistant-ip:all-guests`, ALL_GUESTS_DAILY_LIMIT));
     if (!allowed) {
       return json({ reply: 'وصلت للحد اليومي للأسئلة. جرّب تاني بكرة، أو تواصل مع الدعم من «المزيد ← الدعم والمساعدة».' });
     }

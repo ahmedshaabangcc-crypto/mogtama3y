@@ -260,6 +260,7 @@ class _ShopCard extends StatelessWidget {
                 child: coverImageUrl != null
                     ? Image.network(
                         coverImageUrl,
+                        cacheWidth: 160,
                         width: 52,
                         height: 52,
                         fit: BoxFit.cover,

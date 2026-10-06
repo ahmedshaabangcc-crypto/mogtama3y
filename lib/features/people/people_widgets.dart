@@ -32,7 +32,7 @@ class PersonAvatar extends StatelessWidget {
     return CircleAvatar(
       radius: radius,
       backgroundColor: AppColors.teal.withValues(alpha: 0.1),
-      backgroundImage: hasPhoto ? NetworkImage(url!) : null,
+      backgroundImage: hasPhoto ? ResizeImage(NetworkImage(url!), width: 200) : null,
       child: hasPhoto ? null : Text(initial, style: TextStyle(color: AppColors.teal, fontWeight: FontWeight.w800, fontSize: radius * 0.8)),
     );
   }

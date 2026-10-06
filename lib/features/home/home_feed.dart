@@ -217,7 +217,7 @@ class _ProductCard extends StatelessWidget {
               height: 140,
               child: images.isEmpty
                   ? const ColoredBox(color: AppColors.nightMid, child: Icon(Icons.image_outlined, color: Colors.white38))
-                  : Image.network(images.first, fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: AppColors.nightMid)),
+                  : Image.network(images.first, cacheWidth: 480, fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: AppColors.nightMid)),
             ),
             if (off != null)
               PositionedDirectional(
@@ -391,7 +391,7 @@ class _NewStoresRailState extends State<NewStoresRail> {
       avatar: CircleAvatar(
         radius: 30,
         backgroundColor: AppColors.nightMid,
-        backgroundImage: logo == null ? null : NetworkImage(logo),
+        backgroundImage: logo == null ? null : ResizeImage(NetworkImage(logo), width: 160),
         child: logo == null ? const Icon(Icons.storefront_rounded, color: AppColors.gold) : null,
       ),
       name: s['name'] as String? ?? '',

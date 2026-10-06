@@ -266,7 +266,7 @@ class CarCard extends StatelessWidget {
                 child: Stack(fit: StackFit.expand, children: [
                   images.isEmpty
                       ? const _PhotoPlaceholder()
-                      : Image.network(images.first, fit: BoxFit.cover, errorBuilder: (_, _, _) => const _PhotoPlaceholder()),
+                      : Image.network(images.first, cacheWidth: 600, fit: BoxFit.cover, errorBuilder: (_, _, _) => const _PhotoPlaceholder()),
                   if (item['is_featured'] == true)
                     PositionedDirectional(
                       top: 8,

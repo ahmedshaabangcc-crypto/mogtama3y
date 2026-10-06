@@ -31,6 +31,9 @@ const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
 const USER_DAILY_LIMIT = 100;
 const GUEST_DAILY_LIMIT = 20;
+// All guests together, per day. The per-IP bucket reads X-Forwarded-For,
+// whose first entry the caller can set, so this is the cap that holds.
+const ALL_GUESTS_DAILY_LIMIT = 300;
 const GUEST_ACTIONS = new Set(['geocode', 'nearby', 'details']);
 
 // "اكتشف حواليك" categories → Places (New) primary types.
@@ -186,7 +189,8 @@ Deno.serve(async (req) => {
     const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
     const allowed = userId
       ? await withinQuota(`user:${userId}`, USER_DAILY_LIMIT)
-      : await withinQuota(`ip:${ip}`, GUEST_DAILY_LIMIT);
+      : (await withinQuota(`ip:${ip}`, GUEST_DAILY_LIMIT)) &&
+        (await withinQuota(`ip:all-guests`, ALL_GUESTS_DAILY_LIMIT));
     if (!allowed) return json({ error: 'تجاوزت الحد اليومي للبحث في الخرائط، حاول غداً' }, 429);
 
     if (action === 'geocode') {

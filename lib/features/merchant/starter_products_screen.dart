@@ -80,7 +80,7 @@ class _StarterProductsScreenState extends State<StarterProductsScreen> {
                   dimension: 52,
                   child: items[i].imageUrl == null
                       ? const ColoredBox(color: Colors.black12, child: Icon(Icons.image_outlined, color: AppColors.inkMuted))
-                      : Image.network(items[i].imageUrl!, fit: BoxFit.cover,
+                      : Image.network(items[i].imageUrl!, cacheWidth: 400, fit: BoxFit.cover,
                           errorBuilder: (_, _, _) => const ColoredBox(color: Colors.black12)),
                 ),
               ),

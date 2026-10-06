@@ -280,6 +280,7 @@ class _ItemCard extends StatelessWidget {
               imageUrl != null
                   ? Image.network(
                       imageUrl,
+                      cacheWidth: 300,
                       height: 120,
                       width: double.infinity,
                       fit: BoxFit.cover,

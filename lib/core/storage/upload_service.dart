@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -37,19 +38,43 @@ class UploadService {
     return _picker.pickVideo(source: source);
   }
 
-  static String _pathFor(String purpose, XFile file) {
+  static String _pathFor(String purpose, String ext) {
     final userId = AuthService.currentUser!.id;
-    final ext = file.name.contains('.') ? file.name.split('.').last : 'jpg';
     // Random suffix: several photos uploaded together share a millisecond.
     return '$userId/$purpose/${DateTime.now().millisecondsSinceEpoch}_${_rand.nextInt(0x7fffffff).toRadixString(36)}.$ext';
+  }
+
+  /// The real type of [bytes] from its first bytes, as (mime, extension).
+  /// The buckets only accept known types (0068), and the file name a phone
+  /// hands over can be anything (".jfif", no extension, ".HEIC" holding a
+  /// JPEG after resizing), so the name is never trusted.
+  static (String, String)? _sniff(List<int> b) {
+    bool at(int offset, List<int> sig) => b.length >= offset + sig.length && [for (var i = 0; i < sig.length; i++) b[offset + i] == sig[i]].every((x) => x);
+    if (at(0, [0xFF, 0xD8, 0xFF])) return ('image/jpeg', 'jpg');
+    if (at(0, [0x89, 0x50, 0x4E, 0x47])) return ('image/png', 'png');
+    if (at(0, [0x52, 0x49, 0x46, 0x46]) && at(8, [0x57, 0x45, 0x42, 0x50])) return ('image/webp', 'webp');
+    if (at(0, [0x25, 0x50, 0x44, 0x46])) return ('application/pdf', 'pdf');
+    if (at(4, [0x66, 0x74, 0x79, 0x70])) {
+      final brand = String.fromCharCodes(b.sublist(8, 12));
+      if (brand.startsWith('heic') || brand.startsWith('heix') || brand.startsWith('mif1') || brand.startsWith('msf1')) return ('image/heic', 'heic');
+      if (brand.startsWith('qt')) return ('video/quicktime', 'mov');
+      return ('video/mp4', 'mp4');
+    }
+    return null;
+  }
+
+  static Future<(String, Uint8List, String)> _prepare(String purpose, XFile file) async {
+    final bytes = await file.readAsBytes();
+    final type = _sniff(bytes);
+    if (type == null) throw Exception('نوع الملف ده مش مدعوم، جرّب صورة JPG أو PNG');
+    return (_pathFor(purpose, type.$2), bytes, type.$1);
   }
 
   /// Uploads to the public bucket and returns a directly-loadable URL.
   static Future<String> uploadPublicPhoto({required String purpose, required XFile file}) async {
     if (AuthService.currentUser == null) throw Exception('يجب تسجيل الدخول أولاً');
-    final path = _pathFor(purpose, file);
-    final bytes = await file.readAsBytes();
-    await _client.storage.from('public-photos').uploadBinary(path, bytes, fileOptions: const FileOptions(upsert: true));
+    final (path, bytes, mime) = await _prepare(purpose, file);
+    await _client.storage.from('public-photos').uploadBinary(path, bytes, fileOptions: FileOptions(upsert: true, contentType: mime));
     return _client.storage.from('public-photos').getPublicUrl(path);
   }
 
@@ -58,9 +83,8 @@ class UploadService {
   /// [createPrivateSignedUrl] only when the viewer is authorized.
   static Future<String> uploadPrivateDocument({required String purpose, required XFile file}) async {
     if (AuthService.currentUser == null) throw Exception('يجب تسجيل الدخول أولاً');
-    final path = _pathFor(purpose, file);
-    final bytes = await file.readAsBytes();
-    await _client.storage.from('private-documents').uploadBinary(path, bytes, fileOptions: const FileOptions(upsert: true));
+    final (path, bytes, mime) = await _prepare(purpose, file);
+    await _client.storage.from('private-documents').uploadBinary(path, bytes, fileOptions: FileOptions(upsert: true, contentType: mime));
     return path;
   }
 

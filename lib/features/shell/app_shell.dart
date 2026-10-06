@@ -34,6 +34,11 @@ class _AppShellState extends State<AppShell> {
     MoreMenuScreen(),
   ];
 
+  // A tab is built (and fetches its data) the first time it's opened, then
+  // kept alive in the IndexedStack. Building all five at start-up fired
+  // four tabs' worth of requests nobody had asked for yet.
+  final Set<int> _opened = {0};
+
   @override
   void initState() {
     super.initState();
@@ -43,7 +48,14 @@ class _AppShellState extends State<AppShell> {
     // notifications, and a tab first opened while signed out reloads.
     _authSub = AuthService.authStateChanges.listen((_) {
       final userId = AuthService.currentUser?.id;
-      if (userId != _userId && mounted) setState(() => _userId = userId);
+      if (userId != _userId && mounted) {
+        setState(() {
+          _userId = userId;
+          _opened
+            ..clear()
+            ..add(_index);
+        });
+      }
     });
   }
 
@@ -60,7 +72,12 @@ class _AppShellState extends State<AppShell> {
         children: [
           KeyedSubtree(
             key: ValueKey(_userId),
-            child: IndexedStack(index: _index, children: _pages),
+            child: IndexedStack(
+              index: _index,
+              children: [
+                for (var i = 0; i < _pages.length; i++) _opened.contains(i) ? _pages[i] : const SizedBox.shrink(),
+              ],
+            ),
           ),
           // Positioned manually (rather than Scaffold.floatingActionButton) so it
           // can clear the home tab's own bottomSheet CTA, which an outer
@@ -92,7 +109,10 @@ class _AppShellState extends State<AppShell> {
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _index,
-        onTap: (i) => setState(() => _index = i),
+        onTap: (i) => setState(() {
+          _index = i;
+          _opened.add(i);
+        }),
         selectedFontSize: 11,
         unselectedFontSize: 11,
         items: const [

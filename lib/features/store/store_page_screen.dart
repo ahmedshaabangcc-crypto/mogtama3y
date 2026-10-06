@@ -290,7 +290,7 @@ class _StoreHeader extends StatelessWidget {
               color: Colors.white,
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: Colors.white, width: 2),
-              image: logo != null ? DecorationImage(image: NetworkImage(logo), fit: BoxFit.cover) : null,
+              image: logo != null ? DecorationImage(image: ResizeImage(NetworkImage(logo), width: 240), fit: BoxFit.cover) : null,
             ),
             child: logo == null ? const Icon(Icons.storefront_rounded, color: AppColors.crystal, size: 32) : null,
           ),
@@ -337,7 +337,7 @@ class _ProductCard extends StatelessWidget {
               if (images.isEmpty)
                 const ColoredBox(color: AppColors.surfaceAlt, child: Icon(Icons.inventory_2_outlined, color: AppColors.inkMuted, size: 36))
               else
-                Image.network(images.first, fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: AppColors.surfaceAlt)),
+                Image.network(images.first, cacheWidth: 480, fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: AppColors.surfaceAlt)),
               if (discount != null)
                 PositionedDirectional(top: 8, start: 8, child: _Badge(text: discount, color: AppColors.gold, ink: AppColors.night)),
               if (soldOut)

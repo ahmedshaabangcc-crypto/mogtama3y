@@ -43,7 +43,7 @@ class ReportCard extends StatelessWidget {
             child: photos.isEmpty
                 ? ColoredBox(color: color.withValues(alpha: 0.12), child: Icon(r['video_url'] != null || r['video_link'] != null ? Icons.smart_display_rounded : icon, color: color, size: 36))
                 : Stack(fit: StackFit.expand, children: [
-                    Image.network(photos.first, fit: BoxFit.cover, errorBuilder: (_, _, _) => ColoredBox(color: color.withValues(alpha: 0.12))),
+                    Image.network(photos.first, cacheWidth: 600, fit: BoxFit.cover, errorBuilder: (_, _, _) => ColoredBox(color: color.withValues(alpha: 0.12))),
                     if (r['video_url'] != null || r['video_link'] != null)
                       const Center(child: Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 34)),
                   ]),

@@ -129,7 +129,7 @@ class _MyCarListingsScreenState extends State<MyCarListingsScreen> {
                 height: 68,
                 child: images.isEmpty
                     ? const ColoredBox(color: AppColors.surfaceAlt, child: Icon(Icons.directions_car_filled_rounded, color: AppColors.inkMuted))
-                    : Image.network(images.first, fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: AppColors.surfaceAlt)),
+                    : Image.network(images.first, cacheWidth: 300, fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: AppColors.surfaceAlt)),
               ),
             ),
             const SizedBox(width: 10),

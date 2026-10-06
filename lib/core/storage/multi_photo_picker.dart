@@ -69,7 +69,7 @@ class _MultiPhotoPickerState extends State<MultiPhotoPicker> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.network(_urls[i], width: 84, height: 84, fit: BoxFit.cover),
+                    child: Image.network(_urls[i], cacheWidth: 260, width: 84, height: 84, fit: BoxFit.cover),
                   ),
                   Positioned(
                     top: 2,

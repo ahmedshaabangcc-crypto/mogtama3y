@@ -69,8 +69,35 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     setState(() {});
   }
 
+  /// Egyptian mobile in the 01xxxxxxxxx form: Arabic-Indic digits, spaces,
+  /// dashes and a +20 / 0020 prefix are accepted and normalised. Null if
+  /// it isn't a valid mobile number.
+  static String? _normalisePhone(String raw) {
+    const arabic = '٠١٢٣٤٥٦٧٨٩';
+    var d = raw.split('').map((c) {
+      final i = arabic.indexOf(c);
+      return i >= 0 ? '$i' : c;
+    }).join().replaceAll(RegExp(r'[^0-9]'), '');
+    if (d.startsWith('0020')) d = d.substring(4);
+    if (d.startsWith('20') && d.length == 12) d = d.substring(2);
+    if (d.length == 10 && d.startsWith('1')) d = '0$d';
+    return RegExp(r'^01[0125]\d{8}$').hasMatch(d) ? d : null;
+  }
+
   Future<void> _place() async {
     if (widget.cart.isEmpty) return;
+    final phone = _normalisePhone(_phone.text);
+    final problem = _name.text.trim().length < 2
+        ? 'اكتب اسمك'
+        : phone == null
+            ? 'رقم الموبايل لازم يكون 11 رقم ويبدأ بـ 010 أو 011 أو 012 أو 015'
+            : _address.text.trim().length < 8
+                ? 'اكتب العنوان بالتفصيل عشان الطلب يوصلك'
+                : null;
+    if (problem != null) {
+      setState(() => _error = problem);
+      return;
+    }
     setState(() {
       _placing = true;
       _error = null;
@@ -80,7 +107,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         shopId: widget.shop['id'] as String,
         lines: widget.cart.toOrderLines(),
         name: _name.text.trim(),
-        phone: _phone.text.trim(),
+        phone: phone!,
         address: _address.text.trim(),
         note: _note.text.trim().isEmpty ? null : _note.text.trim(),
       );
@@ -122,7 +149,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         borderRadius: BorderRadius.circular(12),
                         child: StoreService.imagesOf(l.product).isEmpty
                             ? Container(width: 64, height: 64, color: AppColors.surfaceAlt)
-                            : Image.network(StoreService.imagesOf(l.product).first, width: 64, height: 64, fit: BoxFit.cover),
+                            : Image.network(StoreService.imagesOf(l.product).first, cacheWidth: 200, width: 64, height: 64, fit: BoxFit.cover),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
