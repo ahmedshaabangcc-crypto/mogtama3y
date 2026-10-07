@@ -12,9 +12,10 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 MSYS_NO_PATHCONV=1 flutter build web --release --base-href / \
-  --dart-define=APP_FLAVOR=ittihad --dart-define=DEMO=true -o build/web_ittihad_demo
+  --dart-define=APP_FLAVOR=ittihad --dart-define=DEMO=true -o "${OUT:-build/web_ittihad_demo}"
 
-out=build/web_ittihad_demo
+# OUT=… builds into another folder (e.g. while someone records from the live one).
+out="${OUT:-build/web_ittihad_demo}"
 # Same trim as the deployed union site: the merchant store-lite overlay
 # (it reads the real backend for #/s/ links) has no place here.
 sed -i '/store-lite.js/d' "$out/index.html"

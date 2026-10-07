@@ -17,17 +17,13 @@ import 'demo_store.dart';
 /// Only ever called from `if (kDemo)` in main.dart.
 Future<void> initDemoBackend() async {
   final role = demoRoleFrom(Uri.base);
-  final store = DemoStore.boot(role: role);
+  final store = DemoStore.boot(role: role, elections: demoElectionsFrom(Uri.base));
   debugPrint('$kDemoMarker — local demo, role=$role, no backend.');
   await Supabase.initialize(
     url: 'http://demo.invalid',
     publishableKey: 'demo-publishable-key',
     httpClient: DemoHttpClient(store),
-    authOptions: FlutterAuthClientOptions(
-      localStorage: _DemoSessionStorage(_sessionJson(store)),
-      detectSessionInUri: false,
-      autoRefreshToken: false,
-    ),
+    authOptions: FlutterAuthClientOptions(localStorage: _DemoSessionStorage(_sessionJson(store)), detectSessionInUri: false, autoRefreshToken: false),
   );
 }
 
@@ -84,16 +80,20 @@ class DemoBlockedApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const MaterialApp(
-        debugShowCheckedModeBanner: false,
-        home: Scaffold(
-          body: Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Text('Demo build — local only', textAlign: TextAlign.center, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
-            ),
+    debugShowCheckedModeBanner: false,
+    home: Scaffold(
+      body: Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Demo build — local only',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
           ),
         ),
-      );
+      ),
+    ),
+  );
 }
 
 /// A small floating "Demo role" switcher (hidden with `?panel=0`). Picking
@@ -122,54 +122,63 @@ class _DemoRolePanelState extends State<DemoRolePanel> {
   @override
   Widget build(BuildContext context) {
     if (!demoPanelVisible(Uri.base)) return widget.child;
-    return Stack(children: [
-      widget.child,
-      Positioned(
-        left: 6,
-        top: 90,
-        child: Directionality(
-          textDirection: TextDirection.rtl,
-          child: Material(
-            color: Colors.black.withValues(alpha: 0.72),
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: () => setState(() => _open = !_open),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                    child: Text('Demo: ${demoRoleLabels[_role]}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-                  ),
-                ),
-                if (_open) ...[
-                  for (final r in demoRoles)
+    return Stack(
+      children: [
+        widget.child,
+        Positioned(
+          left: 6,
+          top: 90,
+          child: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Material(
+              color: Colors.black.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     InkWell(
-                      onTap: r == _role ? null : () => _go(r),
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => setState(() => _open = !_open),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                         child: Text(
-                          '${r == _role ? '● ' : ''}${demoRoleLabels[r]}',
-                          style: TextStyle(color: r == _role ? Colors.amber : Colors.white, fontSize: 11.5),
+                          'Demo: ${demoRoleLabels[_role]}',
+                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
                         ),
                       ),
                     ),
-                  const Divider(color: Colors.white24, height: 8),
-                  InkWell(
-                    onTap: () => _go(_role, reset: true),
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                      child: Text('↺ ابدأ من الأول', style: TextStyle(color: Colors.white70, fontSize: 11)),
-                    ),
-                  ),
-                ],
-              ]),
+                    if (_open) ...[
+                      for (final r in demoRoles)
+                        InkWell(
+                          onTap: r == _role ? null : () => _go(r),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                            child: Text(
+                              '${r == _role ? '● ' : ''}${demoRoleLabels[r]}',
+                              style: TextStyle(color: r == _role ? Colors.amber : Colors.white, fontSize: 11.5),
+                            ),
+                          ),
+                        ),
+                      const Divider(color: Colors.white24, height: 8),
+                      InkWell(
+                        onTap: () => _go(_role, reset: true),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                          child: Text('↺ ابدأ من الأول', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ),
         ),
-      ),
-    ]);
+      ],
+    );
   }
 }
 
@@ -184,36 +193,62 @@ class DemoReceiptCard extends StatelessWidget {
     final amount = ((tx?['amount'] as num?) ?? 0).abs().round();
     final date = (tx?['created_at'] as String? ?? '').split('T').first;
     Widget line(String label, String value) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Row(children: [
-            Text('$label: ', style: const TextStyle(color: Colors.black54)),
-            Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w700))),
-          ]),
-        );
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Text('$label: ', style: const TextStyle(color: Colors.black54)),
+          Expanded(
+            child: Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
     return Container(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(color: const Color(0xFFFFFDF7), border: Border.all(color: const Color(0xFFD9D2C1)), borderRadius: BorderRadius.circular(8)),
-      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        const Text('إيصال استلام نقدية', textAlign: TextAlign.center, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-        const Text('نسخة تجريبية — ليس مستنداً حقيقياً', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Color(0xFF9A2B2B))),
-        const Divider(height: 22),
-        line('البيان', '${tx?['note'] ?? 'مصروف'}'),
-        line('المبلغ', '$amount ج.م'),
-        line('التاريخ', date),
-        line('لصالح', 'عمارة النخيل — تجريبي'),
-        const SizedBox(height: 12),
-        Align(
-          alignment: AlignmentDirectional.centerEnd,
-          child: Transform.rotate(
-            angle: -0.2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(border: Border.all(color: const Color(0xFF22AA77), width: 2), borderRadius: BorderRadius.circular(30)),
-              child: const Text('تم الدفع', style: TextStyle(color: Color(0xFF22AA77), fontWeight: FontWeight.w800)),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFDF7),
+        border: Border.all(color: const Color(0xFFD9D2C1)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'إيصال استلام نقدية',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+          ),
+          const Text(
+            'نسخة تجريبية — ليس مستنداً حقيقياً',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, color: Color(0xFF9A2B2B)),
+          ),
+          const Divider(height: 22),
+          line('البيان', '${tx?['note'] ?? 'مصروف'}'),
+          line('المبلغ', '$amount ج.م'),
+          line('التاريخ', date),
+          line('لصالح', 'عمارة النخيل — تجريبي'),
+          const SizedBox(height: 12),
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: Transform.rotate(
+              angle: -0.2,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  border: Border.all(color: const Color(0xFF22AA77), width: 2),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: const Text(
+                  'تم الدفع',
+                  style: TextStyle(color: Color(0xFF22AA77), fontWeight: FontWeight.w800),
+                ),
+              ),
             ),
           ),
-        ),
-      ]),
+        ],
+      ),
     );
   }
 }

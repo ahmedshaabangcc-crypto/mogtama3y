@@ -23,19 +23,23 @@ bool demoHostAllowed(Uri base) => const {'localhost', '127.0.0.1', '::1', '[::1]
 /// Demo roles selectable with `?role=` (only read when [kDemo] is true).
 const demoRoles = ['president', 'treasurer', 'owner', 'tenant', 'guard', 'new'];
 
-const demoRoleLabels = {
-  'president': 'رئيس الاتحاد',
-  'treasurer': 'أمين الصندوق',
-  'owner': 'مالك',
-  'tenant': 'مستأجر',
-  'guard': 'الحارس',
-  'new': 'مستخدم جديد',
-};
+const demoRoleLabels = {'president': 'رئيس الاتحاد', 'treasurer': 'أمين الصندوق', 'owner': 'مالك', 'tenant': 'مستأجر', 'guard': 'الحارس', 'new': 'مستخدم جديد'};
 
 /// `?role=` from the page URL (default president).
 String demoRoleFrom(Uri base) {
   final r = base.queryParameters['role'];
   return demoRoles.contains(r) ? r! : 'president';
+}
+
+/// Election state for the demo building (`?elections=`, only read when
+/// [kDemo] is true): `open` (default — candidates, voting), `none` (no
+/// election, so the president can start one), `ending` (voting time is up,
+/// 6 of 10 voted, ready for «إغلاق التصويت وإعلان النتيجة»).
+const demoElectionModes = ['open', 'none', 'ending'];
+
+String demoElectionsFrom(Uri base) {
+  final e = base.queryParameters['elections'];
+  return demoElectionModes.contains(e) ? e! : 'open';
 }
 
 /// `?panel=0` hides the floating role switcher for clean recordings.

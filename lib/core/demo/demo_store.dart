@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'demo_mode.dart';
 import 'demo_platform.dart';
 
 /// An error the fake backend returns as a PostgREST error (the screens
@@ -23,7 +24,7 @@ typedef DemoRow = Map<String, dynamic>;
 /// owners'-union screens call. Everything lives in this browser tab only
 /// (sessionStorage, so a role switch keeps what was done in the video).
 class DemoStore {
-  DemoStore._(this.tables, {required this.role, required this.persist}) {
+  DemoStore._(this.tables, {required this.role, required this.persist, required this.key}) {
     me = roleUsers[role]!;
     _applyRole();
   }
@@ -32,35 +33,47 @@ class DemoStore {
   static DemoStore get instance => _instance!;
 
   static const _storageKey = 'mogtama3y-demo-store-v1';
+  // Each `?elections=` mode keeps its own saved data in the tab.
+  static String _keyFor(String elections) => elections == 'open' ? _storageKey : '$_storageKey-$elections';
 
   /// [persist] false keeps everything in memory only (tests).
-  static DemoStore boot({required String role, bool persist = true, DateTime? now}) {
+  static DemoStore boot({required String role, String elections = 'open', bool persist = true, DateTime? now}) {
+    final key = _keyFor(elections);
     Map<String, List<DemoRow>>? saved;
     if (persist) {
-      final raw = demoSessionGet(_storageKey);
+      final raw = demoSessionGet(key);
       if (raw != null) {
         try {
           final decoded = jsonDecode(raw) as Map<String, dynamic>;
           saved = {
-            for (final e in (decoded['tables'] as Map<String, dynamic>).entries)
-              e.key: [for (final r in e.value as List) Map<String, dynamic>.from(r as Map)],
+            for (final e in (decoded['tables'] as Map<String, dynamic>).entries) e.key: [for (final r in e.value as List) Map<String, dynamic>.from(r as Map)],
           };
         } catch (_) {
           saved = null;
         }
       }
     }
-    final store = DemoStore._(saved ?? seedTables(now ?? DateTime.now()), role: role, persist: persist);
+    final store = DemoStore._(
+      saved ?? seedTables(now ?? DateTime.now(), elections: elections),
+      role: role,
+      persist: persist,
+      key: key,
+    );
     store.save();
     return _instance = store;
   }
 
   /// Forget everything done in this tab (the role switcher's «ابدأ من الأول»).
-  static void clearSaved() => demoSessionRemove(_storageKey);
+  static void clearSaved() {
+    for (final m in demoElectionModes) {
+      demoSessionRemove(_keyFor(m));
+    }
+  }
 
   final Map<String, List<DemoRow>> tables;
   final String role;
   final bool persist;
+  final String key;
   late final String me;
 
   /// Files "uploaded" in this page session (receipt photos), by path.
@@ -71,7 +84,7 @@ class DemoStore {
   List<DemoRow> t(String name) => tables.putIfAbsent(name, () => <DemoRow>[]);
 
   void save() {
-    if (persist) demoSessionSet(_storageKey, jsonEncode({'tables': tables}));
+    if (persist) demoSessionSet(key, jsonEncode({'tables': tables}));
   }
 
   // ------------------------------------------------------------------
@@ -109,14 +122,7 @@ class DemoStore {
 
   static String unitId(int n) => fixedId('c', n);
 
-  static final roleUsers = {
-    'president': uPresident,
-    'treasurer': uTreasurer,
-    'owner': uOwner,
-    'tenant': uTenant,
-    'guard': uGuard,
-    'new': uNew,
-  };
+  static final roleUsers = {'president': uPresident, 'treasurer': uTreasurer, 'owner': uOwner, 'tenant': uTenant, 'guard': uGuard, 'new': uNew};
 
   DemoRow? profileOf(String? userId) => userId == null ? null : _firstWhere('profiles', (r) => r['id'] == userId);
 
@@ -129,7 +135,14 @@ class DemoStore {
     final treasurers = t('union_treasurers');
     if (role == 'treasurer') {
       if (!treasurers.any((r) => r['building_id'] == buildingId)) {
-        treasurers.add({'building_id': buildingId, 'user_id': uTreasurer, 'source': 'appointed', 'appointed_by': uPresident, 'created_at': nowIso(), '_auto': true});
+        treasurers.add({
+          'building_id': buildingId,
+          'user_id': uTreasurer,
+          'source': 'appointed',
+          'appointed_by': uPresident,
+          'created_at': nowIso(),
+          '_auto': true,
+        });
       }
     } else {
       treasurers.removeWhere((r) => r['_auto'] == true);
@@ -144,9 +157,8 @@ class DemoStore {
 
   static String periodLabel(DateTime d) => 'صيانة ${_monthsAr[d.month - 1]} ${d.year}';
 
-  static Map<String, List<DemoRow>> seedTables(DateTime now) {
-    String ago({int days = 0, int hours = 0, int minutes = 0}) =>
-        now.subtract(Duration(days: days, hours: hours, minutes: minutes)).toUtc().toIso8601String();
+  static Map<String, List<DemoRow>> seedTables(DateTime now, {String elections = 'open'}) {
+    String ago({int days = 0, int hours = 0, int minutes = 0}) => now.subtract(Duration(days: days, hours: hours, minutes: minutes)).toUtc().toIso8601String();
     String inFuture({int days = 0, int hours = 0}) => now.add(Duration(days: days, hours: hours)).toUtc().toIso8601String();
     String date(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
     var seq = 0;
@@ -184,9 +196,23 @@ class DemoStore {
         },
     ];
 
-    const floors = ['الدور الأول', 'الدور الأول', 'الدور الأول', 'الدور الثاني', 'الدور الثاني', 'الدور الثاني', 'الدور الثالث', 'الدور الثالث', 'الدور الثالث', 'الدور الرابع', 'الدور الرابع', 'الدور الرابع'];
+    const floors = [
+      'الدور الأول',
+      'الدور الأول',
+      'الدور الأول',
+      'الدور الثاني',
+      'الدور الثاني',
+      'الدور الثاني',
+      'الدور الثالث',
+      'الدور الثالث',
+      'الدور الثالث',
+      'الدور الرابع',
+      'الدور الرابع',
+      'الدور الرابع',
+    ];
     final units = [
-      for (var n = 1; n <= 12; n++) {'id': unitId(n), 'building_id': buildingId, 'unit_number': '$n', 'floor_label': floors[n - 1], 'created_at': ago(days: 90)},
+      for (var n = 1; n <= 12; n++)
+        {'id': unitId(n), 'building_id': buildingId, 'unit_number': '$n', 'floor_label': floors[n - 1], 'created_at': ago(days: 90)},
     ];
 
     final buildings = [
@@ -260,7 +286,10 @@ class DemoStore {
     final curLabel = periodLabel(now);
     final dues = <DemoRow>[];
     final ledger = <DemoRow>[];
-    final payerOf = {for (final s in memberSpecs) if (s.$2 != null) s.$2!: s.$1};
+    final payerOf = {
+      for (final s in memberSpecs)
+        if (s.$2 != null) s.$2!: s.$1,
+    };
     void addDue(int unit, String label, String createdAt, DateTime dueDate, {String? paidVia, String? paidAt}) {
       final dueId = id('e');
       dues.add({
@@ -297,7 +326,14 @@ class DemoStore {
       if (u == 8) {
         addDue(u, prevLabel, created, now.subtract(const Duration(days: 26)));
       } else {
-        addDue(u, prevLabel, created, now.subtract(const Duration(days: 26)), paidVia: u == 7 || u == 11 ? 'cash' : 'wallet', paidAt: ago(days: 30 - u));
+        addDue(
+          u,
+          prevLabel,
+          created,
+          now.subtract(const Duration(days: 26)),
+          paidVia: u == 7 || u == 11 ? 'cash' : 'wallet',
+          paidAt: ago(days: 30 - u),
+        );
       }
     }
     final curCreated = ago(days: 6);
@@ -318,31 +354,68 @@ class DemoStore {
 
     ledger.addAll([
       {
-        'id': id('9'), 'building_id': buildingId, 'type': 'adjustment', 'amount': 6500, 'due_id': null, 'unit_id': null,
-        'note': 'رصيد افتتاحي منقول من دفتر الاتحاد القديم', 'receipt_path': null, 'created_by': uPresident, 'created_at': ago(days: 60),
+        'id': id('9'),
+        'building_id': buildingId,
+        'type': 'adjustment',
+        'amount': 6500,
+        'due_id': null,
+        'unit_id': null,
+        'note': 'رصيد افتتاحي منقول من دفتر الاتحاد القديم',
+        'receipt_path': null,
+        'created_by': uPresident,
+        'created_at': ago(days: 60),
       },
       {
-        'id': id('9'), 'building_id': buildingId, 'type': 'expense', 'amount': -600, 'due_id': null, 'unit_id': null,
-        'note': 'اشتراك شركة النظافة — ${_monthsAr[prevMonth.month - 1]}', 'receipt_path': null, 'created_by': uPresident, 'created_at': ago(days: 28),
+        'id': id('9'),
+        'building_id': buildingId,
+        'type': 'expense',
+        'amount': -600,
+        'due_id': null,
+        'unit_id': null,
+        'note': 'اشتراك شركة النظافة — ${_monthsAr[prevMonth.month - 1]}',
+        'receipt_path': null,
+        'created_by': uPresident,
+        'created_at': ago(days: 28),
       },
       {
-        'id': id('9'), 'building_id': buildingId, 'type': 'expense', 'amount': -450, 'due_id': null, 'unit_id': null,
-        'note': 'تغيير لمبات السلم والمدخل', 'receipt_path': 'demo/receipt-lamps.svg', 'created_by': uPresident, 'created_at': ago(days: 3, hours: 5),
+        'id': id('9'),
+        'building_id': buildingId,
+        'type': 'expense',
+        'amount': -450,
+        'due_id': null,
+        'unit_id': null,
+        'note': 'تغيير لمبات السلم والمدخل',
+        'receipt_path': 'demo/receipt-lamps.svg',
+        'created_by': uPresident,
+        'created_at': ago(days: 3, hours: 5),
       },
       {
-        'id': id('9'), 'building_id': buildingId, 'type': 'expense', 'amount': -1200, 'due_id': null, 'unit_id': null,
-        'note': 'صيانة موتور رفع المياه', 'receipt_path': 'demo/receipt-pump.svg', 'created_by': uPresident, 'created_at': ago(hours: 20),
+        'id': id('9'),
+        'building_id': buildingId,
+        'type': 'expense',
+        'amount': -1200,
+        'due_id': null,
+        'unit_id': null,
+        'note': 'صيانة موتور رفع المياه',
+        'receipt_path': 'demo/receipt-pump.svg',
+        'created_by': uPresident,
+        'created_at': ago(hours: 20),
       },
     ]);
     final balance = ledger.fold<num>(0, (s, r) => s + (r['amount'] as num));
 
     final wallets = [
       for (final (i, u) in [uPresident, uTreasurer, uOwner, uSara, uHisham, uTenant, uNadia, uMohamed, uAmr, uReham, uGuard, uPending, uNew].indexed)
-        {'id': fixedId('7', i + 1), 'user_id': u, 'available_balance': u == uOwner ? 1250 : (u == uTenant ? 900 : 2000), 'held_balance': 0, 'created_at': ago(days: 100)},
+        {
+          'id': fixedId('7', i + 1),
+          'user_id': u,
+          'available_balance': u == uOwner ? 1250 : (u == uTenant ? 900 : 2000),
+          'held_balance': 0,
+          'created_at': ago(days: 100),
+        },
     ];
     final walletTx = [
-      for (final w in wallets)
-        {'id': id('8'), 'wallet_id': w['id'], 'type': 'top_up', 'amount': 1500, 'status': 'completed', 'created_at': ago(days: 40)},
+      for (final w in wallets) {'id': id('8'), 'wallet_id': w['id'], 'type': 'top_up', 'amount': 1500, 'status': 'completed', 'created_at': ago(days: 40)},
     ];
 
     final electionId = id('5');
@@ -375,13 +448,28 @@ class DemoStore {
       ],
       'union_fund_withdrawal_requests': [
         {
-          'id': id('1'), 'building_id': buildingId, 'requested_by': uPresident, 'amount_egp': 350, 'destination': 'wallet', 'payout_phone': null,
-          'note': 'أجرة الكهربائي — كشاف الجراج', 'status': 'pending', 'created_at': ago(days: 1, hours: 4),
+          'id': id('1'),
+          'building_id': buildingId,
+          'requested_by': uPresident,
+          'amount_egp': 350,
+          'destination': 'wallet',
+          'payout_phone': null,
+          'note': 'أجرة الكهربائي — كشاف الجراج',
+          'status': 'pending',
+          'created_at': ago(days: 1, hours: 4),
         },
       ],
       'union_treasurers': <DemoRow>[],
       'union_tenant_invites': [
-        {'id': id('1'), 'unit_id': unitId(9), 'code': 'TEN-4M8X2D', 'created_by': uAmr, 'used_by': null, 'expires_at': inFuture(days: 6), 'created_at': ago(days: 1)},
+        {
+          'id': id('1'),
+          'unit_id': unitId(9),
+          'code': 'TEN-4M8X2D',
+          'created_by': uAmr,
+          'used_by': null,
+          'expires_at': inFuture(days: 6),
+          'created_at': ago(days: 1),
+        },
       ],
       'wallets': wallets,
       'wallet_transactions': walletTx,
@@ -389,33 +477,70 @@ class DemoStore {
         {'id': 1, 'topup_phone': '01000000999'},
       ],
       'union_elections': [
-        {
-          'id': electionId, 'building_id': buildingId, 'position': 'president', 'title': 'انتخاب رئيس اتحاد الملاك — الدورة الجديدة',
-          'closes_at': inFuture(days: 3), 'is_finalized': false, 'eligible_voters': 10, 'legal_quorum_pct': 50, 'created_by': uPresident, 'created_at': ago(days: 1),
-        },
+        if (elections != 'none')
+          {
+            'id': electionId,
+            'building_id': buildingId,
+            'position': 'president',
+            'title': 'انتخاب رئيس اتحاد الملاك — الدورة الجديدة',
+            'closes_at': elections == 'ending' ? ago(hours: 1) : inFuture(days: 3),
+            'is_finalized': false,
+            'eligible_voters': 10,
+            'legal_quorum_pct': 50,
+            'created_by': uPresident,
+            'created_at': ago(days: elections == 'ending' ? 7 : 1),
+          },
       ],
       'union_candidates': [
-        {
-          'id': cPresident, 'election_id': electionId, 'user_id': uPresident, 'vote_count': 3, 'created_at': ago(days: 1),
-          'pledge': 'نكمّل اللي بدأناه: صيانة الأسانسير كل شهر، ودفتر صندوق مفتوح لكل السكان، وكاميرات على المدخل.',
-        },
-        {
-          'id': cHisham, 'election_id': electionId, 'user_id': uHisham, 'vote_count': 2, 'created_at': ago(hours: 20),
-          'pledge': 'دهان واجهة العمارة، وعقد صيانة سنوي للمواتير بسعر أقل، واجتماع شهري للسكان.',
-        },
+        if (elections != 'none') ...[
+          {
+            'id': cPresident,
+            'election_id': electionId,
+            'user_id': uPresident,
+            'vote_count': elections == 'ending' ? 4 : 3,
+            'created_at': ago(days: 1),
+            'pledge': 'نكمّل اللي بدأناه: صيانة الأسانسير كل شهر، ودفتر صندوق مفتوح لكل السكان، وكاميرات على المدخل.',
+          },
+          {
+            'id': cHisham,
+            'election_id': electionId,
+            'user_id': uHisham,
+            'vote_count': 2,
+            'created_at': ago(hours: 20),
+            'pledge': 'دهان واجهة العمارة، وعقد صيانة سنوي للمواتير بسعر أقل، واجتماع شهري للسكان.',
+          },
+        ],
       ],
       'union_votes': [
-        for (final (v, c) in [(uSara, cPresident), (uNadia, cPresident), (uAmr, cPresident), (uMohamed, cHisham), (uReham, cHisham)])
-          {'id': id('1'), 'election_id': electionId, 'voter_id': v, 'candidate_id': c, 'created_at': ago(hours: 10)},
+        if (elections != 'none')
+          for (final (v, c) in [
+            (uSara, cPresident),
+            (uNadia, cPresident),
+            (uAmr, cPresident),
+            if (elections == 'ending') (uOwner, cPresident),
+            (uMohamed, cHisham),
+            (uReham, cHisham),
+          ])
+            {'id': id('1'), 'election_id': electionId, 'voter_id': v, 'candidate_id': c, 'created_at': ago(hours: 10)},
       ],
       'union_polls': [
         {
-          'id': pollOpen, 'building_id': buildingId, 'created_by': uPresident, 'created_at': ago(days: 1, hours: 2), 'ends_at': inFuture(days: 4), 'closed_at': null,
+          'id': pollOpen,
+          'building_id': buildingId,
+          'created_by': uPresident,
+          'created_at': ago(days: 1, hours: 2),
+          'ends_at': inFuture(days: 4),
+          'closed_at': null,
           'question': 'نركّب كاميرات مراقبة على المدخل والجراج؟ (التكلفة حوالي 9,000 ج.م من الصندوق)',
           'options': ['موافق', 'مش موافق', 'محتاج عروض أسعار الأول'],
         },
         {
-          'id': pollClosed, 'building_id': buildingId, 'created_by': uHisham, 'created_at': ago(days: 15), 'ends_at': ago(days: 10), 'closed_at': ago(days: 10),
+          'id': pollClosed,
+          'building_id': buildingId,
+          'created_by': uHisham,
+          'created_at': ago(days: 15),
+          'ends_at': ago(days: 10),
+          'closed_at': ago(days: 10),
           'question': 'أنسب ميعاد لتنظيف خزانات المياه؟',
           'options': ['السبت الصبح', 'الجمعة بعد الصلاة'],
         },
@@ -428,29 +553,67 @@ class DemoStore {
       ],
       'posts': [
         {
-          'id': postOfficial, 'building_id': buildingId, 'author_id': uPresident, 'type': 'official', 'is_pinned': true, 'images': <String>[], 'created_at': ago(hours: 7),
+          'id': postOfficial,
+          'building_id': buildingId,
+          'author_id': uPresident,
+          'type': 'official',
+          'is_pinned': true,
+          'images': <String>[],
+          'created_at': ago(hours: 7),
           'body': 'هيتم قطع المياه يوم السبت الجاي من 10 الصبح لحد 2 الضهر لتنظيف وتعقيم الخزانات. برجاء تخزين مياه كفاية. شكراً لتعاونكم 🙏',
         },
         {
-          'id': postElevator, 'building_id': buildingId, 'author_id': uMohamed, 'type': 'complaint', 'is_pinned': false, 'images': <String>[], 'created_at': ago(hours: 3),
+          'id': postElevator,
+          'building_id': buildingId,
+          'author_id': uMohamed,
+          'type': 'complaint',
+          'is_pinned': false,
+          'images': <String>[],
+          'created_at': ago(hours: 3),
           'body': 'الأسانسير بيقف بين الدور التالت والرابع ساعات، ياريت نستعجل الصيانة الدورية.',
         },
         {
-          'id': postThanks, 'building_id': buildingId, 'author_id': uSara, 'type': 'resident', 'is_pinned': false, 'images': <String>[], 'created_at': ago(days: 1, hours: 1),
+          'id': postThanks,
+          'building_id': buildingId,
+          'author_id': uSara,
+          'type': 'resident',
+          'is_pinned': false,
+          'images': <String>[],
+          'created_at': ago(days: 1, hours: 1),
           'body': 'شكراً لعم سيد على مجهوده في تنظيف السلم والمدخل الأسبوع ده 👏',
         },
         {
-          'id': postPlumber, 'building_id': buildingId, 'author_id': uNadia, 'type': 'resident', 'is_pinned': false, 'images': <String>[], 'created_at': ago(days: 2),
+          'id': postPlumber,
+          'building_id': buildingId,
+          'author_id': uNadia,
+          'type': 'resident',
+          'is_pinned': false,
+          'images': <String>[],
+          'created_at': ago(days: 2),
           'body': 'حد يعرف سبّاك شاطر وأمين قريب من العمارة؟',
         },
       ],
       'post_comments': [
-        {'id': id('1'), 'post_id': postElevator, 'author_id': uPresident, 'body': 'كلّمت شركة الصيانة، جايين يوم الإتنين إن شاء الله.', 'created_at': ago(hours: 2)},
+        {
+          'id': id('1'),
+          'post_id': postElevator,
+          'author_id': uPresident,
+          'body': 'كلّمت شركة الصيانة، جايين يوم الإتنين إن شاء الله.',
+          'created_at': ago(hours: 2),
+        },
         {'id': id('1'), 'post_id': postThanks, 'author_id': uHisham, 'body': 'فعلاً يستاهل كل خير 🌹', 'created_at': ago(hours: 23)},
         {'id': id('1'), 'post_id': postPlumber, 'author_id': uAmr, 'body': 'عندي رقم واحد كويس، هبعتهولك على الدردشة.', 'created_at': ago(days: 1, hours: 20)},
       ],
       'post_reactions': [
-        for (final (p, u) in [(postOfficial, uSara), (postOfficial, uHisham), (postOfficial, uAmr), (postOfficial, uReham), (postThanks, uPresident), (postThanks, uNadia), (postElevator, uReham)])
+        for (final (p, u) in [
+          (postOfficial, uSara),
+          (postOfficial, uHisham),
+          (postOfficial, uAmr),
+          (postOfficial, uReham),
+          (postThanks, uPresident),
+          (postThanks, uNadia),
+          (postElevator, uReham),
+        ])
           {'id': id('1'), 'post_id': p, 'user_id': u, 'created_at': ago(hours: 1)},
       ],
       'building_chat_messages': [
@@ -472,53 +635,131 @@ class DemoStore {
       ],
       'visitor_passes': [
         {
-          'id': id('1'), 'unit_id': unitId(4), 'issued_by': uSara, 'visitor_name': 'مندوب توصيل — طلبات', 'pass_type': 'delivery', 'qr_code': 'PASS-7Q4K2M',
-          'valid_from': ago(minutes: 20), 'valid_until': inFuture(hours: 3), 'status': 'active', 'created_at': ago(minutes: 20),
+          'id': id('1'),
+          'unit_id': unitId(4),
+          'issued_by': uSara,
+          'visitor_name': 'مندوب توصيل — طلبات',
+          'pass_type': 'delivery',
+          'qr_code': 'PASS-7Q4K2M',
+          'valid_from': ago(minutes: 20),
+          'valid_until': inFuture(hours: 3),
+          'status': 'active',
+          'created_at': ago(minutes: 20),
         },
         {
-          'id': id('1'), 'unit_id': unitId(8), 'issued_by': uMohamed, 'visitor_name': 'فني تكييف — شركة البرودة', 'pass_type': 'maintenance', 'qr_code': 'PASS-3H8W5T',
-          'valid_from': ago(hours: 2), 'valid_until': inFuture(hours: 2), 'status': 'used', 'created_at': ago(hours: 2),
+          'id': id('1'),
+          'unit_id': unitId(8),
+          'issued_by': uMohamed,
+          'visitor_name': 'فني تكييف — شركة البرودة',
+          'pass_type': 'maintenance',
+          'qr_code': 'PASS-3H8W5T',
+          'valid_from': ago(hours: 2),
+          'valid_until': inFuture(hours: 2),
+          'status': 'used',
+          'created_at': ago(hours: 2),
         },
         {
-          'id': id('1'), 'unit_id': unitId(1), 'issued_by': uPresident, 'visitor_name': 'مندوب صيدلية', 'pass_type': 'delivery', 'qr_code': 'PASS-9R2V6N',
-          'valid_from': ago(hours: 4), 'valid_until': ago(hours: 1), 'status': 'used', 'created_at': ago(hours: 4),
+          'id': id('1'),
+          'unit_id': unitId(1),
+          'issued_by': uPresident,
+          'visitor_name': 'مندوب صيدلية',
+          'pass_type': 'delivery',
+          'qr_code': 'PASS-9R2V6N',
+          'valid_from': ago(hours: 4),
+          'valid_until': ago(hours: 1),
+          'status': 'used',
+          'created_at': ago(hours: 4),
         },
         {
-          'id': id('1'), 'unit_id': unitId(5), 'issued_by': uHisham, 'visitor_name': 'ضيوف عائلة الشريف', 'pass_type': 'guest', 'qr_code': 'PASS-5L7P3C',
-          'valid_from': ago(days: 2), 'valid_until': ago(days: 1), 'status': 'expired', 'created_at': ago(days: 2),
+          'id': id('1'),
+          'unit_id': unitId(5),
+          'issued_by': uHisham,
+          'visitor_name': 'ضيوف عائلة الشريف',
+          'pass_type': 'guest',
+          'qr_code': 'PASS-5L7P3C',
+          'valid_from': ago(days: 2),
+          'valid_until': ago(days: 1),
+          'status': 'expired',
+          'created_at': ago(days: 2),
         },
       ],
       'lost_found_items': [
         {
-          'id': id('1'), 'building_id': buildingId, 'reporter_id': uGuard, 'type': 'found', 'category': 'مفاتيح', 'title': 'مفتاح عربية بميدالية زرقا',
-          'description': null, 'image_url': null, 'location_note': 'اتلقى جنب الأسانسير — مع الأمن', 'is_resolved': false, 'reward_amount': null,
-          'created_at': ago(hours: 9), 'has_secret_mark': true, '_secret': 'ميدالية نادي',
+          'id': id('1'),
+          'building_id': buildingId,
+          'reporter_id': uGuard,
+          'type': 'found',
+          'category': 'مفاتيح',
+          'title': 'مفتاح عربية بميدالية زرقا',
+          'description': null,
+          'image_url': null,
+          'location_note': 'اتلقى جنب الأسانسير — مع الأمن',
+          'is_resolved': false,
+          'reward_amount': null,
+          'created_at': ago(hours: 9),
+          'has_secret_mark': true,
+          '_secret': 'ميدالية نادي',
         },
         {
-          'id': id('1'), 'building_id': buildingId, 'reporter_id': uNadia, 'type': 'lost', 'category': 'محافظ وبطاقات', 'title': 'محفظة جلد بني',
-          'description': null, 'image_url': null, 'location_note': 'غالباً في الجراج', 'is_resolved': false, 'reward_amount': 200,
-          'created_at': ago(days: 1, hours: 3), 'has_secret_mark': false,
+          'id': id('1'),
+          'building_id': buildingId,
+          'reporter_id': uNadia,
+          'type': 'lost',
+          'category': 'محافظ وبطاقات',
+          'title': 'محفظة جلد بني',
+          'description': null,
+          'image_url': null,
+          'location_note': 'غالباً في الجراج',
+          'is_resolved': false,
+          'reward_amount': 200,
+          'created_at': ago(days: 1, hours: 3),
+          'has_secret_mark': false,
         },
       ],
       'union_maintenance_schedule': [
         {
-          'id': id('1'), 'building_id': buildingId, 'title': 'صيانة دورية للأسانسير', 'vendor': 'شركة الصعود للمصاعد (تجريبي)',
-          'scheduled_for': inFuture(days: 3), 'is_urgent': true, 'created_by': uPresident, 'created_at': ago(days: 2),
+          'id': id('1'),
+          'building_id': buildingId,
+          'title': 'صيانة دورية للأسانسير',
+          'vendor': 'شركة الصعود للمصاعد (تجريبي)',
+          'scheduled_for': inFuture(days: 3),
+          'is_urgent': true,
+          'created_by': uPresident,
+          'created_at': ago(days: 2),
         },
         {
-          'id': id('1'), 'building_id': buildingId, 'title': 'رش مبيدات للمدخل والسلم', 'vendor': 'شركة النظافة (تجريبي)',
-          'scheduled_for': inFuture(days: 10), 'is_urgent': false, 'created_by': uPresident, 'created_at': ago(days: 2),
+          'id': id('1'),
+          'building_id': buildingId,
+          'title': 'رش مبيدات للمدخل والسلم',
+          'vendor': 'شركة النظافة (تجريبي)',
+          'scheduled_for': inFuture(days: 10),
+          'is_urgent': false,
+          'created_by': uPresident,
+          'created_at': ago(days: 2),
         },
       ],
       'board_decisions': [
         {
-          'id': decisionOpen, 'building_id': buildingId, 'title': 'التعاقد مع شركة نظافة جديدة بـ 1,800 ج.م شهرياً',
-          'description': 'العرض بيشمل تنظيف السلم يومياً والمدخل والجراج مرتين في الأسبوع.', 'requires_unanimous': false,
-          'status': 'open', 'eligible_voters': 2, 'proposed_by': uPresident, 'created_at': ago(days: 1),
+          'id': decisionOpen,
+          'building_id': buildingId,
+          'title': 'التعاقد مع شركة نظافة جديدة بـ 1,800 ج.م شهرياً',
+          'description': 'العرض بيشمل تنظيف السلم يومياً والمدخل والجراج مرتين في الأسبوع.',
+          'requires_unanimous': false,
+          'status': 'open',
+          'eligible_voters': 2,
+          'proposed_by': uPresident,
+          'created_at': ago(days: 1),
         },
         {
-          'id': decisionDone, 'building_id': buildingId, 'title': 'دهان مدخل العمارة قبل الشتا', 'description': null, 'requires_unanimous': true,
-          'status': 'approved', 'eligible_voters': 2, 'proposed_by': uHisham, 'created_at': ago(days: 20),
+          'id': decisionDone,
+          'building_id': buildingId,
+          'title': 'دهان مدخل العمارة قبل الشتا',
+          'description': null,
+          'requires_unanimous': true,
+          'status': 'approved',
+          'eligible_voters': 2,
+          'proposed_by': uHisham,
+          'created_at': ago(days: 20),
         },
       ],
       'board_decision_votes': [
@@ -528,27 +769,91 @@ class DemoStore {
       ],
       'union_financial_reports': [
         {
-          'id': reportId, 'building_id': buildingId, 'period_label': 'تقرير الربع الثالث ${now.year}', 'total_collected': 10150, 'total_expected': 11550,
-          'emergency_fund': 2000, 'actual_expenses': 4250, 'published_at': ago(days: 7), 'approved_by': uHisham, 'audited_by': 'مراجعة داخلية (تجريبي)',
-          'pdf_url': null, 'status': 'published', 'created_at': ago(days: 7),
+          'id': reportId,
+          'building_id': buildingId,
+          'period_label': 'تقرير الربع الثالث ${now.year}',
+          'total_collected': 10150,
+          'total_expected': 11550,
+          'emergency_fund': 2000,
+          'actual_expenses': 4250,
+          'published_at': ago(days: 7),
+          'approved_by': uHisham,
+          'audited_by': 'مراجعة داخلية (تجريبي)',
+          'pdf_url': null,
+          'status': 'published',
+          'created_at': ago(days: 7),
         },
       ],
       'union_expense_items': [
-        {'id': id('1'), 'report_id': reportId, 'label': 'صيانة الأسانسير', 'vendor': 'شركة الصعود للمصاعد (تجريبي)', 'amount': 1800, 'invoice_ref': 'INV-DEMO-101'},
+        {
+          'id': id('1'),
+          'report_id': reportId,
+          'label': 'صيانة الأسانسير',
+          'vendor': 'شركة الصعود للمصاعد (تجريبي)',
+          'amount': 1800,
+          'invoice_ref': 'INV-DEMO-101',
+        },
         {'id': id('1'), 'report_id': reportId, 'label': 'النظافة', 'vendor': 'شركة النظافة (تجريبي)', 'amount': 1800, 'invoice_ref': 'INV-DEMO-102'},
         {'id': id('1'), 'report_id': reportId, 'label': 'كهرباء السلم', 'vendor': null, 'amount': 650, 'invoice_ref': null},
       ],
       'notifications': [
-        for (final u in [uPresident, uTreasurer, uOwner, uSara, uHisham, uTenant, uNadia, uMohamed, uAmr, uReham, uGuard])
-          ...[
-            {'id': id('1'), 'user_id': u, 'title': '📢 إعلان رسمي من الاتحاد', 'body': 'قطع المياه يوم السبت من 10 الصبح لحد 2 الضهر لتنظيف الخزانات.', 'deep_link': '/#/feed', 'is_read': false, 'created_at': ago(hours: 7)},
-            {'id': id('1'), 'user_id': u, 'title': '🗳️ تصويت جديد للسكان', 'body': 'نركّب كاميرات مراقبة على المدخل والجراج؟ صوت واحد لكل شقة.', 'deep_link': '/#/polls', 'is_read': false, 'created_at': ago(days: 1, hours: 2)},
-            {'id': id('1'), 'user_id': u, 'title': '🔧 صيانة مجدولة', 'body': 'صيانة دورية للأسانسير بعد 3 أيام.', 'deep_link': '/#/union', 'is_read': true, 'created_at': ago(days: 2)},
-          ],
+        for (final u in [uPresident, uTreasurer, uOwner, uSara, uHisham, uTenant, uNadia, uMohamed, uAmr, uReham, uGuard]) ...[
+          {
+            'id': id('1'),
+            'user_id': u,
+            'title': '📢 إعلان رسمي من الاتحاد',
+            'body': 'قطع المياه يوم السبت من 10 الصبح لحد 2 الضهر لتنظيف الخزانات.',
+            'deep_link': '/#/feed',
+            'is_read': false,
+            'created_at': ago(hours: 7),
+          },
+          {
+            'id': id('1'),
+            'user_id': u,
+            'title': '🗳️ تصويت جديد للسكان',
+            'body': 'نركّب كاميرات مراقبة على المدخل والجراج؟ صوت واحد لكل شقة.',
+            'deep_link': '/#/polls',
+            'is_read': false,
+            'created_at': ago(days: 1, hours: 2),
+          },
+          {
+            'id': id('1'),
+            'user_id': u,
+            'title': '🔧 صيانة مجدولة',
+            'body': 'صيانة دورية للأسانسير بعد 3 أيام.',
+            'deep_link': '/#/union',
+            'is_read': true,
+            'created_at': ago(days: 2),
+          },
+        ],
         for (final u in [uOwner, uTenant, uAmr])
-          {'id': id('1'), 'user_id': u, 'title': '⏰ تذكير بمستحقات الصيانة', 'body': 'عليك 350 ج.م مستحقات «$curLabel» لسه ما اتدفعتش. ادفع من التطبيق في ثانية.', 'deep_link': '/#/union-pay', 'is_read': false, 'created_at': ago(hours: 20)},
-        {'id': id('1'), 'user_id': uPresident, 'title': '🙋 طلب انضمام جديد', 'body': 'إيمان رضا طلبت تنضم للعمارة (شقة 11).', 'deep_link': '/#/union-approvals', 'is_read': false, 'created_at': ago(hours: 5)},
-        {'id': id('1'), 'user_id': uNew, 'title': '👋 أهلاً بيك في اتحاد الملاك', 'body': 'انضم لعمارتك بكود الدعوة من رئيس الاتحاد.', 'deep_link': '/#/union', 'is_read': false, 'created_at': ago(minutes: 30)},
+          {
+            'id': id('1'),
+            'user_id': u,
+            'title': '⏰ تذكير بمستحقات الصيانة',
+            'body': 'عليك 350 ج.م مستحقات «$curLabel» لسه ما اتدفعتش. ادفع من التطبيق في ثانية.',
+            'deep_link': '/#/union-pay',
+            'is_read': false,
+            'created_at': ago(hours: 20),
+          },
+        {
+          'id': id('1'),
+          'user_id': uPresident,
+          'title': '🙋 طلب انضمام جديد',
+          'body': 'إيمان رضا طلبت تنضم للعمارة (شقة 11).',
+          'deep_link': '/#/union-approvals',
+          'is_read': false,
+          'created_at': ago(hours: 5),
+        },
+        {
+          'id': id('1'),
+          'user_id': uNew,
+          'title': '👋 أهلاً بيك في اتحاد الملاك',
+          'body': 'انضم لعمارتك بكود الدعوة من رئيس الاتحاد.',
+          'deep_link': '/#/union',
+          'is_read': false,
+          'created_at': ago(minutes: 30),
+        },
       ],
       'sos_alerts': <DemoRow>[],
     };
@@ -668,10 +973,7 @@ class DemoStore {
       case 'like':
       case 'ilike':
         if (value == null) return false;
-        final pattern = RegExp(
-          '^${arg.split(RegExp(r'[%*]')).map(RegExp.escape).join('.*')}\$',
-          caseSensitive: op == 'like',
-        );
+        final pattern = RegExp('^${arg.split(RegExp(r'[%*]')).map(RegExp.escape).join('.*')}\$', caseSensitive: op == 'like');
         return pattern.hasMatch(value.toString());
     }
     return true;
@@ -830,10 +1132,11 @@ class DemoStore {
   // ------------------------------------------------------------------
 
   DemoRow? membershipOf(String userId, {String? building, bool verifiedOnly = true}) {
-    final rows = t('union_members')
-        .where((m) => m['user_id'] == userId && (building == null || m['building_id'] == building) && (!verifiedOnly || m['status'] == 'verified'))
-        .toList()
-      ..sort((a, b) => (b['created_at'] as String).compareTo(a['created_at'] as String));
+    final rows =
+        t('union_members')
+            .where((m) => m['user_id'] == userId && (building == null || m['building_id'] == building) && (!verifiedOnly || m['status'] == 'verified'))
+            .toList()
+          ..sort((a, b) => (b['created_at'] as String).compareTo(a['created_at'] as String));
     return rows.isEmpty ? null : rows.first;
   }
 
@@ -930,10 +1233,13 @@ class DemoStore {
   String? latestActivePassCode(String building) {
     final unitIds = t('units').where((u) => u['building_id'] == building).map((u) => u['id']).toSet();
     final now = DateTime.now().toUtc();
-    final passes = t('visitor_passes')
-        .where((p) => unitIds.contains(p['unit_id']) && p['status'] == 'active' && (DateTime.tryParse(p['valid_until'] as String? ?? '')?.isAfter(now) ?? false))
-        .toList()
-      ..sort((a, b) => (b['created_at'] as String).compareTo(a['created_at'] as String));
+    final passes =
+        t('visitor_passes')
+            .where(
+              (p) => unitIds.contains(p['unit_id']) && p['status'] == 'active' && (DateTime.tryParse(p['valid_until'] as String? ?? '')?.isAfter(now) ?? false),
+            )
+            .toList()
+          ..sort((a, b) => (b['created_at'] as String).compareTo(a['created_at'] as String));
     return passes.isEmpty ? null : passes.first['qr_code'] as String;
   }
 
@@ -1008,7 +1314,9 @@ class DemoStore {
           'created_at': nowIso(),
         });
         _notify(
-          t('union_members').where((m) => m['building_id'] == b && m['status'] == 'verified' && const ['president', 'board_member'].contains(m['role'])).map((m) => m['user_id'] as String),
+          t('union_members')
+              .where((m) => m['building_id'] == b && m['status'] == 'verified' && const ['president', 'board_member'].contains(m['role']))
+              .map((m) => m['user_id'] as String),
           '🙋 طلب انضمام جديد',
           '${nameOf(me)} طلب ينضم للعمارة (شقة $unitNumber).',
           '/#/union-approvals',
@@ -1134,8 +1442,7 @@ class DemoStore {
             .where((x) => x['building_id'] == b && (since == null || DateTime.parse(x['created_at'] as String).isAfter(since)))
             .toList();
         num sumOf(String type) => txs.where((x) => x['type'] == type).fold<num>(0, (a, x) => a + (x['amount'] as num));
-        final expenses = txs.where((x) => x['type'] == 'expense').toList()
-          ..sort((a, b) => (b['created_at'] as String).compareTo(a['created_at'] as String));
+        final expenses = txs.where((x) => x['type'] == 'expense').toList()..sort((a, b) => (b['created_at'] as String).compareTo(a['created_at'] as String));
         return {
           'balance': _fund(b)['balance'],
           'income_wallet': sumOf('due_payment'),
@@ -1167,8 +1474,8 @@ class DemoStore {
           final status = d == null
               ? 'none'
               : d['is_paid'] == true
-                  ? 'paid'
-                  : (dueDate != null && dueDate.isBefore(todayDate) ? 'overdue' : 'unpaid');
+              ? 'paid'
+              : (dueDate != null && dueDate.isBefore(todayDate) ? 'overdue' : 'unpaid');
           final names = _unitMembers(u['id'] as String).map(nameOf).toList();
           rows.add({
             'unit_id': u['id'],
@@ -1219,12 +1526,7 @@ class DemoStore {
         final dues = t('union_dues').where((d) => d['building_id'] == b && d['period_label'] == period).toList();
         final paid = dues.where((d) => d['is_paid'] == true).length;
         return [
-          {
-            'period_label': period,
-            'total_units': dues.length,
-            'paid_units': paid,
-            'pct': dues.isEmpty ? 0 : (paid * 1000 / dues.length).round() / 10,
-          },
+          {'period_label': period, 'total_units': dues.length, 'paid_units': paid, 'pct': dues.isEmpty ? 0 : (paid * 1000 / dues.length).round() / 10},
         ];
 
       case 'remind_unpaid_dues':
@@ -1251,7 +1553,14 @@ class DemoStore {
         due['paid_at'] = nowIso();
         due['paid_via'] = 'cash';
         due['paid_by'] = me;
-        _ledger(b, 'cash_due', due['amount'] as num, dueId: due['id'] as String, unitId: due['unit_id'] as String, note: (p['p_note'] as String?) ?? 'سداد «${due['period_label']}» كاش');
+        _ledger(
+          b,
+          'cash_due',
+          due['amount'] as num,
+          dueId: due['id'] as String,
+          unitId: due['unit_id'] as String,
+          note: (p['p_note'] as String?) ?? 'سداد «${due['period_label']}» كاش',
+        );
         _notify(_unitMembers(due['unit_id'] as String), '✅ اتسجّل سدادك', 'استلمنا «${due['period_label']}» كاش ودخلت صندوق العمارة. شكراً!', '/#/union');
         return null;
 
@@ -1333,7 +1642,12 @@ class DemoStore {
           });
           count++;
         }
-        _notify(_verifiedUsers(b).where((u) => u != me), '🧾 مستحقات صيانة جديدة', '«$label» — ${p['p_amount']} ج.م. ادفع من التطبيق في ثانية.', '/#/union-pay');
+        _notify(
+          _verifiedUsers(b).where((u) => u != me),
+          '🧾 مستحقات صيانة جديدة',
+          '«$label» — ${p['p_amount']} ج.م. ادفع من التطبيق في ثانية.',
+          '/#/union-pay',
+        );
         return count;
 
       case 'pay_union_due':
@@ -1343,12 +1657,20 @@ class DemoStore {
         final amount = due['amount'] as num;
         if ((wallet['available_balance'] as num) < amount) throw DemoError('رصيد محفظتك مش كفاية — اشحن المحفظة الأول');
         wallet['available_balance'] = (wallet['available_balance'] as num) - amount;
-        t('wallet_transactions').add({'id': newId(), 'wallet_id': wallet['id'], 'type': 'union_dues', 'amount': -amount, 'status': 'completed', 'created_at': nowIso()});
+        t('wallet_transactions')
+            .add({'id': newId(), 'wallet_id': wallet['id'], 'type': 'union_dues', 'amount': -amount, 'status': 'completed', 'created_at': nowIso()});
         due['is_paid'] = true;
         due['paid_at'] = nowIso();
         due['paid_via'] = 'wallet';
         due['paid_by'] = me;
-        _ledger(due['building_id'] as String, 'due_payment', amount, dueId: due['id'] as String, unitId: due['unit_id'] as String, note: 'سداد «${due['period_label']}»');
+        _ledger(
+          due['building_id'] as String,
+          'due_payment',
+          amount,
+          dueId: due['id'] as String,
+          unitId: due['unit_id'] as String,
+          note: 'سداد «${due['period_label']}»',
+        );
         return null;
 
       // ---- board decisions ----
@@ -1363,7 +1685,9 @@ class DemoStore {
           'description': p['p_description'],
           'requires_unanimous': p['p_requires_unanimous'] == true,
           'status': 'open',
-          'eligible_voters': t('union_members').where((m) => m['building_id'] == b && m['status'] == 'verified' && const ['president', 'board_member'].contains(m['role'])).length,
+          'eligible_voters': t('union_members')
+              .where((m) => m['building_id'] == b && m['status'] == 'verified' && const ['president', 'board_member'].contains(m['role']))
+              .length,
           'proposed_by': me,
           'created_at': nowIso(),
         });
@@ -1454,36 +1778,40 @@ class DemoStore {
         final b = s('p_building_id');
         if (!_isVerifiedMember(b)) return <DemoRow>[];
         final myUnit = myMembership?['unit_id'];
-        final totalUnits = t('union_members').where((m) => m['building_id'] == b && m['status'] == 'verified' && m['unit_id'] != null).map((m) => m['unit_id']).toSet().length;
+        final totalUnits = t('union_members')
+            .where((m) => m['building_id'] == b && m['status'] == 'verified' && m['unit_id'] != null)
+            .map((m) => m['unit_id'])
+            .toSet()
+            .length;
         final now = DateTime.now().toUtc();
-        final polls = t('union_polls').where((r) => r['building_id'] == b).map((poll) {
-          final votes = t('union_poll_votes').where((v) => v['poll_id'] == poll['id']).toList();
-          final options = List<String>.from(poll['options'] as List);
-          final isOpen = poll['closed_at'] == null && now.isBefore(DateTime.parse(poll['ends_at'] as String));
-          DemoRow? mine;
-          for (final v in votes) {
-            if (v['unit_id'] == myUnit) mine = v;
-          }
-          return <String, dynamic>{
-            'id': poll['id'],
-            'question': poll['question'],
-            'options': options,
-            'ends_at': poll['ends_at'],
-            'closed_at': poll['closed_at'],
-            'created_at': poll['created_at'],
-            'created_by_name': _displayName(b, poll['created_by'] as String),
-            'is_open': isOpen,
-            'counts': [for (var i = 0; i < options.length; i++) votes.where((v) => v['option_index'] == i).length],
-            'units_voted': votes.length,
-            'total_units': max(totalUnits, votes.length),
-            'my_unit_choice': mine?['option_index'],
-            'voted_by_me': votes.any((v) => v['voter_id'] == me),
-          };
-        }).toList()
-          ..sort((a, c) {
-            final o = (c['is_open'] == true ? 1 : 0).compareTo(a['is_open'] == true ? 1 : 0);
-            return o != 0 ? o : (c['created_at'] as String).compareTo(a['created_at'] as String);
-          });
+        final polls =
+            t('union_polls').where((r) => r['building_id'] == b).map((poll) {
+              final votes = t('union_poll_votes').where((v) => v['poll_id'] == poll['id']).toList();
+              final options = List<String>.from(poll['options'] as List);
+              final isOpen = poll['closed_at'] == null && now.isBefore(DateTime.parse(poll['ends_at'] as String));
+              DemoRow? mine;
+              for (final v in votes) {
+                if (v['unit_id'] == myUnit) mine = v;
+              }
+              return <String, dynamic>{
+                'id': poll['id'],
+                'question': poll['question'],
+                'options': options,
+                'ends_at': poll['ends_at'],
+                'closed_at': poll['closed_at'],
+                'created_at': poll['created_at'],
+                'created_by_name': _displayName(b, poll['created_by'] as String),
+                'is_open': isOpen,
+                'counts': [for (var i = 0; i < options.length; i++) votes.where((v) => v['option_index'] == i).length],
+                'units_voted': votes.length,
+                'total_units': max(totalUnits, votes.length),
+                'my_unit_choice': mine?['option_index'],
+                'voted_by_me': votes.any((v) => v['voter_id'] == me),
+              };
+            }).toList()..sort((a, c) {
+              final o = (c['is_open'] == true ? 1 : 0).compareTo(a['is_open'] == true ? 1 : 0);
+              return o != 0 ? o : (c['created_at'] as String).compareTo(a['created_at'] as String);
+            });
         return polls;
 
       case 'create_building_poll':
@@ -1512,7 +1840,8 @@ class DemoStore {
         if (m['unit_id'] == null) throw DemoError('التصويت صوت لكل شقة — حسابك مش مربوط بشقة');
         if (poll['closed_at'] != null || DateTime.now().toUtc().isAfter(DateTime.parse(poll['ends_at'] as String))) throw DemoError('التصويت ده اتقفل');
         if (t('union_poll_votes').any((v) => v['poll_id'] == poll['id'] && v['unit_id'] == m['unit_id'])) throw DemoError('شقتكم صوّتت قبل كده');
-        t('union_poll_votes').add({'id': newId(), 'poll_id': poll['id'], 'unit_id': m['unit_id'], 'voter_id': me, 'option_index': p['p_option'], 'created_at': nowIso()});
+        t('union_poll_votes')
+            .add({'id': newId(), 'poll_id': poll['id'], 'unit_id': m['unit_id'], 'voter_id': me, 'option_index': p['p_option'], 'created_at': nowIso()});
         return null;
 
       case 'close_building_poll':
@@ -1527,7 +1856,9 @@ class DemoStore {
         final body = (p['p_body'] as String? ?? '').trim();
         if (body.length < 5) throw DemoError('اكتب نص الإعلان');
         final id = newId();
-        t('posts').add({'id': id, 'building_id': b, 'author_id': me, 'type': 'official', 'body': body, 'images': <String>[], 'is_pinned': true, 'created_at': nowIso()});
+        t(
+          'posts',
+        ).add({'id': id, 'building_id': b, 'author_id': me, 'type': 'official', 'body': body, 'images': <String>[], 'is_pinned': true, 'created_at': nowIso()});
         _notify(_verifiedUsers(b).where((u) => u != me), '📢 إعلان رسمي من الاتحاد', body.length > 90 ? '${body.substring(0, 90)}…' : body, '/#/feed');
         return id;
 

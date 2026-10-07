@@ -90,15 +90,18 @@ class DemoHttpClient extends http.BaseClient {
       if (endpoint == 'logout') return (204, null);
       if (endpoint == 'user') {
         final p = store.profileOf(store.me);
-        return (200, {
-          'id': store.me,
-          'aud': 'authenticated',
-          'role': 'authenticated',
-          'email': 'demo@demo.invalid',
-          'app_metadata': {'provider': 'email'},
-          'user_metadata': {'full_name': p?['full_name']},
-          'created_at': p?['created_at'],
-        });
+        return (
+          200,
+          {
+            'id': store.me,
+            'aud': 'authenticated',
+            'role': 'authenticated',
+            'email': 'demo@demo.invalid',
+            'app_metadata': {'provider': 'email'},
+            'user_metadata': {'full_name': p?['full_name']},
+            'created_at': p?['created_at'],
+          },
+        );
       }
       throw DemoError('النسخة التجريبية: استخدم مبدّل الأدوار بدل تسجيل الدخول');
     }

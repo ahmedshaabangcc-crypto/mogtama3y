@@ -51,5 +51,4 @@ void demoSessionRemove(String key) {
 
 void demoNavigate(String url) => _location.replace(url.toJS);
 
-String demoBlobUrl(Uint8List bytes, String mime) =>
-    _createObjectUrl(_Blob(<JSAny>[bytes.toJS].toJS, _BlobOptions(type: mime.toJS))).toDart;
+String demoBlobUrl(Uint8List bytes, String mime) => _createObjectUrl(_Blob(<JSAny>[bytes.toJS].toJS, _BlobOptions(type: mime.toJS))).toDart;
