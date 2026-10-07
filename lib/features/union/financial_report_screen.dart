@@ -4,9 +4,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/union/financial_report_service.dart';
+import '../../core/union/fund_service.dart';
 import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
+import 'union_fund_screen.dart';
 
 String _fmt(num n) {
   final s = n.round().toString();
@@ -45,6 +47,19 @@ class _FinancialReportScreenState extends State<FinancialReportScreen> {
   String? _buildingName;
   Map<String, dynamic>? _report;
 
+  /// Ledger-derived figures (migration 0076): manager/president/board get
+  /// the fund summary; every member gets the collection percentage.
+  bool _canViewFund = false;
+  Map<String, dynamic>? _summary;
+  Map<String, dynamic>? _rate;
+  /// 0 = this month, 1 = this year, 2 = since the fund started.
+  int _range = 0;
+
+  DateTime? get _since {
+    final now = DateTime.now();
+    return switch (_range) { 0 => DateTime(now.year, now.month), 1 => DateTime(now.year), _ => null };
+  }
+
   @override
   void initState() {
     super.initState();
@@ -62,9 +77,13 @@ class _FinancialReportScreenState extends State<FinancialReportScreen> {
       final buildingId = isVerified ? membership!['building_id'] as String? : null;
       final building = membership?['building'] as Map<String, dynamic>?;
 
-      Map<String, dynamic>? report;
+      Map<String, dynamic>? report, summary, rate;
+      var canViewFund = false;
       if (buildingId != null) {
         report = await FinancialReportService.fetchLatestReport(buildingId);
+        rate = await FundService.fetchCollectionRate(buildingId);
+        canViewFund = await FundService.canView(buildingId);
+        if (canViewFund) summary = await FundService.fetchSummary(buildingId, since: _since);
       }
 
       if (!mounted) return;
@@ -72,6 +91,9 @@ class _FinancialReportScreenState extends State<FinancialReportScreen> {
         _buildingId = buildingId;
         _buildingName = building?['name'] as String?;
         _report = report;
+        _rate = rate;
+        _canViewFund = canViewFund;
+        _summary = summary;
         _loading = false;
       });
     } catch (_) {
@@ -81,6 +103,103 @@ class _FinancialReportScreenState extends State<FinancialReportScreen> {
         _loadError = true;
       });
     }
+  }
+
+  /// Income from paid dues (wallet + cash) and expenses straight from the
+  /// fund ledger; residents only see the collection percentage.
+  List<Widget> _ledgerSection() {
+    final s = _summary;
+    if (!_canViewFund || s == null) {
+      return [
+        const Text('تحصيل المستحقات', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+        const SizedBox(height: 8),
+        CollectionRateCard(rate: _rate),
+      ];
+    }
+    final income = ((s['income_wallet'] as num?) ?? 0) + ((s['income_cash'] as num?) ?? 0);
+    final expenses = (s['expenses'] as num?) ?? 0;
+    final items = <Map<String, dynamic>>[
+      for (final e in (s['expense_items'] as List? ?? const []))
+        {'label': (e as Map)['note'], 'amount': e['amount']},
+    ];
+    final top = [...items]..sort((a, b) => ((b['amount'] as num?) ?? 0).compareTo((a['amount'] as num?) ?? 0));
+    final top3 = top.take(3).toList();
+    Widget stat(String label, num value, Color color) => Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(label, style: const TextStyle(fontSize: 10, color: AppColors.inkMuted)),
+              const SizedBox(height: 4),
+              Text('${_fmt(value)} ج.م', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: color)),
+            ]),
+          ),
+        );
+    return [
+      Row(children: [
+        const Expanded(child: Text('من دفتر صندوق العمارة', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15))),
+        TextButton(
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const UnionFundScreen())),
+          child: const Text('الدفتر كامل', style: TextStyle(fontSize: 11.5)),
+        ),
+      ]),
+      Wrap(spacing: 8, children: [
+        for (final (i, label) in const [(0, 'الشهر ده'), (1, 'السنة دي'), (2, 'من البداية')])
+          ChoiceChip(
+            label: Text(label),
+            selected: _range == i,
+            onSelected: (_) {
+              setState(() => _range = i);
+              _load();
+            },
+          ),
+      ]),
+      const SizedBox(height: 10),
+      Row(children: [
+        stat('الإيرادات (مستحقات مدفوعة)', income, AppColors.success),
+        const SizedBox(width: 8),
+        stat('المصروفات', expenses, AppColors.categorySos),
+      ]),
+      const SizedBox(height: 8),
+      Row(children: [
+        stat('منها من المحفظة', (s['income_wallet'] as num?) ?? 0, AppColors.ink),
+        const SizedBox(width: 8),
+        stat('منها كاش', (s['income_cash'] as num?) ?? 0, AppColors.ink),
+      ]),
+      const SizedBox(height: 8),
+      Row(children: [
+        stat('رصيد الصندوق الحالي', (s['balance'] as num?) ?? 0, AppColors.teal),
+        const SizedBox(width: 8),
+        stat('سحوبات', (s['withdrawals'] as num?) ?? 0, AppColors.ink),
+      ]),
+      const SizedBox(height: 10),
+      CollectionRateCard(rate: _rate),
+      if (top3.isNotEmpty) ...[
+        const SizedBox(height: 14),
+        const Text('أكبر بنود الصرف', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+          child: Row(children: [
+            SizedBox(width: 96, height: 96, child: CustomPaint(size: const Size(96, 96), painter: _DonutPainter(top3, expenses))),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                for (var i = 0; i < top3.length; i++) ...[
+                  _LegendRow(
+                    color: _legendColors[i % _legendColors.length],
+                    label: top3[i]['label'] as String? ?? '',
+                    value: '${_fmt((top3[i]['amount'] as num?) ?? 0)} ج.م',
+                  ),
+                  if (i != top3.length - 1) const SizedBox(height: 8),
+                ],
+              ]),
+            ),
+          ]),
+        ),
+      ],
+    ];
   }
 
   @override
@@ -108,16 +227,19 @@ class _FinancialReportScreenState extends State<FinancialReportScreen> {
       );
     }
     final report = _report;
+    final ledgerSection = _ledgerSection();
     if (report == null) {
       return Scaffold(
         backgroundColor: AppColors.bg,
         appBar: AppBar(title: const Text('التقرير المالي الشامل للجمعية العمومية')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text('مجلس إدارة اتحاد ${_buildingName ?? "عمارتك"} لسه ما نشرش تقرير مالي',
-                textAlign: TextAlign.center, style: const TextStyle(color: AppColors.inkMuted, fontSize: 13)),
-          ),
+        body: RefreshIndicator(
+          onRefresh: _load,
+          child: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 16), children: [
+            ...ledgerSection,
+            const SizedBox(height: 20),
+            Text('مجلس إدارة اتحاد ${_buildingName ?? "عمارتك"} لسه ما نشرش تقرير مالي مُعتمد (PDF)',
+                textAlign: TextAlign.center, style: const TextStyle(color: AppColors.inkMuted, fontSize: 12)),
+          ]),
         ),
       );
     }
@@ -143,6 +265,10 @@ class _FinancialReportScreenState extends State<FinancialReportScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           children: [
+            ...ledgerSection,
+            const SizedBox(height: 22),
+            const Text('آخر تقرير منشور من مجلس الإدارة', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+            const SizedBox(height: 8),
             Row(children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

@@ -15,13 +15,21 @@ import '../shared/load_error_view.dart';
 /// building with no board, any verified owner can run the election). Finalizing actually hands over the presidency if quorum
 /// is met, so this is a real governance action, not a cosmetic result.
 class ElectionVotingScreen extends StatefulWidget {
-  const ElectionVotingScreen({super.key});
+  const ElectionVotingScreen({super.key, this.position = 'president'});
+
+  /// 'president' (default) or 'treasurer' — a treasurer election is called
+  /// by the president/board and its winner manages the building fund
+  /// (migration 0076); the presidency is untouched.
+  final String position;
 
   @override
   State<ElectionVotingScreen> createState() => _ElectionVotingScreenState();
 }
 
 class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
+  bool get _isTreasurer => widget.position == 'treasurer';
+  String get _office => _isTreasurer ? 'أمانة الصندوق' : 'رئاسة الاتحاد';
+  String get _screenTitle => _isTreasurer ? 'انتخابات أمين الصندوق' : 'انتخابات اتحاد الملاك';
   bool _loading = true;
   bool _loadError = false;
   String? _buildingId;
@@ -51,7 +59,7 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
       // In a building with no approved board, verified owners run the
       // presidential election themselves (the server checks ownership).
       var canManage = isBoardMember;
-      if (!isBoardMember && status == 'verified' && buildingId != null) {
+      if (!isBoardMember && !_isTreasurer && status == 'verified' && buildingId != null) {
         final members = await UnionService.fetchVerifiedMembers(buildingId);
         canManage = !members.any((m) => const ['president', 'board_member'].contains(m['role']));
       }
@@ -60,7 +68,7 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
       List<Map<String, dynamic>> candidates = [];
       String? myVote;
       if (buildingId != null) {
-        election = await ElectionService.fetchLatestElection(buildingId);
+        election = await ElectionService.fetchLatestElection(buildingId, position: widget.position);
         if (election != null) {
           candidates = await ElectionService.fetchCandidates(election['id'] as String);
           myVote = await ElectionService.fetchMyVoteCandidateId(election['id'] as String);
@@ -87,7 +95,7 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
   }
 
   Future<void> _createElection() async {
-    final titleCtrl = TextEditingController(text: 'انتخاب رئيس اتحاد الملاك');
+    final titleCtrl = TextEditingController(text: _isTreasurer ? 'انتخاب أمين صندوق العمارة' : 'انتخاب رئيس اتحاد الملاك');
     final daysCtrl = TextEditingController(text: '3');
     final result = await showDialog<bool>(
       context: context,
@@ -107,7 +115,7 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
     if (result != true || titleCtrl.text.trim().isEmpty) return;
     final days = int.tryParse(daysCtrl.text.trim()) ?? 3;
     try {
-      await ElectionService.createElection(title: titleCtrl.text.trim(), closesAt: DateTime.now().add(Duration(days: days)));
+      await ElectionService.createElection(title: titleCtrl.text.trim(), closesAt: DateTime.now().add(Duration(days: days)), position: widget.position);
       _load();
     } catch (e) {
       if (!mounted) return;
@@ -120,7 +128,7 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('ترشيح نفسك لرئاسة الاتحاد'),
+        title: Text('ترشيح نفسك ل$_office'),
         content: TextField(controller: pledgeCtrl, maxLines: 3, decoration: const InputDecoration(labelText: 'برنامجك الانتخابي (اختياري)')),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('إلغاء')),
@@ -153,7 +161,7 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('إغلاق التصويت وإعلان النتيجة'),
-        content: const Text('هذا الإجراء نهائي: سيتم إعلان الفائز وتسليمه صلاحية رئاسة الاتحاد فوراً إذا تحقق النصاب القانوني. متأكد؟'),
+        content: Text('هذا الإجراء نهائي: سيتم إعلان الفائز وتسليمه $_office فوراً إذا تحقق النصاب القانوني. متأكد؟'),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('تراجع')),
           ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('تأكيد الإغلاق')),
@@ -183,12 +191,12 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (_loadError) {
-      return Scaffold(backgroundColor: AppColors.bg, appBar: AppBar(title: const Text('انتخابات اتحاد الملاك')), body: LoadErrorView(onRetry: _load));
+      return Scaffold(backgroundColor: AppColors.bg, appBar: AppBar(title: Text(_screenTitle)), body: LoadErrorView(onRetry: _load));
     }
     if (_buildingId == null) {
       return Scaffold(
         backgroundColor: AppColors.bg,
-        appBar: AppBar(title: const Text('انتخابات اتحاد الملاك')),
+        appBar: AppBar(title: Text(_screenTitle)),
         body: const Center(
           child: Padding(
             padding: EdgeInsets.all(24),
@@ -200,7 +208,7 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
     if (_election == null) {
       return Scaffold(
         backgroundColor: AppColors.bg,
-        appBar: AppBar(title: const Text('انتخابات اتحاد الملاك')),
+        appBar: AppBar(title: Text(_screenTitle)),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -235,7 +243,7 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('انتخابات اتحاد الملاك')),
+      appBar: AppBar(title: Text(_screenTitle)),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -313,7 +321,7 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
                   onPressed: _nominate,
                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                   icon: const Icon(Icons.add_circle_outline_rounded, size: 17),
-                  label: const Text('ترشيح نفسك لرئاسة الاتحاد', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                  label: Text('ترشيح نفسك ل$_office', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                 ),
               ),
             ],

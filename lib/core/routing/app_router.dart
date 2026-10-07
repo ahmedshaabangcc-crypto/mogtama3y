@@ -32,7 +32,12 @@ import '../../features/store/order_tracking_screen.dart';
 import '../../features/store/store_page_screen.dart';
 import '../../features/support/faq_help_center_screen.dart';
 import '../../features/support/support_contact_screen.dart';
+import '../../features/union/dues_status_screen.dart';
+import '../../features/union/maintenance_payment_screen.dart';
+import '../../features/union/pending_members_screen.dart';
+import '../../features/union/treasurer_screen.dart';
 import '../../features/union/union_dashboard_screen.dart';
+import '../../features/union/union_fund_screen.dart';
 import '../../features/union/union_landing_screen.dart';
 import '../../features/wallet/wallet_screen.dart';
 import '../../features/discover/directory_place_screen.dart';
@@ -69,6 +74,13 @@ class AppRoutes {
   static const marketplace = '/marketplace';
   static const shops = '/shops';
   static const union = '/union';
+
+  /// Union money & approvals (notifications deep-link here — 0076).
+  static const unionFund = '/union-fund';
+  static const unionDues = '/union-dues';
+  static const unionTreasurer = '/union-treasurer';
+  static const unionApprovals = '/union-approvals';
+  static const unionPay = '/union-pay';
   static const realEstate = '/real-estate';
   static const jobs = '/jobs';
   static const technicians = '/technicians';
@@ -162,6 +174,11 @@ final _unionSections = <String, GoRouterWidgetBuilder>{
   AppRoutes.ittihad: (_, _) => const UnionLandingScreen(),
   AppRoutes.sos: (_, _) => const SosEmergencyScreen(),
   AppRoutes.lostFound: (_, _) => const LostFoundHubScreen(),
+  AppRoutes.unionFund: (_, _) => const UnionFundScreen(),
+  AppRoutes.unionDues: (_, _) => const DuesStatusScreen(),
+  AppRoutes.unionTreasurer: (_, _) => const TreasurerScreen(),
+  AppRoutes.unionApprovals: (_, _) => const PendingMembersScreen(),
+  AppRoutes.unionPay: (_, _) => const MaintenancePaymentScreen(),
 };
 
 final _mogtama3ySections = <String, GoRouterWidgetBuilder>{
@@ -258,7 +275,10 @@ bool isInAppPath(String path) {
 /// Where to open an in-app [path] this app can't show: union sections live
 /// on the union app, everything else on مُجتمعي.
 Uri otherAppUrlFor(String path) {
-  const union = {AppRoutes.union, AppRoutes.ittihad, AppRoutes.sos, AppRoutes.lostFound};
+  const union = {
+    AppRoutes.union, AppRoutes.ittihad, AppRoutes.sos, AppRoutes.lostFound,
+    AppRoutes.unionFund, AppRoutes.unionDues, AppRoutes.unionTreasurer, AppRoutes.unionApprovals, AppRoutes.unionPay,
+  };
   final base = union.contains(path) ? 'https://ittihad.mogtama3y.com' : mogtama3yUrl;
   return Uri.parse('$base/#$path');
 }

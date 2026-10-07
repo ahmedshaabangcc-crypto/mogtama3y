@@ -1279,6 +1279,181 @@ const denied = (r) => !!r.error;
       (await admin(db, `select 1 from scrap_dealers where user_id = $1`, [scrapRadius])).length === 0);
   }
 
+  // Building fund, treasurer, dues status, invite codes (0076)
+  {
+    const fundPres = await signUp(db, 'fund president', '01000000761');
+    const fundOwner2 = await signUp(db, 'fund owner two', '01000000762');
+    const fundOwner3 = await signUp(db, 'fund owner three', '01000000763');
+    const fundTenant = await signUp(db, 'fund tenant', '01000000764');
+    const fundLate = await signUp(db, 'fund latecomer', '01000000765');
+    const fundOutsider = await signUp(db, 'fund outsider', '01000000766');
+
+    const fundCode = (await as(db, fundPres, `select public.found_building('عمارة الصندوق','x','x','x','1','1') as c`)).rows[0].c;
+    const fundBld = (await admin(db, `select building_id from union_members where user_id = $1`, [fundPres]))[0].building_id;
+    const fundReq = (await admin(db, `select id from president_requests where user_id = $1 and status = 'pending'`, [fundPres]))[0].id;
+    await as(db, SA, `select public.review_president_request($1, true)`, [fundReq]);
+
+    check('the president sees the building invite code (BLD-…)',
+      (await as(db, fundPres, `select public.get_building_invite_code($1) as c`, [fundBld])).rows?.[0]?.c === fundCode);
+    check("a non-member can't read the building invite code",
+      denied(await as(db, fundOutsider, `select public.get_building_invite_code($1)`, [fundBld])));
+
+    await as(db, fundOwner2, `select public.join_building_with_code($1, '2', '2', 'owner')`, [fundCode]);
+    const fundJoinNote = await admin(db, `select deep_link from notifications where user_id = $1 and title = '🏠 طلب انضمام جديد'`, [fundPres]);
+    check('a join request notifies the president with a link to the approvals screen',
+      fundJoinNote.length === 1 && fundJoinNote[0].deep_link === '/#/union-approvals', fundJoinNote);
+    await as(db, fundOwner3, `select public.join_building_with_code($1, '3', '3', 'owner')`, [fundCode]);
+    for (const u of [fundOwner2, fundOwner3]) {
+      const mid = (await admin(db, `select id from union_members where user_id = $1 and building_id = $2`, [u, fundBld]))[0].id;
+      await as(db, fundPres, `select public.review_union_member($1, true)`, [mid]);
+    }
+    const fundUnit = async (n) => (await admin(db, `select id from units where building_id = $1 and unit_number = $2`, [fundBld, n]))[0].id;
+    const fundUnit2 = await fundUnit('2');
+    const fundTenCode = (await as(db, fundOwner2, `select public.invite_tenant_for_unit($1) as c`, [fundUnit2])).rows?.[0]?.c;
+    await as(db, fundTenant, `select public.join_as_tenant_with_code($1)`, [fundTenCode]);
+
+    // Dues: due date yesterday, so unpaid = متأخر.
+    check('the president issues dues for every unit',
+      (await as(db, fundPres, `select public.create_union_due('نوفمبر', 300, current_date - 1, $1) as n`, [fundBld])).rows?.[0]?.n === 3);
+    const fundDue = async (n) => (await admin(db, `select d.id from union_dues d join units u on u.id = d.unit_id where d.building_id = $1 and u.unit_number = $2`, [fundBld, n]))[0].id;
+    const fundDue1 = await fundDue('1');
+    const fundDue2 = await fundDue('2');
+    const fundDue3 = await fundDue('3');
+    const fundBalance = async () => Number((await admin(db, `select coalesce((select balance from union_funds where building_id = $1), 0) as b`, [fundBld]))[0].b);
+    const fundLedgerCount = async (type) => (await admin(db, `select count(*)::int as n from union_fund_transactions where building_id = $1 and type = $2`, [fundBld, type]))[0].n;
+
+    await admin(db, `update wallets set available_balance = 1000 where user_id = $1`, [fundOwner2]);
+    const fundPay = await as(db, fundOwner2, `select public.pay_union_due($1)`, [fundDue2]);
+    check('a resident pays their due from the wallet', ok(fundPay), fundPay.error);
+    check('…the resident wallet is debited (1000 → 700) with a ledger row',
+      Number((await admin(db, `select available_balance from wallets where user_id = $1`, [fundOwner2]))[0].available_balance) === 700 &&
+      (await admin(db, `select count(*)::int as n from wallet_transactions t join wallets w on w.id = t.wallet_id where w.user_id = $1 and t.reference_id = $2 and t.amount = -300`, [fundOwner2, fundDue2]))[0].n === 1);
+    check('…and the building fund is credited exactly once (300)',
+      (await fundBalance()) === 300 && (await fundLedgerCount('due_payment')) === 1);
+    check('…the fund manager (president) is notified',
+      (await admin(db, `select count(*)::int as n from notifications where user_id = $1 and deep_link = '/#/union-fund'`, [fundPres]))[0].n === 1);
+    check('paying the same due twice is refused', denied(await as(db, fundOwner2, `select public.pay_union_due($1)`, [fundDue2])));
+    check('…and the fund is not credited again',
+      (await fundBalance()) === 300 && (await fundLedgerCount('due_payment')) === 1 &&
+      Number((await admin(db, `select available_balance from wallets where user_id = $1`, [fundOwner2]))[0].available_balance) === 700);
+    check("EXPLOIT blocked: a resident pays someone else's due (fund untouched)",
+      denied(await as(db, fundOwner2, `select public.pay_union_due($1)`, [fundDue3])) && (await fundBalance()) === 300);
+
+    // Residents: no cash marking, no expenses, no withdrawals, no ledger.
+    check('a resident cannot mark a due paid in cash', denied(await as(db, fundOwner3, `select public.mark_due_paid_cash($1, null)`, [fundDue3])));
+    check('a resident cannot record an expense', denied(await as(db, fundOwner3, `select public.record_union_expense($1, 50, 'لمبات السلم', null)`, [fundBld])));
+    check('a resident cannot request a fund withdrawal', denied(await as(db, fundOwner3, `select public.request_fund_withdrawal($1, 50, 'سحب', null)`, [fundBld])));
+    check("a resident can't see the fund balance or the ledger",
+      (await as(db, fundOwner3, `select * from union_funds`)).rows?.length === 0 &&
+      (await as(db, fundOwner3, `select * from union_fund_transactions`)).rows?.length === 0 &&
+      denied(await as(db, fundOwner3, `select public.union_fund_summary($1)`, [fundBld])));
+    check("a resident can't see who paid", denied(await as(db, fundOwner3, `select * from public.union_dues_status($1)`, [fundBld])));
+    const fundRate = await as(db, fundOwner3, `select * from public.union_collection_rate($1)`, [fundBld]);
+    check('a resident gets only the collection rate (1 of 3 → 33.3%)',
+      fundRate.rows?.[0]?.paid_units === 1 && fundRate.rows?.[0]?.total_units === 3 && Number(fundRate.rows?.[0]?.pct) === 33.3, fundRate);
+    check("an outsider can't get the collection rate", denied(await as(db, fundOutsider, `select * from public.union_collection_rate($1)`, [fundBld])));
+
+    // The manager (president, no treasurer yet).
+    check('the manager marks a due paid in cash', ok(await as(db, fundPres, `select public.mark_due_paid_cash($1, 'استلمت من الحاج')`, [fundDue3])));
+    check('…the due is paid via cash and the fund credited (600)',
+      (await admin(db, `select paid_via from union_dues where id = $1`, [fundDue3]))[0].paid_via === 'cash' &&
+      (await fundBalance()) === 600 && (await fundLedgerCount('cash_due')) === 1);
+    check('marking an already-paid due as cash is refused', denied(await as(db, fundPres, `select public.mark_due_paid_cash($1, null)`, [fundDue2])));
+    check('an expense larger than the fund is refused',
+      denied(await as(db, fundPres, `select public.record_union_expense($1, 1000, 'دهان السلم', null)`, [fundBld])) && (await fundBalance()) === 600);
+    check("EXPLOIT blocked: an expense pointing at someone else's private file",
+      denied(await as(db, fundPres, `select public.record_union_expense($1, 10, 'إيصال', $2)`, [fundBld, `${fundOwner2}/id-card/x.jpg`])));
+    check('the manager records an expense with a receipt',
+      ok(await as(db, fundPres, `select public.record_union_expense($1, 100, 'تغيير لمبات السلم', $2)`, [fundBld, `${fundPres}/union-receipts/r1.jpg`])) &&
+      (await fundBalance()) === 500);
+    const fundStatus = await as(db, fundPres, `select unit_number, status, paid_via from public.union_dues_status($1)`, [fundBld]);
+    const fundSt = Object.fromEntries((fundStatus.rows || []).map((r) => [r.unit_number, r.status]));
+    check('dues status: unit 1 متأخر, 2 مدفوع, 3 مدفوع', fundSt['1'] === 'overdue' && fundSt['2'] === 'paid' && fundSt['3'] === 'paid', fundStatus);
+    const fundSum = (await as(db, fundPres, `select public.union_fund_summary($1) as s`, [fundBld])).rows?.[0]?.s;
+    check('the financial summary comes from the ledger',
+      Number(fundSum?.income_wallet) === 300 && Number(fundSum?.income_cash) === 300 && Number(fundSum?.expenses) === 100 && Number(fundSum?.balance) === 500 &&
+      fundSum?.expense_items?.length === 1, fundSum);
+
+    check('«فكّر الكل» reminds the units with unpaid dues', (await as(db, fundPres, `select public.remind_unpaid_dues($1) as n`, [fundBld])).rows?.[0]?.n === 1);
+    check('…only those units get the reminder',
+      (await admin(db, `select count(*)::int as n from notifications where user_id = $1 and title = '⏰ تذكير بمستحقات الصيانة'`, [fundPres]))[0].n === 1 &&
+      (await admin(db, `select count(*)::int as n from notifications where user_id = $1 and title = '⏰ تذكير بمستحقات الصيانة'`, [fundOwner2]))[0].n === 0);
+    check('a second reminder within 24h is refused', denied(await as(db, fundPres, `select public.remind_unpaid_dues($1)`, [fundBld])));
+    check('a resident cannot send reminders', denied(await as(db, fundOwner3, `select public.remind_unpaid_dues($1)`, [fundBld])));
+
+    // Withdrawals: reviewed by the platform admin, fund debited on approval.
+    const fundWd = await as(db, fundPres, `select public.request_fund_withdrawal($1, 200, 'مصاريف كهربائي', null) as id`, [fundBld]);
+    check('the manager requests a withdrawal to their wallet', ok(fundWd), fundWd.error);
+    check('…the fund is not debited until the admin approves', (await fundBalance()) === 500);
+    check('a withdrawal beyond balance minus pending requests is refused',
+      denied(await as(db, fundPres, `select public.request_fund_withdrawal($1, 400, 'تاني', null)`, [fundBld])));
+    check('the admin lists pending fund withdrawals',
+      (await as(db, SA, `select * from public.admin_list_union_fund_withdrawals()`)).rows?.some((r) => r.id === fundWd.rows?.[0]?.id));
+    check("a non-admin can't approve a fund withdrawal",
+      denied(await as(db, fundPres, `select public.review_union_fund_withdrawal($1, true)`, [fundWd.rows?.[0]?.id])));
+    const fundPresWallet0 = Number((await admin(db, `select available_balance from wallets where user_id = $1`, [fundPres]))[0].available_balance);
+    check('the admin approves: fund 500 → 300, manager wallet +200',
+      ok(await as(db, SA, `select public.review_union_fund_withdrawal($1, true)`, [fundWd.rows?.[0]?.id])) &&
+      (await fundBalance()) === 300 &&
+      Number((await admin(db, `select available_balance from wallets where user_id = $1`, [fundPres]))[0].available_balance) === fundPresWallet0 + 200);
+
+    // Treasurer: appointed → manages the fund; president keeps read access.
+    check('a resident cannot appoint a treasurer', denied(await as(db, fundOwner2, `select public.appoint_union_treasurer($1, $2)`, [fundBld, fundOwner2])));
+    check('the president appoints a treasurer', ok(await as(db, fundPres, `select public.appoint_union_treasurer($1, $2)`, [fundBld, fundOwner3])));
+    check('…the building is notified',
+      (await admin(db, `select count(*)::int as n from notifications where user_id = $1 and title = 'أمين صندوق جديد للعمارة'`, [fundOwner2]))[0].n === 1);
+    check('the treasurer now manages the fund (records an expense)',
+      ok(await as(db, fundOwner3, `select public.record_union_expense($1, 50, 'منظفات', null)`, [fundBld])) && (await fundBalance()) === 250);
+    check('the treasurer sees the ledger', (await as(db, fundOwner3, `select * from union_fund_transactions where building_id = $1`, [fundBld])).rows?.length >= 4);
+    check('with a treasurer, the president can no longer move fund money',
+      denied(await as(db, fundPres, `select public.record_union_expense($1, 10, 'حاجة', null)`, [fundBld])) &&
+      denied(await as(db, fundPres, `select public.mark_due_paid_cash($1, null)`, [fundDue1])));
+    check('…but the president still reads the balance and the ledger',
+      (await as(db, fundPres, `select balance from union_funds where building_id = $1`, [fundBld])).rows?.length === 1 &&
+      ok(await as(db, fundPres, `select public.union_fund_summary($1)`, [fundBld])));
+    check('the treasurer cannot remove themselves (president only)', denied(await as(db, fundOwner3, `select public.remove_union_treasurer($1)`, [fundBld])));
+    check('the president removes the treasurer', ok(await as(db, fundPres, `select public.remove_union_treasurer($1)`, [fundBld])));
+    check('…and manages the fund again', ok(await as(db, fundPres, `select public.mark_due_paid_cash($1, null)`, [fundDue1])) && (await fundBalance()) === 550);
+
+    // Treasurer election: one vote per unit, 50% quorum, winner = treasurer.
+    check('a resident cannot call a treasurer election',
+      denied(await as(db, fundOwner2, `select public.create_election('أمين صندوق', now() + interval '2 days', 50, $1, 'treasurer')`, [fundBld])));
+    const fundEl = await as(db, fundPres, `select public.create_election('انتخاب أمين الصندوق', now() + interval '2 days', 50, $1, 'treasurer') as id`, [fundBld]);
+    check('the president calls a treasurer election', ok(fundEl), fundEl.error);
+    const fundElId = fundEl.rows?.[0]?.id;
+    check('a presidential election can still run alongside it',
+      ok(await as(db, fundPres, `select public.create_election('رئاسة', now() + interval '2 days', 50, $1) as id`, [fundBld])));
+    check('a second open treasurer election is refused',
+      denied(await as(db, fundPres, `select public.create_election('تاني', now() + interval '2 days', 50, $1, 'treasurer')`, [fundBld])));
+    const fundCand = (await as(db, fundOwner2, `select public.nominate_self($1, 'هنظّم الصرف') as id`, [fundElId])).rows?.[0]?.id;
+    check('an owner runs for treasurer', !!fundCand);
+    await as(db, fundOwner2, `select public.cast_election_vote($1, $2)`, [fundElId, fundCand]);
+    await as(db, fundOwner2, `select public.cast_election_vote($1, $2)`, [fundElId, fundCand]);
+    check('voting twice still counts one vote for the unit',
+      (await admin(db, `select count(*)::int as n from union_votes where election_id = $1 and voter_id = $2`, [fundElId, fundOwner2]))[0].n === 1 &&
+      (await admin(db, `select vote_count from union_candidates where id = $1`, [fundCand]))[0].vote_count === 1);
+    check("the unit's tenant can't vote (one vote per unit, owners only)",
+      denied(await as(db, fundTenant, `select public.cast_election_vote($1, $2)`, [fundElId, fundCand])));
+    await as(db, fundPres, `select public.cast_election_vote($1, $2)`, [fundElId, fundCand]);
+    check('closing before the deadline with units still to vote is refused', denied(await as(db, fundPres, `select public.finalize_election($1)`, [fundElId])));
+    await as(db, fundOwner3, `select public.cast_election_vote($1, $2)`, [fundElId, fundCand]);
+    check('once every unit voted the president closes it', ok(await as(db, fundPres, `select public.finalize_election($1)`, [fundElId])));
+    check('the winner becomes treasurer (elected) and the presidency is untouched',
+      (await admin(db, `select user_id, source from union_treasurers where building_id = $1`, [fundBld]))[0]?.user_id === fundOwner2 &&
+      (await admin(db, `select role from union_members where user_id = $1`, [fundPres]))[0].role === 'president' &&
+      (await admin(db, `select role from union_members where user_id = $1 and building_id = $2`, [fundOwner2, fundBld]))[0].role === 'resident');
+    check('the elected treasurer is the fund manager',
+      (await as(db, fundOwner2, `select public.is_union_fund_manager($1) as m`, [fundBld])).rows?.[0]?.m === true);
+
+    // Invite code rotation.
+    const fundNewCode = (await as(db, fundPres, `select public.rotate_building_invite_code($1) as c`, [fundBld])).rows?.[0]?.c;
+    check('the president rotates the invite code', !!fundNewCode && fundNewCode !== fundCode && fundNewCode.startsWith('BLD-'));
+    check('the old code stops working', denied(await as(db, fundLate, `select public.join_building_with_code($1, '4', '4', 'owner')`, [fundCode])));
+    check('the new code works', ok(await as(db, fundLate, `select public.join_building_with_code($1, '4', '4', 'owner')`, [fundNewCode])));
+    check('the dashboard shows the new code', (await as(db, fundPres, `select public.get_building_invite_code($1) as c`, [fundBld])).rows?.[0]?.c === fundNewCode);
+    check('a resident cannot rotate the invite code', denied(await as(db, fundOwner3, `select public.rotate_building_invite_code($1)`, [fundBld])));
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));
