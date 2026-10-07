@@ -7,9 +7,9 @@
 //   node tool/seo_pages.mjs
 //
 // Keep the legal text in step with lib/features/legal/*.dart.
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const WEB = join(ROOT, 'web');
@@ -74,7 +74,7 @@ const GA = `<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLa
 (function(){var d=!1;function l(){if(d)return;d=!0;var s=document.createElement('script');s.async=!0;s.src='https://www.googletagmanager.com/gtag/js?id=G-LW5F70SQN3';document.head.appendChild(s)}
 ['pointerdown','scroll','keydown'].forEach(function(e){addEventListener(e,l,{once:!0,passive:!0})});addEventListener('load',function(){setTimeout(l,7000)})})();</script>`;
 
-function page({ path, title, description, h1, lead, heroImg, body, faq = [], schema = [] }) {
+export function page({ path, title, description, h1, lead, heroImg, body, faq = [], schema = [] }) {
   const url = `${SITE}${path}`;
   const graph = [ORG, { '@type': 'WebPage', '@id': `${url}#page`, url, name: title, description, inLanguage: 'ar', isPartOf: { '@id': `${SITE}/#org` } }, ...schema];
   if (faq.length) {
@@ -104,8 +104,10 @@ function page({ path, title, description, h1, lead, heroImg, body, faq = [], sch
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:url" content="${url}">
-<meta property="og:image" content="${SITE}/icons/Icon-512.png">
-<meta name="twitter:card" content="summary">
+<meta property="og:image" content="${SITE}/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#0B1530">
 <link rel="icon" type="image/png" href="/favicon.png">
 <style>${CSS}</style>
@@ -139,6 +141,9 @@ ${faqHtml}
 const list = (items) => `<ul>${items.map((i) => `<li>${i}</li>`).join('')}</ul>`;
 const steps = (items) => `<ol>${items.map((i) => `<li>${i}</li>`).join('')}</ol>`;
 const sections = (secs) => secs.map(([h, ps]) => `<h2>${h}</h2>${ps.map((p) => (p.startsWith('• ') ? list([p.slice(2)]) : `<p>${p}</p>`)).join('')}`).join('').replace(/<\/ul><ul>/g, '');
+
+const AREAS = existsSync(join(WEB, 'areas.json')) ? JSON.parse(readFileSync(join(WEB, 'areas.json'), 'utf8')) : [];
+const areaLinks = AREAS.length ? `<h2>الدليل حسب المنطقة</h2><ul>${AREAS.map((a) => `<li><a href="${a.path}">${a.name} — ${a.city}</a></li>`).join('')}</ul>` : '';
 
 // ---------------------------------------------------------------- legal
 
@@ -421,6 +426,7 @@ ${steps([
 ])}
 <h2>لأصحاب المحلات</h2>
 <p>لو محلك موجود في الدليل، تقدر تسجّله على <a href="/tajer/">متجري</a> ببلاش، فتتحوّل صفحته لمتجر حقيقي بمنتجاتك وأسعارك وصورك، وتستقبل طلبات من زباين منطقتك. المحلات اللي لسه ماسجّلتش بتظهر ببياناتها العامة بس، وهي اللي بترد على الطلبات وتحدد السعر والتوصيل.</p>
+${areaLinks}
 <a class="cta" href="https://dalil.mogtama3y.com">افتح دليل المحلات</a>
 <a class="cta ghost" href="/#/nearby">اكتشف المحلات حواليك</a>`,
   faq: dalilFaq,
@@ -428,6 +434,8 @@ ${steps([
 });
 
 // ---------------------------------------------------------------- write
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
 
 const pages = { privacy, terms, tajer, ittihad, balagh, dalil };
 for (const [slug, html] of Object.entries(pages)) {
@@ -445,6 +453,7 @@ const urls = [
   ['/dalil/', '0.8', 'monthly'],
   ['/privacy/', '0.3', 'yearly'],
   ['/terms/', '0.3', 'yearly'],
+  ...AREAS.map((a) => [a.path, '0.6', 'weekly']),
 ];
 writeFileSync(join(WEB, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -452,3 +461,4 @@ ${urls.map(([p, pr, cf]) => `  <url><loc>${SITE}${p}</loc><lastmod>${TODAY}</las
 </urlset>
 `);
 console.log('web/sitemap.xml', urls.length, 'urls');
+}

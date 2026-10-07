@@ -69,7 +69,12 @@ jobs:
           # No merchant store pages on the union site; its own sitemap/robots.
           sed -i '/store-lite.js/d' build/web_ittihad/index.html
           rm -f build/web_ittihad/store-lite.js
-          sed -i 's#https://mogtama3y.com/#https://ittihad.mogtama3y.com/#g' build/web_ittihad/sitemap.xml build/web_ittihad/robots.txt
+          sed -i 's#https://mogtama3y.com/#https://ittihad.mogtama3y.com/#g' build/web_ittihad/robots.txt
+          # Its own canonical (was mogtama3y.com, so Google treated it as a copy)
+          # and a sitemap of just its landing — the static pages copied from
+          # web/ (privacy, tajer, …) canonicalise to mogtama3y.com.
+          sed -i 's#<link rel="canonical" href="[^"]*">#<link rel="canonical" href="https://ittihad.mogtama3y.com/">#' build/web_ittihad/index.html
+          printf '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>https://ittihad.mogtama3y.com/</loc><lastmod>%s</lastmod></url>\n</urlset>\n' "$(date -u +%F)" > build/web_ittihad/sitemap.xml
 
       - name: Deploy union app
         if: env.ITTIHAD_ENABLED == 'true'
@@ -94,7 +99,9 @@ jobs:
           sed -i -E 's#(<meta (name="(description|twitter:description)"|property="og:description") content=")[^"]*#\1متجر باسم محلك، ومنتجاتك بالصور والأسعار، والطلبات توصلك على واتساب — ببلاش ومن غير عمولة.#; s#(<meta (name="twitter:title"|property="og:title") content=")[^"]*#\1متجري — محلك أونلاين ببلاش#; s#(<meta property="og:url" content=")[^"]*#\1https://tajer.mogtama3y.com/#; s#(<meta name="apple-mobile-web-app-title" content=")[^"]*#\1متجري#' $f
           sed -i 's|"name": *"[^"]*"|"name": "متجري — مُجتمعي"|; s|"short_name": *"[^"]*"|"short_name": "متجري"|; s|"description": *"[^"]*"|"description": "لوحة التاجر: متجرك أونلاين، منتجاتك وطلباتك."|' build/web_tajer/manifest.json
           # Its own sitemap/robots (search engines index the merchant landing).
-          sed -i 's#https://mogtama3y.com/#https://tajer.mogtama3y.com/#g' build/web_tajer/sitemap.xml build/web_tajer/robots.txt
+          sed -i 's#https://mogtama3y.com/#https://tajer.mogtama3y.com/#g' build/web_tajer/robots.txt
+          sed -i 's#<link rel="canonical" href="[^"]*">#<link rel="canonical" href="https://tajer.mogtama3y.com/">#' $f
+          printf '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>https://tajer.mogtama3y.com/</loc><lastmod>%s</lastmod></url>\n</urlset>\n' "$(date -u +%F)" > build/web_tajer/sitemap.xml
           # Its own icon (gold bag) for the tab, home screen and install.
           cp build/web_tajer/tajer_icons/favicon.png build/web_tajer/favicon.png
           cp build/web_tajer/tajer_icons/Icon-*.png build/web_tajer/icons/

@@ -126,7 +126,8 @@ footer{max-width:860px;margin:24px auto;padding:0 16px 32px;color:var(--muted);f
 <header><div class="in"><a href="${SITE}/">دليل <span>مُجتمعي</span></a> <small style="opacity:.75">— كل محلات مصر، واطلب منها أونلاين</small></div></header>
 <main>${body}</main>
 <footer>
-<p><a href="${APP}">مُجتمعي</a> — كل حيّك في تطبيق واحد. عندك محل؟ <a href="${TAJER}">افتح متجرك أونلاين ببلاش</a>.</p>
+<p><a href="${APP}">مُجتمعي</a> — كل حيّك في تطبيق واحد. عندك محل؟ <a href="${APP}/tajer/">افتح متجرك أونلاين ببلاش</a>.</p>
+<p><a href="${APP}/dalil/">عن دليل المحلات</a> · <a href="${APP}/balagh/">بلّغ عن مشكلة في حيّك</a> · <a href="${APP}/ittihad/">اتحاد الملاك أونلاين</a> · <a href="${APP}/privacy/">الخصوصية</a> · <a href="${APP}/terms/">الشروط</a></p>
 <p>بيانات الأماكن: © Overture Maps Foundation (CDLA-Permissive-2.0). تصميم وتنفيذ <a href="https://getapex.tech">Get Apex</a>.</p>
 </footer>
 </body>
@@ -246,30 +247,50 @@ async function searchPage(q) {
 
 const REPORT_STATUS = { new: 'جديد', reviewing: 'قيد المراجعة', routed: 'اتبعت للجهة المختصة', resolved: 'اتحلّ', rejected: 'مرفوض' };
 
-// Share target for a report: rich preview (photo, title) for TikTok,
-// Facebook and WhatsApp, then straight into the app's report page.
+// A community report: a real page (photos, place, status) that Google can
+// index and that shares with a rich preview; one tap opens it in the app.
+// The reporter's identity is never shown. Rejected/duplicate → noindex.
 async function reportPage(id) {
   const r = await rpc('get_report', { p_id: id });
   if (!r) return null;
   const where = [r.district, r.governorate].filter(Boolean).join('، ');
   const appUrl = `${APP}/#/r/${r.id}`;
+  const canonical = `${SITE}/r/${r.id}`;
+  const status = REPORT_STATUS[r.status] || '';
   const title = `بلاغ: ${r.category}${where ? ' — ' + where : ''} | مُجتمعي`;
-  const description = `${r.description} · ${REPORT_STATUS[r.status] || ''} · ${r.votes_count} ساكن معاه. ادخل واضغط «وأنا كمان».`;
+  const description = `${r.description} · ${status} · ${r.votes_count} ساكن معاه.`;
   const poster = r.video_url ? r.video_url.replace(/\.[a-z0-9]+$/, '.jpg') : null;
-  const image = (r.photos && r.photos[0]) || poster || `${APP}/icons/Icon-512.png`;
-  return `<!doctype html>
-<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(title)}</title>
-<meta name="description" content="${esc(description)}">
-<meta name="robots" content="noindex">
-<meta property="og:type" content="article"><meta property="og:site_name" content="مُجتمعي">
-<meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(description)}">
-<meta property="og:image" content="${esc(image)}"><meta property="og:url" content="${SITE}/r/${esc(r.id)}">
-<meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(image)}">
-<meta http-equiv="refresh" content="0; url=${esc(appUrl)}">
-<style>body{font-family:system-ui,Tahoma,sans-serif;background:#0B1530;color:#fff;display:grid;place-items:center;min-height:100vh;margin:0;text-align:center}a{color:#F2B661}</style>
-</head><body><div><p>بنفتحلك البلاغ على مُجتمعي…</p><p><a href="${esc(appUrl)}">لو الصفحة ماتفتحتش اضغط هنا</a></p></div>
-<script>location.replace(${JSON.stringify(appUrl)})</script></body></html>`;
+  const photos = Array.isArray(r.photos) ? r.photos : [];
+  const image = photos[0] || poster || `${APP}/icons/Icon-512.png`;
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: `${r.category}${where ? ' — ' + where : ''}`,
+    description: r.description,
+    image,
+    datePublished: r.created_at,
+    ...(r.updated_at ? { dateModified: r.updated_at } : {}),
+    ...(where ? { contentLocation: { '@type': 'Place', name: where } } : {}),
+    publisher: { '@type': 'Organization', name: 'مُجتمعي', url: APP },
+  };
+  return page({
+    noindex: r.status === 'rejected',
+    image,
+    title,
+    description,
+    canonical,
+    jsonLd,
+    body: `<p class="muted"><a href="${SITE}/">الدليل</a> › بلاغات حيّك</p>
+<div class="card">
+${photos[0] ? `<img src="${esc(photos[0])}" alt="${esc(r.category)}" style="width:100%;max-height:420px;object-fit:cover;border-radius:12px">` : poster ? `<img src="${esc(poster)}" alt="" style="width:100%;max-height:420px;object-fit:cover;border-radius:12px">` : ''}
+<h1>${esc(r.category)}${where ? ' — ' + esc(where) : ''}</h1>
+<p class="muted">الحالة: <b>${esc(status)}</b> · ${Number(r.votes_count) || 0} ساكن معاه</p>
+<p>${esc(r.description)}</p>
+${r.after_photo ? `<h2>بعد الحل</h2><img src="${esc(r.after_photo)}" alt="" style="width:100%;max-height:360px;object-fit:cover;border-radius:12px">` : ''}
+<a class="btn wa" href="${esc(appUrl)}">افتح البلاغ على مُجتمعي</a>
+<p class="muted">شايف مشكلة في حيّك؟ <a href="${APP}/balagh/">بلّغ عنها</a>.</p>
+</div>`,
+  });
 }
 
 // ------------------------------------------------- registered online stores
@@ -386,52 +407,79 @@ ${p.description ? `<p>${esc(p.description)}</p>` : ''}
   });
 }
 
+// Sitemap entries are [url, lastmod?]. Stores, products, marketplace offers
+// and reports each get their own files (40k URLs max per file).
+const day = (t) => (t ? String(t).slice(0, 10) : undefined);
+
 async function storeUrls() {
-  const shops = await rest('shops?slug=not.is.null&select=id,slug&limit=10000');
-  const urls = shops.map((s) => `${SITE}/s/${encodeURIComponent(s.slug)}`);
-  const bySlug = new Map(shops.map((s) => [s.id, s.slug]));
-  const prods = await rest('shop_products?is_available=eq.true&price=gt.0&select=id,shop_id&limit=50000');
-  for (const p of prods) if (bySlug.has(p.shop_id)) urls.push(`${SITE}/s/${encodeURIComponent(bySlug.get(p.shop_id))}/p/${p.id}`);
-  return urls;
+  const shops = await rest('shops?slug=not.is.null&select=slug,created_at&order=created_at.asc&limit=10000');
+  return shops.map((s) => [`${SITE}/s/${encodeURIComponent(s.slug)}`, day(s.created_at)]);
 }
+async function productUrls() {
+  const shops = await rest('shops?slug=not.is.null&select=id,slug&limit=10000');
+  const bySlug = new Map(shops.map((s) => [s.id, s.slug]));
+  const prods = await rest('shop_products?is_available=eq.true&price=gt.0&select=id,shop_id,created_at&order=created_at.asc&limit=50000');
+  return prods.filter((p) => bySlug.has(p.shop_id)).map((p) => [`${SITE}/s/${encodeURIComponent(bySlug.get(p.shop_id))}/p/${p.id}`, day(p.created_at)]);
+}
+async function offerUrls() {
+  const rows = await rest('marketplace_listings?status=eq.active&select=id,created_at,description,images&order=created_at.asc&limit=50000');
+  // Only complete ads — the rest are noindex until they have a photo and a description.
+  return rows.filter(offerComplete).map((o) => [`${SITE}/o/${o.id}`, day(o.created_at)]);
+}
+async function reportUrls() {
+  const rows = await rpc('list_reports', { p_limit: 200 }).catch(() => []);
+  return (rows || []).filter((r) => r && r.status !== 'rejected').map((r) => [`${SITE}/r/${r.id}`, day(r.updated_at || r.created_at)]);
+}
+const SITEMAP_KINDS = { stores: storeUrls, products: productUrls, offers: offerUrls, reports: reportUrls };
 
 // ---------------------------------------------------------------- sitemaps
 
 const PER_SITEMAP = 40000;
 const PAGE = 1000;
 
-// Total places (refreshed daily) — the only sitemap state kept in memory.
-let total = { n: 0, until: 0, loading: null };
-async function placeCount() {
-  if (total.until > Date.now()) return total.n;
-  if (!total.loading) {
-    total.loading = (async () => {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/directory_places?select=id&limit=1`, {
-        headers: { apikey: SUPABASE_KEY, Prefer: 'count=exact', Range: '0-0' },
-      });
-      const range = res.headers.get('content-range') || '';
-      const n = Number(range.split('/')[1]);
-      if (!Number.isFinite(n)) throw new Error('count unavailable');
-      total = { n, until: Date.now() + 24 * 3600e3, loading: null };
-      console.log(`sitemap: ${n} places`);
-    })().catch((e) => { total.loading = null; throw e; });
+// Places: only the first id of each 40k part is kept (refreshed daily by
+// walking the ids in order), so a part never has to skip 40k rows with
+// OFFSET — that timed out and returned empty files.
+let bounds = { list: [], until: 0, loading: null };
+async function placeBounds() {
+  if (bounds.until > Date.now()) return bounds.list;
+  if (!bounds.loading) {
+    bounds.loading = (async () => {
+      const list = [];
+      let last = '';
+      let n = 0;
+      for (;;) {
+        const page = await rest(`directory_places?select=id&order=id.asc&limit=${PAGE}${last ? `&id=gt.${encodeURIComponent(last)}` : ''}`);
+        for (const r of page) {
+          if (n % PER_SITEMAP === 0) list.push(r.id);
+          n++;
+        }
+        if (page.length < PAGE) break;
+        last = page[page.length - 1].id;
+      }
+      bounds = { list, until: Date.now() + 24 * 3600e3, loading: null };
+      console.log(`sitemap: ${n} places in ${list.length} parts`);
+    })().catch((e) => { bounds.loading = null; throw e; });
   }
-  if (total.n) return total.n;
-  await total.loading;
-  return total.n;
+  if (bounds.list.length) return bounds.list; // serve the old bounds while refreshing
+  await bounds.loading;
+  return bounds.list;
 }
 
 const urlset = (urls) =>
-  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `<url><loc>${esc(u)}</loc></url>`).join('\n')}\n</urlset>`;
+  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls
+    .map((u) => (Array.isArray(u) ? u : [u]))
+    .map(([loc, mod]) => `<url><loc>${esc(loc)}</loc>${mod ? `<lastmod>${mod}</lastmod>` : ''}</url>`)
+    .join('\n')}\n</urlset>`;
 
 async function sitemapIndex() {
-  const parts = Math.ceil((await placeCount()) / PER_SITEMAP);
-  const storeParts = Math.max(1, Math.ceil((await cached('stores-urls', 3600e3, storeUrls)).length / PER_SITEMAP));
-  const maps = [
-    `${SITE}/sitemap-hubs.xml`,
-    ...Array.from({ length: storeParts }, (_, i) => `${SITE}/sitemap-stores-${i + 1}.xml`),
-    ...Array.from({ length: parts }, (_, i) => `${SITE}/sitemap-${i + 1}.xml`),
-  ];
+  const parts = (await placeBounds()).length;
+  const maps = [`${SITE}/sitemap-hubs.xml`];
+  for (const kind of Object.keys(SITEMAP_KINDS)) {
+    const n = Math.ceil((await cached('sm-' + kind, 3600e3, SITEMAP_KINDS[kind])).length / PER_SITEMAP);
+    for (let i = 1; i <= n; i++) maps.push(`${SITE}/sitemap-${kind}-${i}.xml`);
+  }
+  for (let i = 1; i <= parts; i++) maps.push(`${SITE}/sitemap-${i}.xml`);
   return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${maps.map((m) => `<sitemap><loc>${m}</loc></sitemap>`).join('\n')}\n</sitemapindex>`;
 }
 
@@ -450,17 +498,13 @@ async function sitemapHubs() {
   return urlset(urls);
 }
 
-// Part n of the places sitemap: page through ids in order with a keyset
-// cursor, PAGE rows at a time, never more than one page in memory at once.
+// Part n of the places sitemap: keyset-page from the part's first id.
 async function sitemapPart(n) {
-  const skip = (n - 1) * PER_SITEMAP;
-  if (skip >= (await placeCount())) return null;
-  // Jump to the part's first id with offset paging (fast enough on the pk).
-  const first = await rest(`directory_places?select=id&order=id.asc&limit=1&offset=${skip}`);
-  if (!first.length) return null;
-  const chunks = [];
-  let last = first[0].id;
-  chunks.push(`<url><loc>${esc(`${SITE}/p/${encodeURIComponent(last)}`)}</loc></url>`);
+  const list = await placeBounds();
+  const first = list[n - 1];
+  if (!first) return null;
+  const chunks = [`<url><loc>${esc(`${SITE}/p/${encodeURIComponent(first)}`)}</loc></url>`];
+  let last = first;
   let got = 1;
   while (got < PER_SITEMAP) {
     const page = await rest(`directory_places?select=id&order=id.asc&limit=${Math.min(PAGE, PER_SITEMAP - got)}&id=gt.${encodeURIComponent(last)}`);
@@ -471,6 +515,76 @@ async function sitemapPart(n) {
     if (page.length < PAGE) break;
   }
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${chunks.join('\n')}\n</urlset>`;
+}
+
+// ------------------------------------------------ marketplace ads (/o/<id>)
+//
+// A used item a neighbour posted on مُجتمعي. The seller's phone is never in
+// the page — contact happens inside the app. Sold/removed/missing → 410;
+// an ad without a photo or a description is noindex until it's complete.
+
+const CONDITION = { new: 'جديد', like_new: 'زي الجديد', light_use: 'استعمال خفيف', used: 'مستعمل', heavy_use: 'استعمال كتير' };
+const SCHEMA_CONDITION = { new: 'NewCondition', like_new: 'UsedCondition', light_use: 'UsedCondition', used: 'UsedCondition', heavy_use: 'UsedCondition' };
+const offerImages = (o) => (Array.isArray(o.images) ? o.images.filter((u) => typeof u === 'string' && /^https:\/\//.test(u)) : []);
+function offerComplete(o) {
+  return offerImages(o).length > 0 && (o.description || '').trim().length >= 20;
+}
+
+async function offerPage(id) {
+  const rows = await rest(`marketplace_listings?id=eq.${id}&select=id,title,description,price,is_negotiable,condition,images,status,lat,lng,created_at`);
+  const o = rows[0];
+  if (!o || o.status !== 'active') return { gone: true };
+  const city = o.lat != null ? cityOf(o.lat, o.lng) : null;
+  const where = city ? ` في ${city}` : '';
+  const canonical = `${SITE}/o/${o.id}`;
+  const imgs = offerImages(o);
+  const price = Number(o.price);
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: o.title,
+    ...(imgs.length ? { image: imgs } : {}),
+    ...(o.description ? { description: o.description } : {}),
+    ...(SCHEMA_CONDITION[o.condition] ? { itemCondition: `https://schema.org/${SCHEMA_CONDITION[o.condition]}` } : {}),
+    offers: {
+      '@type': 'Offer',
+      price,
+      priceCurrency: 'EGP',
+      url: canonical,
+      availability: 'https://schema.org/InStock',
+      ...(SCHEMA_CONDITION[o.condition] ? { itemCondition: `https://schema.org/${SCHEMA_CONDITION[o.condition]}` } : {}),
+      ...(city ? { areaServed: city } : {}),
+    },
+  };
+  return {
+    html: page({
+      noindex: !offerComplete(o),
+      image: imgs[0],
+      title: `${o.title} بسعر ${egp(price)}${where} | سوق المستعمل — مُجتمعي`,
+      description: `${o.title} بـ ${egp(price)}${o.is_negotiable ? ' (قابل للتفاوض)' : ''}${where}${CONDITION[o.condition] ? ' — ' + CONDITION[o.condition] : ''}. ${(o.description || '').slice(0, 120)}`,
+      canonical,
+      jsonLd,
+      body: `<p class="muted"><a href="${SITE}/">الدليل</a>${city ? ` › <a href="${SITE}/city/${encodeURIComponent(slug(city))}">${esc(city)}</a>` : ''} › سوق المستعمل</p>
+<div class="card">
+${imgs[0] ? `<img src="${esc(imgs[0])}" alt="${esc(o.title)}" style="width:100%;max-height:420px;object-fit:contain;border-radius:12px;background:#fff">` : ''}
+<h1>${esc(o.title)}</h1>
+<p style="font-size:22px"><b style="color:#b7791f">${egp(price)}</b>${o.is_negotiable ? ' <span class="muted">قابل للتفاوض</span>' : ''}</p>
+<p class="muted">${esc(CONDITION[o.condition] || '')}${esc(where)}</p>
+${o.description ? `<p>${esc(o.description)}</p>` : ''}
+${imgs.slice(1, 5).map((u) => `<img src="${esc(u)}" alt="" width="96" height="96" loading="lazy" style="border-radius:10px;object-fit:cover;margin:4px">`).join('')}
+<a class="btn wa" href="${APP}/#/marketplace">تواصل مع البائع على مُجتمعي</a>
+<p class="muted">عاين الحاجة قبل ما تدفع، وماتحوّلش فلوس لحد ماتعرفوش.</p>
+</div>`,
+    }),
+  };
+}
+
+// Shown (with 410) for a sold/removed ad or a product taken off a store.
+function gonePage(what) {
+  return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(what)} مش متاح | مُجتمعي</title><meta name="robots" content="noindex">
+<style>body{font-family:system-ui,Tahoma,sans-serif;background:#0B1530;color:#fff;display:grid;place-items:center;min-height:100vh;margin:0;text-align:center;padding:16px}a{color:#F2B661}</style>
+</head><body><div><p>${esc(what)} ده اتباع أو اتشال.</p><p><a href="${SITE}/">دوّر في دليل مُجتمعي</a> · <a href="${APP}/">افتح مُجتمعي</a></p></div></body></html>`;
 }
 
 // ------------------------------------------------- report videos (uploads)
@@ -688,19 +802,25 @@ const server = http.createServer(async (req, res) => {
     if (path === '/healthz') return send(res, 200, 'ok', 'text/plain', 0);
     if (path === '/sitemap.xml') return send(res, 200, await sitemapIndex(), 'application/xml; charset=utf-8', 86400);
     if (path === '/sitemap-hubs.xml') return send(res, 200, await cached('sitemap-hubs', 24 * 3600e3, sitemapHubs), 'application/xml; charset=utf-8', 86400);
-    if ((m = path.match(/^\/sitemap-stores-(\d+)\.xml$/))) {
-      const all = await cached('stores-urls', 3600e3, storeUrls);
-      const part = all.slice((Number(m[1]) - 1) * PER_SITEMAP, Number(m[1]) * PER_SITEMAP);
-      return part.length || m[1] === '1' ? send(res, 200, urlset(part), 'application/xml; charset=utf-8', 3600) : send(res, 404, 'not found', 'text/plain');
+    if ((m = path.match(/^\/sitemap-(stores|products|offers|reports)-(\d+)\.xml$/))) {
+      const all = await cached('sm-' + m[1], 3600e3, SITEMAP_KINDS[m[1]]);
+      const part = all.slice((Number(m[2]) - 1) * PER_SITEMAP, Number(m[2]) * PER_SITEMAP);
+      return part.length || m[2] === '1' ? send(res, 200, urlset(part), 'application/xml; charset=utf-8', 3600) : send(res, 404, 'not found', 'text/plain');
     }
-    if (path === '/sitemap-stores.xml') return send(res, 200, urlset((await cached('stores-urls', 3600e3, storeUrls)).slice(0, PER_SITEMAP)), 'application/xml; charset=utf-8', 3600);
+    if (path === '/sitemap-stores.xml') return send(res, 200, urlset((await cached('sm-stores', 3600e3, storeUrls)).slice(0, PER_SITEMAP)), 'application/xml; charset=utf-8', 3600);
+    if ((m = path.match(/^\/o\/([0-9a-f-]{36})$/i))) {
+      const r = await cached('o:' + m[1].toLowerCase(), 600e3, () => offerPage(m[1].toLowerCase()));
+      return r.gone ? send(res, 410, gonePage('الإعلان'), 'text/html; charset=utf-8', 600) : send(res, 200, r.html, 'text/html; charset=utf-8', 600);
+    }
     if ((m = path.match(/^\/s\/([a-z0-9-]{3,40})\/p\/([0-9a-f-]{36})$/i))) {
       const html = await cached(`sp:${m[1]}:${m[2]}`, 600e3, () => productPage(m[1], m[2]));
-      return html ? send(res, 200, html, 'text/html; charset=utf-8', 600) : send(res, 404, await cached('home', 3600e3, homePage));
+      if (html) return send(res, 200, html, 'text/html; charset=utf-8', 600);
+      const store = await cached('sd:' + m[1].toLowerCase(), 600e3, () => storeData(m[1]));
+      return store ? send(res, 410, gonePage('المنتج'), 'text/html; charset=utf-8', 600) : send(res, 404, await cached('home', 3600e3, homePage));
     }
     if ((m = path.match(/^\/r\/([0-9a-f-]{36})$/i))) {
       const html = await cached('r:' + m[1], 120e3, () => reportPage(m[1]));
-      return html ? send(res, 200, html, 'text/html; charset=utf-8', 120) : send(res, 404, await cached('home', 3600e3, homePage));
+      return html ? send(res, 200, html, 'text/html; charset=utf-8', 300) : send(res, 410, gonePage('البلاغ'), 'text/html; charset=utf-8', 600);
     }
     if ((m = path.match(/^\/s\/([a-z0-9-]{3,40})$/i))) {
       const html = await cached('s:' + m[1], 600e3, () => storePage(m[1]));
@@ -738,6 +858,6 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`dalil listening on ${PORT}`);
-  placeCount().catch((e) => console.error('sitemap count failed', e.message));
+  placeBounds().catch((e) => console.error('sitemap bounds failed', e.message));
   convertLeftovers().catch((e) => console.error('convert leftovers failed', e.message));
 });
