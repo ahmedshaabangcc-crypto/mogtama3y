@@ -13,11 +13,13 @@ class ElectionService {
 
   static SupabaseClient get _client => Supabase.instance.client;
 
-  static Future<Map<String, dynamic>?> fetchLatestElection(String buildingId) async {
+  /// [position]: 'president' or 'treasurer' (migration 0076).
+  static Future<Map<String, dynamic>?> fetchLatestElection(String buildingId, {String position = 'president'}) async {
     return _client
         .from('union_elections')
         .select()
         .eq('building_id', buildingId)
+        .eq('position', position)
         .order('created_at', ascending: false)
         .limit(1)
         .maybeSingle();
@@ -49,12 +51,14 @@ class ElectionService {
   static Future<String> createElection({
     required String title,
     required DateTime closesAt,
+    String position = 'president',
   }) async {
     final membership = await UnionService.fetchMyMembership();
     final result = await _client.rpc('create_election', params: {
       'p_building_id': membership?['building_id'],
       'p_title': title,
       'p_closes_at': closesAt.toUtc().toIso8601String(),
+      if (position != 'president') 'p_position': position,
     });
     return result as String;
   }

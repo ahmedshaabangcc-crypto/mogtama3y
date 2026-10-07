@@ -8,6 +8,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/promote/ad_token_service.dart';
 import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/union/fund_service.dart';
 import '../../core/wallet/wallet_service.dart';
 import '../auth/auth_landing_screen.dart';
 import 'admin_governance_screen.dart';
@@ -41,6 +42,8 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
   List<Map<String, dynamic>> _tickets = [];
   List<Map<String, dynamic>> _walletTopups = [];
   List<Map<String, dynamic>> _withdrawals = [];
+  /// Building-fund withdrawal requests (migration 0076).
+  List<Map<String, dynamic>> _fundWithdrawals = [];
 
   @override
   void initState() {
@@ -62,6 +65,7 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
       final tickets = await AdminService.fetchOpenSupportTickets();
       final walletTopups = await WalletService.fetchPendingTopups();
       final withdrawals = await WalletService.fetchPendingWithdrawals();
+      final fundWithdrawals = await FundService.fetchPendingWithdrawalsForAdmin();
       if (!mounted) return;
       setState(() {
         _stats = stats;
@@ -72,6 +76,10 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
         _tickets = tickets;
         _walletTopups = walletTopups;
         _withdrawals = withdrawals;
+        _fundWithdrawals = [
+          for (final r in fundWithdrawals)
+            {...r, 'requester': {'full_name': '${r['full_name'] ?? ''} — ${r['building_name'] ?? ''}', 'phone': r['phone']}},
+        ];
         _loading = false;
       });
     } catch (_) {
@@ -151,6 +159,33 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
     if (confirmed != true) return;
     try {
       await WalletService.reviewWithdrawal(requestId: requestId, paid: paid);
+      _load();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر تنفيذ الإجراء')));
+    }
+  }
+
+  Future<void> _reviewFundWithdrawal(Map<String, dynamic> r, bool paid) async {
+    final toWallet = r['destination'] == 'wallet';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(paid ? 'تأكيد السحب من صندوق العمارة' : 'رفض طلب السحب'),
+        content: Text(paid
+            ? (toWallet
+                ? 'المبلغ هيتخصم من صندوق العمارة ويتضاف لمحفظة مقدّم الطلب في مُجتمعي.'
+                : 'هل حوّلت المبلغ فعلاً على ${r['payout_phone'] ?? ''}؟ هيتخصم من صندوق العمارة.')
+            : 'رصيد الصندوق هيفضل زي ما هو وهنبلّغ مقدّم الطلب.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('تراجع')),
+          ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('تأكيد')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await FundService.reviewWithdrawal(requestId: r['id'] as String, paid: paid);
       _load();
     } catch (_) {
       if (!mounted) return;
@@ -399,6 +434,23 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
                   rejectLabel: 'رفض وإرجاع الرصيد',
                   approveLabel: 'تم التحويل',
                   onReview: (paid) => _reviewWithdrawal(r['id'] as String, paid),
+                ),
+                const SizedBox(height: 14),
+              ],
+            const SizedBox(height: 22),
+            _SectionTitle(title: 'سحب من صناديق العمارات', count: _fundWithdrawals.length),
+            const SizedBox(height: 10),
+            if (_fundWithdrawals.isEmpty)
+              const Text('لا توجد طلبات معلّقة حالياً', style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted))
+            else
+              for (final r in _fundWithdrawals) ...[
+                _WalletRequestCard(
+                  request: r,
+                  detail: '${r['destination'] == 'wallet' ? 'إلى محفظته في مُجتمعي' : 'حوّل إلى: ${r['payout_phone'] ?? ''}'}'
+                      ' • ${r['note'] ?? ''} • رصيد الصندوق ${r['fund_balance'] ?? 0} ج.م',
+                  rejectLabel: 'رفض',
+                  approveLabel: r['destination'] == 'wallet' ? 'اعتماد وتحويل للمحفظة' : 'تم التحويل',
+                  onReview: (paid) => _reviewFundWithdrawal(r, paid),
                 ),
                 const SizedBox(height: 14),
               ],

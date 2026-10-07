@@ -6,7 +6,7 @@ import '../../core/guard/guard_service.dart';
 import '../../core/maps/maps_launcher.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/union/board_decisions_service.dart';
-import '../../core/union/financial_report_service.dart';
+import '../../core/union/fund_service.dart';
 import '../../core/union/maintenance_schedule_service.dart';
 import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
@@ -17,11 +17,15 @@ import '../visitor/visitor_qr_pass_screen.dart';
 import 'board_decisions_screen.dart';
 import 'building_polls_screen.dart';
 import 'election_voting_screen.dart';
+import 'dues_status_screen.dart';
 import 'financial_report_screen.dart';
+import 'invite_code_card.dart';
 import 'maintenance_payment_screen.dart';
 import 'manage_tenants_screen.dart';
 import 'pending_members_screen.dart';
+import 'treasurer_screen.dart';
 import 'union_feed_screen.dart';
+import 'union_fund_screen.dart';
 import 'union_landing_screen.dart';
 
 String _fmt(num n) {
@@ -82,7 +86,11 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
   int _membersCount = 0;
   int _openDecisionsCount = 0;
   String? _guardName;
-  Map<String, dynamic>? _report;
+  /// Collection % of the current dues period (every member) and the
+  /// fund balance (only manager/president/board — migration 0076).
+  Map<String, dynamic>? _rate;
+  bool _canViewFund = false;
+  num? _fundBalance;
   List<Map<String, dynamic>> _schedule = [];
 
   @override
@@ -117,7 +125,9 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
     int unitsCount = 0, membersCount = 0, openDecisions = 0;
     bool noBoard = false;
     String? guardName;
-    Map<String, dynamic>? report;
+    Map<String, dynamic>? rate;
+    bool canViewFund = false;
+    num? fundBalance;
     List<Map<String, dynamic>> schedule = [];
 
     if (buildingId != null) {
@@ -126,8 +136,9 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
         UnionService.fetchVerifiedMembers(buildingId),
         BoardDecisionsService.fetchDecisions(buildingId),
         GuardService.fetchGuardsFor(buildingId),
-        FinancialReportService.fetchLatestReport(buildingId),
+        FundService.fetchCollectionRate(buildingId),
         MaintenanceScheduleService.fetchUpcoming(buildingId),
+        FundService.canView(buildingId),
       ]);
       unitsCount = (results[0] as List).length;
       membersCount = (results[1] as List).length;
@@ -138,8 +149,13 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
         final guardProfile = guards.first['profile'] as Map<String, dynamic>?;
         guardName = guardProfile?['full_name'] as String?;
       }
-      report = results[4] as Map<String, dynamic>?;
+      rate = results[4] as Map<String, dynamic>?;
       schedule = List<Map<String, dynamic>>.from(results[5] as List);
+      canViewFund = results[6] as bool;
+      if (canViewFund) {
+        final fund = await Supabase.instance.client.from('union_funds').select('balance').eq('building_id', buildingId).maybeSingle();
+        fundBalance = (fund?['balance'] as num?) ?? 0;
+      }
     }
 
     if (!mounted) return;
@@ -156,7 +172,9 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
       _membersCount = membersCount;
       _openDecisionsCount = openDecisions;
       _guardName = guardName;
-      _report = report;
+      _rate = rate;
+      _canViewFund = canViewFund;
+      _fundBalance = fundBalance;
       _schedule = schedule;
       _loading = false;
     });
@@ -273,11 +291,8 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
       );
     }
 
-    final report = _report;
-    final totalCollected = (report?['total_collected'] as num?) ?? 0;
-    final totalExpected = (report?['total_expected'] as num?) ?? 0;
-    final emergencyFund = (report?['emergency_fund'] as num?) ?? 0;
-    final collectionRatio = totalExpected > 0 ? (totalCollected / totalExpected).clamp(0, 1).toDouble() : null;
+    final rate = _rate;
+    final collectionRatio = rate == null ? null : (((rate['pct'] as num?) ?? 0) / 100).clamp(0, 1).toDouble();
 
     final locationLine = [
       if (_unitsCount > 0) '$_unitsCount وحدة سكنية',
@@ -388,23 +403,47 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
                       child: const Icon(Icons.savings_outlined, color: AppColors.gold, size: 16),
                     ),
                     const SizedBox(width: 8),
-                    const Text('صندوق الصيانة والاحتياطي المالي', style: TextStyle(color: Colors.white70, fontSize: 11.5)),
+                    const Text('صندوق العمارة', style: TextStyle(color: Colors.white70, fontSize: 11.5)),
                   ]),
-                  const SizedBox(height: 10),
-                  Text(report == null ? '—' : '${_fmt(emergencyFund)} ج.م', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)),
-                  if (report == null) ...[
+                  if (_canViewFund) ...[
+                    const SizedBox(height: 10),
+                    Text('${_fmt(_fundBalance ?? 0)} ج.م', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)),
+                  ],
+                  if (collectionRatio == null) ...[
                     const SizedBox(height: 6),
-                    const Text('لسه ما فيش تقرير مالي منشور', style: TextStyle(color: Colors.white70, fontSize: 11)),
-                  ] else if (collectionRatio != null) ...[
+                    const Text('لسه مفيش مستحقات صيانة اتعملت للعمارة', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                  ] else ...[
                     const SizedBox(height: 12),
-                    const Text('نسبة تحصيل اشتراكات الفترة الحالية', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                    Text('نسبة تحصيل «${rate?['period_label'] ?? ''}»', style: const TextStyle(color: Colors.white70, fontSize: 11)),
                     const SizedBox(height: 6),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(100),
                       child: LinearProgressIndicator(value: collectionRatio, minHeight: 8, backgroundColor: Colors.white24, valueColor: const AlwaysStoppedAnimation(AppColors.teal)),
                     ),
                     const SizedBox(height: 6),
-                    Text('${(collectionRatio * 100).round()}% مكتمل', style: const TextStyle(color: AppColors.tealLight, fontSize: 11, fontWeight: FontWeight.w700)),
+                    Text('${(collectionRatio * 100).round()}% مكتمل — ${rate?['paid_units'] ?? 0} من ${rate?['total_units'] ?? 0} شقة', style: const TextStyle(color: AppColors.tealLight, fontSize: 11, fontWeight: FontWeight.w700)),
+                  ],
+                  if (_canViewFund) ...[
+                    const SizedBox(height: 12),
+                    Row(children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const UnionFundScreen())).then((_) => _load()),
+                          style: ElevatedButton.styleFrom(backgroundColor: AppColors.gold, foregroundColor: AppColors.navy),
+                          icon: const Icon(Icons.savings_rounded, size: 16),
+                          label: const Text('افتح الصندوق', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DuesStatusScreen())),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppColors.navy),
+                          icon: const Icon(Icons.fact_check_rounded, size: 16),
+                          label: const Text('مين دفع ومين لسه', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                    ]),
                   ],
                   const SizedBox(height: 12),
                   SizedBox(
@@ -420,6 +459,10 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
                 ],
               ),
             ),
+            if (_isBoard) ...[
+              const SizedBox(height: 14),
+              BuildingInviteCodeCard(buildingId: _buildingId!, buildingName: _buildingName),
+            ],
             const SizedBox(height: 18),
             const Text('إجراءات سريعة', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
             const SizedBox(height: 10),
@@ -460,6 +503,13 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
               title: 'حسابات المستأجرين',
               subtitle: 'مالك الوحدة يدعو مستأجره بحساب مستقل',
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManageTenantsScreen())),
+            ),
+            const SizedBox(height: 10),
+            _GovernanceTile(
+              icon: Icons.account_balance_rounded,
+              title: 'أمين الصندوق',
+              subtitle: 'مين بيدير صندوق العمارة، وتعيينه أو انتخابه',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TreasurerScreen())),
             ),
             const SizedBox(height: 10),
             _GovernanceTile(

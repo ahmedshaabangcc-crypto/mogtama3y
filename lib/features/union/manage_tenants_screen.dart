@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/union/fund_service.dart';
 import '../../core/union/union_service.dart';
 import '../shared/load_error_view.dart';
+import 'invite_code_card.dart';
 
 /// Lets a unit owner invite/revoke a tenant sub-account for their own
 /// unit — see backend/migrations/0018_tenant_accounts.sql. Only shows
@@ -190,6 +192,8 @@ class _UnitCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             const Text('شارك الكود ده مع المستأجر، هيدخل بيه على شقتك فوراً بدون مراجعة', style: TextStyle(fontSize: 10, color: AppColors.inkMuted)),
+            const SizedBox(height: 8),
+            InviteCodeShareButtons(code: lastCode!, message: tenantInviteMessage(lastCode!)),
             const SizedBox(height: 8),
           ],
           SizedBox(
