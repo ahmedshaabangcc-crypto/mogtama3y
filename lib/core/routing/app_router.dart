@@ -18,7 +18,9 @@ import '../../features/neighborhood/neighborhood_list_screen.dart';
 import '../../features/post/smart_post_picker_screen.dart';
 import '../../features/promote/token_wallet_screen.dart';
 import '../../features/real_estate/real_estate_marketplace_screen.dart';
+import '../../features/recycling/auction_detail_screen.dart';
 import '../../features/recycling/recycling_marketplace_screen.dart';
+import '../../features/recycling/scrap_dealer_home_screen.dart';
 import '../../features/services/technicians_market_screen.dart';
 import '../../features/shell/app_shell.dart';
 import '../../features/shell/open_tajer_app.dart';
@@ -73,6 +75,12 @@ class AppRoutes {
   static const sos = '/sos';
   static const lostFound = '/lost-found';
   static const recycling = '/recycling';
+
+  /// One recycling auction (dealer notifications deep-link here).
+  static String recyclingLot(String id) => '/recycling/$id';
+
+  /// «لوحة تاجر الخردة» — register as a scrap dealer / matching auctions.
+  static const scrapDealer = '/scrap-dealer';
   static const neighborhoods = '/neighborhoods';
   static const wallet = '/wallet';
   static const tokens = '/tokens';
@@ -163,6 +171,7 @@ final _mogtama3ySections = <String, GoRouterWidgetBuilder>{
   AppRoutes.jobs: (_, _) => const JobsBoardScreen(),
   AppRoutes.technicians: (_, _) => const TechniciansMarketScreen(),
   AppRoutes.recycling: (_, _) => const RecyclingMarketplaceScreen(),
+  AppRoutes.scrapDealer: (_, _) => const ScrapDealerHomeScreen(),
   AppRoutes.neighborhoods: (_, _) => const NeighborhoodListScreen(),
   AppRoutes.tokens: (_, _) => const TokenWalletScreen(),
   AppRoutes.post: (_, _) => const SmartPostPickerScreen(),
@@ -221,6 +230,7 @@ final appRouter = GoRouter(
           GoRoute(path: 'tutoring/:id', builder: (_, state) => TutorDetailsScreen(listingId: state.pathParameters['id']!, initial: state.extra as Map<String, dynamic>?)),
           GoRoute(path: 'halls/:id', builder: (_, state) => HallDetailsScreen(hallId: state.pathParameters['id']!, initial: state.extra as Map<String, dynamic>?)),
           GoRoute(path: 'pets/:id', builder: (_, state) => PetDetailsScreen(listingId: state.pathParameters['id']!, initial: state.extra as Map<String, dynamic>?)),
+          GoRoute(path: 'recycling/:id', builder: (_, state) => AuctionDetailScreen(listingId: state.pathParameters['id']!)),
           GoRoute(path: 'kids/:id', builder: (_, state) => KidsItemDetailsScreen(listingId: state.pathParameters['id']!, initial: state.extra as Map<String, dynamic>?)),
           GoRoute(path: 'chat/:userId', builder: (_, state) => ChatScreen(userId: state.pathParameters['userId']!)),
         ],
@@ -240,6 +250,7 @@ bool isInAppPath(String path) {
   if (_sections.containsKey(path)) return true;
   if (!isUnionApp && _hallPath.hasMatch(path)) return true;
   if (!isUnionApp && _petPath.hasMatch(path)) return true;
+  if (!isUnionApp && _recyclingLotPath.hasMatch(path)) return true;
   return !isUnionApp &&
       (_storePath.hasMatch(path.toLowerCase()) || _eAddressPath.hasMatch(path) || _orderPath.hasMatch(path) || _placePath.hasMatch(path) || _reportPath.hasMatch(path) || _carPath.hasMatch(path) || _tutorPath.hasMatch(path) || _kidsPath.hasMatch(path) || _chatPath.hasMatch(path));
 }
@@ -263,3 +274,4 @@ final _tutorPath = RegExp(r'^/tutoring/[0-9a-f-]{36}$');
 final _hallPath = RegExp(r'^/halls/[0-9a-f-]{36}$');
 final _petPath = RegExp(r'^/pets/[0-9a-f-]{36}$');
 final _kidsPath = RegExp(r'^/kids/[0-9a-f-]{36}$');
+final _recyclingLotPath = RegExp(r'^/recycling/[0-9a-f-]{36}$');

@@ -401,7 +401,7 @@ const denied = (r) => !!r.error;
   check('seller accepts the top bid', ok(await as(db, B, `select public.accept_recycling_top_bid($1)`, [lot])));
   const won = (await admin(db, `select b.bidder_id from recycling_listings l join recycling_bids b on b.id = l.winning_bid_id where l.id = $1`, [lot]))[0];
   check('the highest bidder wins and is notified',
-    won?.bidder_id === T && (await admin(db, `select 1 from notifications where user_id = $1 and title like 'فزت بالمزاد:%'`, [T])).length === 1);
+    won?.bidder_id === T && (await admin(db, `select 1 from notifications where user_id = $1 and title = 'مبروك! البائع قبل عرضك'`, [T])).length === 1);
   check('no bids after the auction ends', denied(await as(db, C, `select public.place_recycling_bid($1, 500)`, [lot])));
   const lot2 = (await as(db, B, `insert into recycling_listings (seller_id, category, title, auction_ends_at) values ($1, 'paper_cardboard', 'كرتون', now() + interval '2 days') returning id`, [B])).rows[0].id;
   check('ending an auction with no bids works', ok(await as(db, B, `select public.accept_recycling_top_bid($1)`, [lot2])));
@@ -1135,6 +1135,148 @@ const denied = (r) => !!r.error;
     check('the owner deletes their listing',
       ok(await as(db, KO, `delete from kids_listings where id = $1`, [kidId])) &&
       (await admin(db, `select 1 from kids_listings where id = $1`, [kidId])).length === 0);
+  }
+
+  // Scrap dealers — تجار الخردة (0075)
+  {
+    const scrapSeller = await signUp(db, 'scrap seller', '01000000751');
+    const scrapDealer = await signUp(db, 'scrap dealer copper', '01000000752');
+    const scrapOther = await signUp(db, 'scrap dealer iron alex', '01000000753');
+    const scrapRejected = await signUp(db, 'scrap dealer rejected', '01000000754');
+    const scrapRadius = await signUp(db, 'scrap dealer radius', '01000000755');
+    const scrapBidder = await signUp(db, 'scrap plain bidder', '01000000756');
+    const scrapSellerDealer = await signUp(db, 'scrap seller dealer', '01000000757');
+    const scrapReg = (uid, name, wa, materials, gov, areas, radius = null) => as(db, uid,
+      `insert into scrap_dealers (user_id, business_name, whatsapp, materials, governorate, areas, radius_km, base_lat, base_lng)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [uid, name, wa, materials, gov, areas, radius ? radius[0] : null, radius ? radius[1] : null, radius ? radius[2] : null]);
+
+    const scrapR1 = await scrapReg(scrapDealer, 'مخزن الأمانة للخردة', '01000000752', ['copper', 'aluminum'], 'القاهرة', ['مدينة نصر', 'المعادي']);
+    check('a scrap dealer registers (pending)', ok(scrapR1) &&
+      (await admin(db, `select status from scrap_dealers where user_id = $1`, [scrapDealer]))[0]?.status === 'pending', scrapR1.error);
+    check('a dealer with a bad WhatsApp number is refused',
+      denied(await scrapReg(scrapBidder, 'محل', '12345', ['iron'], 'القاهرة', [])));
+    check('a dealer with an unknown material is refused',
+      denied(await scrapReg(scrapBidder, 'محل', '01000000756', ['gold'], 'القاهرة', [])));
+    check('a dealer with no materials is refused',
+      denied(await scrapReg(scrapBidder, 'محل', '01000000756', [], 'القاهرة', [])));
+    check('a dealer with no place at all is refused',
+      denied(await scrapReg(scrapBidder, 'محل', '01000000756', ['iron'], null, [])));
+    check('EXPLOIT blocked: registering a dealer in someone else\'s name',
+      denied(await as(db, scrapBidder, `insert into scrap_dealers (user_id, business_name, whatsapp, materials, governorate) values ($1, 'محل', '01000000756', '{iron}', 'القاهرة')`, [scrapOther])));
+    check('EXPLOIT blocked: registering straight as verified',
+      denied(await as(db, scrapOther, `insert into scrap_dealers (user_id, business_name, whatsapp, materials, governorate, status) values ($1, 'حديد إسكندرية', '01000000753', '{iron}', 'الإسكندرية', 'verified')`, [scrapOther])));
+    check('EXPLOIT blocked: a dealer verifies themselves',
+      denied(await as(db, scrapDealer, `update scrap_dealers set status = 'verified' where user_id = $1`, [scrapDealer])) &&
+      (await admin(db, `select status from scrap_dealers where user_id = $1`, [scrapDealer]))[0].status === 'pending');
+    check('EXPLOIT blocked: a dealer writes their own review note',
+      denied(await as(db, scrapDealer, `update scrap_dealers set review_note = 'تمام' where user_id = $1`, [scrapDealer])));
+    check("EXPLOIT blocked: a dealer points their document at another user's file",
+      denied(await as(db, scrapDealer, `update scrap_dealers set doc_path = $2 where user_id = $1`, [scrapDealer, scrapOther + '/scrap-dealer/x.jpg'])));
+    check('a dealer attaches their own document',
+      ok(await as(db, scrapDealer, `update scrap_dealers set doc_path = $2 where user_id = $1`, [scrapDealer, scrapDealer + '/scrap-dealer/cr.jpg'])));
+    check('EXPLOIT blocked: a non-admin reviews a dealer',
+      denied(await as(db, scrapOther, `select public.review_scrap_dealer($1, true, null)`, [scrapDealer])) &&
+      denied(await as(db, scrapDealer, `select public.review_scrap_dealer($1, true, null)`, [scrapDealer])) &&
+      (await admin(db, `select status from scrap_dealers where user_id = $1`, [scrapDealer]))[0].status === 'pending');
+    check('EXPLOIT blocked: a non-admin lists dealers for review',
+      denied(await as(db, scrapOther, `select * from public.admin_list_scrap_dealers('pending')`)));
+
+    await scrapReg(scrapOther, 'حديد إسكندرية', '01000000753', ['iron', 'copper'], 'الإسكندرية', []);
+    await scrapReg(scrapRejected, 'خردة مرفوضة', '01000000754', ['copper'], 'القاهرة', []);
+    await scrapReg(scrapRadius, 'خردة بالمسافة', '01000000755', ['copper'], null, [], [10, 30.05, 31.33]);
+    await scrapReg(scrapSellerDealer, 'بائع وتاجر', '01000000757', ['copper'], 'القاهرة', []);
+    check('the other test dealers registered', (await admin(db, `select count(*)::int as n from scrap_dealers`))[0].n === 5);
+    const scrapPending = await as(db, SA, `select user_id, whatsapp, status from public.admin_list_scrap_dealers('pending')`);
+    check('the super admin lists pending dealers (with WhatsApp)',
+      scrapPending.rows?.some((r) => r.user_id === scrapDealer && r.whatsapp === '01000000752'), scrapPending.error);
+    check('the super admin verifies a dealer', ok(await as(db, SA, `select public.review_scrap_dealer($1, true, null)`, [scrapDealer])) &&
+      (await admin(db, `select status from scrap_dealers where user_id = $1`, [scrapDealer]))[0].status === 'verified');
+    check('…and the dealer is notified',
+      (await admin(db, `select count(*)::int as n from notifications where user_id = $1 and deep_link = '/#/scrap-dealer'`, [scrapDealer]))[0].n === 1);
+    check('the super admin rejects a dealer with a note', ok(await as(db, SA, `select public.review_scrap_dealer($1, false, 'البيانات ناقصة')`, [scrapRejected])) &&
+      (await admin(db, `select status, review_note from scrap_dealers where user_id = $1`, [scrapRejected]))[0].review_note === 'البيانات ناقصة');
+    check('editing materials / areas keeps the verified status',
+      ok(await as(db, scrapDealer, `update scrap_dealers set materials = '{copper,aluminum,iron}', areas = '{مدينة نصر,المعادي}' where user_id = $1`, [scrapDealer])) &&
+      (await admin(db, `select status from scrap_dealers where user_id = $1`, [scrapDealer]))[0].status === 'verified');
+    await as(db, scrapDealer, `update scrap_dealers set materials = '{copper,aluminum}' where user_id = $1`, [scrapDealer]);
+    check('a dealer reads their own row', (await as(db, scrapDealer, `select * from scrap_dealers`)).rows?.length === 1);
+    check("a user can't read other dealers' rows", (await as(db, scrapBidder, `select * from scrap_dealers`)).rows?.length === 0);
+    check('anon cannot read scrap_dealers', denied(await as(db, null, `select business_name from scrap_dealers`)));
+
+    const scrapBadges = await as(db, null, `select * from public.scrap_dealer_badges($1)`, [[scrapDealer, scrapOther, scrapRejected, scrapBidder]]);
+    check('badges list only verified dealers', ok(scrapBadges) && scrapBadges.rows.length === 1 &&
+      scrapBadges.rows[0].user_id === scrapDealer && scrapBadges.rows[0].business_name === 'مخزن الأمانة للخردة', scrapBadges);
+    check('badges never expose WhatsApp or the document',
+      !('whatsapp' in (scrapBadges.rows?.[0] ?? {})) && !('doc_path' in (scrapBadges.rows?.[0] ?? {})) &&
+      !JSON.stringify(scrapBadges.rows ?? []).includes('01000000752'));
+
+    // A copper lot in مدينة نصر (spelt a bit differently), near the radius dealer's base.
+    const scrapNotifs = async (uid) => (await admin(db, `select count(*)::int as n from notifications where user_id = $1 and title = 'مزاد خردة جديد يناسبك'`, [uid]))[0].n;
+    const scrapLot = await as(db, scrapSellerDealer, `insert into recycling_listings (seller_id, category, material, title, estimated_weight_kg, governorate, area, lat, lng, auction_ends_at)
+      values ($1, 'other', 'copper', 'مواسير نحاس تكييف', 40, 'القاهرة', ' مدينه  نصر', 30.06, 31.34, now() + interval '1 day') returning id, category`, [scrapSellerDealer]);
+    const scrapLotId = scrapLot.rows?.[0]?.id;
+    check('a seller adds a copper lot with a place', !!scrapLotId, scrapLot.error);
+    check('the category follows the material (copper → metal)', scrapLot.rows?.[0]?.category === 'metal');
+    const scrapMsg = await admin(db, `select body, deep_link from notifications where user_id = $1 and title = 'مزاد خردة جديد يناسبك'`, [scrapDealer]);
+    check('a matching dealer (material + district) is notified with the lot link',
+      scrapMsg.length === 1 && scrapMsg[0].deep_link === '/#/recycling/' + scrapLotId && scrapMsg[0].body.includes('نحاس') && scrapMsg[0].body.includes('40 كيلو'), scrapMsg);
+    check('a dealer within their radius is notified', (await scrapNotifs(scrapRadius)) === 1);
+    check('a dealer in another governorate is not notified', (await scrapNotifs(scrapOther)) === 0);
+    check('a rejected dealer is not notified', (await scrapNotifs(scrapRejected)) === 0);
+    check('the seller (even if a dealer) is not notified about their own lot', (await scrapNotifs(scrapSellerDealer)) === 0);
+    await as(db, scrapSellerDealer, `insert into recycling_listings (seller_id, category, material, title, governorate, area, auction_ends_at)
+      values ($1, 'other', 'plastic', 'بلاستيك', 'القاهرة', 'مدينة نصر', now() + interval '1 day')`, [scrapSellerDealer]);
+    check('a dealer is not notified about a material they do not buy', (await scrapNotifs(scrapDealer)) === 1);
+    await as(db, scrapSeller, `insert into recycling_listings (seller_id, category, material, title, governorate, area, auction_ends_at)
+      values ($1, 'other', 'aluminum', 'ألومنيوم شبابيك', 'القاهرة', 'الزمالك', now() + interval '1 day')`, [scrapSeller]);
+    check('a dealer is not notified about another district', (await scrapNotifs(scrapDealer)) === 1);
+    await as(db, scrapSeller, `insert into recycling_listings (seller_id, category, title, governorate, area, auction_ends_at)
+      values ($1, 'metal', 'خردة معادن قديمة', 'الإسكندرية', 'سموحة', now() + interval '1 day')`, [scrapSeller]);
+    check('a lot without a material matches its category group', (await scrapNotifs(scrapOther)) === 1);
+    const scrapMatching = await as(db, scrapDealer, `select id from public.scrap_dealer_matching_lots()`);
+    check('the dealer sees the matching lot in «مزادات مطابقة ليك»',
+      ok(scrapMatching) && scrapMatching.rows.length === 1 && scrapMatching.rows[0].id === scrapLotId, scrapMatching);
+
+    // Bids: outbid, accept, contact.
+    check('a dealer bids', ok(await as(db, scrapDealer, `select public.place_recycling_bid($1, 500)`, [scrapLotId])));
+    check('a lower bid is still refused', denied(await as(db, scrapBidder, `select public.place_recycling_bid($1, 400)`, [scrapLotId])));
+    check('another bidder outbids', ok(await as(db, scrapBidder, `select public.place_recycling_bid($1, 650)`, [scrapLotId])));
+    const scrapOutbid = await admin(db, `select body, deep_link from notifications where user_id = $1 and title = 'عرضك اتعدّى'`, [scrapDealer]);
+    check('the previous top bidder is told they were outbid',
+      scrapOutbid.length === 1 && scrapOutbid[0].body.includes('650') && scrapOutbid[0].deep_link === '/#/recycling/' + scrapLotId, scrapOutbid);
+    check('raising your own top bid does not notify you',
+      ok(await as(db, scrapBidder, `select public.place_recycling_bid($1, 700)`, [scrapLotId])) &&
+      (await admin(db, `select count(*)::int as n from notifications where user_id = $1 and title = 'عرضك اتعدّى'`, [scrapBidder]))[0].n === 0);
+    check('the dealer bids again on top', ok(await as(db, scrapDealer, `select public.place_recycling_bid($1, 800)`, [scrapLotId])));
+    const scrapMine = await as(db, scrapDealer, `select my_amount, top_amount, won from public.recycling_my_bids() where listing_id = $1`, [scrapLotId]);
+    check('«عروضي» shows my best bid and the top', Number(scrapMine.rows?.[0]?.my_amount) === 800 && Number(scrapMine.rows?.[0]?.top_amount) === 800, scrapMine);
+    check("the seller's phone is hidden from a bidder before acceptance",
+      (await as(db, scrapDealer, `select * from public.recycling_seller_contact($1)`, [scrapLotId])).rows?.length === 0 &&
+      !(await as(db, scrapDealer, `select * from public.get_contact_phones($1)`, [[scrapSellerDealer]])).rows?.length);
+    check("EXPLOIT blocked: a bidder accepts the bid on someone else's lot",
+      denied(await as(db, scrapDealer, `select public.accept_recycling_top_bid($1)`, [scrapLotId])));
+    check('the seller accepts the top bid', ok(await as(db, scrapSellerDealer, `select public.accept_recycling_top_bid($1)`, [scrapLotId])));
+    const scrapWon = await admin(db, `select deep_link from notifications where user_id = $1 and title = 'مبروك! البائع قبل عرضك'`, [scrapDealer]);
+    check('the winner is told «مبروك! البائع قبل عرضك» with the lot link', scrapWon.length === 1 && scrapWon[0].deep_link === '/#/recycling/' + scrapLotId, scrapWon);
+    const scrapContact = await as(db, scrapDealer, `select phone from public.recycling_seller_contact($1)`, [scrapLotId]);
+    check("the winner gets the seller's phone after acceptance", scrapContact.rows?.[0]?.phone === '01000000757', scrapContact);
+    check("a losing bidder still can't get the seller's phone",
+      (await as(db, scrapBidder, `select * from public.recycling_seller_contact($1)`, [scrapLotId])).rows?.length === 0);
+    const scrapWinner = await as(db, scrapSellerDealer, `select phone, whatsapp from public.recycling_winner_contact($1)`, [scrapLotId]);
+    check("the seller gets the winner's phone / WhatsApp after acceptance", scrapWinner.rows?.[0]?.whatsapp === '01000000752', scrapWinner);
+    check("someone else can't get the winner's contact",
+      (await as(db, scrapBidder, `select * from public.recycling_winner_contact($1)`, [scrapLotId])).rows?.length === 0);
+    check('the winner still opens the ended lot',
+      (await as(db, scrapDealer, `select id from recycling_listings where id = $1`, [scrapLotId])).rows?.length === 1);
+    check('«عروضي» marks the lot as won',
+      (await as(db, scrapDealer, `select won from public.recycling_my_bids() where listing_id = $1`, [scrapLotId])).rows?.[0]?.won === true);
+
+    check('renaming a verified dealer sends them back to review',
+      ok(await as(db, scrapDealer, `update scrap_dealers set business_name = 'مخزن الأمانة الجديد' where user_id = $1`, [scrapDealer])) &&
+      (await admin(db, `select status from scrap_dealers where user_id = $1`, [scrapDealer]))[0].status === 'pending');
+    check('a dealer deletes their registration', ok(await as(db, scrapRadius, `delete from scrap_dealers where user_id = $1`, [scrapRadius])) &&
+      (await admin(db, `select 1 from scrap_dealers where user_id = $1`, [scrapRadius])).length === 0);
   }
 
   console.log(`\n${passed} passed, ${failures.length} failed`);

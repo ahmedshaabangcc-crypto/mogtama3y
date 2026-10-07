@@ -1,24 +1,18 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/recycling/recycling_service.dart';
+import '../../core/recycling/scrap_dealer_service.dart';
+import '../../core/routing/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'add_recycling_lot_screen.dart';
 import 'auction_detail_screen.dart';
-
-const _categoryLabels = {
-  'metal': 'معادن',
-  'plastic': 'بلاستيك',
-  'electronics': 'إلكترونيات',
-  'furniture': 'أثاث',
-  'paper_cardboard': 'ورق وكرتون',
-  'other': 'أخرى',
-};
 
 Duration _remainingFor(Map<String, dynamic> lot) {
   final endsAt = DateTime.tryParse(lot['auction_ends_at'] as String? ?? '');
@@ -127,6 +121,8 @@ class _RecyclingMarketplaceScreenState extends State<RecyclingMarketplaceScreen>
                 ],
               ),
             ),
+            const SizedBox(height: 10),
+            const _ScrapDealerBanner(),
             const SizedBox(height: 14),
             const _FilterChips(),
             const SizedBox(height: 18),
@@ -181,6 +177,40 @@ class _RecyclingMarketplaceScreenState extends State<RecyclingMarketplaceScreen>
   }
 }
 
+/// «تاجر خردة؟ سجّل هنا» → /scrap-dealer (register, or the dealer's board).
+class _ScrapDealerBanner extends StatelessWidget {
+  const _ScrapDealerBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => context.push(AppRoutes.scrapDealer),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.teal.withValues(alpha: 0.5)),
+        ),
+        child: const Row(children: [
+          Icon(Icons.storefront_rounded, color: AppColors.teal, size: 22),
+          SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('تاجر خردة؟ سجّل هنا', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+              SizedBox(height: 2),
+              Text('يوصلك إشعار بكل مزاد حديد ونحاس وكرتون في منطقتك — ولوحتك فيها عروضك',
+                  style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
+            ]),
+          ),
+          Icon(Icons.chevron_left_rounded, color: AppColors.inkMuted),
+        ]),
+      ),
+    );
+  }
+}
+
 class _FilterChips extends StatelessWidget {
   const _FilterChips();
 
@@ -220,9 +250,8 @@ class _LotCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title = lot['title'] as String? ?? '';
-    final locationNote = lot['location_note'] as String?;
+    final locationNote = scrapPlaceLabel(lot) ?? lot['location_note'] as String?;
     final weightKg = (lot['estimated_weight_kg'] as num?)?.toDouble();
-    final category = lot['category'] as String? ?? 'other';
     final seller = lot['seller'] as Map<String, dynamic>?;
     final sellerVerified = seller?['is_verified'] as bool? ?? false;
     final (topBid, bidCount) = _topBidAndCount(lot);
@@ -247,7 +276,7 @@ class _LotCard extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(color: sellerVerified ? AppColors.teal : Colors.black87, borderRadius: BorderRadius.circular(8)),
-                    child: Text(_categoryLabels[category] ?? category, style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w600)),
+                    child: Text(scrapLotMaterialLabel(lot), style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w600)),
                   ),
                 ),
                 Positioned(

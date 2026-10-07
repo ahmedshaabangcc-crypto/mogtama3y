@@ -27,23 +27,35 @@ class RecyclingService {
         .single();
   }
 
+  /// [material] is one of scrapMaterials' keys; the server derives the old
+  /// category from it and notifies the matching scrap dealers (0075).
   static Future<void> createLot({
+    required String material,
     required String category,
     required String title,
     required String description,
     required double? estimatedWeightKg,
     required String locationNote,
     required Duration auctionDuration,
+    String? governorate,
+    String? area,
+    double? lat,
+    double? lng,
   }) async {
     final userId = AuthService.currentUser?.id;
     if (userId == null) throw Exception('يجب تسجيل الدخول أولاً');
     await _client.from('recycling_listings').insert({
       'seller_id': userId,
+      'material': material,
       'category': category,
       'title': title,
       'description': description,
       'estimated_weight_kg': estimatedWeightKg,
       'location_note': locationNote,
+      'governorate': governorate,
+      'area': area,
+      'lat': lat,
+      'lng': lng,
       'auction_ends_at': DateTime.now().add(auctionDuration).toUtc().toIso8601String(),
     });
   }

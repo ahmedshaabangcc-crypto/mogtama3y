@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/auth/auth_service.dart';
+import '../../core/recycling/scrap_dealer_service.dart';
 import '../../core/routing/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
@@ -22,6 +23,7 @@ class MoreMenuScreen extends StatefulWidget {
 
 class _MoreMenuScreenState extends State<MoreMenuScreen> {
   Map<String, dynamic>? _profile;
+  bool _isScrapDealer = false;
   bool _loadingProfile = false;
   late final StreamSubscription<AuthState> _authSub;
 
@@ -40,9 +42,16 @@ class _MoreMenuScreenState extends State<MoreMenuScreen> {
 
   Future<void> _loadProfile() async {
     if (!AuthService.isSignedIn) {
-      setState(() => _profile = null);
+      setState(() {
+        _profile = null;
+        _isScrapDealer = false;
+      });
       return;
     }
+    // Only switches the scrap-dealer tile's wording — failures are ignored.
+    ScrapDealerService.myDealer().then((d) {
+      if (mounted) setState(() => _isScrapDealer = d != null);
+    }, onError: (_) {});
     setState(() => _loadingProfile = true);
     try {
       final profile = await AuthService.fetchCurrentProfile();
@@ -183,6 +192,13 @@ class _MoreMenuScreenState extends State<MoreMenuScreen> {
             title: 'لوحة التاجر',
             subtitle: 'خلّي محلك أونلاين ببلاش: منتجات وطلبات وQR',
             onTap: () => context.go(AppRoutes.merchant),
+          ),
+          _MenuTile(
+            icon: Icons.recycling_rounded,
+            iconColor: AppColors.teal,
+            title: _isScrapDealer ? 'لوحة تاجر الخردة' : 'تاجر خردة؟ سجّل هنا',
+            subtitle: _isScrapDealer ? 'المزادات المطابقة ليك وعروضك' : 'يوصلك إشعار بكل مزاد خردة جديد في منطقتك',
+            onTap: () => context.go(AppRoutes.scrapDealer),
           ),
           const SizedBox(height: 18),
           const _SectionLabel('حيّك'),

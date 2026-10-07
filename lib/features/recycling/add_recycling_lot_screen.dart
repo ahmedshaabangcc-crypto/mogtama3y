@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../core/recycling/recycling_service.dart';
+import '../../core/recycling/scrap_dealer_service.dart';
+import '../../core/reports/report_service.dart' show governorateOf, reportGovernorates;
 import '../../core/theme/app_colors.dart';
 
-const _categories = ['معادن', 'بلاستيك', 'إلكترونيات', 'أثاث', 'ورق وكرتون', 'أخرى'];
-const _categoryValues = ['metal', 'plastic', 'electronics', 'furniture', 'paper_cardboard', 'other'];
 const _durations = ['4 ساعات', '12 ساعة', 'يوم كامل'];
 const _durationValues = [Duration(hours: 4), Duration(hours: 12), Duration(hours: 24)];
 
@@ -18,15 +18,20 @@ class AddRecyclingLotScreen extends StatefulWidget {
 }
 
 class _AddRecyclingLotScreenState extends State<AddRecyclingLotScreen> {
-  int _category = 0;
+  String _material = 'iron';
   int _duration = 1;
   bool _submitting = false;
+  bool _locating = false;
   String? _error;
+  String? _governorate;
+  double? _lat;
+  double? _lng;
 
   final _titleCtrl = TextEditingController();
   final _descriptionCtrl = TextEditingController();
   final _weightCtrl = TextEditingController();
   final _locationCtrl = TextEditingController();
+  final _areaCtrl = TextEditingController();
 
   @override
   void dispose() {
@@ -34,26 +39,57 @@ class _AddRecyclingLotScreenState extends State<AddRecyclingLotScreen> {
     _descriptionCtrl.dispose();
     _weightCtrl.dispose();
     _locationCtrl.dispose();
+    _areaCtrl.dispose();
     super.dispose();
   }
 
+  /// "حدد موقعي": saves the point (dealers within N km get notified) and
+  /// fills the governorate if it's still empty.
+  Future<void> _locate() async {
+    setState(() => _locating = true);
+    try {
+      final p = await scrapMyPosition();
+      if (!mounted) return;
+      setState(() {
+        _lat = p.latitude;
+        _lng = p.longitude;
+        _governorate ??= governorateOf(p.latitude, p.longitude);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is String ? e : 'تعذر تحديد موقعك، جرّب تاني')));
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
   Future<void> _submit() async {
-    if (_titleCtrl.text.trim().isEmpty || _locationCtrl.text.trim().isEmpty) {
-      setState(() => _error = 'يرجى إدخال عنوان اللوط ومكانه.');
+    if (_titleCtrl.text.trim().isEmpty) {
+      setState(() => _error = 'يرجى إدخال عنوان اللوط.');
       return;
     }
+    if (_governorate == null && _locationCtrl.text.trim().isEmpty) {
+      setState(() => _error = 'اختار المحافظة أو اكتب مكان اللوط عشان التجار القريبين يوصلهم.');
+      return;
+    }
+    final area = _areaCtrl.text.trim();
     setState(() {
       _submitting = true;
       _error = null;
     });
     try {
       await RecyclingService.createLot(
-        category: _categoryValues[_category],
+        material: _material,
+        category: scrapMaterialCategory[_material] ?? 'other',
         title: _titleCtrl.text.trim(),
         description: _descriptionCtrl.text.trim(),
         estimatedWeightKg: double.tryParse(_weightCtrl.text.trim()),
         locationNote: _locationCtrl.text.trim(),
         auctionDuration: _durationValues[_duration],
+        governorate: _governorate,
+        area: area.isEmpty ? null : area,
+        lat: _lat,
+        lng: _lng,
       );
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -76,19 +112,19 @@ class _AddRecyclingLotScreenState extends State<AddRecyclingLotScreen> {
           const SizedBox(height: 6),
           _EditableBox(controller: _titleCtrl, hint: 'مثال: خردة تكييف سبليت + مواسير نحاس'),
           const SizedBox(height: 14),
-          const _FieldLabel('التصنيف *'),
+          const _FieldLabel('نوع الخردة *'),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (var i = 0; i < _categories.length; i++)
+              for (final e in scrapMaterials.entries)
                 ChoiceChip(
-                  label: Text(_categories[i], style: const TextStyle(fontSize: 11.5)),
-                  selected: _category == i,
+                  label: Text(e.value, style: const TextStyle(fontSize: 11.5)),
+                  selected: _material == e.key,
                   selectedColor: AppColors.teal,
-                  labelStyle: TextStyle(color: _category == i ? Colors.white : AppColors.inkSecondary),
-                  onSelected: (_) => setState(() => _category = i),
+                  labelStyle: TextStyle(color: _material == e.key ? Colors.white : AppColors.inkSecondary),
+                  onSelected: (_) => setState(() => _material = e.key),
                 ),
             ],
           ),
@@ -101,9 +137,39 @@ class _AddRecyclingLotScreenState extends State<AddRecyclingLotScreen> {
           const SizedBox(height: 6),
           _EditableBox(controller: _weightCtrl, hint: 'مثال: 48', keyboardType: TextInputType.number),
           const SizedBox(height: 14),
-          const _FieldLabel('الموقع *'),
-          const SizedBox(height: 6),
-          _EditableBox(controller: _locationCtrl, hint: 'مثال: بدروم برج الياسمين'),
+          const _FieldLabel('المكان *'),
+          const SizedBox(height: 4),
+          const Text('تجار الخردة في منطقتك بيوصلهم إشعار بالمزاد أول ما تنزّله.', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            initialValue: _governorate,
+            key: ValueKey(_governorate),
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: 'المحافظة',
+              isDense: true,
+              filled: true,
+              fillColor: AppColors.surface,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            items: [for (final g in reportGovernorates) DropdownMenuItem(value: g, child: Text(g))],
+            onChanged: (v) => setState(() => _governorate = v),
+          ),
+          const SizedBox(height: 8),
+          _EditableBox(controller: _areaCtrl, hint: 'المنطقة / الحي — مثال: مدينة نصر'),
+          const SizedBox(height: 8),
+          _EditableBox(controller: _locationCtrl, hint: 'تفاصيل المكان — مثال: بدروم برج الياسمين'),
+          const SizedBox(height: 8),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: OutlinedButton.icon(
+              onPressed: _locating ? null : _locate,
+              icon: _locating
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Icon(_lat != null ? Icons.check_circle_rounded : Icons.my_location_rounded, size: 18, color: AppColors.teal),
+              label: Text(_lat != null ? 'اتحدد موقعك ✓' : 'حدد موقعي', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+            ),
+          ),
           const SizedBox(height: 14),
           const _FieldLabel('مدة المزاد'),
           const SizedBox(height: 8),

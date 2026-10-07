@@ -1,22 +1,16 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' show NumberFormat;
 import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/recycling/recycling_service.dart';
+import '../../core/recycling/scrap_dealer_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
-
-const _categoryLabels = {
-  'metal': 'معادن',
-  'plastic': 'بلاستيك',
-  'electronics': 'إلكترونيات',
-  'furniture': 'أثاث',
-  'paper_cardboard': 'ورق وكرتون',
-  'other': 'أخرى',
-};
+import 'scrap_widgets.dart';
 
 /// Auction detail + real-time bidding — matches
 /// design/screens/20_recycling_auction_bidding.png, now backed by a
@@ -36,6 +30,13 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
   bool _busy = false;
   String? _error;
   Timer? _timer;
+
+  /// bidder id → business name, for verified scrap dealers (0075).
+  Map<String, String> _badges = {};
+
+  /// After acceptance: the seller's contact (for the winner) or the
+  /// winner's (for the seller).
+  Map<String, dynamic>? _contact;
   final _bidCtrl = TextEditingController();
 
   @override
@@ -59,9 +60,25 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
     });
     try {
       final lot = await RecyclingService.fetchLot(widget.listingId);
+      final bidders = ((lot['recycling_bids'] as List?) ?? const []).map((b) => (b as Map)['bidder_id']).whereType<String>();
+      var badges = <String, String>{};
+      try {
+        badges = await ScrapDealerService.badges(bidders);
+      } catch (_) {}
+      Map<String, dynamic>? contact;
+      final me = AuthService.currentUser?.id;
+      if (me != null && lot['status'] != 'active' && lot['winning_bid_id'] != null) {
+        try {
+          contact = lot['seller_id'] == me
+              ? await ScrapDealerService.winnerContact(widget.listingId)
+              : await ScrapDealerService.sellerContact(widget.listingId);
+        } catch (_) {}
+      }
       if (!mounted) return;
       setState(() {
         _lot = lot;
+        _badges = badges;
+        _contact = contact;
         _loading = false;
       });
     } catch (_) {
@@ -93,6 +110,20 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
     final bids = (_lot?['recycling_bids'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
     final sorted = [...bids]..sort((a, b) => (b['amount'] as num).compareTo(a['amount'] as num));
     return sorted;
+  }
+
+  /// What the seller sees: verified dealers' bids first, by amount within
+  /// each group. Display only — accepting still takes the top amount.
+  List<Map<String, dynamic>> _sellerOrder(List<Map<String, dynamic>> byAmount) {
+    final verified = byAmount.where((b) => _badges.containsKey(b['bidder_id'])).toList();
+    final others = byAmount.where((b) => !_badges.containsKey(b['bidder_id'])).toList();
+    return [...verified, ...others];
+  }
+
+  Future<void> _open(Uri uri) async {
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {}
   }
 
   Future<void> _placeBid() async {
@@ -148,11 +179,15 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
     final description = lot['description'] as String?;
     final weightKg = (lot['estimated_weight_kg'] as num?)?.toDouble();
     final locationNote = lot['location_note'] as String?;
-    final category = lot['category'] as String? ?? 'other';
+    final place = scrapPlaceLabel(lot);
     final status = lot['status'] as String? ?? 'active';
     final isSeller = lot['seller_id'] == AuthService.currentUser?.id;
     final bids = _bids;
     final topBid = bids.isEmpty ? null : bids.first;
+    final shownBids = isSeller ? _sellerOrder(bids) : bids;
+    final me = AuthService.currentUser?.id;
+    final winningBidId = lot['winning_bid_id'] as String?;
+    final placeText = [place, if (locationNote != null && locationNote.isNotEmpty) locationNote].whereType<String>().join(' — ');
     final lotCode = '#${(lot['id'] as String).substring(0, 6).toUpperCase()}';
 
     return Scaffold(
@@ -200,13 +235,13 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _DetailRow(label: 'التصنيف', value: _categoryLabels[category] ?? category),
+                _DetailRow(label: 'نوع الخردة', value: scrapLotMaterialLabel(lot)),
                 const Divider(height: 20, color: AppColors.border),
                 _DetailRow(label: 'الوصف التفصيلي', value: (description == null || description.isEmpty) ? '—' : description),
                 const Divider(height: 20, color: AppColors.border),
                 _DetailRow(label: 'الوزن التقديري', value: weightKg != null ? '${weightKg.toStringAsFixed(0)} كجم' : 'غير محدد'),
                 const Divider(height: 20, color: AppColors.border),
-                _DetailRow(label: 'الموقع الجغرافي', value: locationNote ?? '—'),
+                _DetailRow(label: 'الموقع الجغرافي', value: placeText.isEmpty ? '—' : placeText),
               ],
             ),
           ),
@@ -265,18 +300,43 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
             ],
             const SizedBox(height: 12),
           ],
+          if (_contact != null) ...[
+            _ContactCard(contact: _contact!, forSeller: isSeller, lotTitle: title, onOpen: _open),
+            const SizedBox(height: 14),
+          ],
           if (bids.isNotEmpty) ...[
             const Text('سجل العروض', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+            if (isSeller && _badges.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              const Text('عروض التجار الموثّقين ظاهرة الأول — وقبول العرض بياخد أعلى مبلغ زي ما هو.',
+                  style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
+            ],
             const SizedBox(height: 8),
-            for (final b in bids) ...[
+            for (final b in shownBids) ...[
               Container(
                 margin: const EdgeInsets.only(bottom: 6),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
+                decoration: BoxDecoration(
+                  color: b['id'] == winningBidId ? AppColors.teal.withValues(alpha: 0.08) : AppColors.surface,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: b['id'] == winningBidId ? AppColors.teal : AppColors.border),
+                ),
                 child: Row(children: [
-                  const Icon(Icons.person_outline_rounded, size: 15, color: AppColors.inkMuted),
+                  Icon(_badges.containsKey(b['bidder_id']) ? Icons.storefront_rounded : Icons.person_outline_rounded, size: 15, color: AppColors.inkMuted),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(b['bidder_id'] == AuthService.currentUser?.id ? 'أنت' : 'مزايد', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(
+                        b['bidder_id'] == me ? 'أنت' : (_badges[b['bidder_id']] ?? 'مزايد'),
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (_badges.containsKey(b['bidder_id'])) ...[
+                        const SizedBox(height: 3),
+                        const _VerifiedDealerBadge(),
+                      ],
+                    ]),
+                  ),
                   Text('${NumberFormat('#,##0').format(b['amount'])} ج.م', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppColors.teal)),
                 ]),
               ),
@@ -323,6 +383,57 @@ class _DetailRow extends StatelessWidget {
         SizedBox(width: 110, child: Text(label, style: const TextStyle(fontSize: 11, color: AppColors.inkMuted))),
         Expanded(child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, height: 1.5))),
       ],
+    );
+  }
+}
+
+class _VerifiedDealerBadge extends StatelessWidget {
+  const _VerifiedDealerBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(color: AppColors.teal.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(100)),
+      child: const Text('تاجر موثّق ✓', style: TextStyle(fontSize: 9.5, color: AppColors.teal, fontWeight: FontWeight.w700)),
+    );
+  }
+}
+
+/// After acceptance: "كلّم البائع" for the winner, "كلّم المشتري" for the seller.
+class _ContactCard extends StatelessWidget {
+  const _ContactCard({required this.contact, required this.forSeller, required this.lotTitle, required this.onOpen});
+  final Map<String, dynamic> contact;
+  final bool forSeller;
+  final String lotTitle;
+  final Future<void> Function(Uri) onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = (contact['business_name'] as String?) ?? (contact['full_name'] as String?) ?? (forSeller ? 'المشتري' : 'البائع');
+    final phone = normalizeEgyptMobile(contact['phone'] as String?) ?? normalizeEgyptMobile(contact['whatsapp'] as String?);
+    final whatsapp = normalizeEgyptMobile(contact['whatsapp'] as String?) ?? phone;
+    final message = forSeller
+        ? 'السلام عليكم، بخصوص مزاد «$lotTitle» على مُجتمعي — قبلت عرضك، نتفق على الاستلام؟'
+        : 'السلام عليكم، بخصوص مزاد «$lotTitle» على مُجتمعي — عرضي اتقبل، نتفق على الاستلام؟';
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.teal.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.teal.withValues(alpha: 0.4)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(forSeller ? 'كلّم المشتري' : 'مبروك! كلّم البائع', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: AppColors.teal)),
+        const SizedBox(height: 4),
+        Text(name, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+        if (phone != null) Text(phone, textDirection: TextDirection.ltr, style: const TextStyle(fontSize: 12, color: AppColors.inkSecondary)),
+        const SizedBox(height: 10),
+        if (whatsapp == null)
+          const Text('مفيش رقم متسجّل للطرف التاني.', style: TextStyle(fontSize: 11, color: AppColors.inkMuted))
+        else
+          ScrapContactButtons(phone: phone, whatsapp: whatsapp, message: message, onOpen: onOpen),
+      ]),
     );
   }
 }
