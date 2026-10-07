@@ -4,6 +4,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/auth/auth_service.dart';
+import '../../core/demo/demo_boot.dart';
+import '../../core/demo/demo_mode.dart';
+import '../../core/demo/demo_store.dart';
 import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/union/fund_service.dart';
@@ -269,6 +272,20 @@ class _UnionFundScreenState extends State<UnionFundScreen> {
   }
 
   Future<void> _openReceipt(String path) async {
+    if (kDemo) {
+      // Demo build: the (placeholder or just-picked) receipt, in the app.
+      final uploaded = DemoStore.instance.files[path];
+      await showDialog<void>(
+        context: context,
+        builder: (context) => Dialog(
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: uploaded != null ? Image.memory(uploaded.$1) : DemoReceiptCard(tx: DemoStore.instance.ledgerRowForReceipt(path)),
+          ),
+        ),
+      );
+      return;
+    }
     try {
       final url = await FundService.receiptUrl(path);
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);

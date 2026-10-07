@@ -1,12 +1,22 @@
 import 'package:go_router/go_router.dart';
 
 import '../app_flavor.dart';
+import '../demo/demo_mode.dart';
 
 import '../../features/about/about_platform_screen.dart';
 import '../../features/admin/superadmin_control_panel_screen.dart';
 import '../../features/auth/auth_landing_screen.dart';
 import '../../features/auth/password_reset_screens.dart';
 import '../../features/chat/building_chat_screen.dart';
+import '../../features/guard/guard_console_screen.dart';
+import '../../features/notifications/notifications_screen.dart';
+import '../../features/union/board_decisions_screen.dart';
+import '../../features/union/election_voting_screen.dart';
+import '../../features/union/financial_report_screen.dart';
+import '../../features/union/join_as_tenant_screen.dart';
+import '../../features/union/manage_tenants_screen.dart';
+import '../../features/union/union_registration_screen.dart';
+import '../../features/visitor/visitor_qr_pass_screen.dart';
 import '../../features/union/building_polls_screen.dart';
 import '../../features/union/union_feed_screen.dart';
 import '../../features/visitor/visitor_pass_link_screen.dart';
@@ -200,6 +210,21 @@ final _unionSections = <String, GoRouterWidgetBuilder>{
   AppRoutes.polls: (_, _) => const BuildingPollsScreen(),
   AppRoutes.feed: (_, _) => const UnionFeedScreen(),
   AppRoutes.buildingChat: (_, _) => const BuildingChatEntryScreen(),
+  // Demo build only: direct links to screens that are otherwise opened
+  // from the dashboard, for recording shortcuts.
+  if (kDemo) ..._demoSections,
+};
+
+final _demoSections = <String, GoRouterWidgetBuilder>{
+  '/guard': (_, _) => const GuardConsoleScreen(),
+  '/visitor-pass': (_, _) => const VisitorQrPassScreen(),
+  '/elections': (_, _) => const ElectionVotingScreen(),
+  '/board': (_, _) => const BoardDecisionsScreen(),
+  '/financial-report': (_, _) => const FinancialReportScreen(),
+  '/tenants': (_, _) => const ManageTenantsScreen(),
+  '/join': (_, _) => const UnionRegistrationScreen(),
+  '/join-tenant': (_, _) => const JoinAsTenantScreen(),
+  '/notifications': (_, _) => const NotificationsScreen(),
 };
 
 final _mogtama3ySections = <String, GoRouterWidgetBuilder>{

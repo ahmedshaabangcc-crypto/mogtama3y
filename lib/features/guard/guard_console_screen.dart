@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/auth/auth_service.dart';
+import '../../core/demo/demo_mode.dart';
+import '../../core/demo/demo_store.dart';
 import '../../core/guard/guard_service.dart';
 import '../../core/guard/qr_scan.dart';
 import '../../core/theme/app_colors.dart';
@@ -159,6 +161,7 @@ class _GuardWorkConsoleState extends State<_GuardWorkConsole> {
   /// Camera scan → the same check as a typed code. A scanned pass link
   /// (…/#/pass/PASS-…) works too.
   Future<void> _scan() async {
+    if (kDemo) return _simulateScan(); // demo: no real camera
     final raw = await scanQrCode(hint: 'وجّه الكاميرا على QR تصريح الزائر', cancelLabel: 'إلغاء — هكتب الكود');
     if (!mounted || raw.isEmpty) return;
     if (raw.startsWith('ERR:')) {
@@ -173,6 +176,35 @@ class _GuardWorkConsoleState extends State<_GuardWorkConsole> {
     }
     final match = RegExp(r'PASS-[A-Za-z0-9]+').firstMatch(raw);
     _codeCtrl.text = (match?.group(0) ?? raw).trim().toUpperCase();
+    await _verify();
+  }
+
+  /// Demo build only: "scans" the newest active pass of the building
+  /// (seeded, or one a resident just issued in this session) and runs the
+  /// normal verification with it — no camera, nothing sent anywhere.
+  Future<void> _simulateScan() async {
+    final code = DemoStore.instance.latestActivePassCode(widget.buildingId);
+    if (code == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('مفيش تصريح نشط — اعمل تصريح من حساب ساكن الأول')));
+      return;
+    }
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.qr_code_scanner_rounded, size: 64, color: AppColors.navy),
+          SizedBox(height: 12),
+          Text('جاري مسح QR التصريح…'),
+          SizedBox(height: 12),
+          LinearProgressIndicator(),
+        ]),
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 1300));
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    _codeCtrl.text = code;
     await _verify();
   }
 
@@ -254,7 +286,7 @@ class _GuardWorkConsoleState extends State<_GuardWorkConsole> {
             const SizedBox(height: 20),
             const Text('التحقق من تصريح زائر', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
             const SizedBox(height: 8),
-            if (canScanQr) ...[
+            if (canScanQr || kDemo) ...[
               SizedBox(
                 height: 54,
                 child: ElevatedButton.icon(
@@ -269,6 +301,17 @@ class _GuardWorkConsoleState extends State<_GuardWorkConsole> {
                 ),
               ),
               const SizedBox(height: 8),
+              if (kDemo) ...[
+                SizedBox(
+                  height: 48,
+                  child: OutlinedButton.icon(
+                    onPressed: _verifying ? null : _simulateScan,
+                    icon: const Icon(Icons.qr_code_scanner_rounded),
+                    label: const Text('محاكاة المسح', style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
               const Text('أو اكتب الكود:', style: TextStyle(fontSize: 11, color: AppColors.inkMuted)),
               const SizedBox(height: 6),
             ],

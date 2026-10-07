@@ -44,6 +44,20 @@
       "port": 8736
     },
     {
+      "name": "web-ittihad-demo",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "-y",
+        "http-server",
+        "build/web_ittihad_demo",
+        "-p",
+        "8737",
+        "-c-1",
+        "--silent"
+      ],
+      "port": 8737
+    },
+    {
       "name": "web-tajer",
       "runtimeExecutable": "npx",
       "runtimeArgs": [

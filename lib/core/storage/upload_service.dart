@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -5,6 +6,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/auth_service.dart';
+import '../demo/demo_mode.dart';
+import '../demo/demo_platform.dart';
+import '../demo/demo_store.dart';
 
 /// Real file/photo/video upload — see
 /// backend/migrations/0027_storage_and_verification.sql. Every upload
@@ -74,6 +78,8 @@ class UploadService {
   static Future<String> uploadPublicPhoto({required String purpose, required XFile file}) async {
     if (AuthService.currentUser == null) throw Exception('يجب تسجيل الدخول أولاً');
     final (path, bytes, mime) = await _prepare(purpose, file);
+    // Demo build: the photo never leaves the browser.
+    if (kDemo) return 'data:$mime;base64,${base64Encode(bytes)}';
     await _client.storage.from('public-photos').uploadBinary(path, bytes, fileOptions: FileOptions(upsert: true, contentType: mime));
     return _client.storage.from('public-photos').getPublicUrl(path);
   }
@@ -84,11 +90,20 @@ class UploadService {
   static Future<String> uploadPrivateDocument({required String purpose, required XFile file}) async {
     if (AuthService.currentUser == null) throw Exception('يجب تسجيل الدخول أولاً');
     final (path, bytes, mime) = await _prepare(purpose, file);
+    if (kDemo) {
+      DemoStore.instance.files[path] = (bytes, mime);
+      return path;
+    }
     await _client.storage.from('private-documents').uploadBinary(path, bytes, fileOptions: FileOptions(upsert: true, contentType: mime));
     return path;
   }
 
-  static Future<String> createPrivateSignedUrl(String path, {int expiresInSeconds = 3600}) {
+  static Future<String> createPrivateSignedUrl(String path, {int expiresInSeconds = 3600}) async {
+    if (kDemo) {
+      final file = DemoStore.instance.files[path];
+      if (file == null) throw Exception('الملف مش متاح في النسخة التجريبية');
+      return demoBlobUrl(file.$1, file.$2);
+    }
     return _client.storage.from('private-documents').createSignedUrl(path, expiresInSeconds);
   }
 }

@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../demo/demo_mode.dart';
 import 'phone_sms.dart';
 
 /// Verifying the user's mobile number by SMS (migration 0074): Firebase
@@ -9,6 +10,7 @@ import 'phone_sms.dart';
 class PhoneVerify {
   /// Sends the SMS. Returns null when it's on its way, else a message to show.
   static Future<String?> sendCode(String phone) async {
+    if (kDemo) return 'تأكيد الرقم مش متاح في النسخة التجريبية';
     final code = await sendSmsCode(phone);
     return code.isEmpty ? null : _message(code);
   }
@@ -16,6 +18,7 @@ class PhoneVerify {
   /// Checks the typed code and saves the number as verified. Returns null on
   /// success, else a message to show.
   static Future<String?> confirm(String smsCode) async {
+    if (kDemo) return 'تأكيد الرقم مش متاح في النسخة التجريبية';
     final token = await confirmSmsCode(smsCode);
     if (token.startsWith('ERR:')) return _message(token.substring(4));
     try {

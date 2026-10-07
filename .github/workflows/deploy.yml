@@ -14,9 +14,22 @@ jobs:
     env:
       ITTIHAD_ENABLED: ${{ secrets.ITTIHAD_DEPLOY_KEY != '' }}
       TAJER_ENABLED: ${{ secrets.TAJER_DEPLOY_KEY != '' }}
+      # Compiled into main.dart.js only by a local DEMO build (see
+      # lib/core/demo/demo_mode.dart) — a deployed build must never have it.
+      DEMO_MARKER: MOGTAMA3Y_DEMO_BUILD_9F27C1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # The local-only demo mode (no login, fake in-memory backend) is
+      # switched on by a compile-time define. No build command in this
+      # workflow may ever pass it.
+      - name: Guard — no demo build in this workflow
+        run: |
+          if grep -nE 'flutter[[:space:]]+build' .github/workflows/deploy.yml | grep -iE 'demo'; then
+            echo "::error::A web build command in deploy.yml enables the local-only demo mode."
+            exit 1
+          fi
 
       # Every migration applied to a throwaway Postgres + the security
       # scenarios (backend/tests/run.js). A failure here stops the deploy.
@@ -46,7 +59,9 @@ jobs:
         run: flutter test
 
       - name: Build web release
-        run: flutter build web --release --base-href /
+        run: |
+          flutter build web --release --base-href /
+          if grep -q "$DEMO_MARKER" build/web/main.dart.js; then echo "::error::demo build detected"; exit 1; fi
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4
@@ -62,6 +77,7 @@ jobs:
         if: env.ITTIHAD_ENABLED == 'true'
         run: |
           flutter build web --release --base-href / --dart-define=APP_FLAVOR=ittihad -o build/web_ittihad
+          if grep -q "$DEMO_MARKER" build/web_ittihad/main.dart.js; then echo "::error::demo build detected"; exit 1; fi
           sed -i 's|<title>[^<]*</title>|<title>اتحاد الملاك أونلاين</title>|' build/web_ittihad/index.html
           sed -i 's|<div class="name">[^<]*</div>|<div class="name">اتحاد الملاك</div>|' build/web_ittihad/index.html
           sed -i -E 's#(<meta (name="(description|twitter:description)"|property="og:description") content=")[^"]*#\1اتحاد ملاك عمارتك من الموبايل: المستحقات والقرارات والانتخابات والتقارير المالية والطوارئ وتصاريح الزوار.#; s#(<meta (name="twitter:title"|property="og:title") content=")[^"]*#\1اتحاد الملاك أونلاين#; s#(<meta property="og:url" content=")[^"]*#\1https://ittihad.mogtama3y.com/#' build/web_ittihad/index.html
@@ -93,6 +109,7 @@ jobs:
         if: env.TAJER_ENABLED == 'true'
         run: |
           flutter build web --release --base-href / --dart-define=APP_FLAVOR=tajer -o build/web_tajer
+          if grep -q "$DEMO_MARKER" build/web_tajer/main.dart.js; then echo "::error::demo build detected"; exit 1; fi
           f=build/web_tajer/index.html
           sed -i 's|<title>[^<]*</title>|<title>متجري — محلك أونلاين ببلاش</title>|' $f
           sed -i 's|<div class="name">[^<]*</div>|<div class="name">متجري</div>|' $f

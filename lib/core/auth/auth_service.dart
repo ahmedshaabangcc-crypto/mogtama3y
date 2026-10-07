@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../demo/demo_mode.dart';
 import 'contact_phones.dart';
 
 /// Thin wrapper around Supabase Auth for مُجتمعي: email/password sign-up
@@ -84,6 +85,8 @@ class AuthService {
   /// entries are `https://<site>/**`, which a bare origin does not match
   /// (Supabase would fall back to the Site URL, mogtama3y.com).
   static Future<void> signInWithGoogle() {
+    // Demo build: never redirect anywhere — roles come from the switcher.
+    if (kDemo) return Future.error(const AuthException('النسخة التجريبية: استخدم مبدّل الأدوار'));
     // select_account: always show Google's account picker, so on a shared
     // or family device nobody is signed in silently with the last account.
     return _client.auth.signInWithOAuth(
