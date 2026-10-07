@@ -84,7 +84,7 @@ for (const a of AREAS) {
 <h2>المحلات والخدمات في ${esc(a.name)}</h2>
 <ul>${counts.map(([c, n]) => `<li><a href="${DALIL}/c/${encodeURIComponent(slugAr(c))}/${encodeURIComponent(slugAr(a.cityAr))}">${esc(c)}</a>: ${capped(n)} مكان</li>`).join('')}</ul>
 <h2>أقرب الأماكن لقلب ${esc(a.name)}</h2>
-<ul>${nearest.map((p) => `<li><a href="${DALIL}/p/${encodeURIComponent(p.id)}">${esc(p.name)}</a> — ${esc(p.category)}${p.address && !/^-?d+.d+s*,s*-?d+.d+$/.test(p.address.trim()) ? ` · ${esc(p.address)}` : ''}</li>`).join('')}</ul>
+<ul>${nearest.map((p) => `<li><a href="${DALIL}/p/${encodeURIComponent(p.id)}">${esc(p.name)}</a> — ${esc(p.category)}${p.address && !/^-?\d+\.\d+\s*,\s*-?\d+\.\d+$/.test(p.address.trim()) ? ` · ${esc(p.address)}` : ''}</li>`).join('')}</ul>
 <p>عايز الأقرب ليك انت بالظبط؟ افتح <a href="/#/nearby">اكتشف حواليك</a> على مُجتمعي واسمح بالموقع، أو دوّر بالاسم في <a href="${DALIL}">دليل المحلات</a>.</p>
 <h2>بلاغات ${esc(a.name)}</h2>
 ${visibleReports.length
