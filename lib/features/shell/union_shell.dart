@@ -9,6 +9,8 @@ import '../../core/app_flavor.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/routing/app_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/union/member_names.dart';
+import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
 import '../lost_found/lost_found_hub_screen.dart';
 import '../notifications/notifications_screen.dart';
@@ -134,6 +136,7 @@ class UnionMoreScreen extends StatelessWidget {
           else
             tile(Icons.login_rounded, 'سجّل دخول أو اعمل حساب',
                 () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthLandingScreen()))),
+          if (AuthService.isSignedIn) const _FamilyNameOnlyTile(),
           tile(Icons.account_balance_wallet_outlined, 'المحفظة والمستحقات', () => context.go(AppRoutes.wallet)),
           tile(Icons.support_agent_rounded, 'الدعم والمساعدة', () => context.go(AppRoutes.support)),
           tile(Icons.help_outline_rounded, 'الأسئلة الشائعة', () => context.go(AppRoutes.faq)),
@@ -148,6 +151,65 @@ class UnionMoreScreen extends StatelessWidget {
           const SizedBox(height: 12),
           const MadeByApex(dark: false),
         ],
+      ),
+    );
+  }
+}
+
+/// «إظهار اسم العائلة فقط لجيراني» — the same choice as the join form,
+/// changeable later. Hidden until the user has a building membership.
+class _FamilyNameOnlyTile extends StatefulWidget {
+  const _FamilyNameOnlyTile();
+
+  @override
+  State<_FamilyNameOnlyTile> createState() => _FamilyNameOnlyTileState();
+}
+
+class _FamilyNameOnlyTileState extends State<_FamilyNameOnlyTile> {
+  String? _buildingId;
+  bool _value = false;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    UnionService.fetchMyMembership().then((m) {
+      if (!mounted || m == null) return;
+      setState(() {
+        _buildingId = m['building_id'] as String?;
+        _value = m['show_family_name_only'] == true;
+      });
+    }).catchError((_) {});
+  }
+
+  Future<void> _set(bool v) async {
+    setState(() {
+      _value = v;
+      _saving = true;
+    });
+    try {
+      await MemberNames.setFamilyNameOnly(v, buildingId: _buildingId);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _value = !v);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر حفظ الاختيار، حاول تاني')));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_buildingId == null) return const SizedBox.shrink();
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: SwitchListTile(
+        secondary: const Icon(Icons.visibility_off_outlined, color: AppColors.crystal),
+        title: const Text('إظهار اسم العائلة فقط لجيراني'),
+        subtitle: const Text('الجيران يشوفوك «عائلة …»، والرئيس والمجلس بس يشوفوا اسمك كامل', style: TextStyle(fontSize: 11.5)),
+        value: _value,
+        onChanged: _saving ? null : _set,
       ),
     );
   }

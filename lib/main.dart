@@ -35,8 +35,25 @@ Future<void> main() async {
     debugPrint('Supabase.initialize failed: $e');
   }
   AuthService.listenAndSyncProfile();
+  // Opened from a «نسيت كلمة المرور؟» email → ask for the new password.
+  try {
+    AuthService.listenForPasswordRecovery();
+  } catch (_) {} // Supabase failed to initialise (see above)
+  AuthService.passwordRecovery.addListener(_openPasswordRecovery);
   await fonts;
   runApp(const MogtamayApp());
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    _appStarted = true;
+    _openPasswordRecovery();
+  });
+}
+
+bool _appStarted = false;
+
+void _openPasswordRecovery() {
+  // Before the first frame the router isn't attached yet; the post-frame
+  // callback above opens the screen then.
+  if (_appStarted && AuthService.passwordRecovery.value) appRouter.go(AppRoutes.resetPassword);
 }
 
 class MogtamayApp extends StatelessWidget {

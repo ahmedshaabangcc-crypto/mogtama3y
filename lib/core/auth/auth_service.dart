@@ -51,6 +51,29 @@ class AuthService {
 
   static Future<void> signOut() => _client.auth.signOut();
 
+  /// «نسيت كلمة المرور؟»: emails a reset link that opens THIS app (its
+  /// own origin — مُجتمعي, the union app or متجري). Supabase's PKCE flow
+  /// keeps a verifier in this browser, so the link must be opened on the
+  /// same device/browser. The trailing "/" matches the `https://<site>/**`
+  /// redirect allow-list entries (see [signInWithGoogle]).
+  static Future<void> sendPasswordReset(String email) =>
+      _client.auth.resetPasswordForEmail(email, redirectTo: kIsWeb ? '${Uri.base.origin}/' : null);
+
+  /// Sets a new password for the signed-in (recovery) session.
+  static Future<void> updatePassword(String password) => _client.auth.updateUser(UserAttributes(password: password));
+
+  /// True once the app was opened from a password-recovery link
+  /// (AuthChangeEvent.passwordRecovery) until a new password is saved.
+  static final passwordRecovery = ValueNotifier<bool>(false);
+
+  /// Watches for the recovery event. The auth stream replays past events,
+  /// so this also catches the one fired while Supabase was initialising.
+  static void listenForPasswordRecovery() {
+    _client.auth.onAuthStateChange.listen((data) {
+      if (data.event == AuthChangeEvent.passwordRecovery) passwordRecovery.value = true;
+    }, onError: (_) {});
+  }
+
   /// Redirects the whole page to Google, then back to this app's own
   /// origin — Supabase picks up the resulting session automatically
   /// from the URL fragment. The `profiles`/`wallets` rows for the

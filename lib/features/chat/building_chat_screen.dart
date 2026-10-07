@@ -7,6 +7,10 @@ import '../../core/auth/auth_service.dart';
 import '../../core/chat/building_chat_service.dart';
 import '../../core/realtime/realtime_inserts.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/union/member_names.dart';
+import '../../core/union/union_service.dart';
+import '../auth/auth_landing_screen.dart';
+import '../shared/load_error_view.dart';
 
 String _timeLabel(DateTime dt) {
   final local = dt.toLocal();
@@ -34,11 +38,16 @@ class _BuildingChatScreenState extends State<BuildingChatScreen> {
   final _scrollCtrl = ScrollController();
   Timer? _poll;
   RealtimeChannel? _channel;
+  /// Names as this user may see them («عائلة …» for members who chose so).
+  Map<String, String> _names = const {};
 
   @override
   void initState() {
     super.initState();
     _load();
+    MemberNames.fetch(widget.buildingId).then((n) {
+      if (mounted) setState(() => _names = n);
+    });
     // New messages arrive instantly over Realtime; the slow poll is only a
     // fallback in case the realtime connection drops.
     _channel = subscribeToInserts(
@@ -126,7 +135,7 @@ class _BuildingChatScreenState extends State<BuildingChatScreen> {
                         itemBuilder: (context, i) {
                           final m = _messages[i];
                           final isMe = m['sender_id'] == myUserId;
-                          final senderName = (m['sender'] as Map<String, dynamic>?)?['full_name'] as String? ?? '';
+                          final senderName = _names[m['sender_id']] ?? (m['sender'] as Map<String, dynamic>?)?['full_name'] as String? ?? '';
                           final createdAt = DateTime.tryParse(m['created_at'] as String? ?? '');
                           return Align(
                             alignment: isMe ? Alignment.centerLeft : Alignment.centerRight,
@@ -173,5 +182,77 @@ class _BuildingChatScreenState extends State<BuildingChatScreen> {
         ],
       ),
     );
+  }
+}
+
+/// Opens the building chat for the signed-in user's own building — the
+/// union app's entry point (dashboard tile and /#/building-chat). Only
+/// verified members get in; the server enforces the same rule (0025).
+class BuildingChatEntryScreen extends StatefulWidget {
+  const BuildingChatEntryScreen({super.key});
+
+  @override
+  State<BuildingChatEntryScreen> createState() => _BuildingChatEntryScreenState();
+}
+
+class _BuildingChatEntryScreenState extends State<BuildingChatEntryScreen> {
+  bool _loading = true;
+  bool _error = false;
+  Map<String, dynamic>? _membership;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (!AuthService.isSignedIn) {
+      setState(() => _loading = false);
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = false;
+    });
+    try {
+      final m = await UnionService.fetchMyMembership();
+      if (mounted) {
+        setState(() {
+          _membership = m;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = true;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!AuthService.isSignedIn) return const AuthLandingScreen();
+    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_error) return Scaffold(appBar: AppBar(title: const Text('دردشة العمارة')), body: LoadErrorView(onRetry: _load));
+    final m = _membership;
+    if (m == null || m['status'] != 'verified') {
+      return Scaffold(
+        backgroundColor: AppColors.bg,
+        appBar: AppBar(title: const Text('دردشة العمارة')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text('دردشة العمارة لسكانها الموثّقين بس — انضم لعمارتك واستنى موافقة الرئيس',
+                textAlign: TextAlign.center, style: TextStyle(color: AppColors.inkMuted, fontSize: 13)),
+          ),
+        ),
+      );
+    }
+    final building = m['building'] as Map<String, dynamic>?;
+    return BuildingChatScreen(buildingId: m['building_id'] as String, buildingName: building?['name'] as String? ?? 'العمارة');
   }
 }

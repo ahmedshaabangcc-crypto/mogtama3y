@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/guard/guard_service.dart';
+import '../../core/guard/qr_scan.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
@@ -155,6 +156,26 @@ class _GuardWorkConsoleState extends State<_GuardWorkConsole> {
     }
   }
 
+  /// Camera scan → the same check as a typed code. A scanned pass link
+  /// (…/#/pass/PASS-…) works too.
+  Future<void> _scan() async {
+    final raw = await scanQrCode(hint: 'وجّه الكاميرا على QR تصريح الزائر', cancelLabel: 'إلغاء — هكتب الكود');
+    if (!mounted || raw.isEmpty) return;
+    if (raw.startsWith('ERR:')) {
+      final reason = raw.substring(4);
+      final msg = reason == 'NotAllowedError'
+          ? 'اسمح للمتصفح يستخدم الكاميرا من إعدادات الموقع، أو اكتب الكود'
+          : reason == 'NotFoundError' || reason == 'OverconstrainedError'
+              ? 'مفيش كاميرا متاحة على الجهاز ده — اكتب الكود'
+              : 'تعذر فتح الكاميرا — اكتب كود التصريح';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      return;
+    }
+    final match = RegExp(r'PASS-[A-Za-z0-9]+').firstMatch(raw);
+    _codeCtrl.text = (match?.group(0) ?? raw).trim().toUpperCase();
+    await _verify();
+  }
+
   Future<void> _verify() async {
     final code = _codeCtrl.text.trim();
     if (code.isEmpty) return;
@@ -233,6 +254,24 @@ class _GuardWorkConsoleState extends State<_GuardWorkConsole> {
             const SizedBox(height: 20),
             const Text('التحقق من تصريح زائر', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
             const SizedBox(height: 8),
+            if (canScanQr) ...[
+              SizedBox(
+                height: 54,
+                child: ElevatedButton.icon(
+                  onPressed: _verifying ? null : _scan,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.navy,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.qr_code_scanner_rounded),
+                  label: const Text('امسح QR التصريح بالكاميرا', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text('أو اكتب الكود:', style: TextStyle(fontSize: 11, color: AppColors.inkMuted)),
+              const SizedBox(height: 6),
+            ],
             Row(children: [
               Expanded(
                 child: TextField(

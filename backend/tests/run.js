@@ -1279,6 +1279,118 @@ const denied = (r) => !!r.error;
       (await admin(db, `select 1 from scrap_dealers where user_id = $1`, [scrapRadius])).length === 0);
   }
 
+  // ------------------------------------------------------------------
+  console.log('\nResident polls, official announcements & family-name privacy (0077)');
+  {
+    const pollPres = await signUp(db, 'Poll President', '01000000801');
+    const pollB1 = await signUp(db, 'Bahaa Elmasry', '01000000802');
+    const pollB2 = await signUp(db, 'Basma Elmasry', '01000000803');
+    const pollC = await signUp(db, 'Camelia Fawzy', '01000000804');
+    const pollOut = await signUp(db, 'Poll Outsider', '01000000805');
+    const pollPending = await signUp(db, 'Poll Pending', '01000000806');
+    await as(db, pollPres, `select public.found_building('عمارة التصويت','x','x','x','1','الأول')`);
+    const pollBld = (await admin(db, `select building_id from union_members where user_id = $1`, [pollPres]))[0].building_id;
+    await admin(db, `update union_members set role = 'president' where user_id = $1`, [pollPres]);
+    const pollJoin = async (uid, unit) => {
+      await as(db, uid, `select public.found_building('x','x','x','x',$2,'x', null, null, null, false, $1)`, [pollBld, unit]);
+      const id = (await admin(db, `select id from union_members where user_id = $1 and building_id = $2`, [uid, pollBld]))[0].id;
+      return as(db, pollPres, `select public.review_union_member($1, true)`, [id]);
+    };
+    await pollJoin(pollB1, '2');
+    await pollJoin(pollB2, '2'); // same apartment as B1 (co-owner)
+    await pollJoin(pollC, '3');
+    await as(db, pollPending, `select public.found_building('x','x','x','x','4','x', null, null, null, false, $1)`, [pollBld]);
+
+    // Creating polls
+    const pollEnds = `now() + interval '2 days'`;
+    check('a resident cannot create a poll',
+      denied(await as(db, pollB1, `select public.create_building_poll('نغيّر البواب؟', array['أيوه','لا'], ${pollEnds}, $1)`, [pollBld])));
+    check('a poll needs at least 2 options',
+      denied(await as(db, pollPres, `select public.create_building_poll('سؤال', array['أيوه', '  '], ${pollEnds})`)));
+    check('a poll allows at most 6 options',
+      denied(await as(db, pollPres, `select public.create_building_poll('سؤال', array['1','2','3','4','5','6','7'], ${pollEnds})`)));
+    check('a poll that ends in the past is refused',
+      denied(await as(db, pollPres, `select public.create_building_poll('سؤال', array['أيوه','لا'], now() - interval '1 day')`)));
+    const pollRes = await as(db, pollPres, `select public.create_building_poll('نطلي السلم بأي لون؟', array['أبيض','بيج','رمادي'], ${pollEnds}) as id`);
+    check('the president creates a poll', ok(pollRes), pollRes.error);
+    const pollId = pollRes.rows?.[0]?.id;
+    const pollNotes = await admin(db, `select user_id, deep_link from notifications where title = '🗳️ تصويت جديد في العمارة'`);
+    check('opening a poll notifies the verified members (not the creator, not pending or outsiders)',
+      [pollB1, pollB2, pollC].every((u) => pollNotes.some((n) => n.user_id === u)) &&
+      !pollNotes.some((n) => [pollPres, pollPending, pollOut].includes(n.user_id)) && pollNotes[0]?.deep_link === '/#/polls', pollNotes);
+    check('EXPLOIT blocked: a member inserts a poll directly',
+      denied(await as(db, pollB1, `insert into union_polls (building_id, created_by, question, options, ends_at) values ($1, $2, 'x?', array['a','b'], now() + interval '1 day')`, [pollBld, pollB1])));
+
+    // Voting
+    check('a non-member cannot vote', denied(await as(db, pollOut, `select public.cast_poll_vote($1, 0)`, [pollId])));
+    check('a pending member cannot vote', denied(await as(db, pollPending, `select public.cast_poll_vote($1, 0)`, [pollId])));
+    check('an out-of-range option is refused', denied(await as(db, pollB1, `select public.cast_poll_vote($1, 3)`, [pollId])));
+    check('the first member of apartment 2 votes', ok(await as(db, pollB1, `select public.cast_poll_vote($1, 1)`, [pollId])));
+    const pollB2Vote = await as(db, pollB2, `select public.cast_poll_vote($1, 0)`, [pollId]);
+    check('a second member of the same apartment cannot vote again', denied(pollB2Vote) && /شقتكم صوّتت/.test(pollB2Vote.error), pollB2Vote);
+    check('the same member cannot vote twice', denied(await as(db, pollB1, `select public.cast_poll_vote($1, 2)`, [pollId])));
+    check('apartment 3 votes', ok(await as(db, pollC, `select public.cast_poll_vote($1, 1)`, [pollId])));
+    check('EXPLOIT blocked: a member inserts a vote row directly',
+      denied(await as(db, pollPres, `insert into union_poll_votes (poll_id, unit_id, voter_id, option_index) select $1, unit_id, $2, 0 from union_members where user_id = $2`, [pollId, pollPres])));
+    check('EXPLOIT blocked: members cannot read who voted for what',
+      denied(await as(db, pollC, `select * from union_poll_votes`)));
+
+    // Results
+    const pollList = async (uid) => (await as(db, uid, `select * from public.list_building_polls($1)`, [pollBld])).rows ?? [];
+    const pr = (await pollList(pollB2)).find((p) => p.id === pollId);
+    check('results: counts per option are correct', JSON.stringify(pr?.counts) === JSON.stringify([0, 2, 0]), pr?.counts);
+    check('results: turnout = 2 of 3 apartments', pr?.units_voted === 2 && pr?.total_units === 3, pr);
+    check('B2 sees «شقتكم صوّتت» (their apartment\'s choice) without having voted personally',
+      pr?.my_unit_choice === 1 && pr?.voted_by_me === false, pr);
+    check('the poll is listed as open', pr?.is_open === true);
+    check('a non-member sees no polls', (await pollList(pollOut)).length === 0);
+    check('a non-member cannot read the polls table', (await as(db, pollOut, `select id from union_polls`)).rows?.length === 0);
+
+    // Ending
+    check('a resident cannot close the poll', denied(await as(db, pollC, `select public.close_building_poll($1)`, [pollId])));
+    await admin(db, `update union_polls set ends_at = now() - interval '1 minute' where id = $1`, [pollId]);
+    check('nobody can vote after the end time', denied(await as(db, pollPres, `select public.cast_poll_vote($1, 0)`, [pollId])));
+    check('an ended poll is listed as closed with its results kept',
+      (await pollList(pollC)).some((p) => p.id === pollId && p.is_open === false && p.units_voted === 2));
+    const pollId2 = (await as(db, pollPres, `select public.create_building_poll('نركّب كاميرات؟', array['أيوه','لا'], ${pollEnds}) as id`)).rows[0].id;
+    check('the president closes a poll early', ok(await as(db, pollPres, `select public.close_building_poll($1)`, [pollId2])));
+    check('no votes after an early close', denied(await as(db, pollC, `select public.cast_poll_vote($1, 0)`, [pollId2])));
+
+    // Official announcements
+    check('a resident cannot publish an official announcement',
+      denied(await as(db, pollC, `select public.publish_official_announcement('ادفعوا على رقمي', $1)`, [pollBld])));
+    const fixAnn = await as(db, pollPres, `select public.publish_official_announcement('اجتماع الجمعية العمومية يوم الجمعة الساعة 8') as id`);
+    check('the president publishes an official announcement', ok(fixAnn), fixAnn.error);
+    const fixPost = (await admin(db, `select type::text, is_pinned from posts where id = $1`, [fixAnn.rows?.[0]?.id]))[0];
+    check('…stored as an official, pinned post', fixPost?.type === 'official' && fixPost?.is_pinned === true, fixPost);
+    const fixNotes = await admin(db, `select user_id from notifications where title = '📢 إعلان رسمي من اتحاد العمارة'`);
+    check('…and every verified member is notified (not the author / pending)',
+      [pollB1, pollB2, pollC].every((u) => fixNotes.some((n) => n.user_id === u)) && !fixNotes.some((n) => [pollPres, pollPending].includes(n.user_id)), fixNotes);
+    check('members see it pinned at the top of the feed',
+      (await as(db, pollC, `select type, is_pinned from public.fetch_building_posts($1) limit 1`, [pollBld])).rows?.[0]?.type === 'official');
+    check('a resident cannot unpin it', denied(await as(db, pollC, `select public.set_post_pinned($1, false)`, [fixAnn.rows?.[0]?.id])));
+    check('the president can unpin it', ok(await as(db, pollPres, `select public.set_post_pinned($1, false)`, [fixAnn.rows?.[0]?.id])));
+
+    // Family name only
+    check('a member turns on «اسم العائلة فقط»', ok(await as(db, pollB1, `select public.set_my_name_privacy(true, $1)`, [pollBld])));
+    check('…and it is stored on the membership',
+      (await admin(db, `select show_family_name_only from union_members where user_id = $1`, [pollB1]))[0].show_family_name_only === true);
+    check('a pending applicant can set it on their request', ok(await as(db, pollPending, `select public.set_my_name_privacy(true)`)));
+    check('setting it for a building you are not in is refused', denied(await as(db, pollOut, `select public.set_my_name_privacy(true, $1)`, [pollBld])));
+    await as(db, pollB1, `insert into posts (building_id, author_id, body) values ($1, $2, 'صباح الخير يا جيران')`, [pollBld, pollB1]);
+    const fixName = async (viewer) => (await as(db, viewer, `select display_name from public.building_member_names($1) where user_id = $2`, [pollBld, pollB1])).rows?.[0]?.display_name;
+    check('neighbours see only the family name', (await fixName(pollC)) === 'عائلة Elmasry', await fixName(pollC));
+    check('the president still sees the full name', (await fixName(pollPres)) === 'Bahaa Elmasry');
+    check('the member sees their own full name', (await fixName(pollB1)) === 'Bahaa Elmasry');
+    check('members without the option keep their full name',
+      (await as(db, pollB1, `select display_name from public.building_member_names($1) where user_id = $2`, [pollBld, pollC])).rows?.[0]?.display_name === 'Camelia Fawzy');
+    check('outsiders get no member names', (await as(db, pollOut, `select * from public.building_member_names($1)`, [pollBld])).rows?.length === 0);
+    const fixFeed = await as(db, pollC, `select author_name from public.fetch_building_posts($1) where author_id = $2`, [pollBld, pollB1]);
+    check('the feed shows the family name to neighbours', fixFeed.rows?.[0]?.author_name === 'عائلة Elmasry', fixFeed);
+    const fixFeedPres = await as(db, pollPres, `select author_name from public.fetch_building_posts($1) where author_id = $2`, [pollBld, pollB1]);
+    check('…and the full name to the president', fixFeedPres.rows?.[0]?.author_name === 'Bahaa Elmasry', fixFeedPres);
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

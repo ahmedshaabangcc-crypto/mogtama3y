@@ -5,6 +5,11 @@ import '../app_flavor.dart';
 import '../../features/about/about_platform_screen.dart';
 import '../../features/admin/superadmin_control_panel_screen.dart';
 import '../../features/auth/auth_landing_screen.dart';
+import '../../features/auth/password_reset_screens.dart';
+import '../../features/chat/building_chat_screen.dart';
+import '../../features/union/building_polls_screen.dart';
+import '../../features/union/union_feed_screen.dart';
+import '../../features/visitor/visitor_pass_link_screen.dart';
 import '../../features/bills/bill_payment_hub_screen.dart';
 import '../../features/discover/discover_nearby_screen.dart';
 import '../../features/e_address/my_e_addresses_screen.dart';
@@ -138,6 +143,18 @@ class AppRoutes {
   /// A merchant's public store (the QR on the shop opens this).
   static String store(String slug) => '/s/$slug';
 
+  /// Set a new password — opened from a «نسيت كلمة المرور؟» email link.
+  static const resetPassword = '/reset-password';
+
+  /// Union app: «تصويت السكان», the building feed (official announcements)
+  /// and the building chat — notifications deep-link here.
+  static const polls = '/polls';
+  static const feed = '/feed';
+  static const buildingChat = '/building-chat';
+
+  /// Union app: a visitor pass QR, shared to the visitor over WhatsApp.
+  static String visitorPass(String code) => '/pass/$code';
+
   /// A shared digital address (its link / QR opens this).
   static String eAddress(String code) => '/a/$code';
 }
@@ -155,6 +172,7 @@ final _sharedSections = <String, GoRouterWidgetBuilder>{
   AppRoutes.privacy: (_, _) => const PrivacyPolicyScreen(),
   AppRoutes.admin: (_, _) => const SuperadminControlPanelScreen(),
   AppRoutes.login: (_, _) => const AuthLandingScreen(),
+  AppRoutes.resetPassword: (_, _) => const SetNewPasswordScreen(),
 };
 
 final _unionSections = <String, GoRouterWidgetBuilder>{
@@ -162,6 +180,9 @@ final _unionSections = <String, GoRouterWidgetBuilder>{
   AppRoutes.ittihad: (_, _) => const UnionLandingScreen(),
   AppRoutes.sos: (_, _) => const SosEmergencyScreen(),
   AppRoutes.lostFound: (_, _) => const LostFoundHubScreen(),
+  AppRoutes.polls: (_, _) => const BuildingPollsScreen(),
+  AppRoutes.feed: (_, _) => const UnionFeedScreen(),
+  AppRoutes.buildingChat: (_, _) => const BuildingChatEntryScreen(),
 };
 
 final _mogtama3ySections = <String, GoRouterWidgetBuilder>{
@@ -211,6 +232,7 @@ final appRouter = GoRouter(
       builder: (_, _) => isUnionApp ? const UnionShell() : (isTajerApp ? const TajerShell() : const AppShell()),
       routes: [
         for (final e in _sections.entries) _section(e.key, e.value),
+        if (isUnionApp) GoRoute(path: 'pass/:code', builder: (_, state) => VisitorPassLinkScreen(code: state.pathParameters['code']!)),
         if (!isUnionApp) ...[
           GoRoute(path: 'a/:code', builder: (_, state) => PublicEAddressScreen(code: state.pathParameters['code']!)),
           GoRoute(
@@ -251,6 +273,7 @@ bool isInAppPath(String path) {
   if (!isUnionApp && _hallPath.hasMatch(path)) return true;
   if (!isUnionApp && _petPath.hasMatch(path)) return true;
   if (!isUnionApp && _recyclingLotPath.hasMatch(path)) return true;
+  if (isUnionApp && _passPath.hasMatch(path)) return true;
   return !isUnionApp &&
       (_storePath.hasMatch(path.toLowerCase()) || _eAddressPath.hasMatch(path) || _orderPath.hasMatch(path) || _placePath.hasMatch(path) || _reportPath.hasMatch(path) || _carPath.hasMatch(path) || _tutorPath.hasMatch(path) || _kidsPath.hasMatch(path) || _chatPath.hasMatch(path));
 }
@@ -258,7 +281,7 @@ bool isInAppPath(String path) {
 /// Where to open an in-app [path] this app can't show: union sections live
 /// on the union app, everything else on مُجتمعي.
 Uri otherAppUrlFor(String path) {
-  const union = {AppRoutes.union, AppRoutes.ittihad, AppRoutes.sos, AppRoutes.lostFound};
+  const union = {AppRoutes.union, AppRoutes.ittihad, AppRoutes.sos, AppRoutes.lostFound, AppRoutes.polls, AppRoutes.feed, AppRoutes.buildingChat};
   final base = union.contains(path) ? 'https://ittihad.mogtama3y.com' : mogtama3yUrl;
   return Uri.parse('$base/#$path');
 }
@@ -275,3 +298,4 @@ final _hallPath = RegExp(r'^/halls/[0-9a-f-]{36}$');
 final _petPath = RegExp(r'^/pets/[0-9a-f-]{36}$');
 final _kidsPath = RegExp(r'^/kids/[0-9a-f-]{36}$');
 final _recyclingLotPath = RegExp(r'^/recycling/[0-9a-f-]{36}$');
+final _passPath = RegExp(r'^/pass/[A-Za-z0-9-]{4,40}$');

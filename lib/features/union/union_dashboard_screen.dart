@@ -10,10 +10,12 @@ import '../../core/union/financial_report_service.dart';
 import '../../core/union/maintenance_schedule_service.dart';
 import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
+import '../chat/building_chat_screen.dart';
 import '../guard/guard_console_screen.dart';
 import '../shared/load_error_view.dart';
 import '../visitor/visitor_qr_pass_screen.dart';
 import 'board_decisions_screen.dart';
+import 'building_polls_screen.dart';
 import 'election_voting_screen.dart';
 import 'financial_report_screen.dart';
 import 'maintenance_payment_screen.dart';
@@ -466,6 +468,26 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
               subtitle: 'بدء أو متابعة انتخابات رئيس الاتحاد',
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ElectionVotingScreen())),
             ),
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(
+                child: _GovernanceTile(
+                  icon: Icons.ballot_outlined,
+                  title: 'تصويت السكان',
+                  subtitle: 'صوت واحد لكل شقة',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BuildingPollsScreen())),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _GovernanceTile(
+                  icon: Icons.chat_bubble_outline_rounded,
+                  title: 'دردشة العمارة',
+                  subtitle: 'كلّم جيرانك الموثّقين',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BuildingChatEntryScreen())),
+                ),
+              ),
+            ]),
             const SizedBox(height: 22),
             Row(
               children: [

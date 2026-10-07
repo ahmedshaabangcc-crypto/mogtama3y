@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/e_address/e_address_service.dart';
@@ -118,7 +117,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       widget.cart.clear();
       if (!mounted) return;
       Navigator.of(context).pushReplacement(MaterialPageRoute(
-        builder: (_) => _OrderPlacedScreen(shop: widget.shop, code: code, summary: summary, total: total, name: _name.text.trim()),
+        builder: (_) => _OrderPlacedScreen(
+          shop: widget.shop,
+          code: code,
+          summary: summary,
+          total: total,
+          name: _name.text.trim(),
+          address: _address.text.trim(),
+          note: _note.text.trim(),
+        ),
       ));
     } on PostgrestException catch (e) {
       if (mounted) setState(() => _error = e.message);
@@ -265,16 +272,42 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 }
 
 class _OrderPlacedScreen extends StatelessWidget {
-  const _OrderPlacedScreen({required this.shop, required this.code, required this.summary, required this.total, required this.name});
+  const _OrderPlacedScreen({
+    required this.shop,
+    required this.code,
+    required this.summary,
+    required this.total,
+    required this.name,
+    required this.address,
+    required this.note,
+  });
   final Map<String, dynamic> shop;
   final String code;
   final String summary;
   final double total;
   final String name;
+  final String address;
+  final String note;
+
+  /// The ready-made order message the customer sends the shop.
+  String get _whatsappMessage => [
+        'أهلاً ${shop['name']}، أنا $name وعملت طلب من متجركم على مُجتمعي 🛒',
+        'رقم الطلب: $code',
+        '',
+        'الطلب:',
+        summary,
+        '',
+        'الإجمالي: ${egp(total)} (الدفع عند الاستلام)',
+        'العنوان: $address',
+        if (note.isNotEmpty) 'ملاحظة: $note',
+        '',
+        'متابعة الطلب: ${StoreService.trackUrl(code)}',
+      ].join('\n');
 
   @override
   Widget build(BuildContext context) {
-    final whatsapp = shop['whatsapp'] as String?;
+    final whatsapp = (shop['whatsapp'] as String?)?.trim();
+    final hasWhatsapp = whatsapp != null && whatsapp.isNotEmpty;
     return Scaffold(
       appBar: AppBar(automaticallyImplyLeading: false, title: const Text('تم الطلب')),
       body: ListView(
@@ -299,6 +332,28 @@ class _OrderPlacedScreen extends StatelessWidget {
               Text('الإجمالي ${egp(total)} — الدفع عند الاستلام', style: const TextStyle(color: Colors.white)),
             ]),
           ),
+          if (hasWhatsapp) ...[
+            const SizedBox(height: 18),
+            const Text('عشان المحل يشوف طلبك أسرع، ابعتهوله على واتساب:',
+                textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.inkSecondary)),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 58,
+              child: ElevatedButton.icon(
+                onPressed: () => StoreService.openWhatsAppOrder(shopWhatsapp: whatsapp, message: _whatsappMessage),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF25D366),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                icon: const Icon(Icons.chat_rounded, size: 24),
+                label: const Text('ابعت الطلب للمحل على واتساب', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text('الرسالة جاهزة فيها رقم الطلب والمنتجات والإجمالي والعنوان — اضغط إرسال بس.',
+                textAlign: TextAlign.center, style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted)),
+          ],
           const SizedBox(height: 16),
           OutlinedButton.icon(
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => OrderTrackingScreen(code: code))),
@@ -314,17 +369,6 @@ class _OrderPlacedScreen extends StatelessWidget {
             icon: const Icon(Icons.link_rounded),
             label: const Text('انسخ لينك المتابعة'),
           ),
-          if (whatsapp != null) ...[
-            const SizedBox(height: 8),
-            ElevatedButton.icon(
-              onPressed: () {
-                final text = 'أهلاً، أنا $name وعملت طلب رقم $code من متجركم على مُجتمعي:\n$summary\nالإجمالي ${egp(total)}';
-                launchUrl(Uri.parse('https://wa.me/2$whatsapp?text=${Uri.encodeComponent(text)}'), mode: LaunchMode.externalApplication);
-              },
-              icon: const Icon(Icons.chat_rounded),
-              label: const Text('كلّم المحل على واتساب'),
-            ),
-          ],
         ],
       ),
     );

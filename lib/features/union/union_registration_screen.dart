@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/union/member_names.dart';
 import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
 
@@ -60,6 +61,12 @@ class _UnionRegistrationScreenState extends State<UnionRegistrationScreen> {
         floorLabel: _floorCtrl.text.trim(),
         residencyType: _residency == 0 ? 'owner' : 'tenant',
       );
+      // The privacy switch below, saved on the new (pending) request. The
+      // join itself already succeeded, so a failure here must not undo it;
+      // the choice can be changed later from «المزيد».
+      try {
+        await MemberNames.setFamilyNameOnly(_showFamilyNameOnly);
+      } catch (_) {}
       if (!mounted) return;
       setState(() => _submitted = true);
     } catch (e) {

@@ -35,3 +35,5 @@ const String appSignupTagline = isTajerApp
 const mogtama3yUrl = 'https://mogtama3y.com';
 
 const tajerUrl = 'https://tajer.mogtama3y.com';
+
+const ittihadUrl = 'https://ittihad.mogtama3y.com';

@@ -3,8 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/app_flavor.dart';
 import '../../core/auth/auth_service.dart';
+import '../../core/routing/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/visitor/visitor_pass_service.dart';
 import '../auth/auth_landing_screen.dart';
@@ -352,6 +355,20 @@ class _ActivePassCard extends StatelessWidget {
   final String remaining;
   final VoidCallback onRevoke;
 
+  /// The message the resident sends the visitor: the code, until when it
+  /// is valid, and a link that shows the QR big for the guard to scan.
+  String _shareText(String qrCode, String visitorName) {
+    final until = DateTime.tryParse(pass['valid_until'] as String? ?? '')?.toLocal();
+    final untilText = until == null
+        ? ''
+        : ' لحد الساعة ${until.hour.toString().padLeft(2, '0')}:${until.minute.toString().padLeft(2, '0')} يوم ${until.day}/${until.month}';
+    return [
+      'أهلاً${visitorName.isEmpty ? '' : ' $visitorName'}، ده تصريح دخولك للعمارة$untilText.',
+      'اعرض الكود ده على الحارس: $qrCode',
+      'أو افتح الـ QR من هنا: $ittihadUrl/#${AppRoutes.visitorPass(qrCode)}',
+    ].join('\n');
+  }
+
   @override
   Widget build(BuildContext context) {
     final qrCode = pass['qr_code'] as String? ?? '';
@@ -417,13 +434,27 @@ class _ActivePassCard extends StatelessWidget {
             width: double.infinity,
             height: 46,
             child: ElevatedButton.icon(
+              onPressed: () => launchUrl(
+                Uri.parse('https://wa.me/?text=${Uri.encodeComponent(_shareText(qrCode, visitorName))}'),
+                mode: LaunchMode.externalApplication,
+              ),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+              icon: const Icon(Icons.chat_rounded, size: 16),
+              label: const Text('شارك على واتساب', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            height: 42,
+            child: OutlinedButton.icon(
               onPressed: () {
-                Clipboard.setData(ClipboardData(text: 'كود تصريح الدخول لمُجتمعي: $qrCode'));
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نسخ كود التصريح، شاركه عبر واتساب')));
+                Clipboard.setData(ClipboardData(text: _shareText(qrCode, visitorName)));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اتنسخ التصريح — ابعته للزائر في أي شات')));
               },
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
-              label: const Text('نسخ كود التصريح للمشاركة', style: TextStyle(fontSize: 12.5)),
+              style: OutlinedButton.styleFrom(foregroundColor: AppColors.teal, side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+              icon: const Icon(Icons.copy_rounded, size: 15),
+              label: const Text('نسخ الكود', style: TextStyle(fontSize: 12.5)),
             ),
           ),
           const SizedBox(height: 8),

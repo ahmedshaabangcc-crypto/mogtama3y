@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
 import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
+import 'password_reset_screens.dart';
 import 'signup_screen.dart';
 import 'widgets/auth_text_field.dart';
 import 'widgets/google_sign_in_button.dart';
@@ -105,6 +106,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     validator: (v) => (v == null || v.length < 6) ? 'كلمة المرور 6 أحرف على الأقل' : null,
+                  ),
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => ForgotPasswordScreen(initialEmail: _emailCtrl.text.trim())),
+                      ),
+                      child: const Text('نسيت كلمة المرور؟', style: TextStyle(fontSize: 12.5)),
+                    ),
                   ),
                 ],
               ),

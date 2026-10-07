@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/union/member_names.dart';
+import '../../core/union/polls_service.dart';
 import '../../core/union/posts_service.dart';
 import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
@@ -36,6 +38,9 @@ class _UnionFeedScreenState extends State<UnionFeedScreen> {
   int _memberCount = 0;
   List<Map<String, dynamic>> _posts = [];
   Set<String> _reactedIds = {};
+  bool _isBoard = false;
+  /// Names as this user may see them («عائلة …» for members who chose so).
+  Map<String, String> _names = const {};
   final _composeCtrl = TextEditingController();
   bool _posting = false;
 
@@ -65,11 +70,13 @@ class _UnionFeedScreenState extends State<UnionFeedScreen> {
       List<Map<String, dynamic>> posts = [];
       Set<String> reacted = {};
       int memberCount = 0;
+      Map<String, String> names = const {};
       if (buildingId != null) {
         posts = await PostsService.fetchPosts(buildingId);
         reacted = await PostsService.fetchMyReactedPostIds(posts.map((p) => p['id'] as String).toList());
         final members = await UnionService.fetchVerifiedMembers(buildingId);
         memberCount = members.length;
+        names = await MemberNames.fetch(buildingId);
       }
 
       if (!mounted) return;
@@ -79,6 +86,8 @@ class _UnionFeedScreenState extends State<UnionFeedScreen> {
         _memberCount = memberCount;
         _posts = posts;
         _reactedIds = reacted;
+        _isBoard = isVerified && const ['president', 'board_member'].contains(membership!['role']);
+        _names = names;
         _loading = false;
       });
     } catch (_) {
@@ -129,8 +138,35 @@ class _UnionFeedScreenState extends State<UnionFeedScreen> {
       isScrollControlled: true,
       backgroundColor: AppColors.bg,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) => _CommentsSheet(postId: postId, onPosted: _load),
+      builder: (context) => _CommentsSheet(postId: postId, names: _names, onPosted: _load),
     );
+  }
+
+  /// «إعلان رسمي»: a pinned, highlighted post from the board that also
+  /// sends every member a notification.
+  Future<void> _composeOfficial() async {
+    final buildingId = _buildingId;
+    if (buildingId == null) return;
+    final published = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.bg,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _OfficialAnnouncementSheet(buildingId: buildingId),
+    );
+    if (published == true) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الإعلان اتنشر واتثبّت، وكل السكان وصلهم إشعار')));
+      _load();
+    }
+  }
+
+  Future<void> _unpin(String postId) async {
+    try {
+      await PollsService.setPostPinned(postId: postId, pinned: false);
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر إلغاء التثبيت')));
+    }
+    _load();
   }
 
   @override
@@ -197,6 +233,22 @@ class _UnionFeedScreenState extends State<UnionFeedScreen> {
                 ),
               ]),
             ),
+            if (_isBoard) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: _composeOfficial,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.gold,
+                    foregroundColor: AppColors.night,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  icon: const Icon(Icons.campaign_rounded),
+                  label: const Text('إعلان رسمي', style: TextStyle(fontWeight: FontWeight.w800)),
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             if (_posts.isEmpty)
               const Padding(
@@ -210,6 +262,7 @@ class _UnionFeedScreenState extends State<UnionFeedScreen> {
                   reacted: _reactedIds.contains(p['id']),
                   onToggleReaction: () => _toggleReaction(p['id'] as String),
                   onOpenComments: () => _openComments(p['id'] as String),
+                  onUnpin: _isBoard && p['is_pinned'] == true ? () => _unpin(p['id'] as String) : null,
                 ),
                 const SizedBox(height: 14),
               ],
@@ -250,10 +303,11 @@ class _UnionFeedScreenState extends State<UnionFeedScreen> {
 }
 
 class _PostCard extends StatelessWidget {
-  const _PostCard({required this.post, required this.reacted, required this.onToggleReaction, required this.onOpenComments});
+  const _PostCard({required this.post, required this.reacted, required this.onToggleReaction, required this.onOpenComments, this.onUnpin});
   final Map<String, dynamic> post;
   final bool reacted;
   final VoidCallback onToggleReaction, onOpenComments;
+  final VoidCallback? onUnpin;
 
   @override
   Widget build(BuildContext context) {
@@ -263,7 +317,11 @@ class _PostCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+      decoration: BoxDecoration(
+        color: isOfficial ? AppColors.gold.withValues(alpha: 0.08) : AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isOfficial ? AppColors.gold.withValues(alpha: 0.6) : AppColors.border, width: isOfficial ? 1.4 : 1),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -271,9 +329,22 @@ class _PostCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(children: [
-                const Icon(Icons.push_pin_rounded, size: 13, color: AppColors.teal),
+                Icon(isOfficial ? Icons.campaign_rounded : Icons.push_pin_rounded, size: 15, color: isOfficial ? AppColors.gold : AppColors.teal),
                 const SizedBox(width: 5),
-                Text(isOfficial ? 'إعلان رسمي • اتحاد الملاك' : 'منشور مثبّت', style: const TextStyle(fontSize: 10.5, color: AppColors.teal, fontWeight: FontWeight.w600)),
+                Expanded(
+                  child: Text(
+                    isOfficial ? 'إعلان رسمي • اتحاد الملاك${isPinned ? ' • مثبّت' : ''}' : 'منشور مثبّت',
+                    style: TextStyle(fontSize: 11, color: isOfficial ? AppColors.night : AppColors.teal, fontWeight: FontWeight.w800),
+                  ),
+                ),
+                if (onUnpin != null)
+                  InkWell(
+                    onTap: onUnpin,
+                    child: const Padding(
+                      padding: EdgeInsets.all(2),
+                      child: Text('إلغاء التثبيت', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted, decoration: TextDecoration.underline)),
+                    ),
+                  ),
               ]),
             ),
           Row(children: [
@@ -320,8 +391,9 @@ class _PostCard extends StatelessWidget {
 }
 
 class _CommentsSheet extends StatefulWidget {
-  const _CommentsSheet({required this.postId, required this.onPosted});
+  const _CommentsSheet({required this.postId, required this.names, required this.onPosted});
   final String postId;
+  final Map<String, String> names;
   final VoidCallback onPosted;
 
   @override
@@ -414,7 +486,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text((c['author'] as Map<String, dynamic>?)?['full_name'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5)),
+                                        Text(widget.names[c['author_id']] ?? (c['author'] as Map<String, dynamic>?)?['full_name'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5)),
                                         Text(c['body'] as String? ?? '', style: const TextStyle(fontSize: 12)),
                                       ],
                                     ),
@@ -436,6 +508,92 @@ class _CommentsSheetState extends State<_CommentsSheet> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _OfficialAnnouncementSheet extends StatefulWidget {
+  const _OfficialAnnouncementSheet({required this.buildingId});
+  final String buildingId;
+
+  @override
+  State<_OfficialAnnouncementSheet> createState() => _OfficialAnnouncementSheetState();
+}
+
+class _OfficialAnnouncementSheetState extends State<_OfficialAnnouncementSheet> {
+  final _ctrl = TextEditingController();
+  bool _sending = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _publish() async {
+    final text = _ctrl.text.trim();
+    if (text.length < 3) {
+      setState(() => _error = 'اكتب نص الإعلان');
+      return;
+    }
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+    try {
+      await PollsService.publishOfficialAnnouncement(buildingId: widget.buildingId, body: text);
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'تعذر نشر الإعلان، حاول تاني');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 16, right: 16, top: 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Row(children: [
+            Icon(Icons.campaign_rounded, color: AppColors.gold),
+            SizedBox(width: 8),
+            Text('إعلان رسمي من الاتحاد', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+          ]),
+          const SizedBox(height: 4),
+          const Text('هيتثبّت فوق في مجتمع العمارة، وكل السكان الموثّقين هيوصلهم إشعار بيه.',
+              style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted, height: 1.6)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _ctrl,
+            minLines: 4,
+            maxLines: 8,
+            maxLength: 2000,
+            decoration: const InputDecoration(
+              hintText: 'مثلاً: اجتماع الجمعية العمومية يوم الجمعة الساعة 8 مساءً في مدخل العمارة',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          if (_error != null) Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 50,
+            child: ElevatedButton.icon(
+              onPressed: _sending ? null : _publish,
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white),
+              icon: _sending
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.send_rounded, size: 18),
+              label: const Text('انشر الإعلان وابعت إشعار', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
       ),
     );
   }

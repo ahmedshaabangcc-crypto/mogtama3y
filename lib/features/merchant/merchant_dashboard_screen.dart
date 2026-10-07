@@ -19,6 +19,7 @@ import '../shared/load_error_view.dart';
 import '../shared/push_opt_in.dart';
 import '../support/support_contact_screen.dart';
 import 'starter_products_screen.dart';
+import 'store_qr_card_screen.dart';
 
 String _money(num v) => '${NumberFormat('#,##0.##').format(v)} ج.م';
 String _errorText(Object e, String fallback) => e is PostgrestException ? e.message : fallback;
@@ -1130,6 +1131,17 @@ class _MyStoreTabState extends State<_MyStoreTab> {
                 label: const Text('شارك على واتساب'),
               ),
             ]),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => StoreQrCardScreen(shopName: widget.shop['name'] as String? ?? '', slug: slug, url: url),
+                )),
+                icon: const Icon(Icons.print_rounded, size: 18),
+                label: const Text('تحميل / طباعة الـ QR'),
+              ),
+            ),
           ]),
         ),
         const SizedBox(height: 14),
