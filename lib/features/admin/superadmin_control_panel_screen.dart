@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/admin/admin_service.dart';
+import '../../core/app_flavor.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/promote/ad_token_service.dart';
 import '../../core/storage/upload_service.dart';
@@ -11,7 +12,9 @@ import '../../core/theme/app_colors.dart';
 import '../../core/union/fund_service.dart';
 import '../../core/wallet/wallet_service.dart';
 import '../auth/auth_landing_screen.dart';
+import 'admin_chat_rooms_screen.dart';
 import 'admin_governance_screen.dart';
+import 'admin_room_moderation_screen.dart';
 import 'admin_reports_screen.dart';
 import 'admin_scrap_dealers_screen.dart';
 import 'admin_tutorial_videos_screen.dart';
@@ -318,6 +321,26 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminTutorialVideosScreen())),
               ),
             ),
+            if (!isUnionApp && !isTajerApp) ...[
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.forum_rounded, color: AppColors.crystal),
+                  title: const Text('غرف الدردشة', style: TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: const Text('أضف أو عدّل أو أرشف غرف، المشرفين، الكلمات الممنوعة ومسح الرسايل القديمة'),
+                  trailing: const Icon(Icons.chevron_left_rounded),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminChatRoomsScreen())),
+                ),
+              ),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.shield_rounded, color: AppColors.crystal),
+                  title: const Text('إشراف الغرف', style: TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: const Text('الرسايل المبلّغ عنها والمخفية بالحساب الحقيقي، الكتم والحظر وسجل الإدارة'),
+                  trailing: const Icon(Icons.chevron_left_rounded),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminRoomModerationScreen())),
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
             const Text('مؤشرات المنصة', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
             const SizedBox(height: 10),
