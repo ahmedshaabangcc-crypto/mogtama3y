@@ -17,6 +17,7 @@ import '../notifications/notifications_screen.dart';
 import '../profile/profile_screen.dart';
 import '../sos/sos_emergency_screen.dart';
 import '../union/union_dashboard_screen.dart';
+import '../union/union_home_link.dart';
 import '../union/union_landing_screen.dart';
 import '../shared/made_by_apex.dart';
 import '../tutorials/tutorial_widgets.dart';
@@ -132,6 +133,7 @@ class UnionMoreScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
         children: [
+          tile(Icons.home_rounded, 'الصفحة الرئيسية لاتحاد الملاك', openUnionHome),
           if (AuthService.isSignedIn)
             tile(Icons.person_outline_rounded, 'حسابي', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileScreen())))
           else
@@ -216,3 +218,4 @@ class _FamilyNameOnlyTileState extends State<_FamilyNameOnlyTile> {
     );
   }
 }
+

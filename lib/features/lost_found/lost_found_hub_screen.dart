@@ -7,14 +7,16 @@ import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'add_lost_found_item_screen.dart';
+import '../../core/app_flavor.dart';
+import '../union/union_home_link.dart';
 
 IconData _categoryIcon(String category) => switch (category) {
-      'مفاتيح' => Icons.vpn_key_rounded,
-      'محافظ وبطاقات' => Icons.account_balance_wallet_rounded,
-      'إلكترونية' => Icons.smartphone_rounded,
-      'حيوانات أليفة' => Icons.pets_rounded,
-      _ => Icons.inventory_2_outlined,
-    };
+  'مفاتيح' => Icons.vpn_key_rounded,
+  'محافظ وبطاقات' => Icons.account_balance_wallet_rounded,
+  'إلكترونية' => Icons.smartphone_rounded,
+  'حيوانات أليفة' => Icons.pets_rounded,
+  _ => Icons.inventory_2_outlined,
+};
 
 String _timeAgo(DateTime dt) {
   final diff = DateTime.now().difference(dt.toLocal());
@@ -66,33 +68,24 @@ class _LostFoundHubScreenState extends State<LostFoundHubScreen> {
     }
   }
 
-  List<Map<String, dynamic>> get _visibleItems =>
-      _items.where((i) => i['type'] == (_tab == 0 ? 'lost' : 'found')).toList();
+  List<Map<String, dynamic>> get _visibleItems => _items.where((i) => i['type'] == (_tab == 0 ? 'lost' : 'found')).toList();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('المفقودات والمعثور عليها في الحي')),
+      appBar: AppBar(title: isUnionApp ? const UnionHomeTitle(title: 'المفقودات') : const Text('المفقودات والمعثور عليها في الحي')),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           children: [
-            const Text(
-              'منظومة موثقة لحفظ المفقودات والأمانات مع سكان عمارتك.',
-              style: TextStyle(fontSize: 11.5, color: AppColors.inkSecondary, height: 1.8),
-            ),
+            const Text('منظومة موثقة لحفظ المفقودات والأمانات مع سكان عمارتك.', style: TextStyle(fontSize: 11.5, color: AppColors.inkSecondary, height: 1.8)),
             const SizedBox(height: 14),
             Row(
               children: [
                 Expanded(
-                  child: _ModeTile(
-                    icon: Icons.search_off_rounded,
-                    title: 'أغراض مفقودة (Lost)',
-                    selected: _tab == 0,
-                    onTap: () => setState(() => _tab = 0),
-                  ),
+                  child: _ModeTile(icon: Icons.search_off_rounded, title: 'أغراض مفقودة (Lost)', selected: _tab == 0, onTap: () => setState(() => _tab = 0)),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -106,10 +99,14 @@ class _LostFoundHubScreenState extends State<LostFoundHubScreen> {
               ],
             ),
             const SizedBox(height: 20),
-            Row(children: [
-              const Expanded(child: Text('أحدث البلاغات في عمارتك', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5))),
-              Text('${_visibleItems.length} بلاغ', style: const TextStyle(fontSize: 11, color: AppColors.inkMuted)),
-            ]),
+            Row(
+              children: [
+                const Expanded(
+                  child: Text('أحدث البلاغات في عمارتك', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
+                ),
+                Text('${_visibleItems.length} بلاغ', style: const TextStyle(fontSize: 11, color: AppColors.inkMuted)),
+              ],
+            ),
             const SizedBox(height: 10),
             if (!AuthService.isSignedIn)
               _EmptyState(
@@ -119,16 +116,16 @@ class _LostFoundHubScreenState extends State<LostFoundHubScreen> {
                 onAction: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthLandingScreen())),
               )
             else if (_loading)
-              const Padding(padding: EdgeInsets.symmetric(vertical: 40), child: Center(child: CircularProgressIndicator()))
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 40),
+                child: Center(child: CircularProgressIndicator()),
+              )
             else if (_loadError)
               LoadErrorView(onRetry: _load)
             else if (_visibleItems.isEmpty)
               const _EmptyState(icon: Icons.task_alt_rounded, text: 'لا توجد بلاغات حالياً في عمارتك')
             else
-              for (final item in _visibleItems) ...[
-                _ItemCard(item: item, onResolved: _load),
-                const SizedBox(height: 14),
-              ],
+              for (final item in _visibleItems) ...[_ItemCard(item: item, onResolved: _load), const SizedBox(height: 14)],
           ],
         ),
       ),
@@ -143,7 +140,11 @@ class _LostFoundHubScreenState extends State<LostFoundHubScreen> {
                 await Navigator.of(context).push(MaterialPageRoute(builder: (_) => target));
                 _load();
               },
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.navy,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
               icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
               label: const Text('تسجيل بلاغ مفقود أو معثور عليه جديد', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
             ),
@@ -170,11 +171,12 @@ class _EmptyState extends StatelessWidget {
           children: [
             Icon(icon, color: AppColors.inkMuted, size: 32),
             const SizedBox(height: 10),
-            Text(text, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.inkMuted, fontSize: 12.5)),
-            if (actionLabel != null) ...[
-              const SizedBox(height: 12),
-              TextButton(onPressed: onAction, child: Text(actionLabel!)),
-            ],
+            Text(
+              text,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
+            ),
+            if (actionLabel != null) ...[const SizedBox(height: 12), TextButton(onPressed: onAction, child: Text(actionLabel!))],
           ],
         ),
       ),
@@ -205,7 +207,11 @@ class _ModeTile extends StatelessWidget {
           children: [
             Icon(icon, color: selected ? AppColors.teal : AppColors.inkSecondary, size: 22),
             const SizedBox(height: 6),
-            Text(title, textAlign: TextAlign.center, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: selected ? AppColors.teal : AppColors.inkSecondary)),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: selected ? AppColors.teal : AppColors.inkSecondary),
+            ),
           ],
         ),
       ),
@@ -236,11 +242,19 @@ class _ItemCard extends StatelessWidget {
         context: context,
         builder: (dialogContext) => AlertDialog(
           title: const Text('أثبت أن الغرض يخصك'),
-          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('اكتب العلامة المميزة التي وضعها من وجد الغرض (تفصيل لا يعرفه إلا صاحبه).', style: TextStyle(fontSize: 12, height: 1.6)),
-            const SizedBox(height: 10),
-            TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: 'العلامة السرية')),
-          ]),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('اكتب العلامة المميزة التي وضعها من وجد الغرض (تفصيل لا يعرفه إلا صاحبه).', style: TextStyle(fontSize: 12, height: 1.6)),
+              const SizedBox(height: 10),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                decoration: const InputDecoration(hintText: 'العلامة السرية'),
+              ),
+            ],
+          ),
           actions: [
             TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('إلغاء')),
             ElevatedButton(onPressed: () => Navigator.of(dialogContext).pop(ctrl.text.trim()), child: const Text('تحقق')),
@@ -270,7 +284,11 @@ class _ItemCard extends StatelessWidget {
     final imageUrl = item['image_url'] as String?;
 
     return Container(
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -284,16 +302,27 @@ class _ItemCard extends StatelessWidget {
                       height: 120,
                       width: double.infinity,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(height: 120, color: AppColors.surfaceAlt, child: Center(child: Icon(_categoryIcon(category), size: 36, color: AppColors.inkMuted))),
+                      errorBuilder: (_, _, _) => Container(
+                        height: 120,
+                        color: AppColors.surfaceAlt,
+                        child: Center(child: Icon(_categoryIcon(category), size: 36, color: AppColors.inkMuted)),
+                      ),
                     )
-                  : Container(height: 120, color: AppColors.surfaceAlt, child: Center(child: Icon(_categoryIcon(category), size: 36, color: AppColors.inkMuted))),
+                  : Container(
+                      height: 120,
+                      color: AppColors.surfaceAlt,
+                      child: Center(child: Icon(_categoryIcon(category), size: 36, color: AppColors.inkMuted)),
+                    ),
               Positioned(
                 top: 8,
                 right: 8,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(color: isLost ? AppColors.categorySos : Colors.black87, borderRadius: BorderRadius.circular(8)),
-                  child: Text(category.isEmpty ? (isLost ? 'مفقود' : 'معثور عليه') : category, style: const TextStyle(fontSize: 9.5, color: Colors.white, fontWeight: FontWeight.w600)),
+                  child: Text(
+                    category.isEmpty ? (isLost ? 'مفقود' : 'معثور عليه') : category,
+                    style: const TextStyle(fontSize: 9.5, color: Colors.white, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
               if (rewardAmount != null)
@@ -303,7 +332,10 @@ class _ItemCard extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(8)),
-                    child: Text('مكافأة ${rewardAmount.toStringAsFixed(0)} ج.م', style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700)),
+                    child: Text(
+                      'مكافأة ${rewardAmount.toStringAsFixed(0)} ج.م',
+                      style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ),
             ],
@@ -313,20 +345,30 @@ class _ItemCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(children: [
-                  const Icon(Icons.access_time_rounded, size: 12, color: AppColors.inkMuted),
-                  const SizedBox(width: 4),
-                  Text(_timeAgo(createdAt), style: const TextStyle(fontSize: 10, color: AppColors.inkMuted)),
-                ]),
+                Row(
+                  children: [
+                    const Icon(Icons.access_time_rounded, size: 12, color: AppColors.inkMuted),
+                    const SizedBox(width: 4),
+                    Text(_timeAgo(createdAt), style: const TextStyle(fontSize: 10, color: AppColors.inkMuted)),
+                  ],
+                ),
                 const SizedBox(height: 6),
                 Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, height: 1.4)),
                 if (locationNote != null && locationNote.isNotEmpty) ...[
                   const SizedBox(height: 6),
-                  Row(children: [
-                    const Icon(Icons.location_on_outlined, size: 13, color: AppColors.inkMuted),
-                    const SizedBox(width: 4),
-                    Expanded(child: Text(locationNote, style: const TextStyle(fontSize: 10.5, color: AppColors.inkMuted), overflow: TextOverflow.ellipsis)),
-                  ]),
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on_outlined, size: 13, color: AppColors.inkMuted),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          locationNote,
+                          style: const TextStyle(fontSize: 10.5, color: AppColors.inkMuted),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
                 const SizedBox(height: 10),
                 if (isOwnReport)
@@ -338,7 +380,11 @@ class _ItemCard extends StatelessWidget {
                         await LostFoundService.markResolved(item['id'] as String);
                         onResolved();
                       },
-                      style: OutlinedButton.styleFrom(foregroundColor: AppColors.teal, side: const BorderSide(color: AppColors.teal), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.teal,
+                        side: const BorderSide(color: AppColors.teal),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
                       icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
                       label: const Text('تم الحل / الاستلام', style: TextStyle(fontSize: 11.5)),
                     ),
@@ -349,7 +395,11 @@ class _ItemCard extends StatelessWidget {
                     height: 42,
                     child: ElevatedButton(
                       onPressed: () => _claim(context),
-                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.navy,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
                       child: Text(isLost ? 'أعرف مكان هذا الغرض' : 'هذا الغرض يخصني', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11.5)),
                     ),
                   ),

@@ -99,8 +99,9 @@ class TutorialService {
   /// This app's active videos, ordered by sort — fetched once per
   /// session (a failed fetch is retried next time).
   static Future<List<TutorialVideo>> activeForApp() {
-    // The local demo build never shows (or loads anything from) YouTube.
-    if (kDemo) return Future.value(const <TutorialVideo>[]);
+    // The local demo build has no backend: it shows the published union
+    // tutorials from this fixed list (YouTube loads only when one is played).
+    if (kDemo) return Future.value(_loaded = currentTutorialApp == 'ittihad' ? _demoUnionVideos : const <TutorialVideo>[]);
     return _active ??= _fetchActive().catchError((Object e) {
       _active = null;
       return <TutorialVideo>[];
@@ -188,3 +189,14 @@ class TutorialService {
     invalidate();
   }
 }
+
+/// The six published union tutorials (YouTube Shorts on the مُجتمعي
+/// channel), used only by the local demo build.
+const _demoUnionVideos = <TutorialVideo>[
+  TutorialVideo(id: 'demo-0', app: 'ittihad', youtubeId: 'TGZwLWd4bOQ', title: 'أسّس اتحاد عمارتك', sort: 0, screenKey: 'found', isActive: true),
+  TutorialVideo(id: 'demo-1', app: 'ittihad', youtubeId: 'mo00sgy4QhQ', title: 'انضم لعمارتك بكود الدعوة', sort: 1, screenKey: 'join', isActive: true),
+  TutorialVideo(id: 'demo-2', app: 'ittihad', youtubeId: 'Xr52M5jteLo', title: 'ضيف المستأجر بتاعك', sort: 2, screenKey: 'tenants', isActive: true),
+  TutorialVideo(id: 'demo-3', app: 'ittihad', youtubeId: '6u4XvP3PVnc', title: 'انتخبوا رئيس الاتحاد', sort: 3, screenKey: 'elections', isActive: true),
+  TutorialVideo(id: 'demo-4', app: 'ittihad', youtubeId: 'X4dmxRNUb2M', title: 'تصريح دخول للزائر', sort: 4, screenKey: 'visitor_pass', isActive: true),
+  TutorialVideo(id: 'demo-5', app: 'ittihad', youtubeId: '-SAabWeeJuo', title: 'زرار الطوارئ SOS', sort: 5, screenKey: 'sos', isActive: true),
+];

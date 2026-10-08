@@ -27,6 +27,7 @@ import 'treasurer_screen.dart';
 import 'union_feed_screen.dart';
 import 'union_fund_screen.dart';
 import 'union_landing_screen.dart';
+import 'union_home_link.dart';
 
 String _fmt(num n) {
   final s = n.round().toString();
@@ -303,7 +304,7 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
-        title: const Text('مجلس إدارة اتحاد الشاغلين'),
+        title: const UnionHomeTitle(title: 'اتحاد الملاك'),
         actions: [
           IconButton(
             tooltip: 'مجتمع الاتحاد',

@@ -4,6 +4,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/sos/sos_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../tutorials/tutorial_widgets.dart';
+import '../../core/app_flavor.dart';
+import '../union/union_home_link.dart';
 
 class _EmergencyType {
   const _EmergencyType({required this.icon, required this.title, required this.subtitle, required this.value});
@@ -97,11 +99,18 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('نداء الطوارئ وإنذار الجيران السريع'), actions: const [TutorialButton(screenKey: 'sos')]),
+      appBar: AppBar(
+        title: isUnionApp ? const UnionHomeTitle(title: 'الطوارئ') : const Text('نداء الطوارئ وإنذار الجيران السريع'),
+        actions: const [TutorialButton(screenKey: 'sos')],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         children: [
-          const Text('نداء عاجل استغاثة للجيران', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19)),
+          const Text(
+            'نداء عاجل استغاثة للجيران',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19),
+          ),
           const SizedBox(height: 6),
           const Text(
             'إرسال تنبيه داخل التطبيق لجيران عمارتك الموثقين والحراسة ليتدخلوا ويساعدوك.',
@@ -147,7 +156,10 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
                             children: [
                               Icon(_sent ? Icons.check_rounded : Icons.warning_amber_rounded, color: Colors.white, size: 34),
                               const SizedBox(height: 4),
-                              Text(_sent ? 'تم الإرسال' : 'SOS', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
+                              Text(
+                                _sent ? 'تم الإرسال' : 'SOS',
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16),
+                              ),
                               if (!_sent) const Text('اضغط باستمرار', style: TextStyle(color: Colors.white70, fontSize: 9.5)),
                             ],
                           ),
@@ -164,11 +176,18 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(color: AppColors.teal.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12)),
-              child: const Row(children: [
-                Icon(Icons.check_circle_rounded, size: 16, color: AppColors.teal),
-                SizedBox(width: 6),
-                Expanded(child: Text('تم تسجيل الاستغاثة وإرسال إشعار داخل التطبيق لجيران عمارتك والحراسة. إذا كان الموقف خطيراً اتصل بالطوارئ فوراً من الأرقام بالأسفل.', style: TextStyle(fontSize: 11.5, color: AppColors.teal, fontWeight: FontWeight.w600))),
-              ]),
+              child: const Row(
+                children: [
+                  Icon(Icons.check_circle_rounded, size: 16, color: AppColors.teal),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'تم تسجيل الاستغاثة وإرسال إشعار داخل التطبيق لجيران عمارتك والحراسة. إذا كان الموقف خطيراً اتصل بالطوارئ فوراً من الأرقام بالأسفل.',
+                      style: TextStyle(fontSize: 11.5, color: AppColors.teal, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 8),
             Center(
@@ -184,38 +203,52 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
-                  child: Row(children: [
-                    const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12))),
-                  ]),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             Column(
               children: const [
-                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(Icons.check_circle_outline_rounded, size: 13, color: AppColors.teal),
-                  SizedBox(width: 5),
-                  Text('اضغط مع الاستمرار لمدة ثانيتين لإطلاق الاستغاثة', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
-                ]),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.check_circle_outline_rounded, size: 13, color: AppColors.teal),
+                    SizedBox(width: 5),
+                    Text('اضغط مع الاستمرار لمدة ثانيتين لإطلاق الاستغاثة', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
+                  ],
+                ),
                 SizedBox(height: 3),
-                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(Icons.lock_outline_rounded, size: 12, color: AppColors.inkMuted),
-                  SizedBox(width: 5),
-                  Text('نظام حماية مدمج لمنع الإنذارات العرضية وغير المقصودة', style: TextStyle(fontSize: 10, color: AppColors.inkMuted)),
-                ]),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.lock_outline_rounded, size: 12, color: AppColors.inkMuted),
+                    SizedBox(width: 5),
+                    Text('نظام حماية مدمج لمنع الإنذارات العرضية وغير المقصودة', style: TextStyle(fontSize: 10, color: AppColors.inkMuted)),
+                  ],
+                ),
               ],
             ),
           ],
           const SizedBox(height: 24),
-          Row(children: [
-            const Expanded(child: Text('حدد نوع الطارئ (لتوجيه الفريق الأنسب)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5))),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
-              child: const Text('اختياري', style: TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
-            ),
-          ]),
+          Row(
+            children: [
+              const Expanded(
+                child: Text('حدد نوع الطارئ (لتوجيه الفريق الأنسب)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
+                child: const Text('اختياري', style: TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
+              ),
+            ],
+          ),
           const SizedBox(height: 10),
           GridView.builder(
             shrinkWrap: true,
@@ -252,7 +285,11 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
           const SizedBox(height: 18),
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.border),
+            ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -294,7 +331,11 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
                 onTap: () => launchUrl(Uri(scheme: 'tel', path: h.number)),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
                   child: Row(
                     children: [
                       Expanded(
@@ -317,16 +358,18 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(color: AppColors.categorySos.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(10)),
-            child: const Row(children: [
-              Icon(Icons.info_outline_rounded, size: 14, color: AppColors.categorySos),
-              SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'استخدم الاستغاثة في الطوارئ الحقيقية فقط؛ البلاغات الكاذبة تُقلق جيرانك وتُضعف ثقتهم في التنبيه.',
-                  style: TextStyle(fontSize: 9.5, color: AppColors.categorySos, height: 1.6),
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline_rounded, size: 14, color: AppColors.categorySos),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'استخدم الاستغاثة في الطوارئ الحقيقية فقط؛ البلاغات الكاذبة تُقلق جيرانك وتُضعف ثقتهم في التنبيه.',
+                    style: TextStyle(fontSize: 9.5, color: AppColors.categorySos, height: 1.6),
+                  ),
                 ),
-              ),
-            ]),
+              ],
+            ),
           ),
         ],
       ),

@@ -9,6 +9,7 @@ import '../auth/auth_landing_screen.dart';
 import 'found_building_screen.dart';
 import 'join_as_tenant_screen.dart';
 import 'union_registration_screen.dart';
+import 'union_home_link.dart';
 
 const _features = [
   (Icons.receipt_long_rounded, 'مستحقات الصيانة', 'إصدار المستحقات لكل الشقق مرة واحدة، والسكان يدفعوا من محفظتهم، وكله متسجّل.'),
@@ -64,7 +65,7 @@ class _UnionLandingScreenState extends State<UnionLandingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('اتحاد ملاك أونلاين')),
+      appBar: AppBar(title: const UnionHomeTitle(title: 'اتحاد ملاك أونلاين')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
