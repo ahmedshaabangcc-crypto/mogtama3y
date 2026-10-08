@@ -22,6 +22,10 @@ sed -i '/store-lite.js/d' "$out/index.html"
 rm -f "$out/store-lite.js"
 sed -i 's|<title>[^<]*</title>|<title>اتحاد الملاك — نسخة تجريبية</title>|' "$out/index.html"
 sed -i 's|<div class="name">[^<]*</div>|<div class="name">اتحاد الملاك — تجريبي</div>|' "$out/index.html"
+# On localhost the landing can't tell the flavor from the host name — pin it
+# to the union landing («اتحاد ملاك عمارتك… من الموبايل»).
+sed -i "s|^\( *\)var flavor = .*$|\1var flavor = 'ittihad';|" "$out/index.html"
+grep -q "var flavor = 'ittihad';" "$out/index.html" || { echo "index.html flavor patch failed" >&2; exit 1; }
 
 grep -q MOGTAMA3Y_DEMO_BUILD "$out/main.dart.js" || { echo "demo marker missing — not a demo build?" >&2; exit 1; }
 echo "Demo build ready in $out — serve it on port 8737 and open http://localhost:8737/?role=president"

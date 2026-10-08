@@ -113,7 +113,7 @@ jobs:
           f=build/web_tajer/index.html
           sed -i 's|<title>[^<]*</title>|<title>متجري — محلك أونلاين ببلاش</title>|' $f
           sed -i 's|<div class="name">[^<]*</div>|<div class="name">متجري</div>|' $f
-          sed -i -E 's#(<meta (name="(description|twitter:description)"|property="og:description") content=")[^"]*#\1متجر باسم محلك، ومنتجاتك بالصور والأسعار، والطلبات توصلك على واتساب — ببلاش ومن غير عمولة.#; s#(<meta (name="twitter:title"|property="og:title") content=")[^"]*#\1متجري — محلك أونلاين ببلاش#; s#(<meta property="og:url" content=")[^"]*#\1https://tajer.mogtama3y.com/#; s#(<meta name="apple-mobile-web-app-title" content=")[^"]*#\1متجري#' $f
+          sed -i -E 's#(<meta (name="(description|twitter:description)"|property="og:description") content=")[^"]*#\1متجر باسم محلك، ومنتجاتك بالصور والأسعار، والطلبات توصلك على لوحة محلك، والزبون يقدر يبعتهالك واتساب — ببلاش ومن غير عمولة.#; s#(<meta (name="twitter:title"|property="og:title") content=")[^"]*#\1متجري — محلك أونلاين ببلاش#; s#(<meta property="og:url" content=")[^"]*#\1https://tajer.mogtama3y.com/#; s#(<meta name="apple-mobile-web-app-title" content=")[^"]*#\1متجري#' $f
           sed -i 's|"name": *"[^"]*"|"name": "متجري — مُجتمعي"|; s|"short_name": *"[^"]*"|"short_name": "متجري"|; s|"description": *"[^"]*"|"description": "لوحة التاجر: متجرك أونلاين، منتجاتك وطلباتك."|' build/web_tajer/manifest.json
           # Its own sitemap/robots (search engines index the merchant landing).
           sed -i 's#https://mogtama3y.com/#https://tajer.mogtama3y.com/#g' build/web_tajer/robots.txt

@@ -13,7 +13,7 @@ class MerchantLandingScreen extends StatelessWidget {
   static const _benefits = [
     (Icons.link_rounded, 'لينك وQR باسم محلك', 'تعلّقه على المحل وتبعته لزباينك، يفتح متجرك في ثانية.'),
     (Icons.photo_library_rounded, 'منتجاتك بالصور والأسعار', 'صوّر المنتج من الموبايل وحط سعره، وخبّيه لما يخلص.'),
-    (Icons.chat_rounded, 'الطلبات على واتساب', 'الطلب يوصلك إشعار، والزبون يبعتلك تفاصيله على واتساب.'),
+    (Icons.chat_rounded, 'الطلبات في لوحة محلك', 'الطلب يوصلك إشعار في لوحة محلك، والزبون يقدر يبعتلك تفاصيله على واتساب كمان.'),
     (Icons.location_on_rounded, 'عنوان الزبون للتوصيل', 'اكتب اسم عنوان الزبون الإلكتروني فيفتحلك العنوان بالخريطة.'),
     (Icons.money_off_rounded, 'ببلاش بالكامل', 'من غير عمولة ولا اشتراك، والفلوس بينك وبين زبونك مباشرة.'),
   ];
@@ -57,7 +57,7 @@ class MerchantLandingScreen extends StatelessWidget {
               const Text('محلك أونلاين ببلاش 🛍️',
                   style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, height: 1.3)),
               const SizedBox(height: 8),
-              const Text('متجر باسم محلك، ومنتجاتك بالصور والأسعار، والطلبات توصلك على واتساب — في دقيقتين ومن غير عمولة.',
+              const Text('متجر باسم محلك، ومنتجاتك بالصور والأسعار، والطلبات توصلك على لوحة محلك، والزبون يقدر يبعتهالك واتساب — في دقيقتين ومن غير عمولة.',
                   style: TextStyle(color: Colors.white70, fontSize: 14.5, height: 1.7)),
               const SizedBox(height: 20),
               SizedBox(
