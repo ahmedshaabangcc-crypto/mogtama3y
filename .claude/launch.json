@@ -70,6 +70,20 @@
         "--silent"
       ],
       "port": 8738
+    },
+    {
+      "name": "web-tajer-demo",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "-y",
+        "http-server",
+        "build/web_tajer_demo",
+        "-p",
+        "8739",
+        "-c-1",
+        "--silent"
+      ],
+      "port": 8739
     }
   ]
 }

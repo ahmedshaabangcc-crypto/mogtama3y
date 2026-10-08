@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../demo/demo_mode.dart';
+import '../demo/demo_store.dart';
 import 'scan_flag.dart';
 
 /// Merchant stores ("مشروعك أونلاين") — see
@@ -266,6 +268,11 @@ class StoreService {
     String? category,
     String? notes,
   }) async {
+    // Demo build: canned Arabic copy — Gemini is never called.
+    if (kDemo) {
+      await Future<void>.delayed(const Duration(milliseconds: 1200));
+      return demoProductCopy(name: name, category: category);
+    }
     final res = await _client.functions.invoke('product-ai', body: {
       'image_urls': imageUrls.take(3).toList(),
       'name': name,

@@ -2,8 +2,11 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 
+import '../app_flavor.dart';
 import 'demo_http_client.dart';
+import 'demo_links.dart';
 import 'demo_mode.dart';
 import 'demo_platform.dart';
 import 'demo_store.dart';
@@ -17,13 +20,20 @@ import 'demo_store.dart';
 /// Only ever called from `if (kDemo)` in main.dart.
 Future<void> initDemoBackend() async {
   final role = demoRoleFrom(Uri.base);
-  final store = DemoStore.boot(role: role, elections: demoElectionsFrom(Uri.base));
+  final store = DemoStore.boot(role: role, elections: demoElectionsFrom(Uri.base), flavor: isTajerApp ? 'tajer' : 'ittihad');
   debugPrint('$kDemoMarker — local demo, role=$role, no backend.');
+  // WhatsApp / calls / Google Maps / other sites: shown in a dialog, never opened.
+  UrlLauncherPlatform.instance = DemoUrlLauncher();
   await Supabase.initialize(
     url: 'http://demo.invalid',
     publishableKey: 'demo-publishable-key',
     httpClient: DemoHttpClient(store),
-    authOptions: FlutterAuthClientOptions(localStorage: _DemoSessionStorage(_sessionJson(store)), detectSessionInUri: false, autoRefreshToken: false),
+    // The merchant app's `customer` role is a guest: no session at all.
+    authOptions: FlutterAuthClientOptions(
+      localStorage: _DemoSessionStorage(store.guest ? null : _sessionJson(store)),
+      detectSessionInUri: false,
+      autoRefreshToken: false,
+    ),
   );
 }
 
@@ -115,7 +125,15 @@ class _DemoRolePanelState extends State<DemoRolePanel> {
     if (reset) DemoStore.clearSaved();
     final base = Uri.base;
     final params = {...base.queryParameters, 'role': role};
-    final url = base.replace(queryParameters: params).toString();
+    var fragment = base.fragment;
+    if (isTajerApp) {
+      // The customer lands on the demo store page; a merchant leaving the
+      // customer's pages lands on their panel.
+      final customerPage = fragment.startsWith('/s/') || fragment.startsWith('/o/') || fragment.startsWith('/checkout');
+      if (role == 'customer' && !customerPage) fragment = '/s/$demoShopSlug';
+      if (role != 'customer' && customerPage) fragment = '/';
+    }
+    final url = base.replace(queryParameters: params, fragment: fragment).toString();
     demoNavigate(url);
   }
 

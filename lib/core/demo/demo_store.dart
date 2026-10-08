@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'demo_mode.dart';
 import 'demo_platform.dart';
 
+part 'demo_tajer.dart';
+
 /// An error the fake backend returns as a PostgREST error (the screens
 /// show `PostgrestException.message`, like with the real server).
 class DemoError implements Exception {
@@ -21,24 +23,32 @@ typedef DemoRow = Map<String, dynamic>;
 /// The in-memory "database" of the demo build: a few JSON tables seeded
 /// with a fictional building, a tiny PostgREST query engine (select with
 /// embeds, filters, order, limit; insert/update/delete) and the RPCs the
-/// owners'-union screens call. Everything lives in this browser tab only
-/// (sessionStorage, so a role switch keeps what was done in the video).
+/// owners'-union screens call — or, for the merchant app (`flavor:
+/// 'tajer'`), the demo shop of [DemoTajer]. Everything lives in this
+/// browser tab only (sessionStorage, so a role switch keeps what was done
+/// in the video).
 class DemoStore {
-  DemoStore._(this.tables, {required this.role, required this.persist, required this.key}) {
-    me = roleUsers[role]!;
-    _applyRole();
+  DemoStore._(this.tables, {required this.role, required this.persist, required this.key, this.flavor = 'ittihad'}) {
+    if (isTajer) {
+      me = DemoTajer.roleUsers[role]!;
+    } else {
+      me = roleUsers[role]!;
+      _applyRole();
+    }
   }
 
   static DemoStore? _instance;
   static DemoStore get instance => _instance!;
 
   static const _storageKey = 'mogtama3y-demo-store-v1';
+  static const _tajerStorageKey = 'mogtama3y-demo-tajer-v1';
   // Each `?elections=` mode keeps its own saved data in the tab.
   static String _keyFor(String elections) => elections == 'open' ? _storageKey : '$_storageKey-$elections';
 
   /// [persist] false keeps everything in memory only (tests).
-  static DemoStore boot({required String role, String elections = 'open', bool persist = true, DateTime? now}) {
-    final key = _keyFor(elections);
+  static DemoStore boot({required String role, String elections = 'open', String flavor = 'ittihad', bool persist = true, DateTime? now}) {
+    final tajer = flavor == 'tajer';
+    final key = tajer ? _tajerStorageKey : _keyFor(elections);
     Map<String, List<DemoRow>>? saved;
     if (persist) {
       final raw = demoSessionGet(key);
@@ -54,20 +64,26 @@ class DemoStore {
       }
     }
     final store = DemoStore._(
-      saved ?? seedTables(now ?? DateTime.now(), elections: elections),
+      saved ?? (tajer ? DemoTajer.seed(now ?? DateTime.now()) : seedTables(now ?? DateTime.now(), elections: elections)),
       role: role,
       persist: persist,
       key: key,
+      flavor: flavor,
     );
     store.save();
     return _instance = store;
   }
+
+  /// The same data seen as another role (what the role switcher does
+  /// across a reload, without the reload — used by the tests).
+  DemoStore asRole(String role) => _instance = DemoStore._(tables, role: role, persist: persist, key: key, flavor: flavor);
 
   /// Forget everything done in this tab (the role switcher's «ابدأ من الأول»).
   static void clearSaved() {
     for (final m in demoElectionModes) {
       demoSessionRemove(_keyFor(m));
     }
+    demoSessionRemove(_tajerStorageKey);
   }
 
   final Map<String, List<DemoRow>> tables;
@@ -75,6 +91,13 @@ class DemoStore {
   final bool persist;
   final String key;
   late final String me;
+
+  /// 'ittihad' (owners' union) or 'tajer' (merchant app).
+  final String flavor;
+  bool get isTajer => flavor == 'tajer';
+
+  /// The merchant app's `customer` role browses and orders signed out.
+  bool get guest => isTajer && role == 'customer';
 
   /// Files "uploaded" in this page session (receipt photos), by path.
   final Map<String, (Uint8List, String)> files = {};
@@ -872,7 +895,7 @@ class DemoStore {
 
   /// GET /rest/v1/<table>?select=…&col=op.value&order=…&limit=…
   List<DemoRow> select(String table, Map<String, String> query) {
-    var rows = t(table).where((r) => _matches(r, query)).toList();
+    var rows = t(table).where((r) => _visible(table, r) && _matches(r, query)).toList();
     final order = query['order'];
     if (order != null) rows = _sorted(rows, order);
     final offset = int.tryParse(query['offset'] ?? '') ?? 0;
@@ -909,13 +932,28 @@ class DemoStore {
 
   List<DemoRow> delete(String table, Map<String, String> query) {
     final rows = t(table).where((r) => _matches(r, query)).toList();
+    // Like the real foreign key: a product with orders can only be hidden.
+    if (table == 'shop_products' && rows.any((r) => t('shop_order_items').any((i) => i['product_id'] == r['id']))) {
+      throw DemoError('تعذر الحذف — المنتج ده عليه طلبات، اخفيه بدل الحذف', 409);
+    }
     t(table).removeWhere(rows.contains);
     save();
     return rows;
   }
 
+  /// Row-level security the screens rely on (owner-only tables).
+  bool _visible(String table, DemoRow r) => switch (table) {
+    'e_addresses' => !guest && r['owner_id'] == me,
+    _ => true,
+  };
+
   void _beforeInsert(String table, DemoRow row) {
     switch (table) {
+      case 'shop_products':
+        row['is_available'] ??= true;
+        row['options'] ??= <Object>[];
+        row['highlights'] ??= <String>[];
+        row['images'] ??= <String>[];
       case 'visitor_passes':
         row['qr_code'] = _code('PASS');
         row['status'] = 'active';
@@ -1069,6 +1107,12 @@ class DemoStore {
   static const _toMany = {
     'board_decisions': {'board_decision_votes': 'decision_id'},
     'union_financial_reports': {'union_expense_items': 'report_id'},
+    'shop_orders': {'shop_order_items': 'order_id'},
+  };
+
+  /// to-one embeds whose FK column isn't `<table minus s>_id`.
+  static const _toOneFk = {
+    'shop_order_items': {'shop_products': 'product_id'},
   };
 
   /// The FK column to `profiles` when the select names no `!hint`.
@@ -1116,6 +1160,8 @@ class DemoStore {
       final hint = s.hint;
       if (hint != null && hint.startsWith('${table}_') && hint.endsWith('_fkey')) {
         fk = hint.substring(table.length + 1, hint.length - 5);
+      } else if (_toOneFk[table]?[s.name] != null) {
+        fk = _toOneFk[table]![s.name];
       } else if (s.name == 'profiles') {
         fk = _profileFk[table] ?? 'user_id';
       } else {
@@ -1257,6 +1303,7 @@ class DemoStore {
   }
 
   Object? _rpc(String fn, Map<String, dynamic> p) {
+    if (isTajer) return _tajerRpc(fn, p);
     String s(String k) => p[k] as String;
     switch (fn) {
       case 'ensure_my_profile':

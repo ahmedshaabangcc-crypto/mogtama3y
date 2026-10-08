@@ -1,3 +1,5 @@
+import '../demo/demo_mode.dart';
+
 /// Ready-made products per shop activity: a new merchant adds them in one
 /// tap and only fills in the prices (and photos when they like). Products
 /// are added hidden with price 0 until the merchant prices them.
@@ -14,7 +16,10 @@ class StarterProduct {
   /// flavour (مُجتمعي / تاجر) can show it.
   final String? image;
 
-  String? get imageUrl => image == null ? null : 'https://mogtama3y.com/catalog/$image.jpg';
+  String? get imageUrl => image == null
+      ? null
+      // The local demo build serves the same photos from this machine.
+      : (kDemo ? Uri.base.resolve('/catalog/$image.jpg').toString() : 'https://mogtama3y.com/catalog/$image.jpg');
 
   Map<String, dynamic> toRow(String shopId) => {
         'shop_id': shopId,

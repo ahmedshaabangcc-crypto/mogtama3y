@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/auth/auth_service.dart';
+import '../../core/demo/demo_mode.dart';
+import '../../core/demo/demo_store.dart';
 import '../../core/e_address/e_address_service.dart';
 import '../../core/shops/store_service.dart';
 import '../../core/theme/app_colors.dart';
@@ -175,7 +177,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ]),
                   ),
                 const SizedBox(height: 8),
-                const Text('بيانات التوصيل', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                Row(children: [
+                  const Expanded(child: Text('بيانات التوصيل', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16))),
+                  // Demo build only: a fictional customer in one tap.
+                  if (kDemo)
+                    TextButton.icon(
+                      onPressed: () => setState(() {
+                        _name.text = DemoTajer.sampleCustomerName;
+                        _phone.text = DemoTajer.sampleCustomerPhone;
+                        _address.text = DemoTajer.sampleCustomerAddress;
+                        _note.text = DemoTajer.sampleCustomerNote;
+                      }),
+                      icon: const Icon(Icons.auto_fix_high_rounded, size: 18),
+                      label: const Text('املأ بيانات تجريبية'),
+                    ),
+                ]),
                 const SizedBox(height: 10),
                 TextField(controller: _name, decoration: const InputDecoration(labelText: 'الاسم *', prefixIcon: Icon(Icons.person_outline_rounded))),
                 const SizedBox(height: 10),

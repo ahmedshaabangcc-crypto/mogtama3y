@@ -73,6 +73,7 @@ import '../../features/pets/pets_home_screen.dart';
 import '../../features/pets/pet_details_screen.dart';
 import '../../features/kids/kids_market_screen.dart';
 import '../../features/kids/kids_item_details_screen.dart';
+import '../../features/merchant/demo_merchant_routes.dart';
 
 /// URLs for the app's main sections, so a browser refresh or a shared
 /// link lands back in the same section instead of always on home.
@@ -280,7 +281,12 @@ final appRouter = GoRouter(
   routes: [
     GoRoute(
       path: '/',
-      builder: (_, _) => isUnionApp ? const UnionShell() : (isTajerApp ? const TajerShell() : const AppShell()),
+      builder: (_, state) => isUnionApp
+          ? const UnionShell()
+          : (isTajerApp
+                // Demo build only: `/?tab=1&add=1` opens a panel tab directly.
+                ? (kDemo ? TajerShell(demoTab: int.tryParse(state.uri.queryParameters['tab'] ?? ''), demoAdd: state.uri.queryParameters['add'] == '1') : const TajerShell())
+                : const AppShell()),
       routes: [
         for (final e in _sections.entries) _section(e.key, e.value),
         if (isUnionApp) GoRoute(path: 'pass/:code', builder: (_, state) => VisitorPassLinkScreen(code: state.pathParameters['code']!)),
@@ -309,6 +315,8 @@ final appRouter = GoRouter(
         ],
         if (!isUnionApp && !isTajerApp)
           GoRoute(path: 'rooms/:id', builder: (_, state) => RoomScreen(roomId: state.pathParameters['id']!)),
+        // Demo build only: direct links to merchant screens for recordings.
+        if (kDemo && isTajerApp) ...demoTajerRoutes,
       ],
     ),
   ],
@@ -323,6 +331,7 @@ final appRouter = GoRouter(
 bool isInAppPath(String path) {
   if (path == '/' || path.isEmpty) return true;
   if (_sections.containsKey(path)) return true;
+  if (kDemo && isTajerApp && demoTajerPaths.contains(path)) return true;
   if (!isUnionApp && _hallPath.hasMatch(path)) return true;
   if (!isUnionApp && _petPath.hasMatch(path)) return true;
   if (!isUnionApp && _recyclingLotPath.hasMatch(path)) return true;

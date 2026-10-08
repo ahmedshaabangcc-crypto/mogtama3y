@@ -8,6 +8,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_flavor.dart';
 import '../../core/auth/auth_service.dart';
+import '../../core/demo/demo_mode.dart';
+import '../../core/demo/demo_store.dart';
 import '../../core/shops/store_service.dart';
 import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
@@ -30,7 +32,11 @@ String _errorText(Object e, String fallback) => e is PostgrestException ? e.mess
 /// manage its products, orders and public link / QR. See
 /// backend/migrations/0047_merchant_stores.sql.
 class MerchantDashboardScreen extends StatefulWidget {
-  const MerchantDashboardScreen({super.key});
+  const MerchantDashboardScreen({super.key, this.initialTab, this.openAddProduct = false});
+
+  /// Demo build shortcuts (`/?tab=…&add=1`, see TajerShell); null / false otherwise.
+  final int? initialTab;
+  final bool openAddProduct;
 
   @override
   State<MerchantDashboardScreen> createState() => _MerchantDashboardScreenState();
@@ -41,12 +47,19 @@ class _MerchantDashboardScreenState extends State<MerchantDashboardScreen> {
   bool _loadError = false;
   List<Map<String, dynamic>> _shops = [];
   int _selected = 0;
-  int _tab = 0;
+  late int _tab = (widget.initialTab ?? 0).clamp(0, 3);
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void didUpdateWidget(MerchantDashboardScreen old) {
+    super.didUpdateWidget(old);
+    final tab = widget.initialTab;
+    if (tab != null && tab != old.initialTab) setState(() => _tab = tab.clamp(0, 3));
   }
 
   Future<void> _load() async {
@@ -134,7 +147,14 @@ class _MerchantDashboardScreenState extends State<MerchantDashboardScreen> {
       ),
       body: IndexedStack(index: _tab, children: [
         _HomeTab(key: ValueKey('h${shop['id']}'), shop: shop, onGoTo: (i) => setState(() => _tab = i)),
-        _ProductsTab(key: ValueKey('p${shop['id']}'), shopId: shop['id'] as String, shopSlug: shop['slug'] as String?, shopName: shop['name'] as String? ?? '', shopCategory: shop['category'] as String?),
+        _ProductsTab(
+          key: ValueKey('p${shop['id']}'),
+          shopId: shop['id'] as String,
+          shopSlug: shop['slug'] as String?,
+          shopName: shop['name'] as String? ?? '',
+          shopCategory: shop['category'] as String?,
+          openEditorOnStart: widget.openAddProduct,
+        ),
         _OrdersTab(key: ValueKey('o${shop['id']}'), shopId: shop['id'] as String),
         _MyStoreTab(key: ValueKey('s${shop['id']}'), shop: shop, onChanged: _load),
       ]),
@@ -299,7 +319,8 @@ class _RegisterShopFormState extends State<_RegisterShopForm> {
 // ---------------------------------------------------------------------
 
 class _ProductsTab extends StatefulWidget {
-  const _ProductsTab({super.key, required this.shopId, this.shopSlug, this.shopName = '', this.shopCategory});
+  const _ProductsTab({super.key, required this.shopId, this.shopSlug, this.shopName = '', this.shopCategory, this.openEditorOnStart = false});
+  final bool openEditorOnStart;
   final String shopId;
   final String? shopSlug;
   final String shopName;
@@ -318,6 +339,7 @@ class _ProductsTabState extends State<_ProductsTab> {
   void initState() {
     super.initState();
     _load();
+    if (widget.openEditorOnStart) WidgetsBinding.instance.addPostFrameCallback((_) => _edit());
   }
 
   Future<void> _load() async {
@@ -743,6 +765,27 @@ class _ProductEditorState extends State<_ProductEditor> {
                         icon: const Icon(Icons.photo_library_rounded, color: AppColors.crystal),
                       ),
                     ]),
+            ),
+          // Demo build only: the recording browser has no photos to pick.
+          if (kDemo && _images.length < _maxImages)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(start: 8),
+              child: Material(
+                color: AppColors.gold.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(14),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: _uploading ? null : () => setState(() => _images.add(demoSamplePhoto(name: _name.text, taken: _images))),
+                  child: const SizedBox(
+                    width: 92,
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(Icons.add_photo_alternate_rounded, color: AppColors.crystal),
+                      SizedBox(height: 4),
+                      Text('صورة تجريبية', textAlign: TextAlign.center, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+                    ]),
+                  ),
+                ),
+              ),
             ),
         ],
       ),
@@ -1375,6 +1418,8 @@ class _StoreProfileCardState extends State<_StoreProfileCard> {
   }
 
   Future<String?> _pick() async {
+    // Demo build: a bundled sample photo instead of the (empty) file picker.
+    if (kDemo) return demoSamplePhoto(name: _name.text, taken: [?_logo, ?_cover]);
     final file = await UploadService.pickImage(source: ImageSource.gallery);
     if (file == null) return null;
     setState(() => _busy = true);

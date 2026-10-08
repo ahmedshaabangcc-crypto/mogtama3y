@@ -9,14 +9,19 @@ import '../merchant/merchant_landing_screen.dart';
 /// signed out, the merchant panel once signed in — the merchant never
 /// lands in مُجتمعي.
 class TajerShell extends StatelessWidget {
-  const TajerShell({super.key});
+  const TajerShell({super.key, this.demoTab, this.demoAdd = false});
+
+  /// Demo build only (`/?tab=…&add=1`): the panel tab to show, and whether
+  /// to open «منتج جديد» right away.
+  final int? demoTab;
+  final bool demoAdd;
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<AuthState>(
       stream: AuthService.authStateChanges,
       builder: (context, _) => AuthService.isSignedIn
-          ? MerchantDashboardScreen(key: ValueKey(AuthService.currentUser?.id))
+          ? MerchantDashboardScreen(key: ValueKey(AuthService.currentUser?.id), initialTab: demoTab, openAddProduct: demoAdd)
           : const MerchantLandingScreen(),
     );
   }
