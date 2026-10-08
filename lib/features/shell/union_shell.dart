@@ -19,6 +19,7 @@ import '../sos/sos_emergency_screen.dart';
 import '../union/union_dashboard_screen.dart';
 import '../union/union_landing_screen.dart';
 import '../shared/made_by_apex.dart';
+import '../tutorials/tutorial_widgets.dart';
 
 /// Shell of the separate owners'-union app (APP_FLAVOR=ittihad): only
 /// building governance, plus a permanent "اذهب إلى مُجتمعي" button.
@@ -137,6 +138,7 @@ class UnionMoreScreen extends StatelessWidget {
             tile(Icons.login_rounded, 'سجّل دخول أو اعمل حساب',
                 () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthLandingScreen()))),
           if (AuthService.isSignedIn) const _FamilyNameOnlyTile(),
+          const TutorialVideosSection(padding: EdgeInsets.only(top: 4, bottom: 14)),
           tile(Icons.account_balance_wallet_outlined, 'المحفظة والمستحقات', () => context.go(AppRoutes.wallet)),
           tile(Icons.support_agent_rounded, 'الدعم والمساعدة', () => context.go(AppRoutes.support)),
           tile(Icons.help_outline_rounded, 'الأسئلة الشائعة', () => context.go(AppRoutes.faq)),

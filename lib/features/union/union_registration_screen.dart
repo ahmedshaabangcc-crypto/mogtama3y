@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/union/member_names.dart';
 import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
+import '../tutorials/tutorial_widgets.dart';
 
 /// Union registration step 2: unit verification + union head approval —
 /// matches design/screens/08_union_registration_step2.png. Used to show
@@ -124,7 +125,7 @@ class _UnionRegistrationScreenState extends State<UnionRegistrationScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('تسجيل وتوثيق الشقة بكود الدعوة')),
+      appBar: AppBar(title: const Text('تسجيل وتوثيق الشقة بكود الدعوة'), actions: const [TutorialButton(screenKey: 'join')]),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [

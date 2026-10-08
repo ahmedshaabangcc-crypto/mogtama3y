@@ -14,6 +14,7 @@ import '../auth/auth_landing_screen.dart';
 import 'admin_governance_screen.dart';
 import 'admin_reports_screen.dart';
 import 'admin_scrap_dealers_screen.dart';
+import 'admin_tutorial_videos_screen.dart';
 import 'admin_user_flags_screen.dart';
 
 String _money(num v) => '${NumberFormat('#,##0.00').format(v)} ج.م';
@@ -306,6 +307,15 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
                 subtitle: const Text('راجع طلبات تسجيل تجار الخردة: وثّق أو ارفض بملاحظة'),
                 trailing: const Icon(Icons.chevron_left_rounded),
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminScrapDealersScreen())),
+              ),
+            ),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.smart_display_rounded, color: AppColors.crystal),
+                title: const Text('فيديوهات الشرح', style: TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: const Text('فيديوهات يوتيوب Shorts لكل تطبيق وزراير «شوف الشرح»'),
+                trailing: const Icon(Icons.chevron_left_rounded),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminTutorialVideosScreen())),
               ),
             ),
             const SizedBox(height: 14),

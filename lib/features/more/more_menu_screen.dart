@@ -11,6 +11,7 @@ import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../profile/profile_screen.dart';
 import '../shared/made_by_apex.dart';
+import '../tutorials/tutorial_widgets.dart';
 
 /// The "المزيد" (More) menu — the bottom-nav hamburger tab. A plain
 /// list of every account/tool section, not any single feature.
@@ -249,6 +250,7 @@ class _MoreMenuScreenState extends State<MoreMenuScreen> {
             title: 'عن منصة مُجتمعي',
             onTap: () => context.go(AppRoutes.about),
           ),
+          const TutorialVideosSection(),
           const SizedBox(height: 8),
           const MadeByApex(dark: false),
           if (_profile?['role'] == 'super_admin') ...[

@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/sos/sos_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../tutorials/tutorial_widgets.dart';
 
 class _EmergencyType {
   const _EmergencyType({required this.icon, required this.title, required this.subtitle, required this.value});
@@ -96,7 +97,7 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('نداء الطوارئ وإنذار الجيران السريع')),
+      appBar: AppBar(title: const Text('نداء الطوارئ وإنذار الجيران السريع'), actions: const [TutorialButton(screenKey: 'sos')]),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         children: [

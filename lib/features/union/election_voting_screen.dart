@@ -7,6 +7,7 @@ import '../../core/union/election_service.dart';
 import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
+import '../tutorials/tutorial_widgets.dart';
 
 /// Real president/board succession election — see
 /// backend/migrations/0021_elections.sql. Distinct from founding a
@@ -30,6 +31,8 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
   bool get _isTreasurer => widget.position == 'treasurer';
   String get _office => _isTreasurer ? 'أمانة الصندوق' : 'رئاسة الاتحاد';
   String get _screenTitle => _isTreasurer ? 'انتخابات أمين الصندوق' : 'انتخابات اتحاد الملاك';
+  /// «شوف الشرح» for the presidential election (screen_key 'elections').
+  List<Widget>? get _tutorialActions => _isTreasurer ? null : const [TutorialButton(screenKey: 'elections')];
   bool _loading = true;
   bool _loadError = false;
   String? _buildingId;
@@ -208,7 +211,7 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
     if (_election == null) {
       return Scaffold(
         backgroundColor: AppColors.bg,
-        appBar: AppBar(title: Text(_screenTitle)),
+        appBar: AppBar(title: Text(_screenTitle), actions: _tutorialActions),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -243,7 +246,7 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: Text(_screenTitle)),
+      appBar: AppBar(title: Text(_screenTitle), actions: _tutorialActions),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(

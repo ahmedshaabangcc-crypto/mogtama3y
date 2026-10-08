@@ -4,6 +4,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/union/fund_service.dart';
 import '../../core/union/union_service.dart';
 import '../shared/load_error_view.dart';
+import '../tutorials/tutorial_widgets.dart';
 import 'invite_code_card.dart';
 
 /// Lets a unit owner invite/revoke a tenant sub-account for their own
@@ -83,7 +84,7 @@ class _ManageTenantsScreenState extends State<ManageTenantsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('إدارة حسابات المستأجرين')),
+      appBar: AppBar(title: const Text('إدارة حسابات المستأجرين'), actions: const [TutorialButton(screenKey: 'tenants')]),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _loadError

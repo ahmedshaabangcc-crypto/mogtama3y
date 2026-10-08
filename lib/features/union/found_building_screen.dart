@@ -5,6 +5,7 @@ import '../../core/places/places_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
+import '../tutorials/tutorial_widgets.dart';
 import 'union_dashboard_screen.dart';
 
 const _egyptGovernorates = [
@@ -263,7 +264,7 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('تأسيس اتحاد ملاك جديد')),
+      appBar: AppBar(title: const Text('تأسيس اتحاد ملاك جديد'), actions: const [TutorialButton(screenKey: 'found')]),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [

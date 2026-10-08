@@ -12,6 +12,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/visitor/visitor_pass_service.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
+import '../tutorials/tutorial_widgets.dart';
 
 const _visitTypes = ['ضيف عائلي', 'توصيل وشحن', 'صيانة وخدمات', 'أخرى'];
 const _visitTypeValues = ['guest', 'delivery', 'maintenance', 'other'];
@@ -182,7 +183,7 @@ class _VisitorQrPassScreenState extends State<VisitorQrPassScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('تصريح دخول زائر موقوت (QR Pass)')),
+      appBar: AppBar(title: const Text('تصريح دخول زائر موقوت (QR Pass)'), actions: const [TutorialButton(screenKey: 'visitor_pass')]),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _loadError

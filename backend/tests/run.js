@@ -1566,6 +1566,51 @@ const denied = (r) => !!r.error;
     check('a resident cannot rotate the invite code', denied(await as(db, fundOwner3, `select public.rotate_building_invite_code($1)`, [fundBld])));
   }
 
+  // ------------------------------------------------------------------
+  console.log('\nTutorial videos (0079)');
+  {
+    const tutAdmin = await signUp(db, 'tut admin', null);
+    await admin(db, `update profiles set role = 'super_admin' where id = $1`, [tutAdmin]);
+    const tutUser = await signUp(db, 'tut user', null);
+    const tutIns = await as(db, tutAdmin, `insert into tutorial_videos (app, youtube_id, title, sort, screen_key)
+      values ('ittihad', 'dQw4w9WgXcQ', 'إزاي تأسس عمارتك', 1, 'found') returning id`);
+    check('tut: the platform admin adds a video', ok(tutIns), tutIns);
+    const tutId = tutIns.rows?.[0]?.id;
+    const tutHidden = await as(db, tutAdmin, `insert into tutorial_videos (app, youtube_id, title, is_active)
+      values ('ittihad', 'abcdefghijk', 'مخفي', false) returning id`);
+    check('tut: the admin adds an inactive video', ok(tutHidden), tutHidden);
+    const tutAnon = await as(db, null, `select youtube_id from tutorial_videos where app = 'ittihad'`);
+    check('tut: anon reads only the active rows', ok(tutAnon) && tutAnon.rows.length === 1 && tutAnon.rows[0].youtube_id === 'dQw4w9WgXcQ', tutAnon);
+    const tutSigned = await as(db, tutUser, `select id from tutorial_videos`);
+    check('tut: a signed-in user reads only the active rows', ok(tutSigned) && tutSigned.rows.length === 1, tutSigned);
+    check('tut: the admin reads inactive rows too', (await as(db, tutAdmin, `select id from tutorial_videos`)).rows?.length === 2);
+    check('tut: a user cannot insert',
+      denied(await as(db, tutUser, `insert into tutorial_videos (app, youtube_id, title) values ('ittihad', 'zzzzzzzzzzz', 'x')`)));
+    check('tut: anon cannot insert',
+      denied(await as(db, null, `insert into tutorial_videos (app, youtube_id, title) values ('ittihad', 'zzzzzzzzzzz', 'x')`)));
+    await as(db, tutUser, `update tutorial_videos set title = 'hacked' where id = $1`, [tutId]);
+    await as(db, tutUser, `delete from tutorial_videos where id = $1`, [tutId]);
+    await as(db, null, `delete from tutorial_videos where id = $1`, [tutId]);
+    const tutAfter = await admin(db, `select title from tutorial_videos where id = $1`, [tutId]);
+    check('tut: a user / anon cannot update or delete', tutAfter.length === 1 && tutAfter[0].title === 'إزاي تأسس عمارتك', tutAfter);
+    check('tut: the admin edits, reorders and deactivates',
+      ok(await as(db, tutAdmin, `update tutorial_videos set title = 'تأسيس العمارة', sort = 5, is_active = false where id = $1`, [tutId])) &&
+      (await admin(db, `select sort from tutorial_videos where id = $1`, [tutId]))[0].sort === 5);
+    check('tut: a deactivated video disappears for anon',
+      (await as(db, null, `select id from tutorial_videos`)).rows?.length === 0);
+    check('tut: a bad youtube_id is refused',
+      denied(await as(db, tutAdmin, `insert into tutorial_videos (app, youtube_id, title) values ('ittihad', 'https://youtu.be/x', 'x')`)) &&
+      denied(await as(db, tutAdmin, `insert into tutorial_videos (app, youtube_id, title) values ('ittihad', 'short', 'x')`)));
+    check('tut: a bad app / screen_key / empty title is refused',
+      denied(await as(db, tutAdmin, `insert into tutorial_videos (app, youtube_id, title) values ('other', 'dQw4w9WgXcQ', 'x')`)) &&
+      denied(await as(db, tutAdmin, `insert into tutorial_videos (app, youtube_id, title, screen_key) values ('tajer', 'dQw4w9WgXcQ', 'x', 'Bad Key!')`)) &&
+      denied(await as(db, tutAdmin, `insert into tutorial_videos (app, youtube_id, title) values ('tajer', 'dQw4w9WgXcQ', '   ')`)));
+    check('tut: a free-text screen_key for tajer is accepted',
+      ok(await as(db, tutAdmin, `insert into tutorial_videos (app, youtube_id, title, screen_key) values ('tajer', 'dQw4w9WgXcQ', 'أول منتج', 'add_product')`)));
+    check('tut: the admin deletes', ok(await as(db, tutAdmin, `delete from tutorial_videos where id = $1`, [tutId])) &&
+      (await admin(db, `select 1 from tutorial_videos where id = $1`, [tutId])).length === 0);
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

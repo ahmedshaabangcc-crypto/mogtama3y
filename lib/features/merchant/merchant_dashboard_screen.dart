@@ -17,7 +17,9 @@ import '../profile/profile_screen.dart';
 import '../shared/install_app_banner.dart';
 import '../shared/load_error_view.dart';
 import '../shared/push_opt_in.dart';
+import '../../core/tutorials/tutorial_service.dart';
 import '../support/support_contact_screen.dart';
+import '../tutorials/tutorial_widgets.dart';
 import 'starter_products_screen.dart';
 import 'store_qr_card_screen.dart';
 
@@ -1172,10 +1174,13 @@ class _TajerAccountMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    TutorialService.activeForApp(); // warm the session cache for «فيديوهات الشرح»
     return PopupMenuButton<String>(
       icon: const Icon(Icons.account_circle_outlined),
       onSelected: (v) {
         switch (v) {
+          case 'tutorials':
+            Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TutorialVideosScreen()));
           case 'profile':
             Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileScreen()));
           case 'support':
@@ -1186,11 +1191,12 @@ class _TajerAccountMenu extends StatelessWidget {
             AuthService.signOut();
         }
       },
-      itemBuilder: (_) => const [
-        PopupMenuItem(value: 'profile', child: Text('حسابي')),
-        PopupMenuItem(value: 'support', child: Text('الدعم والمساعدة')),
-        PopupMenuItem(value: 'mogtama3y', child: Text('زور مُجتمعي')),
-        PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج')),
+      itemBuilder: (_) => [
+        if (TutorialService.loaded?.isNotEmpty ?? false) const PopupMenuItem(value: 'tutorials', child: Text('فيديوهات الشرح')),
+        const PopupMenuItem(value: 'profile', child: Text('حسابي')),
+        const PopupMenuItem(value: 'support', child: Text('الدعم والمساعدة')),
+        const PopupMenuItem(value: 'mogtama3y', child: Text('زور مُجتمعي')),
+        const PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج')),
       ],
     );
   }
