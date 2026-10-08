@@ -250,7 +250,7 @@ class _RegisterShopFormState extends State<_RegisterShopForm> {
       children: [
         const Text('متجر أونلاين مجاني لمحلك، من غير عمولة ولا اشتراك.', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
         const SizedBox(height: 4),
-        const Text('هتاخد رابط وQR باسم محلك، وزباينك يطلبوا منك والطلب يوصلك على الواتساب.', style: TextStyle(fontSize: 12, color: AppColors.inkSecondary, height: 1.6)),
+        const Text('هتاخد رابط وQR باسم محلك، وزباينك يطلبوا منك والطلب يوصلك على لوحة محلك، والزبون يقدر يبعتهولك واتساب كمان.', style: TextStyle(fontSize: 12, color: AppColors.inkSecondary, height: 1.6)),
         const SizedBox(height: 16),
         TextField(controller: _name, decoration: const InputDecoration(labelText: 'اسم المحل *')),
         const SizedBox(height: 10),
