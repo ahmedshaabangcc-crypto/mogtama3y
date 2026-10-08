@@ -26,7 +26,7 @@ class AppTheme {
       splashFactory: InkSparkle.splashFactory,
     );
 
-    TextStyle heading(double size, FontWeight weight) => GoogleFonts.almarai(fontSize: size, fontWeight: weight, color: AppColors.ink, height: 1.35);
+    TextStyle heading(double size, FontWeight weight) => _almarai(fontSize: size, fontWeight: weight, color: AppColors.ink, height: 1.35);
 
     const pill = StadiumBorder();
     return base.copyWith(
@@ -46,7 +46,7 @@ class AppTheme {
         shadowColor: AppColors.border,
         centerTitle: true,
         shape: const Border(bottom: BorderSide(color: AppColors.border)),
-        titleTextStyle: GoogleFonts.almarai(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.ink),
+        titleTextStyle: _almarai(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.ink),
         iconTheme: const IconThemeData(color: AppColors.ink),
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
@@ -56,7 +56,7 @@ class AppTheme {
         type: BottomNavigationBarType.fixed,
         showUnselectedLabels: true,
         elevation: 0,
-        selectedLabelStyle: GoogleFonts.almarai(fontWeight: FontWeight.w800, fontSize: 11),
+        selectedLabelStyle: _almarai(fontWeight: FontWeight.w800, fontSize: 11),
         unselectedLabelStyle: GoogleFonts.ibmPlexSansArabic(fontSize: 11),
       ),
       cardTheme: CardThemeData(
@@ -76,7 +76,7 @@ class AppTheme {
           shadowColor: AppColors.crystal.withValues(alpha: 0.4),
           shape: pill,
           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-          textStyle: GoogleFonts.almarai(fontWeight: FontWeight.w800, fontSize: 14),
+          textStyle: _almarai(fontWeight: FontWeight.w800, fontSize: 14),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -85,14 +85,14 @@ class AppTheme {
           side: const BorderSide(color: AppColors.border, width: 1.2),
           shape: pill,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
-          textStyle: GoogleFonts.almarai(fontWeight: FontWeight.w700, fontSize: 13.5),
+          textStyle: _almarai(fontWeight: FontWeight.w700, fontSize: 13.5),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.crystal,
           shape: pill,
-          textStyle: GoogleFonts.almarai(fontWeight: FontWeight.w700),
+          textStyle: _almarai(fontWeight: FontWeight.w700),
         ),
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
@@ -121,7 +121,7 @@ class AppTheme {
         labelColor: AppColors.crystal,
         unselectedLabelColor: AppColors.inkMuted,
         indicatorColor: AppColors.crystal,
-        labelStyle: GoogleFonts.almarai(fontWeight: FontWeight.w800, fontSize: 13),
+        labelStyle: _almarai(fontWeight: FontWeight.w800, fontSize: 13),
         dividerColor: AppColors.border,
       ),
       snackBarTheme: SnackBarThemeData(
@@ -139,9 +139,15 @@ class AppTheme {
         backgroundColor: AppColors.surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
-        titleTextStyle: GoogleFonts.almarai(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.ink),
+        titleTextStyle: _almarai(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.ink),
       ),
       dividerTheme: const DividerThemeData(color: AppColors.border),
     );
   }
 }
+
+/// Almarai for headings, falling back to IBM Plex Sans Arabic for glyphs
+/// Almarai lacks (e.g. ✓) — otherwise they render as empty boxes.
+TextStyle _almarai({double? fontSize, FontWeight? fontWeight, Color? color, double? height}) =>
+    GoogleFonts.almarai(fontSize: fontSize, fontWeight: fontWeight, color: color, height: height)
+        .copyWith(fontFamilyFallback: [GoogleFonts.ibmPlexSansArabic().fontFamily!]);

@@ -220,7 +220,11 @@ class _GuardWorkConsoleState extends State<_GuardWorkConsole> {
       await showDialog(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text('تم التحقق ✓'),
+          title: const Row(children: [
+            Icon(Icons.verified_rounded, color: AppColors.success),
+            SizedBox(width: 8),
+            Text('تم التحقق'),
+          ]),
           content: Text('${result['visitor_name']} • $label\nشقة ${result['unit_number']} - ${result['floor_label'] ?? ''}'),
           actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('حسناً'))],
         ),
@@ -301,7 +305,7 @@ class _GuardWorkConsoleState extends State<_GuardWorkConsole> {
                 ),
               ),
               const SizedBox(height: 8),
-              if (kDemo) ...[
+              if (kDemo && demoPanelVisible(Uri.base)) ...[
                 SizedBox(
                   height: 48,
                   child: OutlinedButton.icon(
