@@ -187,6 +187,13 @@ class _MoreMenuScreenState extends State<MoreMenuScreen> {
             onTap: () => context.go(AppRoutes.friends),
           ),
           _MenuTile(
+            icon: Icons.chat_bubble_outline_rounded,
+            iconColor: AppColors.gold,
+            title: 'غرف الدردشة',
+            subtitle: 'غرف عامة لمنطقتك ولمواضيع زي الكورة والأكل والشغل',
+            onTap: () => context.go(AppRoutes.rooms),
+          ),
+          _MenuTile(
             icon: Icons.storefront_rounded,
             iconColor: AppColors.teal,
             title: 'لوحة التاجر',

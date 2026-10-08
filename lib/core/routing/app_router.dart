@@ -61,6 +61,8 @@ import '../../features/reports/report_form_screen.dart';
 import '../../features/reports/report_details_screen.dart';
 import '../../features/people/friends_screen.dart';
 import '../../features/people/chat_screen.dart';
+import '../../features/rooms/room_screen.dart';
+import '../../features/rooms/rooms_home_screen.dart';
 import '../../features/cars/cars_market_screen.dart';
 import '../../features/cars/car_details_screen.dart';
 import '../../features/tutoring/tutoring_market_screen.dart';
@@ -162,6 +164,12 @@ class AppRoutes {
   /// A private chat with a friend.
   static String chat(String userId) => '/chat/$userId';
 
+  /// «غرف الدردشة» — public chat rooms (مُجتمعي only).
+  static const rooms = '/rooms';
+
+  /// One chat room (reply notifications deep-link here).
+  static String room(String id) => '/rooms/$id';
+
   /// A merchant's public store (the QR on the shop opens this).
   static String store(String slug) => '/s/$slug';
 
@@ -256,6 +264,7 @@ final _mogtama3ySections = <String, GoRouterWidgetBuilder>{
   AppRoutes.halls: (_, _) => const HallsMarketScreen(),
   AppRoutes.pets: (_, _) => const PetsHomeScreen(),
   AppRoutes.kids: (_, _) => const KidsMarketScreen(),
+  AppRoutes.rooms: (_, _) => const RoomsHomeScreen(),
 };
 
 final _tajerSections = <String, GoRouterWidgetBuilder>{
@@ -298,6 +307,8 @@ final appRouter = GoRouter(
           GoRoute(path: 'kids/:id', builder: (_, state) => KidsItemDetailsScreen(listingId: state.pathParameters['id']!, initial: state.extra as Map<String, dynamic>?)),
           GoRoute(path: 'chat/:userId', builder: (_, state) => ChatScreen(userId: state.pathParameters['userId']!)),
         ],
+        if (!isUnionApp && !isTajerApp)
+          GoRoute(path: 'rooms/:id', builder: (_, state) => RoomScreen(roomId: state.pathParameters['id']!)),
       ],
     ),
   ],
@@ -316,6 +327,7 @@ bool isInAppPath(String path) {
   if (!isUnionApp && _petPath.hasMatch(path)) return true;
   if (!isUnionApp && _recyclingLotPath.hasMatch(path)) return true;
   if (isUnionApp && _passPath.hasMatch(path)) return true;
+  if (!isUnionApp && !isTajerApp && _roomPath.hasMatch(path)) return true;
   return !isUnionApp &&
       (_storePath.hasMatch(path.toLowerCase()) || _eAddressPath.hasMatch(path) || _orderPath.hasMatch(path) || _placePath.hasMatch(path) || _reportPath.hasMatch(path) || _carPath.hasMatch(path) || _tutorPath.hasMatch(path) || _kidsPath.hasMatch(path) || _chatPath.hasMatch(path));
 }
@@ -338,6 +350,7 @@ final _placePath = RegExp(r'^/d/[0-9a-zA-Z-]{8,64}$');
 final _eAddressPath = RegExp(r'^/a/[A-Za-z0-9-]{4,30}$');
 final _reportPath = RegExp(r'^/r/[0-9a-f-]{36}$');
 final _chatPath = RegExp(r'^/chat/[0-9a-f-]{36}$');
+final _roomPath = RegExp(r'^/rooms/[0-9a-f-]{36}$');
 final _carPath = RegExp(r'^/cars/[0-9a-f-]{36}$');
 final _tutorPath = RegExp(r'^/tutoring/[0-9a-f-]{36}$');
 final _hallPath = RegExp(r'^/halls/[0-9a-f-]{36}$');

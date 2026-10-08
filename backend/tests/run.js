@@ -1566,6 +1566,237 @@ const denied = (r) => !!r.error;
     check('a resident cannot rotate the invite code', denied(await as(db, fundOwner3, `select public.rotate_building_invite_code($1)`, [fundBld])));
   }
 
+  // ------------------------------------------------------------------
+  console.log('\nChat rooms (0078)');
+  {
+    const roomA = await signUp(db, 'room alice', null);
+    const roomB = await signUp(db, 'room bob', null);
+    const roomC = await signUp(db, 'room carol', null);
+    const roomD = await signUp(db, 'room dina', null);
+    const roomE = await signUp(db, 'room emad', null);
+    const roomN = await signUp(db, 'room unverified', null);
+    const roomMod = await signUp(db, 'room moderator', null);
+    await admin(db, `update profiles set phone_verified_at = now() where id = any($1::uuid[])`, [[roomA, roomB, roomC, roomD, roomE, roomMod]]);
+    // Each send is 3+ s after the previous one in "real" time: age every message by 2 minutes.
+    const roomCool = () => admin(db, `update chat_room_messages set created_at = created_at - interval '2 minutes'`);
+    const roomSend = async (u, room, body, reply) => {
+      await roomCool();
+      return as(db, u, `select public.send_room_message($1, $2, $3) as id`, [room, body, reply ?? null]);
+    };
+    const roomErr = (r, text) => !!r.error && r.error.includes(text);
+
+    const roomList = await as(db, null, `select * from public.list_chat_rooms()`);
+    check('guests list the seeded rooms (governorates, districts, topics)', ok(roomList) && roomList.rows.length >= 30, roomList.error || roomList.rows?.length);
+    const roomId = (name) => roomList.rows.find((r) => r.name === name)?.id;
+    const roomGeneral = roomId('دردشة عامة');
+    const roomKora = roomId('كورة');
+    const roomMaadi = roomId('المعادي');
+    const roomCairo = roomId('القاهرة');
+    check('the seed has القاهرة, المعادي, 6 أكتوبر and كورة', !!roomGeneral && !!roomKora && !!roomMaadi && !!roomCairo && !!roomId('6 أكتوبر'));
+
+    // Nicknames
+    check('nickname: too short is refused', denied(await as(db, roomA, `select public.set_chat_nickname('ab')`)));
+    check('nickname: spaces / symbols are refused', denied(await as(db, roomA, `select public.set_chat_nickname('a b!c')`)));
+    check('nickname: reserved "admin" is refused', roomErr(await as(db, roomA, `select public.set_chat_nickname('the_Admin1')`), 'محجوز'));
+    check('nickname: reserved «مشرف» / «مُجتمعي» are refused',
+      denied(await as(db, roomA, `select public.set_chat_nickname('مشرف_الغرفة')`)) && denied(await as(db, roomA, `select public.set_chat_nickname('مجتمعي2')`)));
+    check('nickname: a banned word is refused', denied(await as(db, roomA, `select public.set_chat_nickname('fuck_you')`)));
+    check('a verified user picks a nickname', ok(await as(db, roomA, `select public.set_chat_nickname('Alice_1')`)));
+    check('nickname uniqueness ignores case', roomErr(await as(db, roomB, `select public.set_chat_nickname('alice_1')`), 'واخده'));
+    check('…and Arabic alef/diacritic variants', ok(await as(db, roomC, `select public.set_chat_nickname('أحمد')`)) &&
+      denied(await as(db, roomD, `select public.set_chat_nickname('احمد')`)));
+    check('changing the nickname within 7 days is refused', roomErr(await as(db, roomA, `select public.set_chat_nickname('Alice_2')`), '7 أيام'));
+    await admin(db, `update chat_profiles set nickname_changed_at = now() - interval '8 days' where user_id = $1`, [roomA]);
+    check('…allowed after 7 days', ok(await as(db, roomA, `select public.set_chat_nickname('Alice_2')`)));
+    check('…and the 7-day clock restarts', denied(await as(db, roomA, `select public.set_chat_nickname('Alice_3')`)));
+
+    // Who can write
+    check('a verified user without a nickname cannot send', roomErr(await roomSend(roomB, roomGeneral, 'سلام'), 'اختار اسمك'));
+    await as(db, roomB, `select public.set_chat_nickname('Bob')`);
+    await as(db, roomD, `select public.set_chat_nickname('Dina')`);
+    await as(db, roomE, `select public.set_chat_nickname('Emad')`);
+    await as(db, roomMod, `select public.set_chat_nickname('ModMan')`);
+    check('an unverified user can pick a nickname…', ok(await as(db, roomN, `select public.set_chat_nickname('NoPhone')`)));
+    check('…but cannot send (phone not verified)', roomErr(await roomSend(roomN, roomGeneral, 'سلام'), 'أكّد رقمك'));
+    check('a guest cannot send', denied(await as(db, null, `select public.send_room_message($1, 'hi', null)`, [roomGeneral])));
+    check('nobody can insert into the messages table directly',
+      denied(await as(db, roomA, `insert into chat_room_messages (room_id, author_pid, nickname, body) select $1, public_id, nickname, 'x' from chat_profiles`, [roomGeneral])));
+    const roomA1 = await roomSend(roomA, roomGeneral, 'صباح الفل يا جماعة');
+    check('a verified user with a nickname sends', ok(roomA1), roomA1.error);
+    const roomA1Id = roomA1.rows?.[0]?.id;
+    check('an empty message is refused', denied(await roomSend(roomA, roomGeneral, '   ')));
+    check('a message over 500 chars is refused', denied(await roomSend(roomA, roomGeneral, 'x'.repeat(501))));
+
+    // Rate limits
+    check('sending again within 3 seconds is refused',
+      ok(await roomSend(roomA, roomGeneral, 'رسالة 1')) && roomErr(await as(db, roomA, `select public.send_room_message($1, 'رسالة 2', null)`, [roomGeneral]), 'ثانيتين'));
+    await admin(db, `insert into chat_room_messages (room_id, author_pid, nickname, body, created_at)
+      select $1, public_id, nickname, 'burst ' || g, now() - interval '20 seconds' from chat_profiles, generate_series(1, 20) g where user_id = $2`, [roomGeneral, roomB]);
+    check('a 21st message within a minute is refused', roomErr(await as(db, roomB, `select public.send_room_message($1, 'كمان', null)`, [roomGeneral]), 'دقيقة'));
+    await roomSend(roomD, roomGeneral, 'نفس الكلام');
+    await admin(db, `update chat_room_messages set created_at = created_at - interval '5 seconds'`);
+    check('the same text twice in a minute is refused', roomErr(await as(db, roomD, `select public.send_room_message($1, 'نفس الكلام', null)`, [roomGeneral]), 'نفس الرسالة'));
+
+    // Links
+    check('links are refused for a new account', roomErr(await roomSend(roomA, roomGeneral, 'شوف www.example.com'), 'اللينكات'));
+    check('…in any form (example.com / https://)', denied(await roomSend(roomA, roomGeneral, 'ادخل example.com')) &&
+      denied(await roomSend(roomA, roomGeneral, 'https://x.org/y')));
+    await admin(db, `update profiles set created_at = now() - interval '10 days' where id = $1`, [roomA]);
+    check('…still refused for an old account with < 20 room messages', denied(await roomSend(roomA, roomGeneral, 'شوف www.example.com')));
+    await admin(db, `insert into chat_room_messages (room_id, author_pid, nickname, body, created_at)
+      select $1, public_id, nickname, 'old ' || g, now() - interval '3 hours' from chat_profiles, generate_series(1, 20) g where user_id = $2`, [roomGeneral, roomA]);
+    check('…allowed for an account older than 7 days with 20+ messages', ok(await roomSend(roomA, roomGeneral, 'شوف www.example.com')));
+
+    // Banned words
+    check('a banned Arabic word is refused', roomErr(await roomSend(roomD, roomGeneral, 'يا شرموط'), 'مش لطيف'));
+    check('a banned English word is refused (any case)', denied(await roomSend(roomD, roomGeneral, 'FUCK this')));
+    check('…with diacritics/tatweel too', denied(await roomSend(roomD, roomGeneral, 'يا شـرمـوط')));
+    check('a normal message that only contains the letters passes', ok(await roomSend(roomD, roomGeneral, 'كسبنا الماتش')));
+    check('a non-admin cannot add a banned word', denied(await as(db, roomA, `select public.admin_set_banned_word('بطيخ')`)));
+    check('the admin adds a banned word…', ok(await as(db, SA, `select public.admin_set_banned_word('بطيخ')`)));
+    check('…and it is refused from then on', denied(await roomSend(roomD, roomGeneral, 'عايز بطيخ')));
+
+    // Reading & identity
+    const roomGuestRead = await as(db, null, `select * from public.room_messages($1)`, [roomGeneral]);
+    check('a guest reads room messages', ok(roomGuestRead) && roomGuestRead.rows.length > 0, roomGuestRead.error);
+    const roomKeys = Object.keys(roomGuestRead.rows?.[0] || {});
+    check('room messages carry nickname + badge but no account id or name',
+      roomKeys.includes('nickname') && roomKeys.includes('verified') && !roomKeys.some((k) => /user|full_name|email|phone/.test(k)), roomKeys);
+    check('every writer shows the verified badge', roomGuestRead.rows?.every((r) => r.verified === true));
+    const roomAPid = (await admin(db, `select public_id from chat_profiles where user_id = $1`, [roomA]))[0].public_id;
+    const roomBPid = (await admin(db, `select public_id from chat_profiles where user_id = $1`, [roomB]))[0].public_id;
+    check("the author id is not the account id", roomAPid !== roomA && !roomGuestRead.rows.some((r) => r.author === roomA));
+    check('guests can read the messages table (Realtime) — safe columns only',
+      ok(await as(db, null, `select id, room_id, author_pid, nickname, body, reply_to, created_at from chat_room_messages limit 1`)) &&
+      denied(await as(db, null, `select hidden_by from chat_room_messages limit 1`)) &&
+      denied(await as(db, roomB, `select * from chat_room_messages limit 1`)));
+    check('nobody reads chat_profiles (nickname → account) directly',
+      denied(await as(db, roomB, `select user_id from chat_profiles`)) && denied(await as(db, null, `select user_id from chat_profiles`)));
+    check('nobody reads reports / presence / sanctions directly',
+      denied(await as(db, roomB, `select * from chat_room_reports`)) && denied(await as(db, roomB, `select * from chat_room_presence`)) &&
+      denied(await as(db, roomB, `select * from chat_sanctions`)));
+    check("a non-admin can't open the admin message view", denied(await as(db, roomB, `select * from public.admin_room_messages($1)`, [roomGeneral])));
+    const roomAdminView = await as(db, SA, `select * from public.admin_room_messages($1)`, [roomGeneral]);
+    check('the super admin sees nickname → real name', ok(roomAdminView) && roomAdminView.rows.some((r) => r.nickname === 'Alice_2' && r.full_name === 'room alice'), roomAdminView.error);
+
+    // Presence
+    check('a guest cannot heartbeat', denied(await as(db, null, `select public.room_heartbeat($1)`, [roomGeneral])));
+    check('heartbeat counts me online', (await as(db, roomA, `select public.room_heartbeat($1) as n`, [roomGeneral])).rows?.[0]?.n === 1);
+    const roomOnline = await as(db, null, `select * from public.room_online($1)`, [roomGeneral]);
+    check('«الموجودين دلوقتي» lists nicknames only', ok(roomOnline) && roomOnline.rows.length === 1 && roomOnline.rows[0].nickname === 'Alice_2' &&
+      !Object.keys(roomOnline.rows[0]).some((k) => /user|full_name|email/.test(k)), roomOnline);
+    await admin(db, `update chat_room_presence set last_seen = now() - interval '2 minutes'`);
+    check('…and drops people not seen for 90 s', (await as(db, null, `select * from public.room_online($1)`, [roomGeneral])).rows?.length === 0);
+
+    // Ignore
+    check('A ignores Bob', ok(await as(db, roomA, `select public.room_ignore($1, true)`, [roomBPid])));
+    check("…Bob's messages disappear for A",
+      !(await as(db, roomA, `select * from public.room_messages($1, null, null, 200)`, [roomGeneral])).rows?.some((r) => r.author === roomBPid));
+    check('…but not for Dina', (await as(db, roomD, `select * from public.room_messages($1, null, null, 200)`, [roomGeneral])).rows?.some((r) => r.author === roomBPid));
+    check('…A sees Bob in the ignore list', (await as(db, roomA, `select * from public.my_room_ignores()`)).rows?.[0]?.nickname === 'Bob');
+    check('cannot ignore yourself', denied(await as(db, roomA, `select public.room_ignore($1, true)`, [roomAPid])));
+    await as(db, roomA, `select public.room_ignore($1, false)`, [roomBPid]);
+
+    // Replies notify (rate-limited)
+    const roomReply = await roomSend(roomB, roomGeneral, 'أهلاً يا أليس', roomA1Id);
+    check('a reply is sent with the quoted message', ok(roomReply) &&
+      (await as(db, null, `select * from public.room_messages($1, null, null, 200)`, [roomGeneral])).rows?.find((r) => r.id === roomReply.rows[0].id)?.reply_nickname === 'Alice_2');
+    await roomSend(roomB, roomGeneral, 'رد تاني', roomA1Id);
+    const roomNotes = await admin(db, `select deep_link from notifications where user_id = $1 and deep_link like '/#/rooms/%'`, [roomA]);
+    check('a reply notifies the author once per room per 10 minutes', roomNotes.length === 1 && roomNotes[0].deep_link === '/#/rooms/' + roomGeneral, roomNotes);
+    check('a reply to a message in another room is refused', denied(await roomSend(roomB, roomKora, 'رد', roomA1Id)));
+
+    // Reports → auto-hide
+    const roomBad = (await roomSend(roomB, roomGeneral, 'رسالة مزعجة')).rows?.[0]?.id;
+    check('the author cannot report their own message', denied(await as(db, roomB, `select public.report_room_message($1, 'x')`, [roomBad])));
+    check('a guest cannot report', denied(await as(db, null, `select public.report_room_message($1, 'سبام')`, [roomBad])));
+    await as(db, roomN, `select public.report_room_message($1, 'سبام')`, [roomBad]);
+    await as(db, roomC, `select public.report_room_message($1, 'سبام')`, [roomBad]);
+    check('one report per user per message', denied(await as(db, roomC, `select public.report_room_message($1, 'تاني')`, [roomBad])));
+    await as(db, roomD, `select public.report_room_message($1, 'إساءة')`, [roomBad]);
+    check('two verified reporters (+ one unverified) do not hide it yet',
+      (await admin(db, `select is_hidden from chat_room_messages where id = $1`, [roomBad]))[0].is_hidden === false);
+    const roomThird = await as(db, roomE, `select public.report_room_message($1, 'إساءة') as h`, [roomBad]);
+    check('the third distinct verified reporter hides it', roomThird.rows?.[0]?.h === true &&
+      (await admin(db, `select is_hidden from chat_room_messages where id = $1`, [roomBad]))[0].is_hidden === true, roomThird);
+    check('a hidden message is not returned to others (RPC)',
+      !(await as(db, roomA, `select * from public.room_messages($1, null, null, 200)`, [roomGeneral])).rows?.some((r) => r.id === roomBad) &&
+      !(await as(db, null, `select * from public.room_messages($1, null, null, 200)`, [roomGeneral])).rows?.some((r) => r.id === roomBad));
+    check('…nor through the table (Realtime path)', (await as(db, null, `select id from chat_room_messages where id = $1`, [roomBad])).rows?.length === 0);
+    const roomReports = await as(db, SA, `select * from public.admin_room_reports()`);
+    check('the admin sees it with the real account', ok(roomReports) &&
+      roomReports.rows.some((r) => r.id === roomBad && r.is_hidden && r.full_name === 'room bob' && r.reports_count === 4), roomReports.error);
+    check("a non-admin can't list reports", denied(await as(db, roomA, `select * from public.admin_room_reports()`)));
+    check("a non-admin can't restore", denied(await as(db, roomA, `select public.admin_restore_room_message($1)`, [roomBad])));
+    check('the admin restores it', ok(await as(db, SA, `select public.admin_restore_room_message($1)`, [roomBad])) &&
+      (await as(db, null, `select * from public.room_messages($1, null, null, 200)`, [roomGeneral])).rows?.some((r) => r.id === roomBad));
+    check('the admin deletes it', ok(await as(db, SA, `select public.admin_delete_room_message($1)`, [roomBad])) &&
+      (await admin(db, `select 1 from chat_room_messages where id = $1`, [roomBad])).length === 0);
+    check('admin actions are audited',
+      (await admin(db, `select count(*)::int as n from chat_mod_log where message_id = $1 and action in ('auto_hide', 'restore', 'delete')`, [roomBad]))[0].n === 3);
+
+    // Moderators
+    check('a non-admin cannot assign moderators', denied(await as(db, roomA, `select public.admin_set_room_moderator($1, 'ModMan')`, [roomGeneral])));
+    check('the super admin assigns a room moderator', ok(await as(db, SA, `select public.admin_set_room_moderator($1, 'ModMan')`, [roomGeneral])));
+    const roomBMsg = (await roomSend(roomB, roomGeneral, 'رسالة في العامة')).rows?.[0]?.id;
+    const roomBKora = (await roomSend(roomB, roomKora, 'رسالة في الكورة')).rows?.[0]?.id;
+    check('a regular user cannot hide messages', denied(await as(db, roomA, `select public.mod_hide_room_message($1)`, [roomBMsg])));
+    check("the moderator can't hide in another room", denied(await as(db, roomMod, `select public.mod_hide_room_message($1)`, [roomBKora])));
+    check('the moderator hides in their room', ok(await as(db, roomMod, `select public.mod_hide_room_message($1, 'خارج الموضوع')`, [roomBMsg])) &&
+      (await admin(db, `select is_hidden from chat_room_messages where id = $1`, [roomBMsg]))[0].is_hidden === true);
+    check("the moderator can't mute in another room", denied(await as(db, roomMod, `select public.mod_mute_room_user($1, 60)`, [roomBKora])));
+    check('the moderator mutes Bob in their room', ok(await as(db, roomMod, `select public.mod_mute_room_user($1, 60)`, [roomBMsg])));
+    check('…Bob is refused there (muted)', roomErr(await roomSend(roomB, roomGeneral, 'ليه؟'), 'مكتوم'));
+    check('…but can still write in other rooms', ok(await roomSend(roomB, roomKora, 'أنا هنا')));
+    check('…and the room tells Bob why', (await as(db, roomB, `select public.get_chat_room($1) as r`, [roomGeneral])).rows?.[0]?.r?.blocked_reason === 'muted');
+    check('a moderator cannot mute longer than 7 days', denied(await as(db, roomMod, `select public.mod_mute_room_user($1, 20000)`, [roomBMsg])));
+    check("the moderator can't ban", denied(await as(db, roomMod, `select public.admin_ban_chat_user($1, null)`, [roomBMsg])));
+    check("the moderator can't create rooms", denied(await as(db, roomMod, `select public.admin_save_chat_room(null, 'غرفتي', null, 'topic')`)));
+    check('get_chat_room tells the moderator they can moderate', (await as(db, roomMod, `select public.get_chat_room($1) as r`, [roomGeneral])).rows?.[0]?.r?.can_moderate === true &&
+      (await as(db, roomMod, `select public.get_chat_room($1) as r`, [roomKora])).rows?.[0]?.r?.can_moderate === false);
+
+    // Bans (super admin)
+    const roomCMsg = (await roomSend(roomC, roomGeneral, 'أنا كارول')).rows?.[0]?.id;
+    check('the super admin bans a user from all rooms (permanent)', ok(await as(db, SA, `select public.admin_ban_chat_user($1, null, 'شتايم')`, [roomCMsg])));
+    check('…banned user is refused everywhere', roomErr(await roomSend(roomC, roomGeneral, 'هاي'), 'ممنوع') && denied(await roomSend(roomC, roomKora, 'هاي')));
+    const roomSanctions = await as(db, SA, `select * from public.admin_list_chat_sanctions()`);
+    check('the admin lists active mutes/bans', ok(roomSanctions) && roomSanctions.rows.some((s) => s.kind === 'ban' && s.full_name === 'room carol'));
+    const roomBanId = roomSanctions.rows?.find((s) => s.kind === 'ban')?.id;
+    check('the admin lifts the ban', ok(await as(db, SA, `select public.admin_lift_chat_sanction($1)`, [roomBanId])) && ok(await roomSend(roomC, roomGeneral, 'رجعت')));
+    check('an admin mute applies to all rooms', ok(await as(db, SA, `select public.mod_mute_room_user($1, 30)`, [roomCMsg])) &&
+      denied(await roomSend(roomC, roomKora, 'هاي')));
+
+    // Rooms are admin-only
+    check('a regular user cannot create a room', denied(await as(db, roomA, `select public.admin_save_chat_room(null, 'غرفة جديدة', null, 'topic')`)));
+    const roomNew = await as(db, SA, `select public.admin_save_chat_room(null, 'الأقصر', 'غرفة الأقصر', 'area', 'الأقصر', null, '🏛️', 40) as id`);
+    check('the super admin creates a room', ok(roomNew) && (await as(db, null, `select * from public.list_chat_rooms()`)).rows?.some((r) => r.name === 'الأقصر'), roomNew.error);
+    const roomNewId = roomNew.rows?.[0]?.id;
+    check('the super admin archives it', ok(await as(db, SA, `select public.admin_save_chat_room($1, 'الأقصر', 'غرفة الأقصر', 'area', 'الأقصر', null, '🏛️', 40, false)`, [roomNewId])) &&
+      !(await as(db, null, `select * from public.list_chat_rooms()`)).rows?.some((r) => r.name === 'الأقصر'));
+    check('…nobody can write in an archived room', denied(await roomSend(roomA, roomNewId, 'هاي')));
+    check('users cannot edit rooms directly', denied(await as(db, roomA, `update chat_rooms set name = 'x' where id = $1`, [roomGeneral])));
+
+    // Nearest room
+    await admin(db, `insert into e_addresses (owner_id, code, governorate, city, district) values ($1, 'RMTST001', 'القاهرة', 'القاهرة', 'المعادي - دجلة')`, [roomA]);
+    const roomNear = (await as(db, roomA, `select name, near from public.list_chat_rooms()`)).rows || [];
+    check('«أقرب غرفة لمنطقتك»: the district room, then the governorate room',
+      roomNear.find((r) => r.name === 'المعادي')?.near === 1 && roomNear.find((r) => r.name === 'القاهرة')?.near === 2 &&
+      roomNear.find((r) => r.name === 'الجيزة')?.near === 0, roomNear.filter((r) => r.near > 0));
+
+    // «كلّمه خاص» → friend request; the sender sees the nickname only
+    check('«كلّمه خاص» sends a friend request', (await as(db, roomD, `select public.room_friend_request($1) as s`, [roomAPid])).rows?.[0]?.s === 'sent');
+    const roomDFriends = (await as(db, roomD, `select * from public.my_friends()`)).rows || [];
+    check("…the sender's list shows the nickname, not the real name",
+      roomDFriends.length === 1 && roomDFriends[0].full_name.includes('Alice_2') && !roomDFriends[0].full_name.includes('room alice'), roomDFriends);
+    check('…and the other person gets the request', (await admin(db, `select count(*)::int as n from friendships where requester_id = $1 and addressee_id = $2 and status = 'pending'`, [roomD, roomA]))[0].n === 1);
+
+    // Retention
+    await admin(db, `insert into chat_room_messages (room_id, author_pid, nickname, body, created_at) values ($1, $2, 'Alice_2', 'قديمة', now() - interval '31 days')`, [roomGeneral, roomAPid]);
+    check('a regular user cannot purge', denied(await as(db, roomA, `select public.purge_old_room_messages()`)));
+    check('the admin purges messages older than 30 days', (await as(db, SA, `select public.purge_old_room_messages() as n`)).rows?.[0]?.n >= 1 &&
+      (await admin(db, `select count(*)::int as n from chat_room_messages where created_at < now() - interval '30 days'`))[0].n === 0);
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));
