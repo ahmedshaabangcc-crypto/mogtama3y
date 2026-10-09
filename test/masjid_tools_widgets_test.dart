@@ -1,0 +1,84 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mogtama3y/features/masjid_tools/adhkar_data.dart';
+import 'package:mogtama3y/features/masjid_tools/adhkar_screens.dart';
+import 'package:mogtama3y/features/masjid_tools/hijri_screen.dart';
+import 'package:mogtama3y/features/masjid_tools/prayer_reminder_host.dart';
+import 'package:mogtama3y/features/masjid_tools/qibla_screen.dart';
+import 'package:mogtama3y/features/masjid_tools/quran_screens.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+Widget _app(Widget child) => MaterialApp(
+      builder: (context, c) => Directionality(textDirection: TextDirection.rtl, child: PrayerReminderHost(child: c!)),
+      home: child,
+    );
+
+void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets('adhkar: tap to count, done after the target', (tester) async {
+    final morning = adhkarCategories.first;
+    await tester.pumpWidget(_app(AdhkarListScreen(category: morning)));
+    await tester.pump();
+    final i = morning.items.indexWhere((d) => d.count == 3);
+    expect(find.text('٠/٣'), findsWidgets);
+    final card = find.text(morning.items[i].text);
+    await tester.ensureVisible(card);
+    for (var n = 0; n < 3; n++) {
+      await tester.tap(card);
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+    expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('tasbeeh counts', (tester) async {
+    await tester.pumpWidget(_app(const TasbeehScreen()));
+    await tester.pump();
+    await tester.tap(find.text('دوس هنا'));
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.text('دوس هنا'));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('٢'), findsOneWidget);
+    expect(find.textContaining('الإجمالي: ٢'), findsOneWidget);
+  });
+
+  testWidgets('adhkar home, hijri and qibla screens render', (tester) async {
+    await tester.pumpWidget(_app(const AdhkarHomeScreen()));
+    expect(find.text('أذكار الصباح'), findsOneWidget);
+
+    await tester.pumpWidget(_app(const HijriCalendarScreen()));
+    await tester.pump();
+    expect(find.text('عيد الأضحى'), findsOneWidget);
+    await tester.scrollUntilVisible(find.textContaining('حسب الحساب الفلكي'), 300);
+    expect(find.textContaining('حسب الحساب الفلكي'), findsOneWidget);
+
+    await tester.pumpWidget(_app(const QiblaScreen()));
+    await tester.pump(const Duration(seconds: 4));
+    expect(find.textContaining('القبلة على ١٣٦°'), findsOneWidget);
+    expect(find.textContaining('البوصلة مش متاحة'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 20)); // geolocator's 15 s time limit
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('quran index and reader', (tester) async {
+    await tester.pumpWidget(_app(const QuranHomeScreen()));
+    await tester.pump();
+    expect(find.text('سورة الفاتحة'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'يس');
+    await tester.pump();
+    expect(find.text('سورة يس'), findsOneWidget);
+
+    await tester.runAsync(() async {
+      await tester.pumpWidget(_app(const SurahReaderScreen(surah: 112)));
+      for (var i = 0; i < 20 && find.byType(CircularProgressIndicator).evaluate().isNotEmpty; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        await tester.pump();
+      }
+    });
+    await tester.pump();
+    expect(find.text('سورة الإخلاص'), findsWidgets);
+    expect(find.byType(AyahMarker), findsNWidgets(4));
+    expect((await QuranPrefs.lastRead()), (112, 1));
+  });
+}

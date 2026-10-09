@@ -10,6 +10,7 @@ import '../../core/routing/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../masjid/masjid_home_screen.dart';
+import '../masjid_tools/masjid_tools_entry.dart';
 import '../notifications/notifications_screen.dart';
 import '../profile/profile_screen.dart';
 import '../shared/made_by_apex.dart';
@@ -84,6 +85,8 @@ class MasjidMoreScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
         children: [
           const PushOptInCard(text: 'فعّل الإشعارات عشان توصلك إعلانات مسجدك والدروس وصلاة الجنازة فوراً.'),
+          const DailyToolsStrip(dark: false, title: 'أدوات يومية'),
+          const SizedBox(height: 12),
           tile(Icons.home_rounded, 'الصفحة الرئيسية لمسجدي', openUnionHome),
           if (AuthService.isSignedIn)
             tile(Icons.person_outline_rounded, 'حسابي', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileScreen())))

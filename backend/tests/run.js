@@ -2288,6 +2288,112 @@ const denied = (r) => !!r.error;
     check('masm: membership survived the re-run', (await admin(db, `select count(*)::int as n from mosque_members where mosque_id = $1`, [masmA]))[0].n === 4);
   }
 
+  // ------------------------------------------------------------------
+  console.log('\nPhase mtool — «أدوات يومية»: prayer reminders (0082)');
+  {
+    // Times from lib/core/masjid/prayer_times.dart (PrayerCalculator.egypt)
+    // for the same cities and Cairo dates; the SQL port must agree ±1 min.
+    const mtoolRefs = [
+      ['cairo', 30.0444, 31.2357, '2026-01-15', {fajr: '2026-01-15T03:21:00.000Z', sunrise: '2026-01-15T04:52:00.000Z', dhuhr: '2026-01-15T10:05:00.000Z', asr: '2026-01-15T12:58:00.000Z', maghrib: '2026-01-15T15:17:00.000Z', isha: '2026-01-15T16:39:00.000Z'}],
+      ['cairo', 30.0444, 31.2357, '2026-04-24', {fajr: '2026-04-24T01:46:00.000Z', sunrise: '2026-04-24T03:19:00.000Z', dhuhr: '2026-04-24T09:54:00.000Z', asr: '2026-04-24T13:29:00.000Z', maghrib: '2026-04-24T16:28:00.000Z', isha: '2026-04-24T17:51:00.000Z'}],
+      ['cairo', 30.0444, 31.2357, '2026-06-21', {fajr: '2026-06-21T01:08:00.000Z', sunrise: '2026-06-21T02:54:00.000Z', dhuhr: '2026-06-21T09:58:00.000Z', asr: '2026-06-21T13:32:00.000Z', maghrib: '2026-06-21T16:59:00.000Z', isha: '2026-06-21T18:33:00.000Z'}],
+      ['cairo', 30.0444, 31.2357, '2026-10-29', {fajr: '2026-10-29T02:39:00.000Z', sunrise: '2026-10-29T04:07:00.000Z', dhuhr: '2026-10-29T09:40:00.000Z', asr: '2026-10-29T12:47:00.000Z', maghrib: '2026-10-29T15:11:00.000Z', isha: '2026-10-29T16:29:00.000Z'}],
+      ['cairo', 30.0444, 31.2357, '2026-10-30', {fajr: '2026-10-30T02:40:00.000Z', sunrise: '2026-10-30T04:07:00.000Z', dhuhr: '2026-10-30T09:40:00.000Z', asr: '2026-10-30T12:46:00.000Z', maghrib: '2026-10-30T15:10:00.000Z', isha: '2026-10-30T16:28:00.000Z'}],
+      ['cairo', 30.0444, 31.2357, '2027-12-31', {fajr: '2027-12-31T03:18:00.000Z', sunrise: '2027-12-31T04:51:00.000Z', dhuhr: '2027-12-31T09:59:00.000Z', asr: '2027-12-31T12:47:00.000Z', maghrib: '2027-12-31T15:05:00.000Z', isha: '2027-12-31T16:28:00.000Z'}],
+      ['cairo', 30.0444, 31.2357, '2025-03-01', {fajr: '2025-03-01T02:55:00.000Z', sunrise: '2025-03-01T04:21:00.000Z', dhuhr: '2025-03-01T10:08:00.000Z', asr: '2025-03-01T13:25:00.000Z', maghrib: '2025-03-01T15:54:00.000Z', isha: '2025-03-01T17:11:00.000Z'}],
+      ['alex', 31.2001, 29.9187, '2026-01-15', {fajr: '2026-01-15T03:27:00.000Z', sunrise: '2026-01-15T04:59:00.000Z', dhuhr: '2026-01-15T10:11:00.000Z', asr: '2026-01-15T13:01:00.000Z', maghrib: '2026-01-15T15:20:00.000Z', isha: '2026-01-15T16:43:00.000Z'}],
+      ['alex', 31.2001, 29.9187, '2026-04-24', {fajr: '2026-04-24T01:48:00.000Z', sunrise: '2026-04-24T03:23:00.000Z', dhuhr: '2026-04-24T09:59:00.000Z', asr: '2026-04-24T13:36:00.000Z', maghrib: '2026-04-24T16:35:00.000Z', isha: '2026-04-24T17:59:00.000Z'}],
+      ['alex', 31.2001, 29.9187, '2026-06-21', {fajr: '2026-06-21T01:08:00.000Z', sunrise: '2026-06-21T02:57:00.000Z', dhuhr: '2026-06-21T10:03:00.000Z', asr: '2026-06-21T13:41:00.000Z', maghrib: '2026-06-21T17:07:00.000Z', isha: '2026-06-21T18:43:00.000Z'}],
+      ['alex', 31.2001, 29.9187, '2026-10-29', {fajr: '2026-10-29T02:45:00.000Z', sunrise: '2026-10-29T04:13:00.000Z', dhuhr: '2026-10-29T09:45:00.000Z', asr: '2026-10-29T12:51:00.000Z', maghrib: '2026-10-29T15:14:00.000Z', isha: '2026-10-29T16:34:00.000Z'}],
+      ['alex', 31.2001, 29.9187, '2026-10-30', {fajr: '2026-10-30T02:45:00.000Z', sunrise: '2026-10-30T04:14:00.000Z', dhuhr: '2026-10-30T09:45:00.000Z', asr: '2026-10-30T12:50:00.000Z', maghrib: '2026-10-30T15:14:00.000Z', isha: '2026-10-30T16:33:00.000Z'}],
+      ['alex', 31.2001, 29.9187, '2027-12-31', {fajr: '2027-12-31T03:25:00.000Z', sunrise: '2027-12-31T04:59:00.000Z', dhuhr: '2027-12-31T10:04:00.000Z', asr: '2027-12-31T12:49:00.000Z', maghrib: '2027-12-31T15:08:00.000Z', isha: '2027-12-31T16:32:00.000Z'}],
+      ['alex', 31.2001, 29.9187, '2025-03-01', {fajr: '2025-03-01T03:00:00.000Z', sunrise: '2025-03-01T04:27:00.000Z', dhuhr: '2025-03-01T10:14:00.000Z', asr: '2025-03-01T13:30:00.000Z', maghrib: '2025-03-01T15:59:00.000Z', isha: '2025-03-01T17:17:00.000Z'}],
+      ['aswan', 24.0889, 32.8998, '2026-01-15', {fajr: '2026-01-15T03:07:00.000Z', sunrise: '2026-01-15T04:34:00.000Z', dhuhr: '2026-01-15T09:59:00.000Z', asr: '2026-01-15T13:01:00.000Z', maghrib: '2026-01-15T15:22:00.000Z', isha: '2026-01-15T16:40:00.000Z'}],
+      ['aswan', 24.0889, 32.8998, '2026-04-24', {fajr: '2026-04-24T01:53:00.000Z', sunrise: '2026-04-24T03:19:00.000Z', dhuhr: '2026-04-24T09:48:00.000Z', asr: '2026-04-24T13:14:00.000Z', maghrib: '2026-04-24T16:14:00.000Z', isha: '2026-04-24T17:31:00.000Z'}],
+      ['aswan', 24.0889, 32.8998, '2026-06-21', {fajr: '2026-06-21T01:25:00.000Z', sunrise: '2026-06-21T03:01:00.000Z', dhuhr: '2026-06-21T09:51:00.000Z', asr: '2026-06-21T13:09:00.000Z', maghrib: '2026-06-21T16:39:00.000Z', isha: '2026-06-21T18:05:00.000Z'}],
+      ['aswan', 24.0889, 32.8998, '2026-10-29', {fajr: '2026-10-29T02:30:00.000Z', sunrise: '2026-10-29T03:53:00.000Z', dhuhr: '2026-10-29T09:33:00.000Z', asr: '2026-10-29T12:46:00.000Z', maghrib: '2026-10-29T15:11:00.000Z', isha: '2026-10-29T16:25:00.000Z'}],
+      ['aswan', 24.0889, 32.8998, '2026-10-30', {fajr: '2026-10-30T02:30:00.000Z', sunrise: '2026-10-30T03:53:00.000Z', dhuhr: '2026-10-30T09:33:00.000Z', asr: '2026-10-30T12:46:00.000Z', maghrib: '2026-10-30T15:10:00.000Z', isha: '2026-10-30T16:25:00.000Z'}],
+      ['aswan', 24.0889, 32.8998, '2027-12-31', {fajr: '2027-12-31T03:03:00.000Z', sunrise: '2027-12-31T04:31:00.000Z', dhuhr: '2027-12-31T09:52:00.000Z', asr: '2027-12-31T12:51:00.000Z', maghrib: '2027-12-31T15:11:00.000Z', isha: '2027-12-31T16:30:00.000Z'}],
+      ['aswan', 24.0889, 32.8998, '2025-03-01', {fajr: '2025-03-01T02:49:00.000Z', sunrise: '2025-03-01T04:11:00.000Z', dhuhr: '2025-03-01T10:02:00.000Z', asr: '2025-03-01T13:21:00.000Z', maghrib: '2025-03-01T15:51:00.000Z', isha: '2025-03-01T17:04:00.000Z'}],
+      ['matruh', 31.3543, 27.2373, '2026-01-15', {fajr: '2026-01-15T03:38:00.000Z', sunrise: '2026-01-15T05:11:00.000Z', dhuhr: '2026-01-15T10:21:00.000Z', asr: '2026-01-15T13:11:00.000Z', maghrib: '2026-01-15T15:31:00.000Z', isha: '2026-01-15T16:53:00.000Z'}],
+      ['matruh', 31.3543, 27.2373, '2026-04-24', {fajr: '2026-04-24T01:59:00.000Z', sunrise: '2026-04-24T03:33:00.000Z', dhuhr: '2026-04-24T10:10:00.000Z', asr: '2026-04-24T13:47:00.000Z', maghrib: '2026-04-24T16:46:00.000Z', isha: '2026-04-24T18:10:00.000Z'}],
+      ['matruh', 31.3543, 27.2373, '2026-06-21', {fajr: '2026-06-21T01:18:00.000Z', sunrise: '2026-06-21T03:07:00.000Z', dhuhr: '2026-06-21T10:14:00.000Z', asr: '2026-06-21T13:52:00.000Z', maghrib: '2026-06-21T17:19:00.000Z', isha: '2026-06-21T18:54:00.000Z'}],
+      ['matruh', 31.3543, 27.2373, '2026-10-29', {fajr: '2026-10-29T02:55:00.000Z', sunrise: '2026-10-29T04:24:00.000Z', dhuhr: '2026-10-29T09:56:00.000Z', asr: '2026-10-29T13:01:00.000Z', maghrib: '2026-10-29T15:25:00.000Z', isha: '2026-10-29T16:44:00.000Z'}],
+      ['matruh', 31.3543, 27.2373, '2026-10-30', {fajr: '2026-10-30T02:56:00.000Z', sunrise: '2026-10-30T04:25:00.000Z', dhuhr: '2026-10-30T09:56:00.000Z', asr: '2026-10-30T13:01:00.000Z', maghrib: '2026-10-30T15:24:00.000Z', isha: '2026-10-30T16:44:00.000Z'}],
+      ['matruh', 31.3543, 27.2373, '2027-12-31', {fajr: '2027-12-31T03:36:00.000Z', sunrise: '2027-12-31T05:10:00.000Z', dhuhr: '2027-12-31T10:15:00.000Z', asr: '2027-12-31T13:00:00.000Z', maghrib: '2027-12-31T15:18:00.000Z', isha: '2027-12-31T16:42:00.000Z'}],
+      ['matruh', 31.3543, 27.2373, '2025-03-01', {fajr: '2025-03-01T03:10:00.000Z', sunrise: '2025-03-01T04:38:00.000Z', dhuhr: '2025-03-01T10:24:00.000Z', asr: '2025-03-01T13:41:00.000Z', maghrib: '2025-03-01T16:09:00.000Z', isha: '2025-03-01T17:28:00.000Z'}],
+    ];
+    for (const [city, lat, lng, day, want] of mtoolRefs) {
+      const rows = await admin(db, `select prayer, prayer_at from private.egypt_prayer_times($1::date, $2, $3)`, [day, lat, lng]);
+      const got = Object.fromEntries(rows.map((r) => [r.prayer, new Date(r.prayer_at).getTime()]));
+      const worst = Math.max(...Object.entries(want).map(([p, iso]) => Math.abs((got[p] ?? 0) - new Date(iso).getTime())));
+      check(`mtool: SQL prayer times match Dart — ${city} ${day}`, rows.length === 6 && worst <= 60000, { worst, got: rows });
+    }
+    const mtoolDst = await admin(db, `select private.egypt_dst_on('2026-04-23') a, private.egypt_dst_on('2026-04-24') b,
+      private.egypt_dst_on('2026-10-29') c, private.egypt_dst_on('2026-10-30') d, private.egypt_dst_on('2022-07-01') e,
+      private.egypt_today('2026-07-01T21:30:00Z') f, private.egypt_today('2026-01-01T21:30:00Z') g, private.egypt_time12('2026-01-15T03:21:00Z') h`);
+    const t = mtoolDst[0];
+    check('mtool: Egypt summer time — last Friday of April to last Thursday of October',
+      t.a === false && t.b === true && t.c === true && t.d === false && t.e === false, t);
+    check('mtool: Cairo date & 12-hour time', new Date(t.f).toISOString().startsWith('2026-07-02') && new Date(t.g).toISOString().startsWith('2026-01-01') && t.h === '5:21 ص', t);
+
+    const MT1 = await signUp(db, 'mtool one', '01000000881');
+    const MT2 = await signUp(db, 'mtool two', '01000000882');
+    const cairo = [30.0444, 31.2357];
+    check('mtool: guests cannot save reminders', denied(await as(db, null, `select public.set_prayer_reminders(30, 31, '{"fajr":0}'::jsonb)`)));
+    check('mtool: a place outside Egypt is refused', denied(await as(db, MT1, `select public.set_prayer_reminders(51.5, -0.1, '{"fajr":0}'::jsonb)`)));
+    check('mtool: odd offsets are refused', denied(await as(db, MT1, `select public.set_prayer_reminders($1, $2, '{"fajr":7}'::jsonb)`, cairo)));
+    check('mtool: unknown prayers are refused', denied(await as(db, MT1, `select public.set_prayer_reminders($1, $2, '{"sunrise":0}'::jsonb)`, cairo)));
+    check('mtool: a user saves reminders', ok(await as(db, MT1, `select public.set_prayer_reminders($1, $2, '{"fajr":10,"isha":0}'::jsonb, 'القاهرة')`, cairo)));
+    check('mtool: …nothing is queued without a push device',
+      (await admin(db, `select count(*)::int n from prayer_reminder_queue where user_id = $1`, [MT1]))[0].n === 0);
+    check('mtool: the owner reads their settings', (await as(db, MT1, `select * from public.my_prayer_reminders()`)).rows?.[0]?.offsets?.fajr === 10);
+    check("mtool: others can't read them", (await as(db, MT2, `select * from prayer_reminder_prefs`)).rows?.length === 0 &&
+      (await as(db, MT2, `select * from public.my_prayer_reminders()`)).rows?.length === 0);
+    check("mtool: users can't touch the queue", denied(await as(db, MT1, `insert into prayer_reminder_queue (user_id, day, prayer, adhan_at, due_at, minutes_before) values ($1, current_date, 'fajr', now(), now(), 0)`, [MT1])) &&
+      denied(await as(db, MT1, `select * from prayer_reminder_queue`)));
+    check("mtool: users can't run the sender", denied(await as(db, MT1, `select private.prayer_reminders_tick()`)) &&
+      denied(await as(db, MT1, `select * from private.egypt_prayer_times(current_date, 30, 31)`)));
+
+    await as(db, MT1, `select public.save_push_subscription('https://fcm.googleapis.com/fcm/send/mtool1', 'p256', 'authx', 'masjid')`);
+    check('mtool: saving again with a push device queues today + tomorrow',
+      ok(await as(db, MT1, `select public.set_prayer_reminders($1, $2, '{"fajr":10,"isha":0}'::jsonb, 'القاهرة')`, cairo)) &&
+      (await admin(db, `select count(*)::int n from prayer_reminder_queue where user_id = $1`, [MT1]))[0].n === 4);
+    const fajr = (await admin(db, `select q.due_at, q.adhan_at, q.day from prayer_reminder_queue q where user_id = $1 and prayer = 'fajr' order by day limit 1`, [MT1]))[0];
+    const dartFajr = (await admin(db, `select prayer_at from private.egypt_prayer_times($1::date, $2, $3) where prayer = 'fajr'`, [fajr.day, ...cairo]))[0].prayer_at;
+    check('mtool: the reminder is due 10 minutes before the adhan',
+      new Date(fajr.adhan_at).getTime() - new Date(fajr.due_at).getTime() === 600000 && new Date(fajr.adhan_at).getTime() === new Date(dartFajr).getTime());
+    const at = new Date(new Date(fajr.due_at).getTime() + 30000).toISOString();
+    const sent1 = (await admin(db, `select private.prayer_reminders_tick($1::timestamptz) n`, [at]))[0].n;
+    const note = await admin(db, `select title, body, deep_link from notifications where user_id = $1 and deep_link = '/masjid/tools/reminders'`, [MT1]);
+    check('mtool: the tick sends the due reminder as a notification (→ push)', sent1 === 1 && note.length === 1 && note[0].title === 'الفجر بعد 10 دقايق' && note[0].body.startsWith('أذان الفجر '), { sent1, note });
+    const sent2 = (await admin(db, `select private.prayer_reminders_tick($1::timestamptz) n`, [at]))[0].n;
+    check('mtool: …once only', sent2 === 0 && (await admin(db, `select count(*)::int n from notifications where user_id = $1 and deep_link = '/masjid/tools/reminders'`, [MT1]))[0].n === 1);
+    const isha = (await admin(db, `select due_at from prayer_reminder_queue where user_id = $1 and prayer = 'isha' order by day limit 1`, [MT1]))[0];
+    const late = new Date(new Date(isha.due_at).getTime() + 20 * 60000).toISOString();
+    check('mtool: a reminder more than 10 minutes late is dropped, not sent',
+      (await admin(db, `select private.prayer_reminders_tick($1::timestamptz) n`, [late]))[0].n === 0 &&
+      (await admin(db, `select sent_at from prayer_reminder_queue where user_id = $1 and prayer = 'isha' order by day limit 1`, [MT1]))[0].sent_at !== null);
+    check('mtool: changing the settings re-queues only what was not sent',
+      ok(await as(db, MT1, `select public.set_prayer_reminders($1, $2, '{"fajr":5,"isha":0,"asr":15}'::jsonb)`, cairo)) &&
+      (await admin(db, `select count(*)::int n from prayer_reminder_queue where user_id = $1`, [MT1]))[0].n === 6 &&
+      (await admin(db, `select minutes_before from prayer_reminder_queue where user_id = $1 and prayer = 'fajr' order by day limit 1`, [MT1]))[0].minutes_before === 10);
+    check('mtool: a user without a push device gets nothing queued',
+      ok(await as(db, MT2, `select public.set_prayer_reminders(31.2, 29.9, '{"maghrib":5}'::jsonb)`)) &&
+      (await admin(db, `select count(*)::int n from prayer_reminder_queue where user_id = $1`, [MT2]))[0].n === 0);
+    const later = new Date(Date.now() + 13 * 3600000).toISOString();
+    await admin(db, `select private.prayer_reminders_tick($1::timestamptz)`, [later]);
+    check('mtool: old reminder notifications are cleaned up',
+      (await admin(db, `select count(*)::int n from notifications where user_id = $1 and deep_link = '/masjid/tools/reminders' and created_at < $2::timestamptz - interval '12 hours'`, [MT1, later]))[0].n === 0);
+    check('mtool: turning reminders off clears them',
+      ok(await as(db, MT1, `select public.clear_prayer_reminders()`)) &&
+      (await admin(db, `select count(*)::int n from prayer_reminder_prefs where user_id = $1`, [MT1]))[0].n === 0 &&
+      (await admin(db, `select count(*)::int n from prayer_reminder_queue where user_id = $1 and sent_at is null`, [MT1]))[0].n === 0);
+    check('mtool: saving no prayers removes the settings',
+      ok(await as(db, MT2, `select public.set_prayer_reminders(31.2, 29.9, '{}'::jsonb)`)) &&
+      (await admin(db, `select count(*)::int n from prayer_reminder_prefs where user_id = $1`, [MT2]))[0].n === 0);
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));
