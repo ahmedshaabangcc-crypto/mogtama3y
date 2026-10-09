@@ -2089,6 +2089,205 @@ const denied = (r) => !!r.error;
     check('mas: tutorial videos accept the masjid app', ok(await as(db, masSA, `insert into tutorial_videos (app, youtube_id, title) values ('masjid', 'abcdefghij1', 'إزاي تدير مسجدك')`)));
   }
 
+  // ------------------------------------------------------------------
+  console.log('\nمسجدي — members & mosque chat (0081)');
+  {
+    const masmIns = async (name, lat, lng) => (await admin(db, `insert into mosques (name, lat, lng, area) values ($1, $2, $3, 'حي الاختبار') returning id`, [name, lat, lng]))[0].id;
+    const masmA = await masmIns('مسجد الهدى', 30.2000, 31.4000);
+    const masmNear = await masmIns('مسجد الفتح', 30.2040, 31.4000);   // ≈ 445 m north
+    const masmFar = await masmIns('مسجد الإيمان', 30.2047, 31.4000);  // ≈ 523 m north
+    const masmB = await masmIns('مسجد البر', 30.3000, 31.5000);
+    const masmU1 = await signUp(db, 'masm one', null);
+    const masmU2 = await signUp(db, 'masm two', null);
+    const masmU3 = await signUp(db, 'masm three', null);
+    const masmU4 = await signUp(db, 'masm four', null);
+    const masmOut = await signUp(db, 'masm outsider', null);
+    const masmOwner = await signUp(db, 'masm owner', null);
+    const masmHelpChat = await signUp(db, 'masm helper chat', null);
+    const masmHelpPosts = await signUp(db, 'masm helper posts', '01077700001');
+    const masmSA = await signUp(db, 'masm super', null);
+    await admin(db, `update profiles set role = 'super_admin' where id = $1`, [masmSA]);
+    // Each send is 3+ s after the previous one in "real" time: age every message (and read marker) by 2 minutes.
+    const masmCool = async () => {
+      await admin(db, `update mosque_chat_messages set created_at = created_at - interval '2 minutes'`);
+      await admin(db, `update mosque_members set last_read_at = last_read_at - interval '2 minutes'`);
+    };
+    const masmSend = async (u, mosque, body, reply) => {
+      await masmCool();
+      return as(db, u, `select public.masjid_chat_send($1, $2, $3) as id`, [mosque, body, reply ?? null]);
+    };
+    const masmHas = (r, text) => !!r.error && r.error.includes(text);
+
+    // Join candidates (500 m)
+    const masmCand = await as(db, null, `select * from public.masjid_join_candidates(30.2000, 31.4000, 500, 5)`);
+    const masmCandIds = (masmCand.rows || []).map((r) => r.id);
+    check('masm: join candidates list mosques within 500 m, nearest first, with metres',
+      ok(masmCand) && masmCandIds.length === 2 && masmCandIds[0] === masmA && masmCandIds[1] === masmNear &&
+      masmCand.rows.every((r) => r.within === true) && masmCand.rows[1].distance_m > 400 && masmCand.rows[1].distance_m < 500, masmCand);
+    check('masm: …the mosque at ~523 m is left out', !masmCandIds.includes(masmFar));
+    const masmFallback = await as(db, null, `select * from public.masjid_join_candidates(30.1950, 31.4000, 500, 2)`);
+    check('masm: none within 500 m → the nearest few beyond, flagged', ok(masmFallback) && masmFallback.rows.length === 2 &&
+      masmFallback.rows.every((r) => r.within === false) && masmFallback.rows[0].id === masmA, masmFallback);
+
+    // Join / leave
+    check('masm: anon cannot join', denied(await as(db, null, `select public.masjid_join($1)`, [masmA])));
+    check('masm: a user joins an unverified mosque', ok(await as(db, masmU1, `select public.masjid_join($1)`, [masmA])));
+    check('masm: …which also follows it with notifications on',
+      (await admin(db, `select notify from mosque_follows where mosque_id = $1 and user_id = $2`, [masmA, masmU1]))[0]?.notify === true);
+    check('masm: …and the first mosque becomes the primary one',
+      (await as(db, masmU1, `select * from public.my_mosques()`)).rows?.[0]?.is_primary === true);
+    for (const u of [masmU2, masmU3, masmU4]) await as(db, u, `select public.masjid_join($1)`, [masmA]);
+    check('masm: a user may join several mosques', ok(await as(db, masmU1, `select public.masjid_join($1)`, [masmB])) &&
+      (await as(db, masmU1, `select * from public.my_mosques()`)).rows?.length === 2);
+    check('masm: set another mosque as primary', ok(await as(db, masmU1, `select public.masjid_set_primary($1)`, [masmB])) &&
+      (await admin(db, `select count(*)::int as n from mosque_members where user_id = $1 and is_primary`, [masmU1]))[0].n === 1 &&
+      (await admin(db, `select is_primary from mosque_members where user_id = $1 and mosque_id = $2`, [masmU1, masmB]))[0].is_primary === true);
+    check('masm: a non-member cannot set primary', denied(await as(db, masmOut, `select public.masjid_set_primary($1)`, [masmA])));
+    const masmGet = await as(db, null, `select public.get_mosque($1) as m`, [masmA]);
+    check('masm: get_mosque shows the member count to guests', masmGet.rows?.[0]?.m?.members === 4 && masmGet.rows[0].m.is_member === false, masmGet);
+    check('masm: get_mosque tells a member they are in', (await as(db, masmU2, `select public.get_mosque($1) as m`, [masmA])).rows?.[0]?.m?.is_member === true);
+    check('masm: lists carry the member count', (await as(db, null, `select * from public.nearby_mosques(30.2, 31.4, 1, 10)`)).rows?.find((r) => r.id === masmA)?.member_count === 4 &&
+      (await as(db, null, `select * from public.search_mosques('الهدى')`)).rows?.[0]?.member_count === 4);
+    check('masm: leave removes membership and the follow; another mosque becomes primary', ok(await as(db, masmU1, `select public.masjid_leave($1)`, [masmB])) &&
+      (await admin(db, `select count(*)::int as n from mosque_follows where mosque_id = $1 and user_id = $2`, [masmB, masmU1]))[0].n === 0 &&
+      (await admin(db, `select is_primary from mosque_members where user_id = $1 and mosque_id = $2`, [masmU1, masmA]))[0].is_primary === true);
+    check('masm: nobody reads memberships directly', denied(await as(db, masmU1, `select * from mosque_members`)));
+    const masmAdd = await as(db, masmOut, `select public.masjid_add_mosque('مسجد الرضوان', 30.2100, 31.4100) as id`);
+    check('masm: adding a missing mosque joins its creator', ok(masmAdd) &&
+      (await admin(db, `select count(*)::int as n from mosque_members where mosque_id = $1 and user_id = $2`, [masmAdd.rows?.[0]?.id, masmOut]))[0].n === 1, masmAdd);
+
+    // Chat: members only
+    const masm1 = await masmSend(masmU1, masmA, 'السلام عليكم يا جماعة');
+    check('masm: a member posts in an unverified mosque chat', ok(masm1), masm1);
+    const masm1Id = masm1.rows?.[0]?.id;
+    check('masm: a non-member cannot post', masmHas(await masmSend(masmOut, masmA, 'أهلاً'), 'انضم'));
+    check('masm: anon cannot post', denied(await masmSend(null, masmA, 'أهلاً')));
+    check('masm: members read the chat', (await as(db, masmU2, `select * from public.masjid_chat_messages($1)`, [masmA])).rows?.length === 1);
+    check('masm: a non-member cannot read messages (RPC)', denied(await as(db, masmOut, `select * from public.masjid_chat_messages($1)`, [masmA])));
+    check('masm: a non-member cannot read messages (table / Realtime)', (await as(db, masmOut, `select id, body from mosque_chat_messages`)).rows?.length === 0);
+    check('masm: a member reads visible rows directly (what Realtime delivers)',
+      (await as(db, masmU2, `select id, body from mosque_chat_messages where mosque_id = $1`, [masmA])).rows?.length === 1);
+    check('masm: no one reads the author column directly', denied(await as(db, masmU2, `select user_id from mosque_chat_messages`)));
+    check('masm: anon has no access to messages', denied(await as(db, null, `select id from mosque_chat_messages`)) &&
+      denied(await as(db, null, `select * from public.masjid_chat_messages($1)`, [masmA])));
+    check('masm: guests see a message count on the mosque page', (await as(db, null, `select public.get_mosque($1) as m`, [masmA])).rows?.[0]?.m?.chat_messages === 1);
+    check('masm: an empty message is refused', masmHas(await masmSend(masmU2, masmA, '   '), 'اكتب'));
+    check('masm: a 1001-char message is refused', masmHas(await masmSend(masmU2, masmA, 'ا'.repeat(1001)), '1000'));
+    check('masm: a reply to a message', ok(await masmSend(masmU2, masmA, 'وعليكم السلام', masm1Id)));
+    check("masm: a reply to another mosque's message is refused", denied(await masmSend(masmU2, masmB, 'x', masm1Id)));
+
+    // Rate limit & spam
+    check('masm: 1 message / 3 s', ok(await masmSend(masmU3, masmA, 'رسالة أولى')) &&
+      masmHas(await as(db, masmU3, `select public.masjid_chat_send($1, 'رسالة تانية')`, [masmA]), 'ثانيتين'));
+    await admin(db, `insert into mosque_chat_messages (mosque_id, user_id, body, created_at)
+      select $1, $2, 'رسالة رقم ' || g, now() - interval '30 minutes' + g * interval '1 second' from generate_series(1, 60) g`, [masmA, masmU4]);
+    check('masm: 60 messages / hour per user per mosque', masmHas(await as(db, masmU4, `select public.masjid_chat_send($1, 'كمان')`, [masmA]), 'كتير'));
+    await admin(db, `delete from mosque_chat_messages where user_id = $1`, [masmU4]);
+    const masmSame1 = await masmSend(masmU4, masmA, 'نفس الكلام');
+    await admin(db, `update mosque_chat_messages set created_at = created_at - interval '10 seconds'`);
+    check('masm: the same text twice in a minute is refused', ok(masmSame1) &&
+      masmHas(await as(db, masmU4, `select public.masjid_chat_send($1, 'نفس الكلام')`, [masmA]), 'نفس'));
+    check('masm: a phone number is refused (Arabic digits too)', masmHas(await masmSend(masmU4, masmA, 'كلمني على ٠١٠ ١٢٣٤ ٥٦٧٨'), 'أرقام'));
+    check('masm: links from a new account are refused', masmHas(await masmSend(masmU4, masmA, 'شوف www.example.com'), 'اللينكات'));
+    check('masm: banned words are refused', masmHas(await masmSend(masmU4, masmA, 'انت خول'), 'مش لطيف'));
+
+    // Unread badge
+    const masmUnread = (await as(db, masmU1, `select * from public.my_mosques()`)).rows?.find((r) => r.id === masmA);
+    check('masm: my_mosques counts unread messages from others', masmUnread?.unread >= 3, masmUnread);
+    check('masm: mark read clears the badge', ok(await as(db, masmU1, `select public.masjid_chat_mark_read($1)`, [masmA])) &&
+      (await as(db, masmU1, `select * from public.my_mosques()`)).rows?.find((r) => r.id === masmA)?.unread === 0);
+
+    // Reports → auto-hide after 3
+    const masmBad = (await masmSend(masmU4, masmA, 'كلام مستفز')).rows?.[0]?.id;
+    check('masm: you cannot report your own message', denied(await as(db, masmU4, `select public.masjid_chat_report($1, 'x')`, [masmBad])));
+    check('masm: a non-member cannot report', denied(await as(db, masmOut, `select public.masjid_chat_report($1, 'إساءة')`, [masmBad])));
+    const masmR1 = await as(db, masmU1, `select public.masjid_chat_report($1, 'إساءة') as h`, [masmBad]);
+    check('masm: one report does not hide', ok(masmR1) && masmR1.rows[0].h === false, masmR1);
+    check('masm: one report per person', denied(await as(db, masmU1, `select public.masjid_chat_report($1, 'إساءة')`, [masmBad])));
+    await as(db, masmU2, `select public.masjid_chat_report($1, 'سبام')`, [masmBad]);
+    const masmR3 = await as(db, masmU3, `select public.masjid_chat_report($1, 'إساءة') as h`, [masmBad]);
+    check('masm: the 3rd distinct report hides it', ok(masmR3) && masmR3.rows[0].h === true &&
+      !(await as(db, masmU2, `select * from public.masjid_chat_messages($1)`, [masmA])).rows.some((m) => m.id === masmBad), masmR3);
+    check('masm: the super admin sees it in the reports list (unclaimed mosque)',
+      (await as(db, masmSA, `select * from public.admin_mosque_chat_reports()`)).rows?.some((r) => r.id === masmBad && r.is_hidden && r.reasons.length === 3 && r.mosque_verified === false));
+    check('masm: a user cannot list reports', denied(await as(db, masmU1, `select * from public.admin_mosque_chat_reports()`)));
+    check('masm: the super admin restores it', ok(await as(db, masmSA, `select public.admin_restore_mosque_chat_message($1)`, [masmBad])) &&
+      (await as(db, masmU2, `select * from public.masjid_chat_messages($1)`, [masmA])).rows.some((m) => m.id === masmBad));
+
+    // Delete own
+    const masmMine = (await masmSend(masmU2, masmA, 'غلطة')).rows?.[0]?.id;
+    check("masm: a member cannot delete someone else's message", denied(await as(db, masmU3, `select public.masjid_chat_delete($1)`, [masmMine])));
+    check('masm: the author deletes their own message', ok(await as(db, masmU2, `select public.masjid_chat_delete($1)`, [masmMine])) &&
+      (await admin(db, `select count(*)::int as n from mosque_chat_messages where id = $1`, [masmMine]))[0].n === 0);
+
+    // Super admin moderates an unclaimed mosque; nobody else does
+    check('masm: a member cannot moderate an unclaimed mosque', denied(await as(db, masmU1, `select public.masjid_chat_sanction($1, $2, 'ban')`, [masmA, masmU4])) &&
+      denied(await as(db, masmU1, `select public.masjid_chat_delete($1)`, [masmBad])));
+    check('masm: the super admin hides a message in an unclaimed mosque', ok(await as(db, masmSA, `select public.masjid_chat_delete($1, 'إساءة')`, [masmBad])) &&
+      (await admin(db, `select is_hidden from mosque_chat_messages where id = $1`, [masmBad]))[0].is_hidden === true);
+    check('masm: the super admin lists the members', (await as(db, masmSA, `select * from public.masjid_members($1)`, [masmA])).rows?.length === 4);
+    check('masm: a member cannot list members', denied(await as(db, masmU2, `select * from public.masjid_members($1)`, [masmA])));
+    check('masm: the super admin bans a member of an unclaimed mosque', ok(await as(db, masmSA, `select public.masjid_chat_sanction($1, $2, 'ban')`, [masmA, masmU4])));
+    check('masm: a banned member cannot post', masmHas(await masmSend(masmU4, masmA, 'أنا رجعت'), 'ممنوع'));
+    check('masm: …but can still read', ok(await as(db, masmU4, `select * from public.masjid_chat_messages($1)`, [masmA])));
+    check('masm: the ban is per mosque', ok(await as(db, masmU4, `select public.masjid_join($1)`, [masmB])) && ok(await masmSend(masmU4, masmB, 'سلام')));
+    check('masm: the super admin lifts the ban', (await as(db, masmSA, `select public.masjid_chat_lift($1, $2) as n`, [masmA, masmU4])).rows?.[0]?.n === 1 &&
+      ok(await masmSend(masmU4, masmA, 'شكراً')));
+    await admin(db, `insert into chat_sanctions (user_id, room_id, kind) values ($1, null, 'ban')`, [masmU4]);
+    check('masm: a platform-wide chat ban (0078) blocks mosque chat too', masmHas(await masmSend(masmU4, masmA, 'تاني'), 'ممنوع'));
+    await admin(db, `update chat_sanctions set lifted_at = now() where user_id = $1`, [masmU4]);
+
+    // A verified owner and helpers: their mosque only
+    await admin(db, `update mosques set verified = true where id = $1`, [masmA]);
+    await admin(db, `insert into mosque_admins (mosque_id, user_id, role, permissions) values
+      ($1, $2, 'owner', '{}'), ($1, $3, 'helper', '{chat}'), ($1, $4, 'helper', '{posts}')`, [masmA, masmOwner, masmHelpChat, masmHelpPosts]);
+    const masmTarget = (await masmSend(masmU3, masmA, 'رسالة للحذف')).rows?.[0]?.id;
+    const masmTargetB = (await masmSend(masmU4, masmB, 'رسالة في مسجد تاني')).rows?.[0]?.id;
+    check('masm: a newly verified owner moderates the existing chat without joining', ok(await as(db, masmOwner, `select * from public.masjid_chat_messages($1)`, [masmA])) &&
+      (await as(db, masmOwner, `select public.get_mosque($1) as m`, [masmA])).rows?.[0]?.m?.can_moderate_chat === true &&
+      (await as(db, masmOwner, `select * from public.masjid_members($1)`, [masmA])).rows?.length === 4);
+    check('masm: a helper with «chat» deletes a message', ok(await as(db, masmHelpChat, `select public.masjid_chat_delete($1)`, [masmTarget])));
+    check('masm: a helper without «chat» cannot', denied(await as(db, masmHelpPosts, `select public.masjid_chat_delete($1)`, [masm1Id])));
+    check('masm: a helper with «chat» mutes a member', ok(await as(db, masmHelpChat, `select public.masjid_chat_sanction($1, $2, 'mute', 60)`, [masmA, masmU3])) &&
+      masmHas(await masmSend(masmU3, masmA, 'مكتوم؟'), 'مكتوم'));
+    check('masm: …but not on another mosque', denied(await as(db, masmHelpChat, `select public.masjid_chat_delete($1)`, [masmTargetB])) &&
+      denied(await as(db, masmHelpChat, `select public.masjid_chat_sanction($1, $2, 'ban')`, [masmB, masmU4])) &&
+      denied(await as(db, masmOwner, `select * from public.masjid_members($1)`, [masmB])));
+    check("masm: a helper can't ban the mosque's owner", denied(await as(db, masmHelpChat, `select public.masjid_chat_sanction($1, $2, 'ban')`, [masmA, masmOwner])));
+    check('masm: the owner bans a member', ok(await as(db, masmOwner, `select public.masjid_chat_sanction($1, $2, 'ban', null, 'سبام')`, [masmA, masmU2])) &&
+      masmHas(await masmSend(masmU2, masmA, 'x'), 'ممنوع'));
+    check('masm: «chat» is in the owner permissions', (await as(db, masmOwner, `select public.get_mosque($1) as m`, [masmA])).rows?.[0]?.m?.my_permissions?.includes('chat'));
+    check('masm: the owner grants «chat» to a helper', ok(await as(db, masmOwner, `select public.masjid_add_helper($1, '01077700001', array['posts', 'chat'])`, [masmA])) &&
+      (await admin(db, `select permissions from mosque_admins where mosque_id = $1 and user_id = $2`, [masmA, masmHelpPosts]))[0].permissions.includes('chat'));
+    check('masm: the mod log records actions', (await admin(db, `select count(*)::int as n from mosque_chat_mod_log where mosque_id = $1`, [masmA]))[0].n >= 5);
+
+    // «قريب منك» feed
+    await admin(db, `insert into mosque_lessons (mosque_id, title, weekdays) values ($1, 'درس الفقه', '{1,2,3,4,5,6,7}')`, [masmA]);
+    await admin(db, `insert into mosque_needs (mosque_id, title, target_amount) values ($1, 'تكييف', 5000)`, [masmA]);
+    await admin(db, `insert into mosque_competitions (mosque_id, title) values ($1, 'مسابقة جزء عمّ')`, [masmA]);
+    await admin(db, `insert into mosque_posts (mosque_id, kind, title) values ($1, 'janaza', 'صلاة الجنازة على الحاج محمد')`, [masmA]);
+    await admin(db, `insert into mosque_lessons (mosque_id, title, weekdays) values ($1, 'درس بعيد', '{1,2,3,4,5,6,7}')`, [masmB]);
+    const masmFeed = await as(db, null, `select * from public.masjid_nearby_feed(30.2, 31.4, 3, 30)`);
+    const masmKinds = new Set((masmFeed.rows || []).map((r) => r.kind));
+    check('masm: the nearby feed mixes urgent posts, lessons, needs and competitions', ok(masmFeed) &&
+      ['urgent', 'lesson', 'need', 'competition'].every((k) => masmKinds.has(k)) && masmFeed.rows[0].kind === 'urgent', masmFeed);
+    check('masm: …far mosques are left out', !(masmFeed.rows || []).some((r) => r.title === 'درس بعيد'));
+    check('masm: …unless you joined them', (await as(db, masmU4, `select * from public.masjid_nearby_feed(30.2, 31.4, 3, 30)`)).rows?.some((r) => r.title === 'درس بعيد'));
+
+    // Realtime: the table is published (re-run 0081 against a Supabase-like publication).
+    await admin(db, `do $$ begin if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then create publication supabase_realtime; end if; end $$`);
+    let masmRerun = null;
+    try {
+      await db.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'migrations', '0081_masjid_members_chat.sql'), 'utf8'));
+    } catch (e) {
+      masmRerun = e.message;
+    }
+    check('masm: 0081 is safe to re-run', masmRerun === null, masmRerun);
+    check('masm: mosque_chat_messages is in the supabase_realtime publication',
+      (await admin(db, `select count(*)::int as n from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'mosque_chat_messages'`))[0].n === 1);
+    check('masm: membership survived the re-run', (await admin(db, `select count(*)::int as n from mosque_members where mosque_id = $1`, [masmA]))[0].n === 4);
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

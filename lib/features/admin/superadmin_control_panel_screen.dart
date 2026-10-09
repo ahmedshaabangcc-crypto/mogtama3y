@@ -17,6 +17,7 @@ import 'admin_governance_screen.dart';
 import 'admin_room_moderation_screen.dart';
 import 'admin_reports_screen.dart';
 import 'admin_mosque_claims_screen.dart';
+import 'admin_mosque_chat_screen.dart';
 import 'admin_scrap_dealers_screen.dart';
 import 'admin_tutorial_videos_screen.dart';
 import 'admin_user_flags_screen.dart';
@@ -320,6 +321,15 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
                 subtitle: const Text('مسجدي: راجع طلبات الأئمة والخطباء وأمناء المساجد ووثّق أو ارفض'),
                 trailing: const Icon(Icons.chevron_left_rounded),
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminMosqueClaimsScreen())),
+              ),
+            ),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.forum_rounded, color: AppColors.crystal),
+                title: const Text('بلاغات شات المساجد', style: TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: const Text('مسجدي: رسايل اتبلّغ عنها في شات المساجد — إنت المشرف لحد ما إمام المسجد يتوثق'),
+                trailing: const Icon(Icons.chevron_left_rounded),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminMosqueChatScreen())),
               ),
             ),
             Card(

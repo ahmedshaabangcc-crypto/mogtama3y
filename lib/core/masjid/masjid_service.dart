@@ -25,6 +25,7 @@ class MasjidService {
     'orphans': 'كفالة الأيتام',
     'competitions': 'المسابقات',
     'settings': 'بيانات المسجد والإقامة',
+    'chat': 'شات المسجد والأعضاء',
   };
 
   static const audienceLabels = {'all': 'للجميع', 'men': 'رجال', 'women': 'سيدات', 'kids': 'أطفال'};
@@ -62,6 +63,57 @@ class MasjidService {
   static Future<List<Map<String, dynamic>>> followed() async => _rows(await _db.rpc('my_followed_mosques'));
 
   static Future<List<Map<String, dynamic>>> managed() async => _rows(await _db.rpc('my_managed_mosques'));
+
+  // --------------------------------------------- members (0081)
+  /// «انضم للمسجد» — also follows it (notifications on).
+  static Future<void> join(String id, {bool? primary}) => _db.rpc('masjid_join', params: {'p_mosque': id, 'p_primary': primary});
+
+  static Future<void> leave(String id) => _db.rpc('masjid_leave', params: {'p_mosque': id});
+
+  static Future<void> setPrimary(String id) => _db.rpc('masjid_set_primary', params: {'p_mosque': id});
+
+  /// [{id, name, address, area, lat, lng, verified, is_primary, member_count, unread, last_message_at, joined_at}]
+  static Future<List<Map<String, dynamic>>> myMosques() async => _rows(await _db.rpc('my_mosques'));
+
+  /// Mosques within [radiusM] metres (within = true), or the nearest few
+  /// beyond (within = false): [{…, member_count, distance_m, within, is_member}].
+  static Future<List<Map<String, dynamic>>> joinCandidates(double lat, double lng, {int radiusM = 500, int fallback = 5}) async =>
+      _rows(await _db.rpc('masjid_join_candidates', params: {'p_lat': lat, 'p_lng': lng, 'p_radius_m': radiusM, 'p_fallback': fallback}));
+
+  /// «قريب منك»: [{kind: urgent|lesson|need|competition, item_id, mosque_id, mosque_name, distance_km, title, subtitle, extra, at}]
+  static Future<List<Map<String, dynamic>>> nearbyFeed({double? lat, double? lng, double km = 3}) async =>
+      _rows(await _db.rpc('masjid_nearby_feed', params: {'p_lat': lat, 'p_lng': lng, 'p_km': km, 'p_limit': 30}));
+
+  /// Moderators: [{user_id, full_name, joined_at, is_admin, messages, sanction, sanction_until}]
+  static Future<List<Map<String, dynamic>>> members(String id) async => _rows(await _db.rpc('masjid_members', params: {'p_mosque': id}));
+
+  // ------------------------------------------------ mosque chat (0081)
+  /// Oldest first: [{id, author_id, author_name, author_is_admin, body, reply_to, reply_name, reply_body, created_at, mine}]
+  static Future<List<Map<String, dynamic>>> chatMessages(String id, {String? after, String? before, int limit = 60}) async =>
+      _rows(await _db.rpc('masjid_chat_messages', params: {'p_mosque': id, 'p_after': after, 'p_before': before, 'p_limit': limit}));
+
+  static Future<void> chatSend(String id, String body, {String? replyTo}) =>
+      _db.rpc('masjid_chat_send', params: {'p_mosque': id, 'p_body': body, 'p_reply_to': replyTo});
+
+  static Future<void> chatMarkRead(String id) => _db.rpc('masjid_chat_mark_read', params: {'p_mosque': id});
+
+  /// True when the message is now hidden.
+  static Future<bool> chatReport(String messageId, String reason) async =>
+      await _db.rpc('masjid_chat_report', params: {'p_message': messageId, 'p_reason': reason}) == true;
+
+  /// Own message: deleted. Moderator: hidden.
+  static Future<void> chatDelete(String messageId, {String? reason}) =>
+      _db.rpc('masjid_chat_delete', params: {'p_message': messageId, 'p_reason': reason});
+
+  /// [kind] 'mute' (needs [minutes]) or 'ban' ([minutes] null = permanent).
+  static Future<void> chatSanction(String mosqueId, String userId, String kind, {int? minutes, String? reason}) => _db.rpc('masjid_chat_sanction',
+      params: {'p_mosque': mosqueId, 'p_user': userId, 'p_kind': kind, 'p_minutes': minutes, 'p_reason': reason});
+
+  static Future<void> chatLift(String mosqueId, String userId) => _db.rpc('masjid_chat_lift', params: {'p_mosque': mosqueId, 'p_user': userId});
+
+  static Future<List<Map<String, dynamic>>> adminChatReports() async => _rows(await _db.rpc('admin_mosque_chat_reports'));
+
+  static Future<void> adminChatRestore(String messageId) => _db.rpc('admin_restore_mosque_chat_message', params: {'p_message': messageId});
 
   // -------------------------------------------------------------- claims
   static Future<void> claim(String mosqueId, {required String role, required String phone, String? docPath, String? note}) =>

@@ -10,7 +10,9 @@ import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import '../tutorials/tutorial_widgets.dart';
+import '../../core/masjid/masjid_community.dart';
 import 'claim_mosque_screen.dart';
+import 'masjid_community_widgets.dart';
 import 'masjid_widgets.dart';
 import 'mosque_manage_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
@@ -18,7 +20,8 @@ import 'package:mogtama3y/core/utils/numbers.dart';
 /// صفحة المسجد (`/masjid/<id>`): prayer times with the mosque's iqama,
 /// Friday khutba, announcements, lessons & Quran circles, needs (pledges,
 /// confirmed progress), orphan sponsorship programs, Quran competitions,
-/// «تابع المسجد» and sharing. Admins get «إدارة المسجد».
+/// «انضم للمسجد» (members + «شات المسجد», 0081), «تابع المسجد», sharing
+/// and inviting the imam / neighbours. Admins get «إدارة المسجد».
 class MosquePageScreen extends StatefulWidget {
   const MosquePageScreen({super.key, required this.mosqueId});
   final String mosqueId;
@@ -38,6 +41,7 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
   bool _loading = true;
   bool _error = false;
   bool _followBusy = false;
+  bool _joinBusy = false;
 
   String get _id => widget.mosqueId;
 
@@ -106,6 +110,55 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
     } finally {
       if (mounted) setState(() => _followBusy = false);
     }
+  }
+
+  Future<void> _toggleJoin() async {
+    if (!await _ensureSignedIn() || !mounted) return;
+    final member = _m?['is_member'] == true;
+    if (member) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('تخرج من المسجد؟'),
+          content: const Text('مش هتقدر تشوف شات المسجد أو تكتب فيه، ومش هيوصلك جديده.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('لأ')),
+            TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('اخرج')),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+    setState(() => _joinBusy = true);
+    try {
+      if (member) {
+        await MasjidService.leave(_id);
+        _toast('خرجت من المسجد');
+      } else {
+        await MasjidService.join(_id);
+        _toast('أهلاً بيك — بقيت عضو في المسجد وهيوصلك كل جديد 🤍');
+      }
+      await _load();
+    } catch (e) {
+      _toast(masjidError(e));
+    } finally {
+      if (mounted) setState(() => _joinBusy = false);
+    }
+  }
+
+  Future<void> _makePrimary() async {
+    try {
+      await MasjidService.setPrimary(_id);
+      _toast('بقى مسجدك الأساسي');
+      await _load();
+    } catch (e) {
+      _toast(masjidError(e));
+    }
+  }
+
+  Future<void> _openChat() async {
+    await openMosqueChat(context, _id, _m?['name'] as String?);
+    _load();
   }
 
   Future<void> _setNotify(bool on) async {
@@ -407,6 +460,7 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
     final lat = (m['lat'] as num).toDouble();
     final lng = (m['lng'] as num).toDouble();
     final following = m['is_following'] == true;
+    final member = m['is_member'] == true;
     final verified = m['verified'] == true;
     final wa = m['contact_whatsapp'] as String?;
     final phone = m['contact_phone'] as String?;
@@ -434,9 +488,19 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
                   style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12.5)),
             ),
           const SizedBox(height: 4),
-          Text('${m['followers'] ?? 0} متابع', style: const TextStyle(color: AppColors.inkMuted, fontSize: 11.5)),
+          Text('${membersLabel(m['members'] as num?)} • ${m['followers'] ?? 0} متابع${m['is_primary'] == true ? ' • مسجدك الأساسي' : ''}',
+              style: const TextStyle(color: AppColors.inkMuted, fontSize: 11.5)),
           const SizedBox(height: 10),
           Wrap(spacing: 8, runSpacing: 8, children: [
+            ElevatedButton.icon(
+              onPressed: _joinBusy ? null : _toggleJoin,
+              style: member
+                  ? ElevatedButton.styleFrom(backgroundColor: AppColors.surfaceAlt, foregroundColor: AppColors.success)
+                  : ElevatedButton.styleFrom(backgroundColor: AppColors.gold, foregroundColor: AppColors.night),
+              icon: Icon(member ? Icons.check_circle_rounded : Icons.group_add_rounded, size: 18),
+              label: Text(member ? 'عضو ✓' : 'انضم'),
+            ),
+            if (!member)
             ElevatedButton.icon(
               onPressed: _followBusy ? null : _toggleFollow,
               style: following ? ElevatedButton.styleFrom(backgroundColor: AppColors.surfaceAlt, foregroundColor: AppColors.ink) : null,
@@ -449,6 +513,11 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
               label: const Text('الاتجاهات'),
             ),
           ]),
+          if (member && m['is_primary'] != true)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton(onPressed: _makePrimary, child: const Text('اجعله مسجدي الأساسي', style: TextStyle(fontSize: 12))),
+            ),
           if (following)
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
@@ -459,6 +528,45 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
             ),
         ]),
       ),
+
+      // ---- the mosque chat
+      _card(
+        color: AppColors.surfaceAlt,
+        child: Row(children: [
+          const Icon(Icons.forum_rounded, color: AppColors.crystal),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('شات المسجد', style: TextStyle(fontWeight: FontWeight.w800)),
+              Text(
+                member || m['can_moderate_chat'] == true
+                    ? ((m['chat_today'] as num? ?? 0) > 0 ? '${m['chat_today']} رسالة النهارده' : 'اتكلم مع أهل المسجد')
+                    : ((m['chat_messages'] as num? ?? 0) > 0 ? '${m['chat_messages']} رسالة — انضم عشان تشارك' : 'انضم عشان تشارك أهل المسجد'),
+                style: const TextStyle(fontSize: 12, color: AppColors.inkSecondary),
+              ),
+            ]),
+          ),
+          member || m['can_moderate_chat'] == true
+              ? FilledButton(onPressed: _openChat, child: const Text('افتح الشات'))
+              : FilledButton(onPressed: _joinBusy ? null : _toggleJoin, child: const Text('انضم عشان تشارك')),
+        ]),
+      ),
+
+      // ---- invitations
+      Wrap(spacing: 4, children: [
+        TextButton.icon(
+          onPressed: () => inviteNeighbours(_id, m['name'] as String? ?? ''),
+          icon: const Icon(Icons.group_add_rounded, size: 18),
+          label: const Text('ادعو جيرانك ينضموا'),
+        ),
+        if (!verified)
+          TextButton.icon(
+            onPressed: () => inviteImam(_id, m['name'] as String? ?? ''),
+            icon: const Icon(Icons.record_voice_over_rounded, size: 18),
+            label: const Text('ادعو إمام مسجدك'),
+          ),
+      ]),
+      const SizedBox(height: 6),
 
       // ---- prayer times
       PrayerTimesCard(

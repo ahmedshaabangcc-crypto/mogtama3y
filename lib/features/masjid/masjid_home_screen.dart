@@ -10,11 +10,16 @@ import '../../core/masjid/masjid_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import 'add_mosque_screen.dart';
+import 'join_mosque_screen.dart';
+import 'masjid_community_widgets.dart';
 import 'masjid_widgets.dart';
 
-/// «المساجد» — the masjid app's home and the mosques section of مُجتمعي:
-/// today's prayer times where the user is, nearest mosques, the ones they
-/// follow / manage, and a search over every mosque.
+/// «المساجد» — the masjid app's home and the mosques section of مُجتمعي.
+/// Top to bottom: «انضم لمسجدك» (until the user belongs to a mosque; then
+/// their mosques with the chat shortcut + unread badge and a smaller «انضم
+/// لمسجد تاني»), the «أدوات يومية» row, today's prayer times, «قريب منك»
+/// (lessons, needs, competitions, janaza near you), then search, the
+/// mosques they manage / follow and the nearest mosques.
 class MasjidHomeScreen extends StatefulWidget {
   const MasjidHomeScreen({super.key});
 
@@ -34,6 +39,10 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
   List<Map<String, dynamic>> _nearby = [];
   List<Map<String, dynamic>> _followed = [];
   List<Map<String, dynamic>> _managed = [];
+  List<Map<String, dynamic>> _mine = [];
+  bool _mineLoaded = false;
+  List<Map<String, dynamic>> _feed = [];
+  bool _feedLoading = true;
   List<Map<String, dynamic>>? _results;
   bool _loadingNearby = true;
   bool _nearbyError = false;
@@ -71,6 +80,19 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
       if (mounted) setState(() => _locating = false);
     }
     _loadNearby();
+    _loadFeed();
+  }
+
+  Future<void> _loadFeed() async {
+    setState(() => _feedLoading = true);
+    try {
+      final rows = await MasjidService.nearbyFeed(lat: _located ? _lat : null, lng: _located ? _lng : null);
+      if (mounted) setState(() => _feed = rows);
+    } catch (_) {
+      // The section just stays empty.
+    } finally {
+      if (mounted) setState(() => _feedLoading = false);
+    }
   }
 
   Future<void> _loadNearby() async {
@@ -91,16 +113,30 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
   }
 
   Future<void> _loadMine() async {
-    if (!AuthService.isSignedIn) return;
+    if (!AuthService.isSignedIn) {
+      if (mounted) setState(() => _mineLoaded = true);
+      return;
+    }
     try {
-      final f = await MasjidService.followed();
-      final m = await MasjidService.managed();
+      final results = await Future.wait([MasjidService.myMosques(), MasjidService.followed(), MasjidService.managed()]);
       if (!mounted) return;
       setState(() {
-        _followed = f;
-        _managed = m;
+        _mine = results[0];
+        _followed = results[1];
+        _managed = results[2];
       });
-    } catch (_) {}
+    } catch (_) {
+      // Keep what we had.
+    } finally {
+      if (mounted) setState(() => _mineLoaded = true);
+    }
+  }
+
+  Future<void> _openJoin() async {
+    await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => const JoinMosqueScreen()));
+    if (!mounted) return;
+    await _loadMine();
+    _loadFeed();
   }
 
   void _onSearch(String q) {
@@ -127,6 +163,7 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
     }
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => AddMosqueScreen(lat: _located ? _lat : null, lng: _located ? _lng : null)));
     _loadNearby();
+    _loadMine();
   }
 
   Widget _header(String text, {Widget? trailing}) => Padding(
@@ -156,6 +193,26 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
         child: ListView(
           padding: EdgeInsets.fromLTRB(side, 8, side, 100),
           children: [
+            // 1. «انضم لمسجدك» / my mosques — always first.
+            if (_mineLoaded && _mine.isEmpty)
+              JoinMosqueCta(onTap: _openJoin)
+            else if (_mine.isNotEmpty) ...[
+              _header(_mine.length == 1 ? 'مسجدي' : 'مساجدي'),
+              for (final m in _mine) MyMosqueCard(mosque: m, onChanged: _loadMine),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton.icon(
+                  onPressed: _openJoin,
+                  icon: const Icon(Icons.add_rounded, color: AppColors.gold, size: 18),
+                  label: const Text('انضم لمسجد تاني', style: TextStyle(color: AppColors.gold, fontSize: 12.5)),
+                ),
+              ),
+            ],
+            // 2. «أدوات يومية» — slot for the daily tools (lib/features/masjid_tools/).
+            const SizedBox(height: 12),
+            const DailyToolsRow(),
+            const SizedBox(height: 8),
+            // 3. Prayer times.
             PrayerTimesCard(
               lat: _lat,
               lng: _lng,
@@ -167,6 +224,40 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
                 icon: const Icon(Icons.my_location_rounded, color: AppColors.gold, size: 18),
                 label: const Text('فعّل الموقع لمواقيت منطقتك وأقرب مسجد', style: TextStyle(color: AppColors.gold)),
               ),
+            // 4. «قريب منك».
+            _header('قريب منك'),
+            if (_feedLoading)
+              const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator()))
+            else if (_feed.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.glassBorder)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  const Text('لسه مفيش دروس أو احتياجات أو مسابقات منشورة في المساجد اللي حواليك.',
+                      style: TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.6)),
+                  const SizedBox(height: 4),
+                  const Text('انضم لمسجدك وادعو جيرانك وإمام المسجد — أول ما الإدارة تتوثق هتلاقي كل جديد هنا.',
+                      style: TextStyle(color: Colors.white54, fontSize: 11.5, height: 1.6)),
+                  const SizedBox(height: 8),
+                  Wrap(spacing: 8, children: [
+                    if (_mine.isEmpty)
+                      OutlinedButton(onPressed: _openJoin, child: const Text('انضم لمسجدك', style: TextStyle(color: AppColors.gold)))
+                    else ...[
+                      OutlinedButton(
+                        onPressed: () => inviteNeighbours(_mine.first['id'] as String, _mine.first['name'] as String? ?? ''),
+                        child: const Text('ادعو جيرانك', style: TextStyle(color: AppColors.gold)),
+                      ),
+                      if (_mine.first['verified'] != true)
+                        OutlinedButton(
+                          onPressed: () => inviteImam(_mine.first['id'] as String, _mine.first['name'] as String? ?? ''),
+                          child: const Text('ادعو إمام مسجدك', style: TextStyle(color: AppColors.gold)),
+                        ),
+                    ],
+                  ]),
+                ]),
+              )
+            else
+              for (final item in _feed) NearbyFeedCard(item: item),
             const SizedBox(height: 14),
             TextField(
               controller: _search,
