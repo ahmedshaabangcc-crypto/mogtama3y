@@ -2107,6 +2107,9 @@ const denied = (r) => !!r.error;
     const masmHelpPosts = await signUp(db, 'masm helper posts', '01077700001');
     const masmSA = await signUp(db, 'masm super', null);
     await admin(db, `update profiles set role = 'super_admin' where id = $1`, [masmSA]);
+    // Posting needs a verified phone since 0083 (covered in the masc block).
+    await admin(db, `update profiles set phone_verified_at = now() where id = any($1::uuid[])`,
+      [[masmU1, masmU2, masmU3, masmU4, masmOut, masmOwner, masmHelpChat, masmHelpPosts]]);
     // Each send is 3+ s after the previous one in "real" time: age every message (and read marker) by 2 minutes.
     const masmCool = async () => {
       await admin(db, `update mosque_chat_messages set created_at = created_at - interval '2 minutes'`);
@@ -2392,6 +2395,122 @@ const denied = (r) => !!r.error;
     check('mtool: saving no prayers removes the settings',
       ok(await as(db, MT2, `select public.set_prayer_reminders(31.2, 29.9, '{}'::jsonb)`)) &&
       (await admin(db, `select count(*)::int n from prayer_reminder_prefs where user_id = $1`, [MT2]))[0].n === 0);
+  }
+
+  // ------------------------------------------------------------------
+  console.log('\nمسجدي — chat nicknames, verified phones, 30-day retention (0083)');
+  {
+    // The masm block re-ran 0081 (which puts its own functions back), so
+    // re-running 0083 here is both the re-run check and the restore.
+    let mascRerun = null;
+    try {
+      await db.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'migrations', '0083_masjid_chat_rules.sql'), 'utf8'));
+    } catch (e) {
+      mascRerun = e.message;
+    }
+    check('masc: 0083 is safe to re-run (after 0081 re-ran too)', mascRerun === null, mascRerun);
+
+    const mascM = (await admin(db, `insert into mosques (name, lat, lng, verified) values ('مسجد النور', 30.4, 31.6, true) returning id`))[0].id;
+    const mascN1 = await signUp(db, 'masc realname one', null);
+    const mascN2 = await signUp(db, 'masc realname two', null);
+    const mascN3 = await signUp(db, 'masc realname three', null);
+    const mascOwner = await signUp(db, 'masc owner', null);
+    const mascSA = await signUp(db, 'masc super', null);
+    const mascOut = await signUp(db, 'masc outsider', null);
+    await admin(db, `update profiles set role = 'super_admin' where id = $1`, [mascSA]);
+    await admin(db, `update profiles set phone_verified_at = now() where id = any($1::uuid[])`, [[mascN1, mascN3]]);
+    await admin(db, `insert into mosque_admins (mosque_id, user_id, role, permissions) values ($1, $2, 'owner', '{}')`, [mascM, mascOwner]);
+    for (const u of [mascN1, mascN2, mascN3, mascOwner, mascSA]) await as(db, u, `select public.masjid_join($1)`, [mascM]);
+    const mascCool = () => admin(db, `update mosque_chat_messages set created_at = created_at - interval '2 minutes' where mosque_id = $1`, [mascM]);
+    const mascSend = async (u, body, reply) => {
+      await mascCool();
+      return as(db, u, `select public.masjid_chat_send($1, $2, $3) as id`, [mascM, body, reply ?? null]);
+    };
+    const mascHas = (r, text) => !!r.error && r.error.includes(text);
+    const mascNick = (u, nick) => as(db, u, `select public.masjid_chat_set_nickname($1, $2) as n`, [mascM, nick]);
+    const mascAge = (u) => admin(db, `update mosque_chat_nicknames set changed_at = now() - interval '25 hours' where mosque_id = $1 and user_id = $2`, [mascM, u]);
+
+    // Phone verification to post
+    check('masc: an unverified member cannot post', mascHas(await mascSend(mascN2, 'السلام عليكم'), 'توثّق'));
+    const mascProf = await as(db, mascN2, `select public.masjid_my_chat_profile($1) as p`, [mascM]);
+    check('masc: my chat profile says a phone is needed', mascProf.rows?.[0]?.p?.needs_phone === true && mascProf.rows[0].p.real_name === 'masc realname two', mascProf);
+    check('masc: a verified member posts', ok(await mascSend(mascN1, 'السلام عليكم ورحمة الله')));
+    check('masc: an unverified moderator cannot post either', mascHas(await mascSend(mascOwner, 'أهلاً بالجميع'), 'توثّق'));
+    await admin(db, `update profiles set phone_verified_at = now() where id = $1`, [mascOwner]);
+    check('masc: …once verified, the moderator posts', ok(await mascSend(mascOwner, 'أهلاً بالجميع')));
+    check('masc: the super admin is exempt', ok(await mascSend(mascSA, 'بالتوفيق')));
+    check('masc: an unverified member can still read', ok(await as(db, mascN2, `select * from public.masjid_chat_messages($1)`, [mascM])));
+    await admin(db, `update profiles set phone_verified_at = now() where id = $1`, [mascN2]);
+    const mascVerifiedLater = await mascSend(mascN2, 'أنا وثّقت رقمي');
+    check('masc: verifying the phone unlocks posting', ok(mascVerifiedLater), mascVerifiedLater);
+
+    // Nickname validation
+    check('masc: a non-member cannot set a nickname', denied(await as(db, mascOut, `select public.masjid_chat_set_nickname($1, 'أم أحمد')`, [mascM])));
+    check('masc: a 1-char nickname is refused', mascHas(await mascNick(mascN1, 'ا'), '2'));
+    check('masc: a 31-char nickname is refused', mascHas(await mascNick(mascN1, 'ا'.repeat(31)), '30'));
+    check('masc: digits only are refused', mascHas(await mascNick(mascN1, '1234'), 'حروف'));
+    check('masc: symbols are refused', denied(await mascNick(mascN1, 'أم <b>')));
+    check('masc: «الإمام …» is refused', mascHas(await mascNick(mascN1, 'الإمام محمود'), 'إدارة'));
+    check('masc: «أدمن» / «مشرف» / «الإدارة» are refused', denied(await mascNick(mascN1, 'أدمن المسجد')) &&
+      denied(await mascNick(mascN1, 'المشرف')) && denied(await mascNick(mascN1, 'الإدارة')) && denied(await mascNick(mascN1, 'Admin_1')));
+    check('masc: banned words are refused', mascHas(await mascNick(mascN1, 'انت خول'), 'مش لطيفة'));
+    const mascSet = await mascNick(mascN1, '  أم   محمد ');
+    check('masc: a member sets a nickname (spaces tidied)', ok(mascSet) && mascSet.rows[0].n === 'أم محمد', mascSet);
+    check('masc: setting the same nickname again is a no-op', ok(await mascNick(mascN1, 'أم محمد')));
+    check('masc: changing it the same day is refused', mascHas(await mascNick(mascN1, 'أم يوسف'), 'مرة واحدة'));
+    check('masc: …and so is going back to the real name', mascHas(await mascNick(mascN1, null), 'مرة واحدة'));
+    const mascProf1 = (await as(db, mascN1, `select public.masjid_my_chat_profile($1) as p`, [mascM])).rows?.[0]?.p;
+    check('masc: my chat profile shows the nickname and when it can change', mascProf1?.nickname === 'أم محمد' && !!mascProf1.can_change_at && mascProf1.needs_phone === false, mascProf1);
+    await mascAge(mascN1);
+    check('masc: a day later it can change', ok(await mascNick(mascN1, 'أم يوسف')));
+    check('masc: a nickname taken in the mosque is refused (normalised)', mascHas(await mascNick(mascN3, 'ام يوسف'), 'واخده'));
+    const mascOther = (await admin(db, `insert into mosques (name, lat, lng) values ('مسجد السلام', 30.41, 31.61) returning id`))[0].id;
+    await as(db, mascN3, `select public.masjid_join($1)`, [mascOther]);
+    check('masc: …but the same nickname is fine in another mosque', ok(await as(db, mascN3, `select public.masjid_chat_set_nickname($1, 'أم يوسف')`, [mascOther])));
+    check('masc: nobody reads the nicknames table directly', denied(await as(db, mascN1, `select * from mosque_chat_nicknames`)));
+    check('masc: leaving and re-joining does not reset the daily limit',
+      ok(await as(db, mascN1, `select public.masjid_leave($1)`, [mascM])) && ok(await as(db, mascN1, `select public.masjid_join($1)`, [mascM])) &&
+      mascHas(await mascNick(mascN1, 'أم علي'), 'مرة واحدة'));
+
+    // Who sees the real name
+    const mascN1Msg = (await mascSend(mascN1, 'جزاكم الله خيراً')).rows?.[0]?.id;
+    await mascSend(mascN3, 'وإياكم', mascN1Msg);
+    const mascMember = await as(db, mascN3, `select * from public.masjid_chat_messages($1)`, [mascM]);
+    const mascMemberRow = mascMember.rows?.find((r) => r.id === mascN1Msg);
+    check('masc: members see the nickname on messages (old ones too)', mascMemberRow?.author_name === 'أم يوسف' &&
+      mascMember.rows.filter((r) => r.author_name === 'أم يوسف').length === 2, mascMember);
+    check('masc: …and in replies', mascMember.rows?.some((r) => r.reply_to === mascN1Msg && r.reply_name === 'أم يوسف'));
+    check("masc: non-moderators never get the real name or the author's id",
+      !JSON.stringify(mascMember.rows).includes('masc realname one') && mascMember.rows.every((r) => r.author_id === null));
+    check('masc: no nickname → the real name shows', mascMember.rows?.some((r) => r.author_name === 'masc realname two'));
+    check('masc: a non-moderator cannot list identities', denied(await as(db, mascN3, `select * from public.masjid_chat_identities($1)`, [mascM])));
+    const mascModRows = await as(db, mascOwner, `select * from public.masjid_chat_messages($1)`, [mascM]);
+    check("masc: moderators get the author's id", mascModRows.rows?.find((r) => r.id === mascN1Msg)?.author_id === mascN1, mascModRows);
+    const mascIds = await as(db, mascOwner, `select * from public.masjid_chat_identities($1)`, [mascM]);
+    check('masc: moderators see who is behind a nickname', mascIds.rows?.some((r) => r.user_id === mascN1 && r.nickname === 'أم يوسف' && r.full_name === 'masc realname one'), mascIds);
+    check('masc: the super admin too', (await as(db, mascSA, `select * from public.masjid_chat_identities($1)`, [mascM])).rows?.some((r) => r.user_id === mascN1));
+    check('masc: the members sheet keeps the real name',
+      (await as(db, mascOwner, `select * from public.masjid_members($1)`, [mascM])).rows?.some((r) => r.user_id === mascN1 && r.full_name === 'masc realname one'));
+    await mascAge(mascN1);
+    check('masc: clearing the nickname brings the real name back', ok(await mascNick(mascN1, '')) &&
+      (await as(db, mascN3, `select * from public.masjid_chat_messages($1)`, [mascM])).rows?.find((r) => r.id === mascN1Msg)?.author_name === 'masc realname one');
+
+    // 30-day retention
+    const mascOld = (await admin(db, `insert into mosque_chat_messages (mosque_id, user_id, body, created_at) values ($1, $2, 'قديمة', now() - interval '31 days') returning id`, [mascM, mascN3]))[0].id;
+    const mascRecent = (await admin(db, `insert into mosque_chat_messages (mosque_id, user_id, body, created_at) values ($1, $2, 'من شهر إلا يوم', now() - interval '29 days') returning id`, [mascM, mascN3]))[0].id;
+    await admin(db, `insert into mosque_chat_reports (message_id, reporter_id, reason, created_at) values ($1, $2, 'إساءة', now() - interval '31 days')`, [mascOld, mascN1]);
+    await admin(db, `insert into mosque_chat_reports (message_id, reporter_id, reason, created_at) values ($1, $2, 'قديم', now() - interval '91 days')`, [mascN1Msg, mascN3]);
+    await admin(db, `insert into mosque_chat_mod_log (mosque_id, action, created_at) values ($1, 'old', now() - interval '91 days'), ($1, 'new', now() - interval '89 days')`, [mascM]);
+    check('masc: a member cannot run the purge', denied(await as(db, mascN1, `select public.masjid_chat_purge()`)));
+    const mascPurged = await as(db, mascSA, `select public.masjid_chat_purge() as n`);
+    check('masc: the purge deletes messages older than 30 days only', ok(mascPurged) && mascPurged.rows[0].n >= 1 &&
+      (await admin(db, `select count(*)::int n from mosque_chat_messages where id = $1`, [mascOld]))[0].n === 0 &&
+      (await admin(db, `select count(*)::int n from mosque_chat_messages where id = any($1::uuid[])`, [[mascRecent, mascN1Msg]]))[0].n === 2, mascPurged);
+    check('masc: …with their reports', (await admin(db, `select count(*)::int n from mosque_chat_reports where message_id = $1`, [mascOld]))[0].n === 0);
+    check('masc: …and reports / mod-log rows older than 90 days',
+      (await admin(db, `select count(*)::int n from mosque_chat_reports where message_id = $1`, [mascN1Msg]))[0].n === 0 &&
+      (await admin(db, `select array_agg(action) a from mosque_chat_mod_log where mosque_id = $1`, [mascM]))[0].a.join() === 'new');
+    check('masc: the scheduled (no user) call works', (await admin(db, `select public.masjid_chat_purge() as n`))[0].n === 0);
   }
 
   console.log(`\n${passed} passed, ${failures.length} failed`);

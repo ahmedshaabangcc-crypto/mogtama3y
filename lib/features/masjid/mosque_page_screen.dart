@@ -14,6 +14,7 @@ import '../../core/masjid/masjid_community.dart';
 import 'claim_mosque_screen.dart';
 import 'masjid_community_widgets.dart';
 import 'masjid_widgets.dart';
+import 'mosque_chat_nickname.dart';
 import 'mosque_manage_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
 
@@ -513,11 +514,16 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
               label: const Text('الاتجاهات'),
             ),
           ]),
-          if (member && m['is_primary'] != true)
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: TextButton(onPressed: _makePrimary, child: const Text('اجعله مسجدي الأساسي', style: TextStyle(fontSize: 12))),
-            ),
+          if (member)
+            Wrap(spacing: 4, children: [
+              if (m['is_primary'] != true)
+                TextButton(onPressed: _makePrimary, child: const Text('اجعله مسجدي الأساسي', style: TextStyle(fontSize: 12))),
+              TextButton.icon(
+                onPressed: () => editMosqueChatNickname(context, _id),
+                icon: const Icon(Icons.badge_outlined, size: 16),
+                label: const Text('اسمك في الشات', style: TextStyle(fontSize: 12)),
+              ),
+            ]),
           if (following)
             SwitchListTile(
               contentPadding: EdgeInsets.zero,

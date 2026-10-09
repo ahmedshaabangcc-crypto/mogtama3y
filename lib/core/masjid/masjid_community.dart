@@ -72,3 +72,30 @@ String neighboursInviteText(String mosqueName, String url) => 'السلام عل
 
 /// «wa.me» share link for [text].
 Uri whatsappShareUri(String text) => Uri.parse('https://wa.me/?text=${Uri.encodeComponent(text)}');
+
+// ------------------------------------------------ chat rules (0083)
+
+/// The note shown in the mosque chat (the server purges after 30 days).
+const mosqueChatRetentionNote = 'الرسايل بتتمسح تلقائياً بعد 30 يوم';
+
+/// Tidies a nickname the way the server does (trim, single spaces).
+String tidyChatNickname(String text) => text.trim().replaceAll(RegExp(r'\s+'), ' ');
+
+/// Client-side check of a per-mosque chat nickname («اسم مستعار في الشات»);
+/// null when it looks fine. Empty = back to the real name (allowed). The
+/// server also checks banned words, reserved names and uniqueness.
+String? mosqueChatNicknameError(String text) {
+  final t = tidyChatNickname(text);
+  if (t.isEmpty) return null;
+  if (t.length < 2 || t.length > 30) return 'الاسم لازم يكون من 2 لـ 30 حرف';
+  if (!RegExp(r'^[A-Za-z0-9_ .\-ء-غف-ي٠-٩]+$').hasMatch(t)) {
+    return 'الاسم يكون حروف عربي أو إنجليزي أو أرقام بس';
+  }
+  if (!RegExp(r'[A-Za-zء-غف-ي]').hasMatch(t)) return 'الاسم لازم يكون فيه حروف';
+  return null;
+}
+
+/// True when a send failed because the phone isn't verified yet
+/// (masjid_chat_send raises with HINT 'phone_unverified').
+bool isPhoneUnverifiedError({String? hint, String? message}) =>
+    hint == 'phone_unverified' || (message ?? '').contains('توثّق رقم موبايلك');

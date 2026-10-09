@@ -88,7 +88,9 @@ class MasjidService {
   static Future<List<Map<String, dynamic>>> members(String id) async => _rows(await _db.rpc('masjid_members', params: {'p_mosque': id}));
 
   // ------------------------------------------------ mosque chat (0081)
-  /// Oldest first: [{id, author_id, author_name, author_is_admin, body, reply_to, reply_name, reply_body, created_at, mine}]
+  /// Oldest first: [{id, author_id, author_name, author_is_admin, body, reply_to, reply_name, reply_body, created_at, mine}].
+  /// author_name is the display name (nickname or real name, 0083);
+  /// author_id is null unless the caller moderates the chat.
   static Future<List<Map<String, dynamic>>> chatMessages(String id, {String? after, String? before, int limit = 60}) async =>
       _rows(await _db.rpc('masjid_chat_messages', params: {'p_mosque': id, 'p_after': after, 'p_before': before, 'p_limit': limit}));
 
@@ -110,6 +112,21 @@ class MasjidService {
       params: {'p_mosque': mosqueId, 'p_user': userId, 'p_kind': kind, 'p_minutes': minutes, 'p_reason': reason});
 
   static Future<void> chatLift(String mosqueId, String userId) => _db.rpc('masjid_chat_lift', params: {'p_mosque': mosqueId, 'p_user': userId});
+
+  // ------------------------------------------- chat rules (0083)
+  /// The caller's chat identity in a mosque:
+  /// {nickname, real_name, can_change_at, phone_verified, needs_phone}.
+  static Future<Map<String, dynamic>> chatProfile(String id) async =>
+      Map<String, dynamic>.from(await _db.rpc('masjid_my_chat_profile', params: {'p_mosque': id}) as Map);
+
+  /// Sets the per-mosque nickname (null / empty = back to the real name).
+  /// Once a day. Returns the new nickname.
+  static Future<String?> chatSetNickname(String id, String? nickname) async =>
+      await _db.rpc('masjid_chat_set_nickname', params: {'p_mosque': id, 'p_nickname': nickname}) as String?;
+
+  /// Moderators only: [{user_id, nickname, full_name}] for members with a nickname.
+  static Future<List<Map<String, dynamic>>> chatIdentities(String id) async =>
+      _rows(await _db.rpc('masjid_chat_identities', params: {'p_mosque': id}));
 
   static Future<List<Map<String, dynamic>>> adminChatReports() async => _rows(await _db.rpc('admin_mosque_chat_reports'));
 

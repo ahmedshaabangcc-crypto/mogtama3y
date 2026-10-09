@@ -13,6 +13,24 @@ void main() {
     });
   });
 
+  group('chat rules (0083)', () {
+    test('nickname length, characters and letters', () {
+      expect(mosqueChatNicknameError(''), isNull);
+      expect(mosqueChatNicknameError('  أم   محمد '), isNull);
+      expect(tidyChatNickname('  أم   محمد '), 'أم محمد');
+      expect(mosqueChatNicknameError('Om_Ali 2'), isNull);
+      expect(mosqueChatNicknameError('ا'), contains('2'));
+      expect(mosqueChatNicknameError('ا' * 31), contains('30'));
+      expect(mosqueChatNicknameError('1234'), isNotNull);
+      expect(mosqueChatNicknameError('أم <b>'), isNotNull);
+    });
+    test('phone-unverified errors are recognised', () {
+      expect(isPhoneUnverifiedError(hint: 'phone_unverified'), isTrue);
+      expect(isPhoneUnverifiedError(message: 'لازم توثّق رقم موبايلك عشان تكتب في الشات'), isTrue);
+      expect(isPhoneUnverifiedError(message: 'استنى ثانيتين'), isFalse);
+    });
+  });
+
   group('mosqueChatBodyError', () {
     test('empty and too long are refused', () {
       expect(mosqueChatBodyError('   '), isNotNull);

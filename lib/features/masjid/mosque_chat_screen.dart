@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show RealtimeChannel;
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException, RealtimeChannel;
 
 import '../../core/auth/auth_service.dart';
 import '../../core/masjid/masjid_community.dart';
@@ -10,15 +10,20 @@ import '../../core/masjid/masjid_service.dart';
 import '../../core/realtime/realtime_inserts.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../profile/phone_verify_screen.dart';
 import '../rooms/room_widgets.dart' show pickRoomReportReason, roomTime;
 import '../shared/load_error_view.dart';
 import 'masjid_widgets.dart';
+import 'mosque_chat_nickname.dart';
 
 /// «شات المسجد» (migration 0081): one group chat per mosque, members only.
 /// New messages arrive live (Realtime on mosque_chat_messages) with a 30 s
 /// poll as a fallback. Opening it marks the chat read (the unread badge).
 /// Moderators (verified owner / helpers with «chat», or the super admin)
 /// remove messages, mute / ban members and see the members list.
+/// 0083: posting needs a verified phone (banner → PhoneVerifyScreen),
+/// a per-mosque nickname («اسمك في الشات», app-bar menu), and messages
+/// are purged after 30 days. Moderators see who is behind a nickname.
 class MosqueChatScreen extends StatefulWidget {
   const MosqueChatScreen({super.key, required this.mosqueId, this.mosqueName});
   final String mosqueId;
@@ -42,10 +47,14 @@ class _MosqueChatScreenState extends State<MosqueChatScreen> {
   Map<String, dynamic>? _replyTo;
   Timer? _poll;
   RealtimeChannel? _live;
+  Map<String, dynamic>? _me;
+  Map<String, Map<String, dynamic>> _identities = {};
 
   String get _id => widget.mosqueId;
   bool get _canRead => _m?['is_member'] == true || _m?['can_moderate_chat'] == true;
   bool get _canModerate => _m?['can_moderate_chat'] == true;
+  bool get _isMember => _m?['is_member'] == true;
+  bool get _needsPhone => _me?['needs_phone'] == true;
 
   @override
   void initState() {
@@ -65,6 +74,8 @@ class _MosqueChatScreenState extends State<MosqueChatScreen> {
   Future<void> _init() async {
     await _loadMosque();
     if (!mounted || !_canRead) return;
+    _loadMe();
+    _loadIdentities();
     await _loadMessages(initial: true);
     _live ??= subscribeToInserts(table: 'mosque_chat_messages', column: 'mosque_id', value: _id, onInsert: (_) => _loadNew());
     _poll ??= Timer.periodic(const Duration(seconds: 30), (_) => _loadNew());
@@ -85,6 +96,36 @@ class _MosqueChatScreenState extends State<MosqueChatScreen> {
         _error = true;
       });
     }
+  }
+
+  Future<void> _loadMe() async {
+    if (!_isMember) return;
+    try {
+      final me = await MasjidService.chatProfile(_id);
+      if (mounted) setState(() => _me = me);
+    } catch (_) {}
+  }
+
+  Future<void> _loadIdentities() async {
+    if (!_canModerate) return;
+    try {
+      final rows = await MasjidService.chatIdentities(_id);
+      if (mounted) setState(() => _identities = {for (final r in rows) r['user_id'] as String: r});
+    } catch (_) {}
+  }
+
+  Future<void> _verifyPhone() async {
+    final ok = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => const PhoneVerifyScreen()));
+    if (!mounted) return;
+    await _loadMe();
+    if (ok == true) _toast('تمام، رقمك اتوثّق — تقدر تكتب في الشات دلوقتي');
+  }
+
+  Future<void> _editNickname() async {
+    final changed = await editMosqueChatNickname(context, _id);
+    if (!changed || !mounted) return;
+    await _loadMe();
+    await _loadMessages();
   }
 
   Future<void> _markRead() async {
@@ -194,6 +235,10 @@ class _MosqueChatScreenState extends State<MosqueChatScreen> {
       await _loadNew();
       _scrollToBottom();
     } catch (e) {
+      if (e is PostgrestException && isPhoneUnverifiedError(hint: e.hint, message: e.message)) {
+        if (mounted) setState(() => _me = {...?_me, 'needs_phone': true});
+        return;
+      }
       _toast(masjidError(e, 'تعذر إرسال الرسالة، جرّب تاني'));
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -203,7 +248,8 @@ class _MosqueChatScreenState extends State<MosqueChatScreen> {
   // ----------------------------------------------------------- actions
   Future<void> _messageActions(Map<String, dynamic> m) async {
     final mine = m['mine'] == true;
-    final isMember = _m?['is_member'] == true;
+    final isMember = _isMember;
+    final identity = _canModerate ? _identities[m['author_id']] : null;
     final action = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
@@ -214,6 +260,12 @@ class _MosqueChatScreenState extends State<MosqueChatScreen> {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Text(m['author_name'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
             ),
+            if (identity != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text('اسم مستعار — الاسم الحقيقي: ${identity['full_name'] ?? '—'} (للإدارة بس)',
+                    style: const TextStyle(fontSize: 12, color: AppColors.inkSecondary)),
+              ),
             if (isMember) ListTile(leading: const Icon(Icons.reply_rounded), title: const Text('رد'), onTap: () => Navigator.of(ctx).pop('reply')),
             ListTile(leading: const Icon(Icons.copy_rounded), title: const Text('نسخ'), onTap: () => Navigator.of(ctx).pop('copy')),
             if (mine) ListTile(leading: const Icon(Icons.delete_outline_rounded), title: const Text('امسح رسالتي'), onTap: () => Navigator.of(ctx).pop('delete')),
@@ -237,7 +289,7 @@ class _MosqueChatScreenState extends State<MosqueChatScreen> {
     if (action == null || !mounted) return;
     final id = m['id'] as String;
     final author = m['author_id'] as String?;
-    final name = m['author_name'] as String? ?? '';
+    final name = identity == null ? m['author_name'] as String? ?? '' : '${m['author_name']} (${identity['full_name'] ?? '—'})';
     try {
       if (action == 'reply') {
         setState(() => _replyTo = m);
@@ -309,6 +361,30 @@ class _MosqueChatScreenState extends State<MosqueChatScreen> {
         ]),
         actions: [
           if (_canModerate) IconButton(tooltip: 'الأعضاء', onPressed: _showMembers, icon: const Icon(Icons.groups_rounded)),
+          if (_isMember)
+            PopupMenuButton<String>(
+              tooltip: 'إعدادات الشات',
+              onSelected: (v) {
+                if (v == 'nickname') _editNickname();
+                if (v == 'phone') _verifyPhone();
+              },
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'nickname',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.badge_outlined),
+                    title: const Text('اسمك في الشات'),
+                    subtitle: Text(_me?['nickname'] != null ? 'اسم مستعار: ${_me!['nickname']}' : 'اسمك الحقيقي'),
+                  ),
+                ),
+                if (_needsPhone)
+                  const PopupMenuItem(
+                    value: 'phone',
+                    child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.verified_user_outlined), title: Text('وثّق رقم موبايلك')),
+                  ),
+              ],
+            ),
         ],
       ),
       body: _error
@@ -350,7 +426,8 @@ class _MosqueChatScreenState extends State<MosqueChatScreen> {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(24),
-          child: Text('الشات هادي — ابدأ إنت وقول السلام عليكم 🤍', textAlign: TextAlign.center, style: TextStyle(color: AppColors.inkMuted)),
+          child: Text('الشات هادي — ابدأ إنت وقول السلام عليكم 🤍\n\n$mosqueChatRetentionNote',
+              textAlign: TextAlign.center, style: TextStyle(color: AppColors.inkMuted)),
         ),
       );
     }
@@ -360,7 +437,7 @@ class _MosqueChatScreenState extends State<MosqueChatScreen> {
       itemCount: _messages.length + 1,
       itemBuilder: (context, i) {
         if (i == 0) {
-          if (_noOlder) return const SizedBox(height: 4);
+          if (_noOlder) return const _RetentionNote();
           return Center(child: TextButton(onPressed: _loadingOlder ? null : _loadOlder, child: Text(_loadingOlder ? 'لحظة…' : 'رسايل أقدم')));
         }
         return _bubble(_messages[i - 1]);
@@ -436,6 +513,24 @@ class _MosqueChatScreenState extends State<MosqueChatScreen> {
         ),
       );
     }
+    if (_needsPhone) {
+      return SafeArea(
+        top: false,
+        child: Container(
+          padding: EdgeInsets.fromLTRB(side, 10, side, 10),
+          decoration: const BoxDecoration(color: AppColors.surfaceAlt, border: Border(top: BorderSide(color: AppColors.border))),
+          child: Row(children: [
+            const Icon(Icons.verified_user_outlined, color: AppColors.crystal),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text('لازم توثّق رقم موبايلك عشان تكتب في الشات', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+            ),
+            const SizedBox(width: 8),
+            FilledButton(onPressed: _verifyPhone, child: const Text('وثّق رقمك')),
+          ]),
+        ),
+      );
+    }
     return SafeArea(
       top: false,
       child: Container(
@@ -476,7 +571,8 @@ class _MosqueChatScreenState extends State<MosqueChatScreen> {
           ]),
           const Padding(
             padding: EdgeInsets.only(top: 4),
-            child: Text('خلّي الكلام طيب — ممنوع أرقام الموبايلات واللينكات للحسابات الجديدة.', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
+            child: Text('خلّي الكلام طيب — ممنوع أرقام الموبايلات واللينكات للحسابات الجديدة. $mosqueChatRetentionNote.',
+                style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
           ),
         ]),
       ),
@@ -495,6 +591,7 @@ class _MembersSheet extends StatefulWidget {
 
 class _MembersSheetState extends State<_MembersSheet> {
   List<Map<String, dynamic>>? _rows;
+  Map<String, String> _nicknames = {};
   bool _error = false;
 
   @override
@@ -506,7 +603,16 @@ class _MembersSheetState extends State<_MembersSheet> {
   Future<void> _load() async {
     try {
       final rows = await MasjidService.members(widget.mosqueId);
-      if (mounted) setState(() => _rows = rows);
+      var ids = <Map<String, dynamic>>[];
+      try {
+        ids = await MasjidService.chatIdentities(widget.mosqueId);
+      } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _rows = rows;
+          _nicknames = {for (final r in ids) r['user_id'] as String: r['nickname'] as String? ?? ''};
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _error = true);
     }
@@ -539,6 +645,7 @@ class _MembersSheetState extends State<_MembersSheet> {
                 dense: true,
                 title: Text('${r['full_name'] ?? 'عضو'}${r['is_admin'] == true ? ' — إدارة' : ''}'),
                 subtitle: Text([
+                  if ((_nicknames[r['user_id']] ?? '').isNotEmpty) 'في الشات: ${_nicknames[r['user_id']]}',
                   '${r['messages'] ?? 0} رسالة',
                   if (r['sanction'] == 'ban') r['sanction_until'] == null ? 'ممنوع من الكتابة' : 'ممنوع لحد ${roomTime(r['sanction_until'] as String?)}',
                   if (r['sanction'] == 'mute') 'مكتوم لحد ${roomTime(r['sanction_until'] as String?)}',
@@ -549,4 +656,19 @@ class _MembersSheetState extends State<_MembersSheet> {
         ),
     ]);
   }
+}
+
+/// «الرسايل بتتمسح تلقائياً بعد 30 يوم» at the top of the chat.
+class _RetentionNote extends StatelessWidget {
+  const _RetentionNote();
+
+  @override
+  Widget build(BuildContext context) => const Padding(
+        padding: EdgeInsets.fromLTRB(8, 4, 8, 10),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(Icons.auto_delete_outlined, size: 14, color: AppColors.inkMuted),
+          SizedBox(width: 4),
+          Text(mosqueChatRetentionNote, style: TextStyle(fontSize: 11, color: AppColors.inkMuted)),
+        ]),
+      );
 }
