@@ -147618,7 +147618,7 @@ case 1:return A.i(p.at(-1),r)}})
 return A.k($async$FK,r)},
 EH(){var s=0,r=A.l(t.H),q,p=this,o,n,m
 var $async$EH=A.h(function(a,b){if(a===1)return A.i(b,r)
-for(;;)switch(s){case 0:n="https://masjid.mogtama3y.com/#/masjid/"+p.a.c
+for(;;)switch(s){case 0:n="https://masjidi.mogtama3y.com/#/masjid/"+p.a.c
 m=p.d
 m=A.n(m==null?null:m.h(0,"name"))
 s=3
