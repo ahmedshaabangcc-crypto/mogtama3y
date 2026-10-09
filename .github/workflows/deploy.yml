@@ -179,7 +179,7 @@ jobs:
         uses: peaceiris/actions-gh-pages@v4
         with:
           deploy_key: ${{ secrets.MASJID_DEPLOY_KEY }}
-          external_repository: ahmedshaabangcc-crypto/masjid
+          external_repository: ahmedshaabangcc-crypto/masjidi
           publish_branch: gh-pages
           publish_dir: ./build/web_masjid
           cname: masjid.mogtama3y.com
