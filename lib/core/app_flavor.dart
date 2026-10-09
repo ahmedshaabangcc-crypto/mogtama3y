@@ -55,4 +55,4 @@ const tajerUrl = 'https://tajer.mogtama3y.com';
 
 const ittihadUrl = 'https://ittihad.mogtama3y.com';
 
-const masjidUrl = 'https://masjid.mogtama3y.com';
+const masjidUrl = 'https://masjidi.mogtama3y.com';

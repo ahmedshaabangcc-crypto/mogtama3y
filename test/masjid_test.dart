@@ -10,7 +10,7 @@ void main() {
   });
 
   test('share links open the masjid app', () {
-    expect(MasjidService.shareUrl('abc'), 'https://masjid.mogtama3y.com/#/masjid/abc');
+    expect(MasjidService.shareUrl('abc'), 'https://masjidi.mogtama3y.com/#/masjid/abc');
   });
 
   test('need progress counts confirmed amounts', () {

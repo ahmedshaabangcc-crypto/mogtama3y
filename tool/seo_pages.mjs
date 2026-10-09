@@ -130,7 +130,7 @@ ${faqHtml}
 <a href="https://dalil.mogtama3y.com">دليل المحلات</a>
 <a href="https://tajer.mogtama3y.com">متجري</a>
 <a href="https://ittihad.mogtama3y.com">اتحاد الملاك</a>
-<a href="https://masjid.mogtama3y.com">مسجدي</a>
+<a href="https://masjidi.mogtama3y.com">مسجدي</a>
 <a href="mailto:${EMAIL}">${EMAIL}</a>
 <span class="credit">تصميم وتنفيذ <a href="https://getapex.tech" rel="noopener">Get Apex</a></span>
 </footer>
@@ -378,16 +378,16 @@ ${list([
 ])}
 <h2>لإدارة المسجد — خطوة بخطوة</h2>
 ${steps([
-  'افتح <a href="https://masjid.mogtama3y.com">masjid.mogtama3y.com</a> واعمل حساب بإيميلك أو بحساب جوجل.',
+  'افتح <a href="https://masjidi.mogtama3y.com">masjidi.mogtama3y.com</a> واعمل حساب بإيميلك أو بحساب جوجل.',
   'دوّر على مسجدك وافتح صفحته (أو ضيفه لو مش موجود).',
   'اضغط «أنا مسؤول عن المسجد ده» واختار صفتك وارفع إثبات لو عندك.',
   'بعد المراجعة: اكتب مواعيد الإقامة وخطبة الجمعة، وانشر الإعلانات والدروس والاحتياجات، وضيف مساعدين بصلاحيات محددة.',
 ])}
 <h2>التطبيق مابيستلمش فلوس</h2>
 <p>مسجدي بينظم التعهدات بس: الدفع بيكون للمسجد مباشرة بالطريقة اللي إدارة المسجد كاتباها (واتساب، أمين المسجد…)، والمسجد بيأكد اللي وصله قدام الكل. ده بيخلّي الاحتياجات واضحة والتبرع موثوق من غير ما فلوس تعدّي على أي حد في النص.</p>
-<a class="cta" href="https://masjid.mogtama3y.com">افتح مسجدي</a>`,
+<a class="cta" href="https://masjidi.mogtama3y.com">افتح مسجدي</a>`,
   faq: masjidFaq,
-  schema: [app('مسجدي', 'https://masjid.mogtama3y.com/', 'مواقيت الصلاة وأقرب مسجد، وصفحة لكل مسجد بالإقامة وخطبة الجمعة والدروس والإعلانات والاحتياجات.', 'LifestyleApplication')],
+  schema: [app('مسجدي', 'https://masjidi.mogtama3y.com/', 'مواقيت الصلاة وأقرب مسجد، وصفحة لكل مسجد بالإقامة وخطبة الجمعة والدروس والإعلانات والاحتياجات.', 'LifestyleApplication')],
 });
 
 const balaghFaq = [

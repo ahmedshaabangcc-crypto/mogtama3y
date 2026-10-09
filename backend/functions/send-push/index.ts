@@ -24,7 +24,7 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSess
 const APP_URL: Record<string, string> = {
   tajer: 'https://tajer.mogtama3y.com/',
   ittihad: 'https://ittihad.mogtama3y.com/',
-  masjid: 'https://masjid.mogtama3y.com/',
+  masjid: 'https://masjidi.mogtama3y.com/',
   mogtama3y: 'https://mogtama3y.com/',
 };
 
