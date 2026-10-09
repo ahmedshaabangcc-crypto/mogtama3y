@@ -74,6 +74,10 @@ dependencies:
   url_launcher_platform_interface: ^2.3.2
   video_player: ^2.14.1
 
+  # Local settings of the mosque tools (Quran bookmark, tasbeeh, reminders);
+  # off the web only — on the web they use localStorage directly.
+  shared_preferences: ^2.5.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -101,6 +105,9 @@ flutter:
     - assets/images/home/
     # Arabic fonts bundled so text never shows as boxes while they download.
     - assets/google_fonts/
+    # Quran text (Tanzil, gzip) + Amiri Quran font: fetched only when the
+    # Quran screen opens — never part of the first load.
+    - assets/quran/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -10,6 +10,7 @@ import 'core/demo/demo_mode.dart';
 import 'core/supabase/supabase_config.dart';
 import 'core/theme/app_theme.dart';
 import 'core/routing/app_router.dart';
+import 'features/masjid_tools/prayer_reminder_host.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -88,7 +89,10 @@ class MogtamayApp extends StatelessWidget {
         textDirection: TextDirection.rtl,
         child: MediaQuery(
           data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.12)),
-          child: kDemo ? DemoRolePanel(child: child!) : child!,
+          child: kDemo
+              ? DemoRolePanel(child: child!)
+              // «تنبيه الصلاة» banner — the apps that carry the mosque tools.
+              : (isUnionApp || isTajerApp ? child! : PrayerReminderHost(child: child!)),
         ),
       ),
       routerConfig: appRouter,

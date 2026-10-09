@@ -39,6 +39,12 @@ import '../../features/recycling/scrap_dealer_home_screen.dart';
 import '../../features/services/technicians_market_screen.dart';
 import '../../features/masjid/masjid_home_screen.dart';
 import '../../features/masjid/mosque_page_screen.dart';
+import '../../features/masjid_tools/adhkar_screens.dart' deferred as tools_adhkar;
+import '../../features/masjid_tools/hijri_screen.dart' deferred as tools_hijri;
+import '../../features/masjid_tools/masjid_tools_entry.dart';
+import '../../features/masjid_tools/qibla_screen.dart' deferred as tools_qibla;
+import '../../features/masjid_tools/quran_screens.dart' deferred as tools_quran;
+import '../../features/masjid_tools/reminders_screen.dart' deferred as tools_reminders;
 import '../../features/shell/app_shell.dart';
 import '../../features/shell/masjid_shell.dart';
 import '../../features/shell/open_tajer_app.dart';
@@ -197,6 +203,14 @@ class AppRoutes {
 
   /// One mosque's page (its share link and follower notifications open this).
   static String mosque(String id) => '/masjid/$id';
+
+  /// «أدوات يومية» (masjid app and مُجتمعي, guests too) — each screen is a
+  /// deferred library, loaded on first open.
+  static const masjidToolsQuran = '/masjid/tools/quran';
+  static const masjidToolsAdhkar = '/masjid/tools/adhkar';
+  static const masjidToolsQibla = '/masjid/tools/qibla';
+  static const masjidToolsHijri = '/masjid/tools/hijri';
+  static const masjidToolsReminders = '/masjid/tools/reminders';
 }
 
 GoRoute _section(String path, GoRouterWidgetBuilder builder) => GoRoute(path: path.substring(1), builder: builder);
@@ -280,6 +294,12 @@ final _mogtama3ySections = <String, GoRouterWidgetBuilder>{
 
 final _masjidSections = <String, GoRouterWidgetBuilder>{
   AppRoutes.masjid: (_, _) => const MasjidHomeScreen(),
+  AppRoutes.masjidToolsQuran: (_, _) => DeferredPage(title: 'المصحف', load: tools_quran.loadLibrary, builder: () => tools_quran.QuranHomeScreen()),
+  AppRoutes.masjidToolsAdhkar: (_, _) => DeferredPage(title: 'الأذكار', load: tools_adhkar.loadLibrary, builder: () => tools_adhkar.AdhkarHomeScreen()),
+  AppRoutes.masjidToolsQibla: (_, _) => DeferredPage(title: 'اتجاه القبلة', load: tools_qibla.loadLibrary, builder: () => tools_qibla.QiblaScreen()),
+  AppRoutes.masjidToolsHijri: (_, _) => DeferredPage(title: 'التقويم الهجري', load: tools_hijri.loadLibrary, builder: () => tools_hijri.HijriCalendarScreen()),
+  AppRoutes.masjidToolsReminders: (_, _) =>
+      DeferredPage(title: 'تنبيه الصلاة', load: tools_reminders.loadLibrary, builder: () => tools_reminders.PrayerRemindersScreen()),
 };
 
 final _tajerSections = <String, GoRouterWidgetBuilder>{
