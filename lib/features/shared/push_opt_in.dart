@@ -39,7 +39,7 @@ class _PushOptInCardState extends State<PushOptInCard> {
         'p_endpoint': sub['endpoint'],
         'p_p256dh': keys['p256dh'],
         'p_auth': keys['auth'],
-        'p_app': isTajerApp ? 'tajer' : (isUnionApp ? 'ittihad' : 'mogtama3y'),
+        'p_app': appFlavorId,
       });
       _toast('تمام! الإشعارات هتوصلك على الجهاز ده 🔔');
       if (mounted) setState(() => _hidden = true);

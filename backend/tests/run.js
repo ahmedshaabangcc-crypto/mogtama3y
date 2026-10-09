@@ -1842,6 +1842,253 @@ const denied = (r) => !!r.error;
       (await admin(db, `select count(*)::int as n from chat_room_messages where created_at < now() - interval '30 days'`))[0].n === 0);
   }
 
+  // ------------------------------------------------------------------
+  console.log('\nمسجدي — mosques (0080)');
+  {
+    await admin(db, `insert into directory_places (id, name, category, lat, lng, address) values
+      ('masdir1', 'مسجد النور', 'أماكن عبادة', 30.0500, 31.2400, 'شارع النور، العباسية'),
+      ('masdir2', 'جامع الرحمة', 'أماكن عبادة', 30.0520, 31.2420, 'المعادي'),
+      ('masdir3', 'جامعة القاهرة', 'تعليم', 30.0270, 31.2080, 'الجيزة'),
+      ('masdir4', 'Al Salam Mosque', 'أماكن عبادة', 31.2000, 29.9200, 'Alexandria'),
+      ('masdir5', 'صيدلية النور', 'صيدليات', 30.0501, 31.2401, 'العباسية')`);
+    const masSeeded = (await admin(db, `select public.masjid_seed_from_directory() as n`))[0].n;
+    check('mas: seeding picks مسجد / جامع / mosque names but not «جامعة» or other places', masSeeded === 3, masSeeded);
+    check('mas: re-seeding adds nothing twice', (await admin(db, `select public.masjid_seed_from_directory() as n`))[0].n === 0);
+    const masNoor = (await admin(db, `select id from mosques where directory_id = 'masdir1'`))[0].id;
+    const masRahma = (await admin(db, `select id from mosques where directory_id = 'masdir2'`))[0].id;
+    check('mas: a user cannot run the seeding', denied(await as(db, A, `select public.masjid_seed_from_directory()`)));
+
+    // Browse (anon)
+    const masNear = await as(db, null, `select * from public.nearby_mosques(30.0501, 31.2401, 3, 10)`);
+    check('mas: anon gets the nearest mosques, nearest first', ok(masNear) && masNear.rows.length === 2 && masNear.rows[0].id === masNoor, masNear);
+    const masSearch = await as(db, null, `select * from public.search_mosques('الرحمة')`);
+    check('mas: search by name', ok(masSearch) && masSearch.rows.length === 1 && masSearch.rows[0].id === masRahma, masSearch);
+    check('mas: search by area/address', (await as(db, null, `select * from public.search_mosques('العباسية')`)).rows?.[0]?.id === masNoor);
+    check('mas: anon reads public mosque columns', ok(await as(db, null, `select id, name, verified, contact_phone from mosques`)));
+    check('mas: anon cannot read who claimed a mosque', denied(await as(db, null, `select claimed_by from mosques`)) &&
+      denied(await as(db, B, `select claimed_by from mosques`)));
+    check('mas: users cannot edit mosques directly', denied(await as(db, A, `update mosques set verified = true where id = $1`, [masNoor])) &&
+      denied(await as(db, A, `insert into mosques (name, lat, lng) values ('مسجد وهمي', 30, 31)`)));
+    const masGet = await as(db, null, `select public.get_mosque($1) as m`, [masNoor]);
+    check('mas: get_mosque works for anon', ok(masGet) && masGet.rows[0].m.name === 'مسجد النور' && masGet.rows[0].m.verified === false, masGet);
+
+    // Add a missing mosque
+    const masAdded = await as(db, X, `select public.masjid_add_mosque('مسجد التقوى', 30.06, 31.25, 'شارع التقوى', 'مدينة نصر', 'القاهرة') as id`);
+    check('mas: a signed-in user adds a missing mosque (unverified)', ok(masAdded) &&
+      (await admin(db, `select verified from mosques where id = $1`, [masAdded.rows[0].id]))[0].verified === false, masAdded);
+    check('mas: anon cannot add a mosque', denied(await as(db, null, `select public.masjid_add_mosque('مسجد', 30.06, 31.25)`)));
+    check('mas: adding the same mosque again returns the same one',
+      (await as(db, X, `select public.masjid_add_mosque('مسجد التقوى', 30.0601, 31.2501) as id`)).rows?.[0]?.id === masAdded.rows?.[0]?.id);
+
+    // Claim & verify
+    const masImam = await signUp(db, 'mas imam', '01055500001');
+    const masHelper = await signUp(db, 'mas helper', '01055500002');
+    const masDonor = await signUp(db, 'mas donor', '01055500003');
+    const masOther = await signUp(db, 'mas other', '01055500004');
+    const masSA = await signUp(db, 'mas admin', null);
+    await admin(db, `update profiles set role = 'super_admin' where id = $1`, [masSA]);
+
+    check('mas: anon cannot claim', denied(await as(db, null, `select public.masjid_claim($1, 'imam', '01055500001')`, [masNoor])));
+    check('mas: a claim needs a valid phone', denied(await as(db, masImam, `select public.masjid_claim($1, 'imam', '123')`, [masNoor])));
+    check("mas: a claim can't point at someone else's document",
+      denied(await as(db, masImam, `select public.masjid_claim($1, 'imam', '01055500001', $2)`, [masNoor, masOther + '/proof/x.jpg'])));
+    const masClaim = await as(db, masImam, `select public.masjid_claim($1, 'imam', '+20 1055500001', $2, 'إمام المسجد من 2015') as id`,
+      [masNoor, masImam + '/mosque_claim/1.jpg']);
+    check('mas: a signed-in user claims a mosque (as إمام)', ok(masClaim), masClaim);
+    const masClaimId = masClaim.rows?.[0]?.id;
+    check('mas: one pending claim per mosque per user', denied(await as(db, masImam, `select public.masjid_claim($1, 'imam', '01055500001')`, [masNoor])));
+    check('mas: the claimant sees the claim as pending', (await as(db, masImam, `select * from public.masjid_my_claims()`)).rows?.[0]?.status === 'pending');
+    check('mas: nobody reads claims directly', denied(await as(db, masImam, `select * from mosque_claims`)));
+    check('mas: a pending claim gives no powers',
+      denied(await as(db, masImam, `insert into mosque_posts (mosque_id, title) values ($1, 'إعلان')`, [masNoor])));
+    check('mas: a user cannot list claims', denied(await as(db, masOther, `select * from public.admin_list_mosque_claims('pending')`)));
+    check('mas: the claimant cannot approve their own claim', denied(await as(db, masImam, `select public.admin_review_mosque_claim($1, true)`, [masClaimId])));
+    const masClaims = await as(db, masSA, `select * from public.admin_list_mosque_claims('pending')`);
+    check('mas: the super admin lists pending claims with the document', ok(masClaims) &&
+      masClaims.rows.some((c) => c.id === masClaimId && c.doc_path && c.phone === '01055500001' && c.full_name === 'mas imam'), masClaims);
+    check('mas: the super admin approves', ok(await as(db, masSA, `select public.admin_review_mosque_claim($1, true, 'تمام')`, [masClaimId])));
+    check('mas: …the mosque is verified and the claimant is its owner',
+      (await admin(db, `select verified from mosques where id = $1`, [masNoor]))[0].verified === true &&
+      (await admin(db, `select role from mosque_admins where mosque_id = $1 and user_id = $2`, [masNoor, masImam]))[0]?.role === 'owner');
+    check('mas: …and is notified', (await admin(db, `select count(*)::int as n from notifications where user_id = $1 and deep_link = $2`, [masImam, '/#/masjid/' + masNoor]))[0].n === 1);
+    check('mas: a claim is reviewed only once', denied(await as(db, masSA, `select public.admin_review_mosque_claim($1, false)`, [masClaimId])));
+    const masClaim2 = (await as(db, masOther, `select public.masjid_claim($1, 'amin', '01055500004') as id`, [masRahma])).rows?.[0]?.id;
+    check('mas: the super admin rejects another claim', ok(await as(db, masSA, `select public.admin_review_mosque_claim($1, false, 'مفيش إثبات')`, [masClaim2])) &&
+      (await admin(db, `select verified from mosques where id = $1`, [masRahma]))[0].verified === false);
+    const masMine = await as(db, masImam, `select public.get_mosque($1) as m`, [masNoor]);
+    check('mas: get_mosque tells the owner their role and permissions',
+      masMine.rows?.[0]?.m?.my_role === 'owner' && masMine.rows[0].m.my_permissions.includes('team'), masMine);
+
+    // Team
+    check('mas: a non-admin cannot add helpers', denied(await as(db, masOther, `select public.masjid_add_helper($1, '01055500002', array['posts'])`, [masNoor])));
+    check('mas: unknown phone is refused', denied(await as(db, masImam, `select public.masjid_add_helper($1, '01099999999', array['posts'])`, [masNoor])));
+    const masAddHelper = await as(db, masImam, `select public.masjid_add_helper($1, '01055500002', array['posts','lessons','bogus'], 'مؤذن') as n`, [masNoor]);
+    check('mas: the owner adds a helper by phone', ok(masAddHelper) && masAddHelper.rows[0].n === 'mas helper', masAddHelper);
+    check('mas: …unknown permissions are dropped',
+      JSON.stringify((await admin(db, `select permissions from mosque_admins where user_id = $1`, [masHelper]))[0].permissions.sort()) === '["lessons","posts"]');
+    check('mas: the team list is for the owner only', ok(await as(db, masImam, `select * from public.masjid_team($1)`, [masNoor])) &&
+      denied(await as(db, masHelper, `select * from public.masjid_team($1)`, [masNoor])));
+    check("mas: a helper can't add helpers", denied(await as(db, masHelper, `select public.masjid_add_helper($1, '01055500004', array['posts'])`, [masNoor])));
+
+    // Posting (only verified admins / helpers with the permission)
+    const masFollow = await as(db, masDonor, `select public.masjid_follow($1, true)`, [masNoor]);
+    check('mas: a user follows the mosque', ok(masFollow), masFollow);
+    await as(db, masOther, `select public.masjid_follow($1, true)`, [masNoor]);
+    check('mas: anon cannot follow', denied(await as(db, null, `select public.masjid_follow($1, true)`, [masNoor])));
+    check('mas: followed mosques list', (await as(db, masDonor, `select * from public.my_followed_mosques()`)).rows?.[0]?.id === masNoor);
+    check('mas: nobody reads follows directly', denied(await as(db, masDonor, `select * from mosque_follows`)));
+
+    const masPost = await as(db, masHelper, `insert into mosque_posts (mosque_id, title, body, pinned) values ($1, 'درس الجمعة اتأجل', 'بعد العصر', true) returning id, author_id`, [masNoor]);
+    check('mas: a helper with «posts» publishes an announcement', ok(masPost) && masPost.rows[0].author_id === masHelper, masPost);
+    check('mas: anon reads announcements', (await as(db, null, `select id from mosque_posts where mosque_id = $1`, [masNoor])).rows?.length === 1);
+    check('mas: a random user cannot post', denied(await as(db, masOther, `insert into mosque_posts (mosque_id, title) values ($1, 'سبام')`, [masNoor])));
+    check('mas: anon cannot post', denied(await as(db, null, `insert into mosque_posts (mosque_id, title) values ($1, 'سبام')`, [masNoor])));
+    check("mas: a helper can't post on another mosque", denied(await as(db, masHelper, `insert into mosque_posts (mosque_id, title) values ($1, 'سبام')`, [masRahma])));
+    await as(db, masOther, `update mosque_posts set title = 'hacked' where id = $1`, [masPost.rows?.[0]?.id]);
+    await as(db, masOther, `delete from mosque_posts where id = $1`, [masPost.rows?.[0]?.id]);
+    check('mas: a random user cannot edit or delete a post', (await admin(db, `select title from mosque_posts where id = $1`, [masPost.rows?.[0]?.id]))[0]?.title === 'درس الجمعة اتأجل');
+    check("mas: a helper without «needs» can't add a need", denied(await as(db, masHelper, `insert into mosque_needs (mosque_id, title, target_amount) values ($1, 'مروحة', 1000)`, [masNoor])));
+    check('mas: a helper with «lessons» adds a Quran circle', ok(await as(db, masHelper,
+      `insert into mosque_lessons (mosque_id, kind, title, sheikh, weekdays, after_prayer, audience) values ($1, 'quran_circle', 'حلقة تحفيظ', 'الشيخ أحمد', '{6,1}', 'asr', 'kids')`, [masNoor])));
+    check("mas: a helper can't change the mosque settings", denied(await as(db, masHelper, `select public.masjid_update_settings($1, '{"khatib":"x"}'::jsonb)`, [masNoor])));
+    check('mas: the owner sets iqama offsets, khutba and contact', ok(await as(db, masImam,
+      `select public.masjid_update_settings($1, '{"khatib":"الشيخ محمود","friday_khutba_time":"12:30","iqama_fajr":"20","iqama_isha":"10","contact_whatsapp":"01055500001","payment_note":"سلّم لأمين المسجد بعد العشاء"}'::jsonb)`, [masNoor])) &&
+      (await admin(db, `select iqama_fajr, khatib from mosques where id = $1`, [masNoor]))[0].iqama_fajr === 20);
+
+    // Follower notifications, rate-limited per mosque
+    const masNotes = async (u) => (await admin(db, `select title from notifications where user_id = $1 and deep_link = $2 order by created_at`, [u, '/#/masjid/' + masNoor]));
+    check('mas: followers are notified of the first announcement', (await masNotes(masDonor)).length === 1 && (await masNotes(masOther)).length === 1);
+    check('mas: …the author is not notified about their own post', (await masNotes(masHelper)).length === 0 ||
+      !(await masNotes(masHelper)).some((n) => n.title.startsWith('إعلان')));
+    check('mas: the lesson right after is rate-limited (no second batch)', (await masNotes(masDonor)).length === 1);
+    await as(db, masImam, `insert into mosque_posts (mosque_id, kind, title) values ($1, 'janaza', 'صلاة الجنازة على الحاج محمد بعد الظهر')`, [masNoor]);
+    const masDonorNotes = await masNotes(masDonor);
+    check('mas: an urgent جنازة still reaches followers', masDonorNotes.length === 2 && masDonorNotes[1].title.startsWith('صلاة جنازة'), masDonorNotes);
+    await as(db, masImam, `insert into mosque_posts (mosque_id, kind, title) values ($1, 'urgent', 'تاني')`, [masNoor]);
+    check('mas: …but urgent posts are limited too (10 min)', (await masNotes(masDonor)).length === 2);
+    await as(db, masOther, `select public.masjid_follow($1, true, false)`, [masNoor]);
+    await admin(db, `update mosque_notify_log set created_at = now() - interval '3 hours'`);
+    await as(db, masImam, `insert into mosque_posts (mosque_id, title) values ($1, 'إعلان جديد بعد 3 ساعات')`, [masNoor]);
+    check('mas: after the window a new batch goes out', (await masNotes(masDonor)).length === 3);
+    check('mas: a follower who muted notifications gets nothing new', (await masNotes(masOther)).length === 2);
+    check('mas: unfollow', ok(await as(db, masDonor, `select public.masjid_follow($1, false)`, [masNoor])) &&
+      (await as(db, masDonor, `select * from public.my_followed_mosques()`)).rows?.length === 0);
+    await admin(db, `update mosque_notify_log set created_at = now() - interval '3 hours'`);
+    await as(db, masImam, `insert into mosque_posts (mosque_id, title) values ($1, 'إعلان بعد إلغاء المتابعة')`, [masNoor]);
+    check('mas: …and is no longer notified', (await masNotes(masDonor)).length === 3);
+    await as(db, masDonor, `select public.masjid_follow($1, true)`, [masNoor]);
+
+    // Needs & pledges (never money)
+    const masNeed = await as(db, masImam, `insert into mosque_needs (mosque_id, title, description, target_amount) values ($1, 'مروحة سقف', 'للمصلى', 1000) returning id, status`, [masNoor]);
+    check('mas: the owner adds a need', ok(masNeed) && masNeed.rows[0].status === 'open', masNeed);
+    const masNeedId = masNeed.rows?.[0]?.id;
+    check("mas: users can't set a need's status directly", denied(await as(db, masImam, `update mosque_needs set status = 'closed' where id = $1`, [masNeedId])));
+    check('mas: anon cannot pledge', denied(await as(db, null, `select public.masjid_pledge($1, 100)`, [masNeedId])));
+    const masP1 = await as(db, masDonor, `select public.masjid_pledge($1, 300, 'هسلمها الجمعة', false) as id`, [masNeedId]);
+    check('mas: a signed-in user pledges', ok(masP1), masP1);
+    const masP2 = await as(db, masOther, `select public.masjid_pledge($1, 200, null, true) as id`, [masNeedId]);
+    check('mas: another pledges anonymously', ok(masP2), masP2);
+    check('mas: a pledge must be a real amount', denied(await as(db, masOther, `select public.masjid_pledge($1, 0)`, [masNeedId])));
+    check('mas: the admin is told about a pledge',
+      (await admin(db, `select count(*)::int as n from notifications where user_id = $1 and title like 'تعهد جديد%'`, [masImam]))[0].n === 2);
+    let masProg = (await as(db, null, `select * from public.masjid_needs($1)`, [masNoor])).rows?.[0];
+    check('mas: progress counts confirmed amounts only (pledges shown apart)',
+      Number(masProg?.confirmed_amount) === 0 && Number(masProg?.pledged_amount) === 500, masProg);
+    check('mas: nobody reads contributions directly', denied(await as(db, masDonor, `select * from mosque_need_contributions`)) &&
+      denied(await as(db, null, `select * from mosque_need_contributions`)));
+    check('mas: a random user cannot confirm', denied(await as(db, masOther, `select public.masjid_confirm_contribution($1)`, [masP1.rows?.[0]?.id])));
+    check("mas: a helper without «needs» can't confirm", denied(await as(db, masHelper, `select public.masjid_confirm_contribution($1)`, [masP1.rows?.[0]?.id])));
+    check('mas: the pledger cannot confirm their own pledge', denied(await as(db, masDonor, `select public.masjid_confirm_contribution($1)`, [masP1.rows?.[0]?.id])));
+    check('mas: the admin confirms what arrived', ok(await as(db, masImam, `select public.masjid_confirm_contribution($1)`, [masP1.rows?.[0]?.id])));
+    check('mas: …only once', denied(await as(db, masImam, `select public.masjid_confirm_contribution($1)`, [masP1.rows?.[0]?.id])));
+    check('mas: …and the donor is thanked', (await admin(db, `select count(*)::int as n from notifications where user_id = $1 and title like 'مساهمتك وصلت%'`, [masDonor]))[0].n === 1);
+    check('mas: the admin records cash handed in', ok(await as(db, masImam, `select public.masjid_add_cash($1, 250, 'الحاج سيد', 'كاش', false)`, [masNeedId])));
+    check("mas: a user can't record cash", denied(await as(db, masOther, `select public.masjid_add_cash($1, 250)`, [masNeedId])));
+    masProg = (await as(db, null, `select * from public.masjid_needs($1)`, [masNoor])).rows?.[0];
+    check('mas: progress = 550 confirmed of 1000 (the 200 pledge still pending)',
+      Number(masProg?.confirmed_amount) === 550 && Number(masProg?.pledged_amount) === 200 && Number(masProg?.target_amount) === 1000, masProg);
+    const masListAnon = (await as(db, null, `select * from public.masjid_need_contributions($1)`, [masNeedId])).rows || [];
+    const masListDonor = (await as(db, masDonor, `select * from public.masjid_need_contributions($1)`, [masNeedId])).rows || [];
+    const masListOther = (await as(db, masOther, `select * from public.masjid_need_contributions($1)`, [masNeedId])).rows || [];
+    const masListAdmin = (await as(db, masImam, `select * from public.masjid_need_contributions($1)`, [masNeedId])).rows || [];
+    const masAnonRow = (rows) => rows.find((r) => Number(r.amount) === 200);
+    check('mas: an anonymous pledge shows «فاعل خير» to others',
+      masAnonRow(masListAnon)?.donor_label === 'فاعل خير' && masAnonRow(masListDonor)?.donor_label === 'فاعل خير' &&
+      !masListAnon.some((r) => r.donor_label === 'mas other'), masListAnon);
+    check('mas: …but the pledger and the mosque admin see the name',
+      masAnonRow(masListOther)?.donor_label === 'mas other' && masAnonRow(masListOther)?.is_mine === true && masAnonRow(masListAdmin)?.donor_label === 'mas other');
+    check('mas: a named pledge shows the name', masListAnon.find((r) => Number(r.amount) === 300)?.donor_label === 'mas donor');
+    check('mas: pledge notes are private to the pledger and the admin',
+      masListAnon.find((r) => Number(r.amount) === 300)?.note === null && masListDonor.find((r) => Number(r.amount) === 300)?.note === 'هسلمها الجمعة');
+    check('mas: the pledger withdraws a pending pledge', ok(await as(db, masOther, `select public.masjid_cancel_contribution($1)`, [masP2.rows?.[0]?.id])));
+    check("mas: a confirmed contribution can't be cancelled", denied(await as(db, masImam, `select public.masjid_cancel_contribution($1)`, [masP1.rows?.[0]?.id])));
+    check('mas: the admin closes the need', ok(await as(db, masImam, `select public.masjid_set_need_status($1, 'closed')`, [masNeedId])));
+    check('mas: no pledges on a closed need', denied(await as(db, masDonor, `select public.masjid_pledge($1, 50)`, [masNeedId])));
+    check("mas: a user can't close a need", denied(await as(db, masOther, `select public.masjid_set_need_status($1, 'open')`, [masNeedId])));
+
+    // Orphan sponsorship — no child data, sponsors private
+    const masOrphCols = (await admin(db, `select column_name from information_schema.columns where table_name in ('mosque_orphan_programs', 'mosque_orphan_sponsorships')`)).map((r) => r.column_name);
+    check('mas: orphan tables have no child name/photo/age/address columns',
+      !masOrphCols.some((c) => /child|orphan_name|photo|image|age|birth|address|national/.test(c)), masOrphCols);
+    const masProgram = await as(db, masImam, `insert into mosque_orphan_programs (mosque_id, title, description, monthly_amount, slots) values ($1, 'كفالة طفل', 'كفالة شهرية لطفل يتيم من الحي', 500, 10) returning id`, [masNoor]);
+    check('mas: the owner lists a sponsorship program', ok(masProgram), masProgram);
+    const masProgramId = masProgram.rows?.[0]?.id;
+    check("mas: a helper without «orphans» can't", denied(await as(db, masHelper, `insert into mosque_orphan_programs (mosque_id, title, monthly_amount) values ($1, 'كفالة', 500)`, [masNoor])));
+    const masSp = await as(db, masDonor, `select public.masjid_sponsor($1, 500, 'أول كل شهر') as id`, [masProgramId]);
+    check('mas: a user pledges a monthly sponsorship', ok(masSp), masSp);
+    check('mas: …once per program', denied(await as(db, masDonor, `select public.masjid_sponsor($1, 500)`, [masProgramId])));
+    check('mas: anon cannot sponsor', denied(await as(db, null, `select public.masjid_sponsor($1, 500)`, [masProgramId])));
+    check("mas: a user can't confirm a sponsorship", denied(await as(db, masDonor, `select public.masjid_set_sponsorship_status($1, 'active')`, [masSp.rows?.[0]?.id])));
+    check('mas: the admin confirms it', ok(await as(db, masImam, `select public.masjid_set_sponsorship_status($1, 'active')`, [masSp.rows?.[0]?.id])));
+    check('mas: …only once', denied(await as(db, masImam, `select public.masjid_set_sponsorship_status($1, 'active')`, [masSp.rows?.[0]?.id])));
+    const masProgPublic = await as(db, null, `select * from public.masjid_orphan_programs($1)`, [masNoor]);
+    check('mas: the public program shows counts only, no people',
+      ok(masProgPublic) && masProgPublic.rows[0].active_sponsors === 1 &&
+      !Object.keys(masProgPublic.rows[0]).some((k) => /name|phone|user|child/.test(k)), masProgPublic);
+    check('mas: sponsors list is for the mosque admin only', ok(await as(db, masImam, `select * from public.masjid_orphan_sponsors($1)`, [masProgramId])) &&
+      denied(await as(db, masOther, `select * from public.masjid_orphan_sponsors($1)`, [masProgramId])) &&
+      denied(await as(db, null, `select * from public.masjid_orphan_sponsors($1)`, [masProgramId])));
+    check('mas: nobody reads sponsorships directly', denied(await as(db, masDonor, `select * from mosque_orphan_sponsorships`)));
+    check('mas: the sponsor sees their own', (await as(db, masDonor, `select * from public.masjid_my_sponsorships()`)).rows?.[0]?.status === 'active');
+    check('mas: the sponsor ends it', ok(await as(db, masDonor, `select public.masjid_set_sponsorship_status($1, 'ended')`, [masSp.rows?.[0]?.id])));
+
+    // Quran competitions
+    const masComp = await as(db, masImam, `insert into mosque_competitions (mosque_id, title, schedule, registration_deadline) values ($1, 'مسابقة رمضان', 'الاختبارات السبت بعد العصر', current_date + 10) returning id`, [masNoor]);
+    check('mas: the owner creates a competition', ok(masComp), masComp);
+    const masCompId = masComp.rows?.[0]?.id;
+    const masLvl = await as(db, masImam, `insert into mosque_competition_levels (competition_id, mosque_id, name, age_group, sort) values ($1, $2, 'جزء عمّ', 'تحت 10 سنين', 1) returning id, mosque_id`, [masCompId, masRahma]);
+    check('mas: a level is pinned to the competition\'s mosque', ok(masLvl) && masLvl.rows[0].mosque_id === masNoor, masLvl);
+    const masLvlId = masLvl.rows?.[0]?.id;
+    check("mas: a user can't create a competition", denied(await as(db, masOther, `insert into mosque_competitions (mosque_id, title) values ($1, 'x')`, [masNoor])));
+    const masEntry = await as(db, masDonor, `select public.masjid_register_competition($1, $2, 'يوسف', 9, '01055500003') as id`, [masCompId, masLvlId]);
+    check('mas: a parent registers a contestant', ok(masEntry), masEntry);
+    check('mas: anon cannot register', denied(await as(db, null, `select public.masjid_register_competition($1, $2, 'x')`, [masCompId, masLvlId])));
+    check('mas: a level from another competition is refused', denied(await as(db, masDonor, `select public.masjid_register_competition($1, gen_random_uuid(), 'مريم')`, [masCompId])));
+    check('mas: others cannot see entries', (await as(db, masOther, `select * from public.masjid_competition_entries($1)`, [masCompId])).rows?.length === 0 &&
+      denied(await as(db, masOther, `select * from mosque_competition_entries`)));
+    check('mas: the registrant sees their own entry', (await as(db, masDonor, `select * from public.masjid_competition_entries($1)`, [masCompId])).rows?.length === 1);
+    check('mas: the admin sees entries with the phone', (await as(db, masImam, `select * from public.masjid_competition_entries($1)`, [masCompId])).rows?.[0]?.phone === '01055500003');
+    check("mas: a user can't set results", denied(await as(db, masDonor, `select public.masjid_set_entry_result($1, 100, 1)`, [masEntry.rows?.[0]?.id])));
+    check('mas: the admin sets a result', ok(await as(db, masImam, `select public.masjid_set_entry_result($1, 97.5, 1, 'ممتاز')`, [masEntry.rows?.[0]?.id])));
+    check('mas: results are hidden until published', (await as(db, null, `select * from public.masjid_competition_results($1)`, [masCompId])).rows?.length === 0);
+    check('mas: the admin publishes results', ok(await as(db, masImam, `select public.masjid_publish_results($1, true)`, [masCompId])));
+    const masRes = await as(db, null, `select * from public.masjid_competition_results($1)`, [masCompId]);
+    check('mas: anyone sees published results (no phones)', ok(masRes) && masRes.rows[0]?.contestant_name === 'يوسف' && masRes.rows[0].rank === 1 &&
+      !Object.keys(masRes.rows[0]).includes('phone'), masRes);
+    check('mas: registrants are told the results are out', (await admin(db, `select count(*)::int as n from notifications where user_id = $1 and title like 'نتيجة%'`, [masDonor]))[0].n === 1);
+    check('mas: no registration after the competition finished', denied(await as(db, masOther, `select public.masjid_register_competition($1, $2, 'مريم')`, [masCompId, masLvlId])));
+
+    // Removing a helper; super admin removal unverifies
+    check('mas: the owner removes the helper', ok(await as(db, masImam, `select public.masjid_remove_helper($1, $2)`, [masNoor, masHelper])) &&
+      denied(await as(db, masHelper, `insert into mosque_posts (mosque_id, title) values ($1, 'بعد الحذف')`, [masNoor])));
+    check("mas: a user can't remove the owner", ok(await as(db, masOther, `select 1`)) &&
+      denied(await as(db, masOther, `select public.admin_remove_mosque_admin($1, $2)`, [masNoor, masImam])));
+    check('mas: the super admin removes the owner → mosque unverified',
+      ok(await as(db, masSA, `select public.admin_remove_mosque_admin($1, $2)`, [masNoor, masImam])) &&
+      (await admin(db, `select verified from mosques where id = $1`, [masNoor]))[0].verified === false);
+    check('mas: tutorial videos accept the masjid app', ok(await as(db, masSA, `insert into tutorial_videos (app, youtube_id, title) values ('masjid', 'abcdefghij1', 'إزاي تدير مسجدك')`)));
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

@@ -37,7 +37,10 @@ import '../../features/recycling/auction_detail_screen.dart';
 import '../../features/recycling/recycling_marketplace_screen.dart';
 import '../../features/recycling/scrap_dealer_home_screen.dart';
 import '../../features/services/technicians_market_screen.dart';
+import '../../features/masjid/masjid_home_screen.dart';
+import '../../features/masjid/mosque_page_screen.dart';
 import '../../features/shell/app_shell.dart';
+import '../../features/shell/masjid_shell.dart';
 import '../../features/shell/open_tajer_app.dart';
 import '../../features/shell/tajer_shell.dart';
 import '../../features/shell/union_shell.dart';
@@ -188,6 +191,12 @@ class AppRoutes {
 
   /// A shared digital address (its link / QR opens this).
   static String eAddress(String code) => '/a/$code';
+
+  /// «المساجد» — mosques & prayer times (مُجتمعي section; the masjid app's home).
+  static const masjid = '/masjid';
+
+  /// One mosque's page (its share link and follower notifications open this).
+  static String mosque(String id) => '/masjid/$id';
 }
 
 GoRoute _section(String path, GoRouterWidgetBuilder builder) => GoRoute(path: path.substring(1), builder: builder);
@@ -266,6 +275,11 @@ final _mogtama3ySections = <String, GoRouterWidgetBuilder>{
   AppRoutes.pets: (_, _) => const PetsHomeScreen(),
   AppRoutes.kids: (_, _) => const KidsMarketScreen(),
   AppRoutes.rooms: (_, _) => const RoomsHomeScreen(),
+  ..._masjidSections,
+};
+
+final _masjidSections = <String, GoRouterWidgetBuilder>{
+  AppRoutes.masjid: (_, _) => const MasjidHomeScreen(),
 };
 
 final _tajerSections = <String, GoRouterWidgetBuilder>{
@@ -274,7 +288,7 @@ final _tajerSections = <String, GoRouterWidgetBuilder>{
 
 final _sections = {
   ..._sharedSections,
-  ...(isUnionApp ? _unionSections : (isTajerApp ? _tajerSections : _mogtama3ySections)),
+  ...(isUnionApp ? _unionSections : (isTajerApp ? _tajerSections : (isMasjidApp ? _masjidSections : _mogtama3ySections))),
 };
 
 final appRouter = GoRouter(
@@ -283,6 +297,8 @@ final appRouter = GoRouter(
       path: '/',
       builder: (_, state) => isUnionApp
           ? const UnionShell()
+          : isMasjidApp
+          ? const MasjidShell()
           : (isTajerApp
                 // Demo build only: `/?tab=1&add=1` opens a panel tab directly.
                 ? (kDemo ? TajerShell(demoTab: int.tryParse(state.uri.queryParameters['tab'] ?? ''), demoAdd: state.uri.queryParameters['add'] == '1') : const TajerShell())
@@ -290,7 +306,9 @@ final appRouter = GoRouter(
       routes: [
         for (final e in _sections.entries) _section(e.key, e.value),
         if (isUnionApp) GoRoute(path: 'pass/:code', builder: (_, state) => VisitorPassLinkScreen(code: state.pathParameters['code']!)),
-        if (!isUnionApp) ...[
+        if (_hasMosques)
+          GoRoute(path: 'masjid/:id', builder: (_, state) => MosquePageScreen(mosqueId: state.pathParameters['id']!)),
+        if (_neighbourhoodLinks) ...[
           GoRoute(path: 'a/:code', builder: (_, state) => PublicEAddressScreen(code: state.pathParameters['code']!)),
           GoRoute(
             path: 's/:slug',
@@ -313,7 +331,7 @@ final appRouter = GoRouter(
           GoRoute(path: 'kids/:id', builder: (_, state) => KidsItemDetailsScreen(listingId: state.pathParameters['id']!, initial: state.extra as Map<String, dynamic>?)),
           GoRoute(path: 'chat/:userId', builder: (_, state) => ChatScreen(userId: state.pathParameters['userId']!)),
         ],
-        if (!isUnionApp && !isTajerApp)
+        if (!isUnionApp && !isTajerApp && !isMasjidApp)
           GoRoute(path: 'rooms/:id', builder: (_, state) => RoomScreen(roomId: state.pathParameters['id']!)),
         // Demo build only: direct links to merchant screens for recordings.
         if (kDemo && isTajerApp) ...demoTajerRoutes,
@@ -332,12 +350,13 @@ bool isInAppPath(String path) {
   if (path == '/' || path.isEmpty) return true;
   if (_sections.containsKey(path)) return true;
   if (kDemo && isTajerApp && demoTajerPaths.contains(path)) return true;
-  if (!isUnionApp && _hallPath.hasMatch(path)) return true;
-  if (!isUnionApp && _petPath.hasMatch(path)) return true;
-  if (!isUnionApp && _recyclingLotPath.hasMatch(path)) return true;
+  if (_hasMosques && _mosquePath.hasMatch(path)) return true;
+  if (_neighbourhoodLinks && _hallPath.hasMatch(path)) return true;
+  if (_neighbourhoodLinks && _petPath.hasMatch(path)) return true;
+  if (_neighbourhoodLinks && _recyclingLotPath.hasMatch(path)) return true;
   if (isUnionApp && _passPath.hasMatch(path)) return true;
-  if (!isUnionApp && !isTajerApp && _roomPath.hasMatch(path)) return true;
-  return !isUnionApp &&
+  if (!isUnionApp && !isTajerApp && !isMasjidApp && _roomPath.hasMatch(path)) return true;
+  return _neighbourhoodLinks &&
       (_storePath.hasMatch(path.toLowerCase()) || _eAddressPath.hasMatch(path) || _orderPath.hasMatch(path) || _placePath.hasMatch(path) || _reportPath.hasMatch(path) || _carPath.hasMatch(path) || _tutorPath.hasMatch(path) || _kidsPath.hasMatch(path) || _chatPath.hasMatch(path));
 }
 
@@ -353,6 +372,14 @@ Uri otherAppUrlFor(String path) {
   return Uri.parse('$base/#$path');
 }
 
+/// Store / order / place / listing / chat links: مُجتمعي and متجري (not the
+/// union or the masjid app).
+const _neighbourhoodLinks = !isUnionApp && !isMasjidApp;
+
+/// Mosque pages: مُجتمعي's «المساجد» section and the masjid app.
+const _hasMosques = isMasjidApp || (!isUnionApp && !isTajerApp);
+
+final _mosquePath = RegExp(r'^/masjid/[0-9a-f-]{36}$');
 final _storePath = RegExp(r'^/s/[a-z0-9-]{3,40}(/p/[0-9a-f-]{36})?$');
 final _orderPath = RegExp(r'^/o/T[0-9A-Z]{7}$');
 final _placePath = RegExp(r'^/d/[0-9a-zA-Z-]{8,64}$');

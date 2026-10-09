@@ -7,9 +7,9 @@ import '../demo/demo_mode.dart';
 /// Everyone reads the active rows; only the platform admin writes.
 
 /// The `app` value of the running flavor.
-const String currentTutorialApp = isUnionApp ? 'ittihad' : (isTajerApp ? 'tajer' : 'mogtama3y');
+const String currentTutorialApp = appFlavorId;
 
-const tutorialApps = {'ittihad': 'اتحاد الملاك', 'mogtama3y': 'مُجتمعي', 'tajer': 'متجري'};
+const tutorialApps = {'ittihad': 'اتحاد الملاك', 'mogtama3y': 'مُجتمعي', 'tajer': 'متجري', 'masjid': 'مسجدي'};
 
 /// Screens that already carry a «شوف الشرح» button (ittihad). Any other
 /// lowercase key works too — the column is free text.
@@ -20,6 +20,10 @@ const tutorialScreenKeys = {
   'elections': 'انتخابات الرئاسة',
   'visitor_pass': 'تصريح زائر',
   'sos': 'الطوارئ SOS',
+  // مسجدي
+  'mosque_claim': 'طلب إدارة مسجد',
+  'mosque_manage': 'إدارة صفحة المسجد',
+  'mosque_need': 'المساهمة في احتياج',
 };
 
 final _rawId = RegExp(r'^[A-Za-z0-9_-]{11}$');
