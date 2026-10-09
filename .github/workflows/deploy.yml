@@ -85,6 +85,9 @@ jobs:
           # No merchant store pages on the union site; its own sitemap/robots.
           sed -i '/store-lite.js/d' build/web_ittihad/index.html
           rm -f build/web_ittihad/store-lite.js
+          # Its own icon (gold building) for the tab, home screen and install.
+          cp build/web_ittihad/ittihad_icons/favicon.png build/web_ittihad/favicon.png
+          cp build/web_ittihad/ittihad_icons/Icon-*.png build/web_ittihad/icons/
           sed -i 's#https://mogtama3y.com/#https://ittihad.mogtama3y.com/#g' build/web_ittihad/robots.txt
           # Its own canonical (was mogtama3y.com, so Google treated it as a copy)
           # and a sitemap of just its landing — the static pages copied from

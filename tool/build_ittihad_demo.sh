@@ -26,6 +26,8 @@ sed -i 's|<div class="name">[^<]*</div>|<div class="name">اتحاد الملا�
 # to the union landing («اتحاد ملاك عمارتك… من الموبايل»).
 sed -i "s|^\( *\)var flavor = .*$|\1var flavor = 'ittihad';|" "$out/index.html"
 grep -q "var flavor = 'ittihad';" "$out/index.html" || { echo "index.html flavor patch failed" >&2; exit 1; }
+cp "$out/ittihad_icons/favicon.png" "$out/favicon.png"
+cp "$out"/ittihad_icons/Icon-*.png "$out/icons/"
 
 grep -q MOGTAMA3Y_DEMO_BUILD "$out/main.dart.js" || { echo "demo marker missing — not a demo build?" >&2; exit 1; }
 echo "Demo build ready in $out — serve it on port 8737 and open http://localhost:8737/?role=president"
