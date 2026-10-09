@@ -13,6 +13,7 @@ import '../tutorials/tutorial_widgets.dart';
 import 'claim_mosque_screen.dart';
 import 'masjid_widgets.dart';
 import 'mosque_manage_screen.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 /// صفحة المسجد (`/masjid/<id>`): prayer times with the mosque's iqama,
 /// Friday khutba, announcements, lessons & Quran circles, needs (pledges,
@@ -186,7 +187,7 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
       ),
     );
     if (ok != true) return;
-    final value = double.tryParse(amount.text.trim().replaceAll(',', ''));
+    final value = looseDouble(amount.text.trim().replaceAll(',', ''));
     if (value == null || value < 1) return _toast('اكتب مبلغ صحيح');
     try {
       await MasjidService.pledge(need['id'] as String, value, note: note.text.trim().isEmpty ? null : note.text.trim(), anonymous: anonymous);
@@ -231,7 +232,7 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
       ),
     );
     if (ok != true) return;
-    final value = double.tryParse(amount.text.trim().replaceAll(',', ''));
+    final value = looseDouble(amount.text.trim().replaceAll(',', ''));
     if (value == null || value < 1) return _toast('اكتب مبلغ صحيح');
     try {
       await MasjidService.sponsor(program['id'] as String, value, note: note.text.trim().isEmpty ? null : note.text.trim());
@@ -284,7 +285,7 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
     if (ok != true) return;
     try {
       await MasjidService.register(comp['id'] as String, level,
-          name: name.text.trim(), age: int.tryParse(age.text.trim()), phone: phone.text.trim().isEmpty ? null : phone.text.trim());
+          name: name.text.trim(), age: looseInt(age.text.trim()), phone: phone.text.trim().isEmpty ? null : phone.text.trim());
       _toast('اتسجّل — ربنا يوفقه 🤲');
       _load();
     } catch (e) {

@@ -9,6 +9,7 @@ import '../shared/load_error_view.dart';
 import '../tutorials/tutorial_widgets.dart';
 import 'masjid_widgets.dart';
 import 'mosque_page_screen.dart' show ContributionsList;
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 /// «إدارة المسجد» for the mosque's verified owner and helpers. Each tab
 /// appears only with its permission; the database enforces the same rules
@@ -377,7 +378,7 @@ class _NeedsTabState extends State<_NeedsTab> with _Loader {
       ),
     );
     if (ok != true) return;
-    final amount = double.tryParse(target.text.trim().replaceAll(',', ''));
+    final amount = looseDouble(target.text.trim().replaceAll(',', ''));
     if (amount == null || amount <= 0) {
       if (mounted) _toast(context, 'اكتب المبلغ المطلوب');
       return;
@@ -411,7 +412,7 @@ class _NeedsTabState extends State<_NeedsTab> with _Loader {
       ),
     );
     if (ok != true) return;
-    final v = double.tryParse(amount.text.trim().replaceAll(',', ''));
+    final v = looseDouble(amount.text.trim().replaceAll(',', ''));
     if (v == null || v <= 0) return;
     await run(() => MasjidService.addCash(n['id'] as String, v, donorName: name.text.trim().isEmpty ? null : name.text.trim()), done: 'اتسجّل');
   }
@@ -502,7 +503,7 @@ class _OrphansTabState extends State<_OrphansTab> with _Loader {
       ),
     );
     if (ok != true) return;
-    final m = double.tryParse(monthly.text.trim().replaceAll(',', ''));
+    final m = looseDouble(monthly.text.trim().replaceAll(',', ''));
     if (m == null || m <= 0) {
       if (mounted) _toast(context, 'اكتب المبلغ الشهري');
       return;
@@ -512,7 +513,7 @@ class _OrphansTabState extends State<_OrphansTab> with _Loader {
         'title': title.text.trim(),
         'description': desc.text.trim().isEmpty ? null : desc.text.trim(),
         'monthly_amount': m,
-        'slots': int.tryParse(slots.text.trim()),
+        'slots': looseInt(slots.text.trim()),
       }, id: o?['id'] as String?),
       done: 'اتحفظ',
     );
@@ -741,7 +742,7 @@ class _EntriesScreenState extends State<_EntriesScreen> with _Loader {
     );
     if (ok != true) return;
     await run(() => MasjidService.setResult(e['id'] as String,
-        score: double.tryParse(score.text.trim()), rank: int.tryParse(rank.text.trim()), note: note.text.trim().isEmpty ? null : note.text.trim()));
+        score: looseDouble(score.text.trim()), rank: looseInt(rank.text.trim()), note: note.text.trim().isEmpty ? null : note.text.trim()));
   }
 
   @override
