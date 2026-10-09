@@ -16,6 +16,7 @@ import 'admin_chat_rooms_screen.dart';
 import 'admin_governance_screen.dart';
 import 'admin_room_moderation_screen.dart';
 import 'admin_reports_screen.dart';
+import 'admin_mosque_claims_screen.dart';
 import 'admin_scrap_dealers_screen.dart';
 import 'admin_tutorial_videos_screen.dart';
 import 'admin_user_flags_screen.dart';
@@ -314,6 +315,15 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
             ),
             Card(
               child: ListTile(
+                leading: const Icon(Icons.mosque_rounded, color: AppColors.crystal),
+                title: const Text('طلبات إدارة المساجد', style: TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: const Text('مسجدي: راجع طلبات الأئمة والخطباء وأمناء المساجد ووثّق أو ارفض'),
+                trailing: const Icon(Icons.chevron_left_rounded),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminMosqueClaimsScreen())),
+              ),
+            ),
+            Card(
+              child: ListTile(
                 leading: const Icon(Icons.smart_display_rounded, color: AppColors.crystal),
                 title: const Text('فيديوهات الشرح', style: TextStyle(fontWeight: FontWeight.w700)),
                 subtitle: const Text('فيديوهات يوتيوب Shorts لكل تطبيق وزراير «شوف الشرح»'),
@@ -321,7 +331,7 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminTutorialVideosScreen())),
               ),
             ),
-            if (!isUnionApp && !isTajerApp) ...[
+            if (!isUnionApp && !isTajerApp && !isMasjidApp) ...[
               Card(
                 child: ListTile(
                   leading: const Icon(Icons.forum_rounded, color: AppColors.crystal),

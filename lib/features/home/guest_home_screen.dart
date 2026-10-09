@@ -42,6 +42,7 @@ const _categories = [
   _Category('قاعات المناسبات', 'أفراح وخطوبة وحفلات', '$_img/halls.jpg', icon: Icons.celebration_rounded),
   _Category('الحيوانات الأليفة', 'بيع وتبني ومفقودات', '$_img/pets.jpg', icon: Icons.pets_rounded),
   _Category('مستلزمات الأطفال', 'جديد ومستعمل وببلاش', '$_img/kids.jpg', icon: Icons.child_friendly_rounded),
+  _Category('المساجد', 'مواقيت الصلاة ومساجد حيّك', '$_img/masjid.jpg', icon: Icons.mosque_rounded),
 ];
 
 /// Frosted-glass panel used across the night-styled home.
@@ -420,6 +421,7 @@ class _CategoryGrid extends StatelessWidget {
             'قاعات المناسبات' => AppRoutes.halls,
             'الحيوانات الأليفة' => AppRoutes.pets,
             'مستلزمات الأطفال' => AppRoutes.kids,
+            'المساجد' => AppRoutes.masjid,
             _ => '/',
           }),
           child: Container(

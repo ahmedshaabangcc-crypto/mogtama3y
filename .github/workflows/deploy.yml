@@ -14,6 +14,7 @@ jobs:
     env:
       ITTIHAD_ENABLED: ${{ secrets.ITTIHAD_DEPLOY_KEY != '' }}
       TAJER_ENABLED: ${{ secrets.TAJER_DEPLOY_KEY != '' }}
+      MASJID_ENABLED: ${{ secrets.MASJID_DEPLOY_KEY != '' }}
       # Compiled into main.dart.js only by a local DEMO build (see
       # lib/core/demo/demo_mode.dart) — a deployed build must never have it.
       DEMO_MARKER: MOGTAMA3Y_DEMO_BUILD_9F27C1
@@ -143,3 +144,42 @@ jobs:
           publish_branch: gh-pages
           publish_dir: ./build/web_tajer
           cname: tajer.mogtama3y.com
+
+      # The mosques app «مسجدي»: APP_FLAVOR=masjid, published to its own
+      # repo's GitHub Pages at masjid.mogtama3y.com. Skipped until the
+      # MASJID_DEPLOY_KEY secret (write deploy key of that repo) exists.
+      - name: Build mosques app (masjid)
+        if: env.MASJID_ENABLED == 'true'
+        run: |
+          flutter build web --release --base-href / --dart-define=APP_FLAVOR=masjid -o build/web_masjid
+          if grep -q "$DEMO_MARKER" build/web_masjid/main.dart.js; then echo "::error::demo build detected"; exit 1; fi
+          f=build/web_masjid/index.html
+          sed -i 's|<title>[^<]*</title>|<title>مسجدي — كل مساجد حيّك</title>|' $f
+          sed -i 's|<div class="name">[^<]*</div>|<div class="name">مسجدي</div>|' $f
+          sed -i -E 's#(<meta (name="(description|twitter:description)"|property="og:description") content=")[^"]*#\1مسجدي من مُجتمعي: مواقيت الصلاة لمكانك بحساب الهيئة المصرية العامة للمساحة، وأقرب مسجد ليك، ومواعيد الإقامة وخطبة الجمعة والدروس وحلقات القرآن وإعلانات مسجدك — ببلاش.#; s#(<meta (name="twitter:title"|property="og:title") content=")[^"]*#\1مسجدي — كل مساجد حيّك#; s#(<meta property="og:url" content=")[^"]*#\1https://masjid.mogtama3y.com/#; s#(<meta name="apple-mobile-web-app-title" content=")[^"]*#\1مسجدي#; s#(<meta property="og:site_name" content=")[^"]*#\1مسجدي#' $f
+          sed -i 's|"name": *"[^"]*"|"name": "مسجدي — كل مساجد حيّك"|; s|"short_name": *"[^"]*"|"short_name": "مسجدي"|; s|"description": *"[^"]*"|"description": "مواقيت الصلاة وأقرب مسجد، وإعلانات ودروس واحتياجات مسجدك."|' build/web_masjid/manifest.json
+          # No merchant store pages on the mosques site; its own sitemap/robots.
+          sed -i '/store-lite.js/d' $f
+          rm -f build/web_masjid/store-lite.js
+          sed -i 's#https://mogtama3y.com/#https://masjid.mogtama3y.com/#g' build/web_masjid/robots.txt
+          sed -i 's#<link rel="canonical" href="[^"]*">#<link rel="canonical" href="https://masjid.mogtama3y.com/">#' $f
+          printf '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>https://masjid.mogtama3y.com/</loc><lastmod>%s</lastmod></url>\n</urlset>\n' "$(date -u +%F)" > build/web_masjid/sitemap.xml
+          # Its own icon (gold dome & minaret) for the tab, home screen and install.
+          cp build/web_masjid/masjid_icons/favicon.png build/web_masjid/favicon.png
+          cp build/web_masjid/masjid_icons/Icon-*.png build/web_masjid/icons/
+
+      - name: Reset ssh-agent (masjid)
+        if: env.MASJID_ENABLED == 'true'
+        run: |
+          pkill ssh-agent || true
+          rm -f /tmp/ssh-auth.sock
+
+      - name: Deploy mosques app
+        if: env.MASJID_ENABLED == 'true'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          deploy_key: ${{ secrets.MASJID_DEPLOY_KEY }}
+          external_repository: ahmedshaabangcc-crypto/masjid
+          publish_branch: gh-pages
+          publish_dir: ./build/web_masjid
+          cname: masjid.mogtama3y.com

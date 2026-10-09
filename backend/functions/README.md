@@ -65,6 +65,6 @@ name `verify-phone`, paste `verify-phone/index.ts` (the dashboard gave it the sl
 verification OFF** (the function checks the Supabase session itself).
 
 Firebase console: Authentication → Phone enabled; Authorized domains
-mogtama3y.com, tajer.mogtama3y.com, ittihad.mogtama3y.com; SMS region policy
+mogtama3y.com, tajer.mogtama3y.com, ittihad.mogtama3y.com, masjid.mogtama3y.com; SMS region policy
 Allow → Egypt only. New projects can send 10 SMS/day until a billing account
 is linked (Blaze).
