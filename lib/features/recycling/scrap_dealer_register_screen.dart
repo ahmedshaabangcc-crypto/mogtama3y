@@ -8,6 +8,7 @@ import '../../core/reports/report_service.dart' show governorateOf, reportGovern
 import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
 import 'scrap_widgets.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 /// Register (or edit) as a scrap dealer ("تاجر خردة"): business name,
 /// WhatsApp, the materials you buy and where you work — a governorate and
@@ -136,7 +137,7 @@ class _ScrapDealerRegisterScreenState extends State<ScrapDealerRegisterScreen> {
     if (_materials.isEmpty) {
       problem = 'اختار نوع خردة واحد على الأقل';
     } else if (_useRadius) {
-      radius = double.tryParse(_radius.text.trim());
+      radius = looseDouble(_radius.text.trim());
       if (radius == null || radius <= 0 || radius > 200) {
         problem = 'اكتب المسافة بالكيلو (من 1 لـ 200)';
       } else if (_baseLat == null) {

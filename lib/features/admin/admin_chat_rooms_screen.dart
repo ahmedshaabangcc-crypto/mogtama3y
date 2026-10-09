@@ -5,6 +5,7 @@ import '../../core/rooms/rooms_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../rooms/room_widgets.dart';
 import '../shared/load_error_view.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 String _date(String? iso) {
   final t = iso == null ? null : DateTime.tryParse(iso)?.toLocal();
@@ -224,7 +225,7 @@ class _RoomFormState extends State<_RoomForm> {
         governorate: _kind == 'area' ? opt(_gov) : null,
         area: _kind == 'area' ? opt(_area) : null,
         icon: opt(_icon),
-        sortOrder: int.tryParse(_sort.text.trim()) ?? 100,
+        sortOrder: looseInt(_sort.text.trim()) ?? 100,
         isActive: _active,
       );
       if (mounted) Navigator.of(context).pop(true);

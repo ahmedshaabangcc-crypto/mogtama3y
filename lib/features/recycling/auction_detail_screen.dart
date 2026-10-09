@@ -11,6 +11,7 @@ import '../../core/recycling/scrap_dealer_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
 import 'scrap_widgets.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 /// Auction detail + real-time bidding — matches
 /// design/screens/20_recycling_auction_bidding.png, now backed by a
@@ -127,7 +128,7 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
   }
 
   Future<void> _placeBid() async {
-    final amount = double.tryParse(_bidCtrl.text.trim());
+    final amount = looseDouble(_bidCtrl.text.trim());
     if (amount == null || amount <= 0) {
       setState(() => _error = 'أدخل قيمة عرض صحيحة.');
       return;

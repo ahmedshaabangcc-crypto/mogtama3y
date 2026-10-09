@@ -7,6 +7,7 @@ import '../../core/reports/report_service.dart' show reportGovernorates;
 import '../../core/storage/multi_photo_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 /// List an event hall, or edit one when [existing] is given. Pops `true`
 /// once saved.
@@ -79,9 +80,9 @@ class _AddHallScreenState extends State<AddHallScreen> {
       'name': _name.text.trim(),
       'hall_type': _hallType,
       'occasions': _occasions.toList(),
-      'capacity_min': int.tryParse(_capMin.text.trim()),
+      'capacity_min': looseInt(_capMin.text.trim()),
       'capacity_max': int.parse(_capMax.text.trim()),
-      'price_from': num.tryParse(_price.text.trim()),
+      'price_from': looseNum(_price.text.trim()),
       'price_per_person': _perPerson,
       'included': _included.toList(),
       'description': _trimOrNull(_description),
@@ -208,8 +209,8 @@ class _AddHallScreenState extends State<AddHallScreen> {
                   inputFormatters: digits,
                   decoration: _dec('أقل عدد (اختياري)', suffix: 'فرد'),
                   validator: (v) {
-                    final min = int.tryParse((v ?? '').trim());
-                    final max = int.tryParse(_capMax.text.trim());
+                    final min = looseInt((v ?? '').trim());
+                    final max = looseInt(_capMax.text.trim());
                     if (min != null && min < 1) return 'رقم غلط';
                     if (min != null && max != null && min > max) return 'أكبر من أقصى عدد';
                     return null;
@@ -224,7 +225,7 @@ class _AddHallScreenState extends State<AddHallScreen> {
                   inputFormatters: digits,
                   decoration: _dec('أقصى عدد', suffix: 'فرد'),
                   validator: (v) {
-                    final max = int.tryParse((v ?? '').trim());
+                    final max = looseInt((v ?? '').trim());
                     if (max == null || max < 1) return 'اكتب أقصى عدد';
                     if (max > 20000) return 'الرقم كبير قوي';
                     return null;
@@ -238,7 +239,7 @@ class _AddHallScreenState extends State<AddHallScreen> {
               keyboardType: TextInputType.number,
               inputFormatters: digits,
               decoration: _dec('السعر يبدأ من (اختياري)', suffix: _perPerson ? 'ج.م للفرد' : 'ج.م', hint: 'سيبه فاضي لو بالاتفاق'),
-              validator: (v) => (v ?? '').trim().isNotEmpty && (num.tryParse(v!.trim()) ?? 0) <= 0 ? 'سعر غلط' : null,
+              validator: (v) => (v ?? '').trim().isNotEmpty && (looseNum(v!.trim()) ?? 0) <= 0 ? 'سعر غلط' : null,
             ),
             const SizedBox(height: 8),
             SegmentedButton<bool>(

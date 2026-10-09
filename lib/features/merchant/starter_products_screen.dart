@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/shops/starter_catalog.dart';
 import '../../core/shops/store_service.dart';
 import '../../core/theme/app_colors.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 
@@ -157,7 +158,7 @@ class _QuickPricingScreenState extends State<QuickPricingScreen> {
     var done = 0;
     try {
       for (final p in _products!) {
-        final price = double.tryParse(_prices[p['id']]!.text.trim().replaceAll('٫', '.'));
+        final price = looseDouble(_prices[p['id']]!.text.trim().replaceAll('٫', '.'));
         if (price == null || price <= 0) continue;
         await _db.from('shop_products').update({'price': price, 'is_available': true}).eq('id', p['id'] as String);
         done++;

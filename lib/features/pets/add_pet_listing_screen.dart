@@ -8,6 +8,7 @@ import '../../core/reports/report_service.dart' show reportGovernorates;
 import '../../core/storage/multi_photo_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 /// Post (or, with [initial], edit) a pet listing. The form adapts to the
 /// kind: adoption / lost / found have no price, lost / found ask when and
@@ -100,7 +101,7 @@ class _AddPetListingScreenState extends State<AddPetListingScreen> {
       return;
     }
     setState(() => _saving = true);
-    final price = num.tryParse(_price.text.trim().replaceAll(',', ''));
+    final price = looseNum(_price.text.trim().replaceAll(',', ''));
     final data = <String, dynamic>{
       'kind': _kind,
       'animal': _animal,
@@ -278,7 +279,7 @@ class _AddPetListingScreenState extends State<AddPetListingScreen> {
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: _dec(_kind == 'mating' ? 'السعر (اختياري)' : 'السعر', suffix: 'ج.م'),
-                validator: (v) => _kind != 'mating' && (num.tryParse((v ?? '').trim()) ?? 0) <= 0 ? 'اكتب السعر' : null,
+                validator: (v) => _kind != 'mating' && (looseNum((v ?? '').trim()) ?? 0) <= 0 ? 'اكتب السعر' : null,
               ),
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,

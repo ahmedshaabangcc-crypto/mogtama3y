@@ -24,6 +24,7 @@ import '../support/support_contact_screen.dart';
 import '../tutorials/tutorial_widgets.dart';
 import 'starter_products_screen.dart';
 import 'store_qr_card_screen.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 String _money(num v) => '${NumberFormat('#,##0.##').format(v)} ج.م';
 String _errorText(Object e, String fallback) => e is PostgrestException ? e.message : fallback;
@@ -657,8 +658,8 @@ class _ProductEditorState extends State<_ProductEditor> {
   }
 
   Future<void> _save() async {
-    final price = double.tryParse(_price.text.trim());
-    final oldPrice = _oldPrice.text.trim().isEmpty ? null : double.tryParse(_oldPrice.text.trim());
+    final price = looseDouble(_price.text.trim());
+    final oldPrice = _oldPrice.text.trim().isEmpty ? null : looseDouble(_oldPrice.text.trim());
     if (_name.text.trim().isEmpty || price == null || price < 0) {
       setState(() => _error = 'اكتب اسم المنتج وسعر صحيح');
       return;
@@ -682,7 +683,7 @@ class _ProductEditorState extends State<_ProductEditor> {
         images: _images,
         highlights: _highlights.text.split('\n').map((s) => s.trim()).where((s) => s.isNotEmpty).take(6).toList(),
         category: _category.text.trim().isEmpty ? null : _category.text.trim(),
-        stock: int.tryParse(_stock.text.trim()),
+        stock: looseInt(_stock.text.trim()),
         options: [
           if (_split(_sizes.text).isNotEmpty) {'name': 'المقاس', 'values': _split(_sizes.text)},
           if (_split(_colors.text).isNotEmpty) {'name': 'اللون', 'values': _split(_colors.text)},
@@ -1555,8 +1556,8 @@ class _DeliveryCardState extends State<_DeliveryCard> {
   }
 
   Future<void> _save() async {
-    final fee = _fee.text.trim().isEmpty ? 0.0 : double.tryParse(_fee.text.trim());
-    final freeOver = _freeOver.text.trim().isEmpty ? null : double.tryParse(_freeOver.text.trim());
+    final fee = _fee.text.trim().isEmpty ? 0.0 : looseDouble(_fee.text.trim());
+    final freeOver = _freeOver.text.trim().isEmpty ? null : looseDouble(_freeOver.text.trim());
     if (fee == null || fee < 0 || (_freeOver.text.trim().isNotEmpty && (freeOver == null || freeOver <= 0))) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اكتب أرقام صحيحة')));
       return;

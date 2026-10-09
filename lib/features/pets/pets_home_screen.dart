@@ -12,6 +12,7 @@ import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'add_pet_listing_screen.dart';
 import 'my_pet_listings_screen.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 /// "الحيوانات الأليفة" (`/pets`) — pets for sale, adoption and mating,
 /// lost & found pets, and supplies. Guests can browse; posting needs an
@@ -436,7 +437,7 @@ class _FiltersSheetState extends State<_FiltersSheet> {
                         widget.initial.withSheet(
                           governorate: _governorate,
                           area: _area.text.trim().isEmpty ? null : _area.text.trim(),
-                          priceMax: num.tryParse(_price.text.trim().replaceAll(',', '')),
+                          priceMax: looseNum(_price.text.trim().replaceAll(',', '')),
                         ),
                       ),
                       child: const Text('عرض النتايج'),

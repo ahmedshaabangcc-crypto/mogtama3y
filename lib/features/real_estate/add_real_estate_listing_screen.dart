@@ -5,6 +5,7 @@ import '../../core/reports/report_service.dart';
 import '../../core/storage/multi_photo_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../promote/promote_listing_screen.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 /// Publishes a real real_estate_listings row — see
 /// backend/migrations/0023_real_estate.sql. Requires the caller to
@@ -53,7 +54,7 @@ class _AddRealEstateListingScreenState extends State<AddRealEstateListingScreen>
 
   Future<void> _publish() async {
     final title = _titleCtrl.text.trim();
-    final price = double.tryParse(_priceCtrl.text.trim());
+    final price = looseDouble(_priceCtrl.text.trim());
     if (title.isEmpty) {
       setState(() => _error = 'أدخل عنوان الإعلان');
       return;
@@ -70,7 +71,7 @@ class _AddRealEstateListingScreenState extends State<AddRealEstateListingScreen>
       final id = await RealEstateService.createListing(
         offerType: _offerType,
         propertyType: _propertyType,
-        floor: realEstateHasRooms(_propertyType) ? int.tryParse(_floorCtrl.text.trim()) : null,
+        floor: realEstateHasRooms(_propertyType) ? looseInt(_floorCtrl.text.trim()) : null,
         finishing: _finishing,
         payment: _offerType == 'sale' ? _payment : null,
         governorate: _governorate,
@@ -78,9 +79,9 @@ class _AddRealEstateListingScreenState extends State<AddRealEstateListingScreen>
         title: title,
         description: _descriptionCtrl.text.trim(),
         price: price,
-        areaSqm: double.tryParse(_areaCtrl.text.trim()),
-        bedrooms: realEstateHasRooms(_propertyType) ? int.tryParse(_bedroomsCtrl.text.trim()) : null,
-        bathrooms: realEstateHasRooms(_propertyType) ? int.tryParse(_bathroomsCtrl.text.trim()) : null,
+        areaSqm: looseDouble(_areaCtrl.text.trim()),
+        bedrooms: realEstateHasRooms(_propertyType) ? looseInt(_bedroomsCtrl.text.trim()) : null,
+        bathrooms: realEstateHasRooms(_propertyType) ? looseInt(_bathroomsCtrl.text.trim()) : null,
         hideFromOwnBuilding: _hideFromBuilding,
         images: _images,
       );

@@ -12,6 +12,7 @@ import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'add_real_estate_listing_screen.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 const _safetyTips = [
   'لا تحوّل أي مبلغ مالي مهما كان صغيراً إلا بعد معاينة الوحدة شخصياً على الطبيعة.',
@@ -284,7 +285,7 @@ extension on _RealEstateMarketplaceScreenState {
     // ignore: invalid_use_of_protected_member
     setState(() {
       _governorate = apply ? gov : null;
-      _priceMax = apply ? double.tryParse(price.text.trim()) : null;
+      _priceMax = apply ? looseDouble(price.text.trim()) : null;
       _roomsMin = apply ? rooms : null;
     });
     _load();

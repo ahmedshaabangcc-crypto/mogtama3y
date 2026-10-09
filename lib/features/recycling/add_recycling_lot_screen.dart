@@ -4,6 +4,7 @@ import '../../core/recycling/recycling_service.dart';
 import '../../core/recycling/scrap_dealer_service.dart';
 import '../../core/reports/report_service.dart' show governorateOf, reportGovernorates;
 import '../../core/theme/app_colors.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 const _durations = ['4 ساعات', '12 ساعة', 'يوم كامل'];
 const _durationValues = [Duration(hours: 4), Duration(hours: 12), Duration(hours: 24)];
@@ -83,7 +84,7 @@ class _AddRecyclingLotScreenState extends State<AddRecyclingLotScreen> {
         category: scrapMaterialCategory[_material] ?? 'other',
         title: _titleCtrl.text.trim(),
         description: _descriptionCtrl.text.trim(),
-        estimatedWeightKg: double.tryParse(_weightCtrl.text.trim()),
+        estimatedWeightKg: looseDouble(_weightCtrl.text.trim()),
         locationNote: _locationCtrl.text.trim(),
         auctionDuration: _durationValues[_duration],
         governorate: _governorate,

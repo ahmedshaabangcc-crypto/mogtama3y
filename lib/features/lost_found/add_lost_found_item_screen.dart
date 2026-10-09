@@ -6,6 +6,7 @@ import '../../core/lost_found/lost_found_service.dart';
 import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/union/union_service.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 const _categories = ['مفاتيح', 'محافظ وبطاقات', 'إلكترونية', 'حيوانات أليفة', 'أخرى'];
 
@@ -109,7 +110,7 @@ class _AddLostFoundItemScreenState extends State<AddLostFoundItemScreen> {
         title: _titleCtrl.text.trim(),
         locationNote: locationNote,
         secretMark: _mode == 1 && _secretMarkCtrl.text.trim().isNotEmpty ? _secretMarkCtrl.text.trim() : null,
-        rewardAmount: _mode == 0 && _rewardCtrl.text.trim().isNotEmpty ? double.tryParse(_rewardCtrl.text.trim()) : null,
+        rewardAmount: _mode == 0 && _rewardCtrl.text.trim().isNotEmpty ? looseDouble(_rewardCtrl.text.trim()) : null,
         imageUrl: _imageUrl,
       );
       if (!mounted) return;

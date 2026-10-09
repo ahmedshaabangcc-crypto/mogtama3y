@@ -12,6 +12,7 @@ import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'add_car_listing_screen.dart';
 import 'my_car_listings_screen.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 /// "سيارات" (`/cars`) — cars, motorcycles and tuktuks for sale or rent,
 /// plus parts & accessories. Guests can browse; posting needs an account.
@@ -446,7 +447,7 @@ class _FiltersSheetState extends State<_FiltersSheet> {
                           brand: _brand,
                           yearFrom: parts ? null : _yearFrom,
                           yearTo: parts ? null : _yearTo,
-                          priceMax: num.tryParse(_price.text.trim().replaceAll(',', '')),
+                          priceMax: looseNum(_price.text.trim().replaceAll(',', '')),
                           transmission: parts ? null : _transmission,
                           fuel: parts ? null : _fuel,
                           governorate: _governorate,

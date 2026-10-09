@@ -6,6 +6,7 @@ import '../../core/storage/multi_photo_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/union/union_service.dart';
 import '../promote/promote_listing_screen.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 /// Add a new used-item listing — matches design/screens/04_add_used_item_listing.png.
 class AddListingScreen extends StatefulWidget {
@@ -46,7 +47,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
       return;
     }
     final title = _titleCtrl.text.trim();
-    final price = double.tryParse(_priceCtrl.text.trim());
+    final price = looseDouble(_priceCtrl.text.trim());
     if (title.isEmpty) {
       setState(() => _error = 'أدخل عنوان الإعلان.');
       return;

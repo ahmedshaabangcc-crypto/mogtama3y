@@ -6,6 +6,7 @@ import '../../core/dues/dues_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 /// Monthly maintenance-dues payment — matches
 /// design/screens/11_maintenance_payment.png, now backed by real
@@ -98,7 +99,7 @@ class _MaintenancePaymentScreenState extends State<MaintenancePaymentScreen> {
       ),
     );
     if (result != true) return;
-    final amount = double.tryParse(amountCtrl.text.trim());
+    final amount = looseDouble(amountCtrl.text.trim());
     if (amount == null || amount <= 0) return;
     try {
       final count = await DuesService.issueDuesForBuilding(

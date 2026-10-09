@@ -8,6 +8,7 @@ import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import '../tutorials/tutorial_widgets.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 /// Real president/board succession election — see
 /// backend/migrations/0021_elections.sql. Distinct from founding a
@@ -116,7 +117,7 @@ class _ElectionVotingScreenState extends State<ElectionVotingScreen> {
       ),
     );
     if (result != true || titleCtrl.text.trim().isEmpty) return;
-    final days = int.tryParse(daysCtrl.text.trim()) ?? 3;
+    final days = looseInt(daysCtrl.text.trim()) ?? 3;
     try {
       await ElectionService.createElection(title: titleCtrl.text.trim(), closesAt: DateTime.now().add(Duration(days: days)), position: widget.position);
       _load();

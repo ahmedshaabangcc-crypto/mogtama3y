@@ -7,6 +7,7 @@ import '../../core/reports/report_service.dart' show reportGovernorates;
 import '../../core/storage/multi_photo_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 /// Post a kids-gear listing, or edit one when [initial] is given (from
 /// "إعلاناتي"). Pops `true` once saved.
@@ -276,7 +277,7 @@ class _AddKidsItemScreenState extends State<AddKidsItemScreen> {
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: _dec('السعر', suffix: 'ج.م'),
-                validator: (v) => (num.tryParse((v ?? '').trim()) ?? 0) <= 0 ? 'اكتب السعر' : null,
+                validator: (v) => (looseNum((v ?? '').trim()) ?? 0) <= 0 ? 'اكتب السعر' : null,
               ),
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,

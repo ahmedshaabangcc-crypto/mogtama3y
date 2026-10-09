@@ -7,6 +7,7 @@ import '../../core/storage/multi_photo_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/tutoring/tutoring_service.dart';
 import '../auth/auth_landing_screen.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 /// Post a tutoring listing, or edit one when [existing] is given. The name
 /// shown is the poster's profile name. Pops `true` once saved.
@@ -91,7 +92,7 @@ class _AddTutorListingScreenState extends State<AddTutorListingScreen> {
       'modes': [for (final k in tutorModes.keys) if (_modes.contains(k)) k],
       'price': num.parse(_price.text.trim().replaceAll(',', '')),
       'price_unit': _priceUnit,
-      'experience_years': int.tryParse(_years.text.trim()),
+      'experience_years': looseInt(_years.text.trim()),
       'bio': _trimOrNull(_bio),
       'governorate': _governorate,
       'area': _trimOrNull(_area),
@@ -205,7 +206,7 @@ class _AddTutorListingScreenState extends State<AddTutorListingScreen> {
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: _dec('السعر', suffix: 'ج.م'),
                   validator: (v) {
-                    final n = num.tryParse((v ?? '').trim()) ?? 0;
+                    final n = looseNum((v ?? '').trim()) ?? 0;
                     if (n <= 0) return 'اكتب السعر';
                     if (n > 100000) return 'السعر كبير أوي';
                     return null;
@@ -229,7 +230,7 @@ class _AddTutorListingScreenState extends State<AddTutorListingScreen> {
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(2)],
               decoration: _dec('سنين الخبرة (اختياري)', suffix: 'سنة'),
-              validator: (v) => (int.tryParse((v ?? '').trim()) ?? 0) > 60 ? 'اكتب رقم مظبوط' : null,
+              validator: (v) => (looseInt((v ?? '').trim()) ?? 0) > 60 ? 'اكتب رقم مظبوط' : null,
             ),
             const SizedBox(height: 10),
             TextFormField(

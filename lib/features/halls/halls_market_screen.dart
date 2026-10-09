@@ -13,6 +13,7 @@ import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'add_hall_screen.dart';
 import 'my_halls_screen.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 /// "قاعات المناسبات" (`/halls`) — wedding halls, party halls, conference
 /// rooms, rooftops, boats… Guests browse and contact; listing needs an
@@ -449,8 +450,8 @@ class _FiltersSheetState extends State<_FiltersSheet> {
                           occasion: _occasion,
                           governorate: _governorate,
                           area: _area.text.trim().isEmpty ? null : _area.text.trim(),
-                          guests: int.tryParse(_guests.text.trim()),
-                          priceMax: num.tryParse(_price.text.trim()),
+                          guests: looseInt(_guests.text.trim()),
+                          priceMax: looseNum(_price.text.trim()),
                         ),
                       ),
                       child: const Text('عرض النتايج'),

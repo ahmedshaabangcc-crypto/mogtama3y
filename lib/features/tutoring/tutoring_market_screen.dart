@@ -12,6 +12,7 @@ import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'add_tutor_listing_screen.dart';
 import 'my_tutor_listings_screen.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 /// "دروس خصوصية" (`/tutoring`) — teachers and tutors near you, by subject,
 /// stage and how they teach. Guests can browse; posting needs an account.
@@ -407,7 +408,7 @@ class _FiltersSheetState extends State<_FiltersSheet> {
                           stage: _stage,
                           mode: _mode,
                           governorate: _governorate,
-                          priceMax: num.tryParse(_price.text.trim().replaceAll(',', '')),
+                          priceMax: looseNum(_price.text.trim().replaceAll(',', '')),
                           priceUnit: _unit,
                         ),
                       ),

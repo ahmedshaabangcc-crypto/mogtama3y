@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/tutorials/tutorial_service.dart';
 import '../tutorials/tutorial_widgets.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 /// «فيديوهات الشرح» — the platform admin manages the YouTube Shorts shown
 /// in each app (backend/migrations/0079; writes are RLS-gated on
@@ -259,7 +260,7 @@ class _VideoEditorDialogState extends State<_VideoEditorDialog> {
         app: _app,
         youtubeId: id!,
         title: title,
-        sort: int.tryParse(_sort.text.trim()) ?? 0,
+        sort: looseInt(_sort.text.trim()) ?? 0,
         screenKey: key,
         isActive: _active,
       );

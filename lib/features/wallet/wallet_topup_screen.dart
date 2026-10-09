@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/wallet/wallet_service.dart';
 import '../shared/load_error_view.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 /// Manual wallet top-up: transfer to the platform's mobile wallet, then
 /// file the transfer reference for admin approval (migration 0045).
@@ -61,7 +62,7 @@ class _WalletTopUpScreenState extends State<WalletTopUpScreen> {
   }
 
   Future<void> _submit() async {
-    final amount = double.tryParse(_amountCtrl.text.trim());
+    final amount = looseDouble(_amountCtrl.text.trim());
     if (amount == null) {
       setState(() => _error = 'اكتب المبلغ الذي حوّلته');
       return;

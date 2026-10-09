@@ -14,6 +14,7 @@ import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'dues_status_screen.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 String fundMoney(num n) {
   final neg = n < 0;
@@ -158,7 +159,7 @@ class _UnionFundScreenState extends State<UnionFundScreen> {
       ),
     );
     if (saved != true) return;
-    final amount = double.tryParse(amountCtrl.text.trim());
+    final amount = looseDouble(amountCtrl.text.trim());
     if (amount == null || amount <= 0 || noteCtrl.text.trim().length < 3) {
       _toast('اكتب المبلغ وسبب المصروف');
       return;
@@ -252,7 +253,7 @@ class _UnionFundScreenState extends State<UnionFundScreen> {
       ),
     );
     if (saved != true) return;
-    final amount = double.tryParse(amountCtrl.text.trim());
+    final amount = looseDouble(amountCtrl.text.trim());
     if (amount == null || amount <= 0) {
       _toast('اكتب المبلغ');
       return;

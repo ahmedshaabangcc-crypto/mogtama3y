@@ -4,6 +4,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/maintenance/technician_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 const _statusLabels = {
   'requested': 'بانتظار عرض سعر',
@@ -99,7 +100,7 @@ class _MaintenanceRequestDetailScreenState extends State<MaintenanceRequestDetai
         ],
       ),
     );
-    final amount = double.tryParse(amountStr ?? '');
+    final amount = looseDouble(amountStr ?? '');
     if (amount == null) return;
     await _runAction(() => TechnicianService.updateRequestStatus(requestId: _request['id'] as String, status: 'quoted', quotedAmount: amount));
   }

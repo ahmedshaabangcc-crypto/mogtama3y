@@ -12,6 +12,7 @@ import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'add_kids_item_screen.dart';
 import 'my_kids_listings_screen.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 /// "مستلزمات الأطفال" (`/kids`) — strollers, car seats, cribs, toys,
 /// clothes… new or used, for sale, swap or free. Guests can browse;
@@ -454,7 +455,7 @@ class _FiltersSheetState extends State<_FiltersSheet> {
                           ageRange: _age,
                           governorate: _governorate,
                           area: _area.text.trim().isEmpty ? null : _area.text.trim(),
-                          priceMax: _freeOnly ? null : num.tryParse(_price.text.trim().replaceAll(',', '')),
+                          priceMax: _freeOnly ? null : looseNum(_price.text.trim().replaceAll(',', '')),
                           freeOnly: _freeOnly,
                         ),
                       ),

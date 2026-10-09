@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/jobs/jobs_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../promote/promote_listing_screen.dart';
+import 'package:mogtama3y/core/utils/numbers.dart';
 
 /// Post a new job listing (step 1 of 2) — matches
 /// design/screens/32_post_job_form.png.
@@ -58,8 +59,8 @@ class _PostJobFormScreenState extends State<PostJobFormScreen> {
         title: _titleCtrl.text.trim(),
         category: _categoryCtrl.text.trim(),
         employmentType: _scheduleValues[_scheduleType],
-        salaryMin: double.tryParse(_minSalaryCtrl.text.trim()),
-        salaryMax: double.tryParse(_maxSalaryCtrl.text.trim()),
+        salaryMin: looseDouble(_minSalaryCtrl.text.trim()),
+        salaryMax: looseDouble(_maxSalaryCtrl.text.trim()),
         salaryNegotiable: _negotiable,
         requirements: _requirementsCtrl.text.trim(),
       );
