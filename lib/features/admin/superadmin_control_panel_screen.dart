@@ -200,6 +200,30 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
   }
 
   Future<void> _replyToTicket(Map<String, dynamic> ticket) async {
+    // A guest's «كلّمنا» message (0088): nobody to notify in-app — the
+    // admin answers on WhatsApp / phone, then closes it here.
+    if (ticket['user_id'] == null) {
+      final close = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('إغلاق رسالة زائر'),
+          content: const Text('الزائر مالوش حساب، فالرد بيكون على رقمه (لو سابه). إغلاق الرسالة؟'),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('تراجع')),
+            ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('إغلاق')),
+          ],
+        ),
+      );
+      if (close != true) return;
+      try {
+        await AdminService.resolveSupportTicket(ticketId: ticket['id'] as String, reply: '');
+        _load();
+      } catch (_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر إغلاق الرسالة')));
+      }
+      return;
+    }
     final replyCtrl = TextEditingController();
     final reply = await showDialog<String>(
       context: context,
@@ -842,6 +866,17 @@ const _ticketCategoryLabels = {
   'other': 'أخرى',
 };
 
+const _feedbackKindLabels = {'suggestion': '💡 اقتراح', 'bug': '🐞 مشكلة', 'question': '❓ سؤال'};
+
+const _appLabels = {'mogtama3y': 'مُجتمعي', 'tajer': 'متجري', 'ittihad': 'اتحاد الملاك', 'masjid': 'مسجدي'};
+
+/// wa.me wants the number in international form: 01xxxxxxxxx → 201xxxxxxxxx.
+Uri _whatsAppUri(String phone) {
+  var digits = phone.replaceAll(RegExp(r'[^0-9]'), '');
+  if (digits.startsWith('0')) digits = '2$digits';
+  return Uri.parse('https://wa.me/$digits?text=${Uri.encodeComponent('السلام عليكم، بخصوص رسالتك لينا على التطبيق')}');
+}
+
 class _SupportTicketCard extends StatelessWidget {
   const _SupportTicketCard({required this.ticket, required this.onReply});
   final Map<String, dynamic> ticket;
@@ -851,6 +886,16 @@ class _SupportTicketCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final requester = ticket['requester'] as Map<String, dynamic>?;
     final category = ticket['category'] as String? ?? 'other';
+    final kind = ticket['kind'] as String?; // «كلّمنا» button (0088)
+    final source = ticket['source'] is Map ? Map<String, dynamic>.from(ticket['source'] as Map) : null;
+    final isGuest = ticket['user_id'] == null;
+    final contact = ticket['contact'] as String?;
+    final badge = _feedbackKindLabels[kind] ?? _ticketCategoryLabels[category] ?? category;
+    final where = [
+      if (source?['app'] != null) _appLabels[source!['app']] ?? source['app'],
+      if (source?['path'] != null) source!['path'],
+    ].join(' · ');
+    final device = [source?['ua'], source?['version']].whereType<String>().join(' · ');
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -862,22 +907,45 @@ class _SupportTicketCard extends StatelessWidget {
             Expanded(child: Text(ticket['subject'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5))),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
-              child: Text(_ticketCategoryLabels[category] ?? category, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
+              decoration: BoxDecoration(
+                color: kind == 'bug' ? Colors.red.withValues(alpha: 0.10) : (kind == 'suggestion' ? AppColors.gold.withValues(alpha: 0.18) : AppColors.surfaceAlt),
+                borderRadius: BorderRadius.circular(100),
+              ),
+              child: Text(badge, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
             ),
           ]),
           const SizedBox(height: 6),
           Text(ticket['body'] as String? ?? '', style: const TextStyle(fontSize: 11, color: AppColors.inkSecondary, height: 1.6)),
+          if (where.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text('المكان: $where', style: const TextStyle(fontSize: 10, color: AppColors.inkMuted)),
+          ],
+          if (device.isNotEmpty) Text('الجهاز: $device', style: const TextStyle(fontSize: 10, color: AppColors.inkMuted)),
           const SizedBox(height: 8),
-          Text('من: ${requester?['full_name'] ?? ''} ${requester?['phone'] != null ? '(${requester!['phone']})' : ''}', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600)),
+          if (isGuest)
+            Text('من: زائر (من غير حساب)${contact != null ? ' — $contact' : ' — ماسابش رقم'}', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600))
+          else
+            Text('من: ${requester?['full_name'] ?? ''} ${requester?['phone'] != null ? '(${requester!['phone']})' : ''}', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600)),
           const SizedBox(height: 12),
+          if (isGuest && contact != null) ...[
+            SizedBox(
+              width: double.infinity,
+              height: 42,
+              child: OutlinedButton.icon(
+                onPressed: () => launchUrl(_whatsAppUri(contact), mode: LaunchMode.externalApplication),
+                icon: const Icon(Icons.chat_rounded, size: 16),
+                label: const Text('رد على واتساب', style: TextStyle(fontSize: 11)),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           SizedBox(
             width: double.infinity,
             height: 42,
             child: ElevatedButton(
               onPressed: onReply,
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, foregroundColor: Colors.white),
-              child: const Text('الرد وإغلاق التذكرة', style: TextStyle(fontSize: 11)),
+              child: Text(isGuest ? 'إغلاق الرسالة' : 'الرد وإغلاق التذكرة', style: const TextStyle(fontSize: 11)),
             ),
           ),
         ],

@@ -26,3 +26,27 @@ class SupportService {
     });
   }
 }
+
+/// What the user picked in the «كلّمنا» sheet (migration 0088).
+enum FeedbackKind { suggestion, bug, question }
+
+/// The floating «كلّمنا» button — backend/migrations/0088_feedback_button.sql.
+/// Works for guests too (the RPC rate-limits them); signed-in users get the
+/// admin's reply as a notification.
+class FeedbackService {
+  FeedbackService._();
+
+  static Future<void> submit({
+    required FeedbackKind kind,
+    required String body,
+    String? contact,
+    required Map<String, String> source,
+  }) async {
+    await Supabase.instance.client.rpc('submit_feedback', params: {
+      'p_kind': kind.name,
+      'p_body': body,
+      'p_contact': (contact == null || contact.trim().isEmpty) ? null : contact.trim(),
+      'p_source': source,
+    });
+  }
+}

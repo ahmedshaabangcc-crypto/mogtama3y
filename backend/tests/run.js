@@ -2790,6 +2790,64 @@ const denied = (r) => !!r.error;
     }
   }
 
+  // ------------------------------------------------------------------
+  console.log('\n«كلّمنا» — the floating feedback button (0088)');
+  {
+    const submit = (u, kind, body, contact, source) =>
+      as(db, u, `select public.submit_feedback($1, $2, $3, $4::jsonb) as id`, [kind, body, contact ?? null, source ? JSON.stringify(source) : null]);
+    const src = { app: 'mogtama3y', path: '/marketplace', version: '1.0.0', ua: 'Chrome 129 / Android', secret: 'x'.repeat(5000) };
+
+    const g1 = await submit(null, 'suggestion', 'ياريت تضيفوا قسم للصيدليات المناوبة', '0100 123-4567', src);
+    check('fdb: a guest can send a suggestion', ok(g1) && !!g1.rows[0].id, g1);
+    const gRow = (await admin(db, `select * from support_tickets where id = $1`, [g1.rows?.[0]?.id]))[0];
+    check('fdb: …stored with no user, the cleaned contact, category suggestion',
+      gRow && gRow.user_id === null && gRow.contact === '01001234567' && gRow.category === 'suggestion' && gRow.kind === 'suggestion' && gRow.status === 'open', gRow);
+    check('fdb: …context keeps only the known keys', gRow && gRow.source.app === 'mogtama3y' && gRow.source.path === '/marketplace' && !('secret' in gRow.source), gRow?.source);
+    check('fdb: a guest cannot read tickets', denied(await as(db, null, `select id from support_tickets`)));
+    check('fdb: a guest cannot insert tickets directly', denied(await as(db, null, `insert into support_tickets (category, subject, body) values ('other', 'x', 'xxxxxxxxxxxx')`)));
+    check('fdb: a signed-in user does not see guest tickets', (await as(db, B, `select id from support_tickets where user_id is null`)).rows?.length === 0);
+    check('fdb: too short is refused', denied(await submit(null, 'bug', 'قصير')));
+    check('fdb: too long is refused', denied(await submit(null, 'bug', 'ا'.repeat(2001))));
+    check('fdb: unknown kind is refused', denied(await submit(null, 'spam', 'رسالة طويلة كفاية للاختبار')));
+    check('fdb: a bad contact number is refused', denied(await submit(null, 'question', 'عندي سؤال عن التسجيل في التطبيق', '12ab')));
+    check('fdb: guests cannot send links', denied(await submit(null, 'question', 'ادخل على https://spam.example.com دلوقتي')) &&
+      denied(await submit(null, 'question', 'ادخل على cheap-pills.com دلوقتي')));
+    check('fdb: the same guest text twice is refused', denied(await submit(null, 'suggestion', 'ياريت تضيفوا قسم للصيدليات المناوبة')));
+    check('fdb: a guest contact sends at most 3 a day',
+      ok(await submit(null, 'bug', 'الصفحة بتقفل لوحدها رقم ٢', '01001234567')) &&
+      ok(await submit(null, 'bug', 'الصفحة بتقفل لوحدها رقم ٣', '01001234567')) &&
+      denied(await submit(null, 'bug', 'الصفحة بتقفل لوحدها رقم ٤', '01001234567')));
+
+    const s1 = await submit(C, 'bug', 'زرار الدفع مش شغال في صفحة المحل', null, { app: 'tajer', path: '/merchant' });
+    check('fdb: a signed-in user sends a problem report', ok(s1), s1);
+    const sRow = (await admin(db, `select * from support_tickets where id = $1`, [s1.rows?.[0]?.id]))[0];
+    check('fdb: …linked to them, category technical', sRow && sRow.user_id === C && sRow.category === 'technical' && sRow.kind === 'bug' && sRow.subject.startsWith('مشكلة: '), sRow);
+    check('fdb: …and they can see their own ticket', (await as(db, C, `select id from support_tickets where id = $1`, [sRow?.id])).rows?.length === 1);
+    check('fdb: signed-in users may post links', ok(await submit(C, 'question', 'ينفع أحط لينك https://mogtama3y.com في إعلاني؟')));
+
+    const boss2 = (await admin(db, `select id from profiles where role = 'super_admin' limit 1`))[0].id;
+    const inbox = await as(db, boss2, `select id, kind, contact, source, user_id from support_tickets where kind is not null and status = 'open'`);
+    check('fdb: the admin sees guest and user feedback with context',
+      ok(inbox) && inbox.rows.some((r) => r.user_id === null && r.contact === '01001234567' && r.source.path === '/marketplace') &&
+      inbox.rows.some((r) => r.user_id === C && r.source.app === 'tajer'), inbox);
+    check('fdb: the admin closes a guest ticket (no notification to anyone)', ok(await as(db, boss2, `select public.resolve_support_ticket($1, '')`, [gRow?.id])) &&
+      (await admin(db, `select status from support_tickets where id = $1`, [gRow?.id]))[0].status === 'resolved');
+    check('fdb: replying to a user ticket still needs text', denied(await as(db, boss2, `select public.resolve_support_ticket($1, '  ')`, [sRow?.id])));
+    check('fdb: …and still notifies them', ok(await as(db, boss2, `select public.resolve_support_ticket($1, 'اتصلح، جرّب تاني')`, [sRow?.id])) &&
+      (await admin(db, `select 1 from notifications where user_id = $1 and body = 'اتصلح، جرّب تاني'`, [C])).length === 1);
+
+    const F = await signUp(db, 'feedbacker', '01000008801');
+    let n = 0;
+    for (let i = 0; i < 11; i++) if (ok(await submit(F, 'suggestion', `اقتراح رقم ${i} لتطوير التطبيق`))) n++;
+    check('fdb: a signed-in user is limited to 10 a day', n === 10, n);
+
+    await admin(db, `insert into support_tickets (category, subject, body, kind, created_at)
+      select 'other', 'سؤال', 'رسالة ضيف رقم ' || g, 'question', now() - interval '1 hour' from generate_series(1, 200) g`);
+    check('fdb: guests share a daily budget of 200', denied(await submit(null, 'question', 'سؤال جديد بعد ما الحد خلص')));
+    await admin(db, `update support_tickets set created_at = now() - interval '2 days' where user_id is null`);
+    check('fdb: …which frees up the next day', ok(await submit(null, 'question', 'سؤال جديد بعد ما الحد خلص')));
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

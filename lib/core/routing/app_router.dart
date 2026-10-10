@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 
 import '../app_flavor.dart';
 import '../demo/demo_mode.dart';
+import '../support/feedback_route_observer.dart';
 
 import '../../features/about/about_platform_screen.dart';
 import '../../features/admin/superadmin_control_panel_screen.dart';
@@ -315,6 +316,8 @@ final _sections = {
 };
 
 final appRouter = GoRouter(
+  // The floating «كلّمنا» button follows the top screen (0088).
+  observers: [feedbackRouteObserver],
   routes: [
     GoRoute(
       path: '/',
