@@ -1,11 +1,16 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mogtama3y/core/masjid_tools/quran_text.dart';
 import 'package:mogtama3y/features/masjid_tools/adhkar_data.dart';
 import 'package:mogtama3y/features/masjid_tools/adhkar_screens.dart';
 import 'package:mogtama3y/features/masjid_tools/hijri_screen.dart';
 import 'package:mogtama3y/features/masjid_tools/prayer_reminder_host.dart';
 import 'package:mogtama3y/features/masjid_tools/qibla_screen.dart';
 import 'package:mogtama3y/features/masjid_tools/quran_screens.dart';
+import 'package:mogtama3y/features/masjid_tools/tutor_screens.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Widget _app(Widget child) => MaterialApp(
@@ -80,5 +85,35 @@ void main() {
     expect(find.text('سورة الإخلاص'), findsWidgets);
     expect(find.byType(AyahMarker), findsNWidgets(4));
     expect((await QuranPrefs.lastRead()), (112, 1));
+  });
+
+  testWidgets('tutor: opt-in screen explains the download and the limits', (tester) async {
+    await tester.pumpWidget(_app(const QuranTutorScreen()));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.textContaining('أول مرة بس'), findsOneWidget);
+    expect(find.textContaining('مساعد للمراجعة مش بديل عن المحفّظ'), findsOneWidget);
+    // No browser engine in tests → the screen says so instead of offering the download.
+    expect(find.text('حمّل المحفّظ وابدأ'), findsNothing);
+    expect(find.textContaining('المتصفح ده مش بيدعم'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('everyayah.com'), 300);
+    expect(find.textContaining('Apache-2.0'), findsOneWidget);
+  });
+
+  testWidgets('tutor: session shows the ayah, hides it in test mode', (tester) async {
+    final quran = QuranText.parse(utf8.decode(gzip.decode(File('assets/quran/quran-uthmani.txt.gz').readAsBytesSync())));
+    await tester.pumpWidget(_app(TutorSessionScreen(surah: 112, from: 1, to: 4, quran: quran)));
+    await tester.pump();
+    expect(find.textContaining('قُلْ هُوَ'), findsOneWidget);
+    expect(find.textContaining('بِسْمِ'), findsNothing); // the basmala isn't part of 112:1
+    expect(find.text('المحفّظ لسه بيتحمّل…'), findsOneWidget);
+    await tester.tap(find.text('اختبر نفسك'));
+    await tester.pump();
+    expect(find.textContaining('النص مخفي'), findsOneWidget);
+    await tester.tap(find.text('اختبر نفسك'));
+    await tester.pump();
+    await tester.tap(find.text('٢'));
+    await tester.pump();
+    expect(find.text('آية ٢'), findsOneWidget);
   });
 }

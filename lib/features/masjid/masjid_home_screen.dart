@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/app_flavor.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/location/where.dart';
 import '../../core/masjid/masjid_service.dart';
+import '../../core/routing/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import 'add_mosque_screen.dart';
@@ -301,12 +303,22 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
               const Text('مفيش مساجد مسجلة قريب منك لسه — ضيف مسجدك.', style: TextStyle(color: Colors.white60, fontSize: 12.5))
             else
               for (final m in _nearby.take(15)) MosqueTile(mosque: m),
-            _header('جاي قريب'),
-            const Row(children: [
-              Expanded(child: ComingSoonTile(icon: Icons.live_tv_rounded, title: 'دروس أونلاين', subtitle: 'دروس المسجد مباشرة من موبايلك')),
-              SizedBox(width: 10),
-              Expanded(child: ComingSoonTile(icon: Icons.menu_book_rounded, title: 'المحفّظ', subtitle: 'مساعد ذكي يسمّعلك ويساعدك تحفظ القرآن')),
-            ]),
+            _header('جديد وجاي قريب'),
+            IntrinsicHeight(
+              child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Expanded(
+                  child: ComingSoonTile(
+                    icon: Icons.record_voice_over_rounded,
+                    title: 'المحفّظ',
+                    subtitle: 'سمّع القرآن من حفظك والمحفّظ يقولك كل كلمة صح ولا غلط',
+                    badge: 'جديد',
+                    onTap: () => context.push(AppRoutes.masjidToolsTutor),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(child: ComingSoonTile(icon: Icons.live_tv_rounded, title: 'دروس أونلاين', subtitle: 'دروس المسجد مباشرة من موبايلك')),
+              ]),
+            ),
             const SizedBox(height: 16),
             const Text(
               'إمام أو خطيب أو أمين مسجد؟ افتح صفحة مسجدك واضغط «أنا مسؤول عن المسجد ده» عشان تنشر المواعيد والإعلانات والاحتياجات.',

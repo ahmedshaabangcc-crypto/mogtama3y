@@ -225,14 +225,18 @@ class NoMoneyNote extends StatelessWidget {
 
 /// «قريباً» tile for phase 2/3 features.
 class ComingSoonTile extends StatelessWidget {
-  const ComingSoonTile({super.key, required this.icon, required this.title, required this.subtitle});
+  const ComingSoonTile({super.key, required this.icon, required this.title, required this.subtitle, this.badge = 'قريباً', this.onTap});
   final IconData icon;
   final String title;
   final String subtitle;
+  final String badge;
+
+  /// Set once the feature is live — the tile then opens it.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final tile = Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.06),
@@ -246,7 +250,7 @@ class ComingSoonTile extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(999)),
-            child: const Text('قريباً', style: TextStyle(color: AppColors.night, fontSize: 10.5, fontWeight: FontWeight.w800)),
+            child: Text(badge, style: const TextStyle(color: AppColors.night, fontSize: 10.5, fontWeight: FontWeight.w800)),
           ),
         ]),
         const SizedBox(height: 8),
@@ -254,6 +258,11 @@ class ComingSoonTile extends StatelessWidget {
         const SizedBox(height: 2),
         Text(subtitle, style: const TextStyle(color: Colors.white60, fontSize: 11, height: 1.5)),
       ]),
+    );
+    if (onTap == null) return tile;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(borderRadius: BorderRadius.circular(16), onTap: onTap, child: tile),
     );
   }
 }

@@ -2513,6 +2513,52 @@ const denied = (r) => !!r.error;
     check('masc: the scheduled (no user) call works', (await admin(db, `select public.masjid_chat_purge() as n`))[0].n === 0);
   }
 
+  // ------------------------------------------------------------------
+  console.log('\nPhase — «المحفّظ» progress sync (0084)');
+  {
+    const Q1 = await signUp(db, 'qtut one', '01000000991');
+    const Q2 = await signUp(db, 'qtut two', '01000000992');
+    const save = (u, rows) => as(db, u, `select public.quran_tutor_save($1::jsonb) as n`, [JSON.stringify(rows)]);
+    const row = (surah, ayah, status = 'memorized', perfect_count = 2, updated_at = new Date(Date.now() - 60000).toISOString()) => ({ surah, ayah, status, perfect_count, updated_at });
+    const mine = async (u) => (await as(db, u, `select surah, ayah, status, perfect_count, updated_at from quran_tutor_progress order by surah, ayah`)).rows;
+
+    check('qtut: guests cannot save', denied(await as(db, null, `select public.quran_tutor_save('[]'::jsonb)`)));
+    const s1 = await save(Q1, [row(112, 1), row(112, 2, 'learning', 1), row(1, 7)]);
+    check('qtut: a user saves rows', ok(s1) && s1.rows[0].n === 3, s1);
+    check('qtut: the owner reads them', (await mine(Q1)).length === 3);
+    check("qtut: others can't read them", (await mine(Q2)).length === 0);
+    check('qtut: guests read nothing', denied(await as(db, null, `select * from quran_tutor_progress`)) ||
+      (await as(db, null, `select * from quran_tutor_progress`)).rows?.length === 0);
+    check("qtut: direct writes are refused", denied(await as(db, Q1, `insert into quran_tutor_progress (user_id, surah, ayah, status) values ($1, 2, 1, 'memorized')`, [Q1])) &&
+      denied(await as(db, Q1, `update quran_tutor_progress set perfect_count = 50 where user_id = $1`, [Q1])) &&
+      denied(await as(db, Q1, `delete from quran_tutor_progress where user_id = $1`, [Q1])));
+    check('qtut: an ayah past the surah end is refused', denied(await save(Q1, [row(112, 5)])));
+    check('qtut: surah 0 / 115 refused', denied(await save(Q1, [row(0, 1)])) && denied(await save(Q1, [row(115, 1)])));
+    check('qtut: unknown status refused', denied(await save(Q1, [row(1, 1, 'hacked')])));
+    check('qtut: perfect_count over 100 refused', denied(await save(Q1, [row(1, 1, 'learning', 101)])));
+    check('qtut: junk rows refused', denied(await save(Q1, [{ surah: 'x', ayah: 1, status: 'learning' }])) &&
+      denied(await as(db, Q1, `select public.quran_tutor_save('{"a":1}'::jsonb)`)));
+    check('qtut: more than 300 rows per call refused', denied(await save(Q1, Array.from({ length: 301 }, (_, i) => row(2, i + 1)))));
+    check('qtut: 286 rows (al-Baqara) in one call are fine', ok(await save(Q1, Array.from({ length: 286 }, (_, i) => row(2, i + 1, 'learning', 0)))));
+    check('qtut: a failed batch saves nothing', (await mine(Q1)).filter((r) => r.surah === 1 && r.ayah === 1).length === 0);
+
+    await save(Q1, [row(112, 1, 'learning', 0, new Date(Date.now() - 3600000).toISOString())]);
+    check('qtut: an older copy does not overwrite a newer one', (await mine(Q1)).find((r) => r.surah === 112 && r.ayah === 1).status === 'memorized');
+    await save(Q1, [row(112, 1, 'learning', 0, new Date(Date.now() - 1000).toISOString())]);
+    check('qtut: a newer copy does', (await mine(Q1)).find((r) => r.surah === 112 && r.ayah === 1).status === 'learning');
+    await save(Q1, [row(112, 3, 'memorized', 2, new Date(Date.now() + 86400000 * 365).toISOString())]);
+    const fut = (await mine(Q1)).find((r) => r.surah === 112 && r.ayah === 3);
+    check('qtut: a future time is clamped to now', fut && new Date(fut.updated_at).getTime() <= Date.now() + 1000, fut);
+    check("qtut: saving never touches another user's rows", (await mine(Q2)).length === 0 &&
+      (await admin(db, `select count(*)::int n from quran_tutor_progress where user_id = $1`, [Q2]))[0].n === 0);
+    await save(Q2, [row(112, 1)]);
+    check('qtut: reset clears one surah', ok(await as(db, Q1, `select public.quran_tutor_reset(112)`)) &&
+      (await mine(Q1)).every((r) => r.surah !== 112) && (await mine(Q1)).length > 0);
+    check("qtut: …and leaves other users' rows alone", (await mine(Q2)).length === 1);
+    check('qtut: reset all', ok(await as(db, Q1, `select public.quran_tutor_reset()`)) && (await mine(Q1)).length === 0);
+    check('qtut: guests cannot reset', denied(await as(db, null, `select public.quran_tutor_reset()`)));
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

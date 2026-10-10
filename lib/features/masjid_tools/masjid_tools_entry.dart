@@ -75,6 +75,7 @@ class MasjidTool {
 
 const masjidTools = [
   MasjidTool(AppRoutes.masjidToolsQuran, Icons.menu_book_rounded, 'المصحف', 'اقرا وكمّل من مكانك'),
+  MasjidTool(AppRoutes.masjidToolsTutor, Icons.record_voice_over_rounded, 'المحفّظ', 'سمّع والمحفّظ يصحّحلك'),
   MasjidTool(AppRoutes.masjidToolsAdhkar, Icons.auto_awesome_rounded, 'الأذكار', 'الصباح والمساء والسبحة'),
   MasjidTool(AppRoutes.masjidToolsQibla, Icons.explore_rounded, 'القبلة', 'اتجاه القبلة من مكانك'),
   MasjidTool(AppRoutes.masjidToolsHijri, Icons.calendar_month_rounded, 'التقويم الهجري', 'رمضان والعيد فاضل كام يوم'),

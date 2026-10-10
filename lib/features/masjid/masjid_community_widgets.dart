@@ -144,8 +144,8 @@ class MyMosqueCard extends StatelessWidget {
   }
 }
 
-/// «أدوات يومية» — a slot for the daily tools (المصحف، الأذكار، القبلة،
-/// التقويم الهجري، تنبيه الصلاة). The screens and their `/masjid/tools/…`
+/// «أدوات يومية» — a slot for the daily tools (المصحف، المحفّظ، الأذكار،
+/// القبلة، التقويم الهجري، تنبيه الصلاة). The screens and their `/masjid/tools/…`
 /// routes are built separately (lib/features/masjid_tools/); this row only
 /// pushes the route strings.
 class DailyToolsRow extends StatelessWidget {
@@ -153,6 +153,7 @@ class DailyToolsRow extends StatelessWidget {
 
   static const tools = [
     (Icons.menu_book_rounded, 'المصحف', '/masjid/tools/quran'),
+    (Icons.record_voice_over_rounded, 'المحفّظ', '/masjid/tools/tutor'),
     (Icons.wb_twilight_rounded, 'الأذكار', '/masjid/tools/adhkar'),
     (Icons.explore_rounded, 'القبلة', '/masjid/tools/qibla'),
     (Icons.calendar_month_rounded, 'الهجري', '/masjid/tools/hijri'),

@@ -45,6 +45,7 @@ import '../../features/masjid_tools/masjid_tools_entry.dart';
 import '../../features/masjid_tools/qibla_screen.dart' deferred as tools_qibla;
 import '../../features/masjid_tools/quran_screens.dart' deferred as tools_quran;
 import '../../features/masjid_tools/reminders_screen.dart' deferred as tools_reminders;
+import '../../features/masjid_tools/tutor_screens.dart' deferred as tools_tutor;
 import '../../features/shell/app_shell.dart';
 import '../../features/shell/masjid_shell.dart';
 import '../../features/shell/open_tajer_app.dart';
@@ -211,6 +212,7 @@ class AppRoutes {
   static const masjidToolsQibla = '/masjid/tools/qibla';
   static const masjidToolsHijri = '/masjid/tools/hijri';
   static const masjidToolsReminders = '/masjid/tools/reminders';
+  static const masjidToolsTutor = '/masjid/tools/tutor';
 }
 
 GoRoute _section(String path, GoRouterWidgetBuilder builder) => GoRoute(path: path.substring(1), builder: builder);
@@ -300,6 +302,7 @@ final _masjidSections = <String, GoRouterWidgetBuilder>{
   AppRoutes.masjidToolsHijri: (_, _) => DeferredPage(title: 'التقويم الهجري', load: tools_hijri.loadLibrary, builder: () => tools_hijri.HijriCalendarScreen()),
   AppRoutes.masjidToolsReminders: (_, _) =>
       DeferredPage(title: 'تنبيه الصلاة', load: tools_reminders.loadLibrary, builder: () => tools_reminders.PrayerRemindersScreen()),
+  AppRoutes.masjidToolsTutor: (_, _) => DeferredPage(title: 'المحفّظ', load: tools_tutor.loadLibrary, builder: () => tools_tutor.QuranTutorScreen()),
 };
 
 final _tajerSections = <String, GoRouterWidgetBuilder>{
