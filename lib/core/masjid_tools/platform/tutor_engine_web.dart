@@ -19,7 +19,7 @@ class TutorEngine {
     return _importing ??= () async {
       try {
         final base = (globalContext['document'] as JSObject)['baseURI'] as JSString;
-        final url = Uri.parse(base.toDart).resolve('quran_tutor/tutor.js?v=2').toString();
+        final url = Uri.parse(base.toDart).resolve('quran_tutor/tutor.js?v=3').toString();
         final m = await importModule(url.toJS).toDart;
         _module = m;
         return m;
@@ -269,6 +269,25 @@ class TutorEngine {
 
   void stopPlayback() {
     _module?.callMethod('stopPlayback'.toJS);
+  }
+
+  /// What support needs to see when it fails on a phone: backend, threads,
+  /// safe mode, the last errors, stage timings of the last check and of the
+  /// last recording, user agent (a JSON object; '{}' before first use).
+  String diag() {
+    try {
+      final r = _module?.callMethod<JSString>('diag'.toJS);
+      return r?.toDart ?? '{}';
+    } catch (_) {
+      return '{}';
+    }
+  }
+
+  /// Debug: forget this device's safe mode / WebGPU ban.
+  void resetDevice() {
+    try {
+      _module?.callMethod('resetDevice'.toJS);
+    } catch (_) {}
   }
 
   void prefetch(String url) {
