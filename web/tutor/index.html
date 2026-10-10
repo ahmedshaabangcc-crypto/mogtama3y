@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0B1530">
+<title>المحفّظ</title>
+<style>html,body{margin:0;height:100%;background:#0B1530;color:#fff;font-family:"Segoe UI",Tahoma,"Noto Sans Arabic","Geeza Pro",system-ui,sans-serif}body{display:flex;align-items:center;justify-content:center}p{opacity:.8}</style>
+</head>
+<body>
+<p>لحظة… بنجهّز المحفّظ</p>
+<script>
+// «المحفّظ» first visit: this page is only served while /tutor/sw.js isn't
+// installed yet. Install it and reload — from then on the worker serves the
+// app here with cross-origin isolation (see sw.js). Anything going wrong
+// falls back to the normal app (the tutor still works, single-threaded).
+(function () {
+  var root = new URL('../', location.href).pathname;
+  var done = false;
+  function fallback() {
+    if (done) return;
+    done = true;
+    try {
+      sessionStorage.setItem('mt.tutor.iso', String(Date.now()));
+      sessionStorage.removeItem('mt.tutor.boot');
+      // Don't bounce through here on every visit where it can't work
+      // (e.g. service workers blocked); the app retries after a few days.
+      localStorage.setItem('mt.tutor.noiso', String(Date.now()));
+    } catch (e) {}
+    location.replace(root + location.search + (location.hash || '#/masjid/tools/tutor'));
+  }
+  if (!('serviceWorker' in navigator) || !window.isSecureContext) return fallback();
+  var tries = 0;
+  try {
+    tries = +(sessionStorage.getItem('mt.tutor.boot') || 0);
+    sessionStorage.setItem('mt.tutor.boot', String(tries + 1));
+  } catch (e) {}
+  if (tries >= 2) return fallback();
+  setTimeout(fallback, 10000);
+  function reload() { if (!done) { done = true; location.reload(); } }
+  navigator.serviceWorker.register('sw.js', { scope: './' }).then(function (reg) {
+    if (reg.active) return reload();
+    var sw = reg.installing || reg.waiting;
+    if (!sw) return fallback();
+    sw.addEventListener('statechange', function () {
+      if (sw.state === 'activated') reload();
+      else if (sw.state === 'redundant') fallback();
+    });
+  }, fallback);
+})();
+</script>
+</body>
+</html>

@@ -63,6 +63,8 @@ jobs:
         run: |
           flutter build web --release --base-href /
           if grep -q "$DEMO_MARKER" build/web/main.dart.js; then echo "::error::demo build detected"; exit 1; fi
+          # «المحفّظ»'s cross-origin isolated page (web/tutor/, see sw.js there).
+          test -f build/web/tutor/sw.js && test -f build/web/tutor/index.html
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4
@@ -86,6 +88,8 @@ jobs:
           # No merchant store pages on the union site; its own sitemap/robots.
           sed -i '/store-lite.js/d' build/web_ittihad/index.html
           rm -f build/web_ittihad/store-lite.js
+          # «المحفّظ»'s isolated page (web/tutor/) belongs to مسجدي / مُجتمعي only.
+          rm -rf build/web_ittihad/tutor
           # Its own icon (gold building) for the tab, home screen and install.
           cp build/web_ittihad/ittihad_icons/favicon.png build/web_ittihad/favicon.png
           cp build/web_ittihad/ittihad_icons/Icon-*.png build/web_ittihad/icons/
@@ -126,6 +130,7 @@ jobs:
           # Its own icon (gold bag) for the tab, home screen and install.
           cp build/web_tajer/tajer_icons/favicon.png build/web_tajer/favicon.png
           cp build/web_tajer/tajer_icons/Icon-*.png build/web_tajer/icons/
+          rm -rf build/web_tajer/tutor
 
       # Each deploy_key step starts its own ssh-agent on the same socket;
       # clear the union deploy's agent first.
@@ -153,6 +158,9 @@ jobs:
         run: |
           flutter build web --release --base-href / --dart-define=APP_FLAVOR=masjid -o build/web_masjid
           if grep -q "$DEMO_MARKER" build/web_masjid/main.dart.js; then echo "::error::demo build detected"; exit 1; fi
+          # «المحفّظ» runs at /tutor/ (copied from web/tutor/ by the build):
+          # its service worker serves this index.html there with COOP/COEP.
+          test -f build/web_masjid/tutor/sw.js && test -f build/web_masjid/tutor/index.html
           f=build/web_masjid/index.html
           sed -i 's|<title>[^<]*</title>|<title>مسجدي — كل مساجد حيّك</title>|' $f
           sed -i 's|<div class="name">[^<]*</div>|<div class="name">مسجدي</div>|' $f

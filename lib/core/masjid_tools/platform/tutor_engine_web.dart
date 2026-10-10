@@ -19,7 +19,7 @@ class TutorEngine {
     return _importing ??= () async {
       try {
         final base = (globalContext['document'] as JSObject)['baseURI'] as JSString;
-        final url = Uri.parse(base.toDart).resolve('quran_tutor/tutor.js?v=1').toString();
+        final url = Uri.parse(base.toDart).resolve('quran_tutor/tutor.js?v=2').toString();
         final m = await importModule(url.toJS).toDart;
         _module = m;
         return m;
@@ -64,6 +64,8 @@ class TutorEngine {
         secure: _bool(o, 'secure'),
         ios: _bool(o, 'ios'),
         memoryGb: (o['memory'] as JSNumber?)?.toDartDouble ?? 0,
+        isolated: _bool(o, 'isolated'),
+        cores: (o['cores'] as JSNumber?)?.toDartDouble.round() ?? 0,
       );
     } catch (_) {
       return const TutorSupport();
@@ -95,24 +97,107 @@ class TutorEngine {
     _js().then((m) => m.callMethod('persist'.toJS)).ignore();
   }
 
-  Future<TutorModelInfo> loadModel({void Function(int loaded, int total)? onProgress, String prefer = 'auto'}) => _guard(() async {
+  int _int(JSObject o, String k) => (o[k] as JSNumber?)?.toDartDouble.round() ?? 0;
+
+  Future<TutorModelInfo> loadModel({void Function(int loaded, int total)? onProgress, String prefer = 'auto', int threads = 0}) => _guard(() async {
         final m = await _js();
         final cb = ((JSNumber loaded, JSNumber total) {
           onProgress?.call(loaded.toDartDouble.round(), total.toDartDouble.round());
         }).toJS;
-        final r = await m.callMethod<JSPromise<JSObject>>('loadModel'.toJS, cb, prefer.toJS).toDart;
+        final r = await m.callMethod<JSPromise<JSObject>>('loadModel'.toJS, cb, prefer.toJS, threads.toJS).toDart;
         _ready = true;
         return TutorModelInfo(
           (r['device'] as JSString?)?.toDart ?? '',
           (r['dtype'] as JSString?)?.toDart ?? '',
-          (r['ms'] as JSNumber?)?.toDartDouble.round() ?? 0,
-          (r['cached'] as JSBoolean?)?.toDart ?? false,
+          _int(r, 'ms'),
+          _bool(r, 'cached'),
+          backend: (r['backend'] as JSString?)?.toDart ?? '',
+          threads: _int(r, 'threads'),
+          isolated: _bool(r, 'isolated'),
+          warmMs: _int(r, 'warmMs'),
         );
       });
+
+  // ------------------------------------------------------------ isolation
+  // Multithreaded recognition needs a cross-origin isolated page; GitHub
+  // Pages can't send the headers, so the tutor runs at /tutor/ where a
+  // service worker adds them (web/tutor/). See shouldIsolate().
+  static const _isoKey = 'mt.tutor.iso';
+
+  JSObject? get _session {
+    try {
+      return globalContext['sessionStorage'] as JSObject?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// This page is the isolated /tutor/ copy of the app.
+  bool get inIsolatedPage => (globalContext['mogtama3yTutorIsolated'] as JSBoolean?)?.toDart ?? false;
+
+  /// Should the tutor move to /tutor/? Only where it helps and works:
+  /// not isolated yet, service workers available, a Chromium/Firefox
+  /// browser (Safari has no COEP credentialless; on iOS every browser is
+  /// Safari underneath) with several cores, and no attempt in the last
+  /// 30 s (an attempt that came back here didn't work this time).
+  bool shouldIsolate() {
+    try {
+      if ((globalContext['crossOriginIsolated'] as JSBoolean?)?.toDart ?? false) return false;
+      if (inIsolatedPage) return false;
+      if (!((globalContext['isSecureContext'] as JSBoolean?)?.toDart ?? false)) return false;
+      final nav = globalContext['navigator'] as JSObject;
+      if (!nav.has('serviceWorker')) return false;
+      final ua = (nav['userAgent'] as JSString).toDart;
+      final maxTouch = (nav['maxTouchPoints'] as JSNumber?)?.toDartDouble ?? 0;
+      final platform = (nav['platform'] as JSString?)?.toDart ?? '';
+      final ios = RegExp(r'iPad|iPhone|iPod').hasMatch(ua) || (platform == 'MacIntel' && maxTouch > 1);
+      final chromiumOrFirefox = RegExp(r'Chrome/|Chromium/|Firefox/|Edg/').hasMatch(ua);
+      if (ios || !chromiumOrFirefox) return false;
+      final cores = (nav['hardwareConcurrency'] as JSNumber?)?.toDartDouble ?? 0;
+      if (cores > 0 && cores < 3) return false;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final last = int.tryParse((_session?.callMethod<JSString?>('getItem'.toJS, _isoKey.toJS))?.toDart ?? '');
+      if (last != null && now - last < 30000) return false;
+      // /tutor/ couldn't install its service worker on this browser lately.
+      final local = globalContext['localStorage'] as JSObject?;
+      final failed = int.tryParse((local?.callMethod<JSString?>('getItem'.toJS, 'mt.tutor.noiso'.toJS))?.toDart ?? '');
+      if (failed != null && now - failed < const Duration(days: 3).inMilliseconds) return false;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Reloads the tutor at /tutor/ (same route, isolated). Replaces the
+  /// history entry, so «back» returns to where the tutor was opened from.
+  void enterIsolation() {
+    try {
+      _session?.callMethod('setItem'.toJS, _isoKey.toJS, '${DateTime.now().millisecondsSinceEpoch}'.toJS);
+    } catch (_) {}
+    final loc = globalContext['location'] as JSObject;
+    final hash = (loc['hash'] as JSString).toDart;
+    final search = (loc['search'] as JSString).toDart; // e.g. ?debug=1
+    final base = (globalContext['document'] as JSObject)['baseURI'] as JSString;
+    final url = Uri.parse(base.toDart).resolve('tutor/').toString();
+    loc.callMethod('replace'.toJS, '$url$search${hash.isEmpty ? '#/masjid/tools/tutor' : hash}'.toJS);
+  }
+
+  /// Leaves the isolated page for the normal app (a full load).
+  void leaveIsolation() {
+    final history = globalContext['history'] as JSObject;
+    final n = (history['length'] as JSNumber?)?.toDartDouble ?? 0;
+    if (n > 1) {
+      history.callMethod('back'.toJS);
+    } else {
+      final base = (globalContext['document'] as JSObject)['baseURI'] as JSString;
+      (globalContext['location'] as JSObject).callMethod('replace'.toJS, '${Uri.parse(base.toDart).resolve('./')}#/'.toJS);
+    }
+  }
 
   /// Must be called straight from a tap (iOS).
   Future<void> startRecording({
     Duration max = const Duration(seconds: 25),
+    Duration min = Duration.zero,
     bool autoStop = true,
     void Function(double level)? onLevel,
     void Function(String reason)? onAutoStop,
@@ -122,6 +207,7 @@ class TutorEngine {
         final opts = JSObject();
         opts['maxMs'] = max.inMilliseconds.toJS;
         opts['autoStop'] = autoStop.toJS;
+        opts['minMs'] = min.inMilliseconds.toJS;
         if (onLevel != null) opts['onLevel'] = ((JSNumber l) => onLevel(l.toDartDouble)).toJS;
         if (onAutoStop != null) opts['onAutoStop'] = ((JSString r) => onAutoStop(r.toDart)).toJS;
         await m.callMethod<JSPromise<JSAny?>>('startRecording'.toJS, opts).toDart;
@@ -141,19 +227,32 @@ class TutorEngine {
 
   TutorTranscript _transcript(JSObject r) => TutorTranscript(
         (r['text'] as JSString?)?.toDart ?? '',
-        (r['ms'] as JSNumber?)?.toDartDouble.round() ?? 0,
+        _int(r, 'ms'),
         (r['seconds'] as JSNumber?)?.toDartDouble ?? 0,
+        frames: _int(r, 'frames'),
+        tokens: _int(r, 'tokens'),
+        retried: _bool(r, 'retried'),
+        encMs: _int(r, 'encMs'),
+        decMs: _int(r, 'decMs'),
+        featMs: _int(r, 'featMs'),
       );
 
-  Future<TutorTranscript> transcribe(TutorRecording rec) => _guard(() async {
+  JSObject _opts(int words) {
+    final o = JSObject();
+    o['words'] = words.toJS;
+    return o;
+  }
+
+  /// [words]: the ayah's word count — bounds the decoder.
+  Future<TutorTranscript> transcribe(TutorRecording rec, {int words = 0}) => _guard(() async {
         final h = rec.handle as JSObject;
-        final r = await (await _js()).callMethod<JSPromise<JSObject>>('transcribe'.toJS, h['audio'], h['rate']).toDart;
+        final r = await (await _js()).callMethod<JSPromise<JSObject>>('transcribe'.toJS, h['audio'], h['rate'], _opts(words)).toDart;
         return _transcript(r);
       });
 
   /// Debug: transcribe an mp3 from a URL (e.g. the Husary clip of the ayah).
-  Future<TutorTranscript> transcribeUrl(String url) => _guard(() async {
-        final r = await (await _js()).callMethod<JSPromise<JSObject>>('transcribeUrl'.toJS, url.toJS).toDart;
+  Future<TutorTranscript> transcribeUrl(String url, {int words = 0}) => _guard(() async {
+        final r = await (await _js()).callMethod<JSPromise<JSObject>>('transcribeUrl'.toJS, url.toJS, _opts(words)).toDart;
         return _transcript(r);
       });
 
