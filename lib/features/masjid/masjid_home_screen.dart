@@ -329,7 +329,7 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
               const Text('مفيش مساجد مسجلة قريب منك لسه — ضيف مسجدك.', style: TextStyle(color: Colors.white60, fontSize: 12.5))
             else
               for (final m in _nearby.take(15)) MosqueTile(mosque: m),
-            _header('جديد وجاي قريب'),
+            _header('جديد في مسجدي'),
             IntrinsicHeight(
               child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Expanded(
