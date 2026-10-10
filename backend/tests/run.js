@@ -2571,6 +2571,8 @@ const denied = (r) => !!r.error;
       rerun = e.message;
     }
     check('mlive: 0085 is safe to re-run', rerun === null, rerun);
+    // 0086 (lessons open to everyone) redefines the feed — put it back after the 0085 re-run.
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0086_masjid_live_public.sql'), 'utf8'));
 
     const M = (await admin(db, `insert into mosques (name, lat, lng, verified) values ('مسجد الرحمن', 30.05, 31.25, true) returning id`))[0].id;
     const U = (await admin(db, `insert into mosques (name, lat, lng) values ('مسجد مش موثق', 30.06, 31.26) returning id`))[0].id;
@@ -2726,7 +2728,8 @@ const denied = (r) => !!r.error;
     check("mlive: the feed shows a member their mosque's lessons (live first)", fm.length === 2 && fm[0].id === S1 && fm[0].status === 'live' && fm[0].my_mosque === true, fm);
     const fx = await feed(X, 30.05, 31.25);
     check('mlive: an outsider nearby sees only the public lesson', fx.length === 1 && fx[0].visibility === 'public' && typeof fx[0].distance_km === 'number', fx);
-    check('mlive: an outsider far away sees nothing from there', (await feed(X, 24.09, 32.9)).every((s) => s.mosque_id !== M));
+    const ff = await feed(X, 24.09, 32.9);
+    check('mlive: (0086) an outsider far away still sees the public lesson, not the members-only one', ff.some((s) => s.mosque_id === M && s.visibility === 'public') && ff.every((s) => s.mosque_id !== M || s.visibility === 'public'), ff);
     const fg = await feed(null, 30.05, 31.25);
     check('mlive: a guest nearby sees the public lesson (can_join = false)', fg.length === 1 && fg[0].can_join === false);
     check('mlive: the far mosque shows up for its own owner', (await feed(FO)).some((s) => s.mosque_id === Far));

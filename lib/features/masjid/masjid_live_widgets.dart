@@ -232,7 +232,7 @@ class _MosqueLiveManageTabState extends State<MosqueLiveManageTab> {
     var duration = (s?['duration_minutes'] as num?)?.toInt() ?? 60;
     if (!liveDurations.contains(duration)) duration = 60;
     var mode = (s?['mode'] as String?) ?? 'audio';
-    var visibility = (s?['visibility'] as String?) ?? 'members';
+    var visibility = (s?['visibility'] as String?) ?? 'public';
     var audience = (s?['audience'] as String?) ?? 'all';
     final ok = await showDialog<bool>(
       context: context,
