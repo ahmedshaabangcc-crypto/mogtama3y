@@ -153,6 +153,7 @@ class DailyToolsRow extends StatelessWidget {
 
   static const tools = [
     (Icons.menu_book_rounded, 'المصحف', '/masjid/tools/quran'),
+    (Icons.headphones_rounded, 'استماع', '/masjid/tools/listen'),
     (Icons.record_voice_over_rounded, 'المحفّظ', '/masjid/tools/tutor'),
     (Icons.wb_twilight_rounded, 'الأذكار', '/masjid/tools/adhkar'),
     (Icons.explore_rounded, 'القبلة', '/masjid/tools/qibla'),

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/masjid_tools/hijri.dart' show toArabicDigits;
@@ -436,6 +437,9 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
         color: _ink,
       );
 
+  /// «استماع القرآن» for this surah (choose the reciter there).
+  void _listen() => context.push('/masjid/tools/listen?surah=$_surah');
+
   Widget _header() {
     final d = surahData[_surah - 1];
     return Column(children: [
@@ -450,6 +454,12 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
         child: Column(children: [
           Text(surahTitle(_surah), style: TextStyle(fontFamily: _fontReady ? QuranFont.family : null, fontSize: 24, color: _ink, fontWeight: FontWeight.w700)),
           Text('${d.$3 ? 'مكية' : 'مدنية'} • ${toArabicDigits(d.$2)} آية', style: const TextStyle(color: Color(0xFF6B5A35), fontSize: 12)),
+          TextButton.icon(
+            onPressed: _listen,
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFF8A6417), visualDensity: VisualDensity.compact),
+            icon: const Icon(Icons.headphones_rounded, size: 18),
+            label: const Text('استمع للسورة', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
         ]),
       ),
       if (_surah != 1 && _surah != 9)
@@ -561,6 +571,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
         foregroundColor: _ink,
         title: Text(surahTitle(_surah)),
         actions: [
+          IconButton(tooltip: 'استمع للسورة', icon: const Icon(Icons.headphones_rounded), onPressed: _listen),
           IconButton(tooltip: 'حجم الخط', icon: const Icon(Icons.format_size_rounded), onPressed: _fontSheet),
         ],
       ),
@@ -632,6 +643,14 @@ class _ToolsCreditsScreenState extends State<ToolsCreditsScreen> {
               'بترخيص SIL Open Font License 1.1.', style: toolMutedStyle),
           _link('github.com/aliftype/amiri', 'https://github.com/aliftype/amiri'),
           _link('openfontlicense.org', 'https://openfontlicense.org'),
+        ]),
+      ),
+      GlassCard(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('التلاوات (استماع)', style: toolTitleStyle),
+          const SizedBox(height: 6),
+          const Text('التلاوات من موقع mp3quran.net — بيتيح استخدام مواده وروابطه للجميع. الصوت بيتشغّل مباشرة من سيرفراتهم.', style: toolMutedStyle),
+          _link('mp3quran.net', 'https://www.mp3quran.net/ar'),
         ]),
       ),
       const GlassCard(
