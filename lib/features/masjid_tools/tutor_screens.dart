@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/app_flavor.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/masjid_tools/hijri.dart' show toArabicDigits;
 import '../../core/masjid_tools/platform/kv_store.dart';
@@ -14,6 +15,8 @@ import '../../core/masjid_tools/quran_meta.dart';
 import '../../core/masjid_tools/quran_text.dart';
 import '../../core/masjid_tools/recitation_align.dart';
 import '../../core/masjid_tools/tutor_progress.dart';
+import '../../core/support/support_service.dart';
+import '../../core/support/user_agent.dart';
 import '../../core/theme/app_colors.dart';
 import 'quran_screens.dart' show QuranFont, surahTitle;
 import 'tools_ui.dart';
@@ -496,7 +499,9 @@ class ModelStatusCard extends StatelessWidget {
       case ModelState.failed:
         return GlassCard(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(store.modelError?.message ?? 'معرفناش نشغّل المحفّظ', style: const TextStyle(color: _wrongColor, fontSize: 13, height: 1.6)),
+            Text(store.modelError == null ? 'معرفناش نشغّل المحفّظ' : tutorErrorText(store.modelError!),
+                style: const TextStyle(color: _wrongColor, fontSize: 13, height: 1.6)),
+            if (store.modelError != null) TutorSupportDetails(error: store.modelError!, where: 'model load'),
             const SizedBox(height: 6),
             FilledButton.tonal(onPressed: store.loadModel, child: const Text('جرّب تاني')),
           ]),
@@ -666,6 +671,9 @@ class _TutorSessionScreenState extends State<TutorSessionScreen> {
   DateTime? _recStart;
   Timer? _ticker;
   String? _error;
+
+  /// The engine error behind [_error] (for «تفاصيل للدعم»).
+  TutorError? _errorObj;
   String? _debugNote;
   int _thinkingSince = 0;
 
@@ -762,7 +770,8 @@ class _TutorSessionScreenState extends State<TutorSessionScreen> {
       if (mounted) {
         setState(() {
           _phase = _result != null ? _Phase.result : _Phase.idle;
-          _error = e.message;
+          _error = tutorErrorText(e);
+          _errorObj = e;
         });
       }
     }
@@ -788,21 +797,25 @@ class _TutorSessionScreenState extends State<TutorSessionScreen> {
       final t = await engine.transcribe(rec, words: recitationWords(_text).length);
       _checkTime = sw.elapsed;
       if (TutorStore.debug) {
+        final stages = tutorStageLine(engine.diag());
         debugPrint('[tutor] ${widget.surah}:$_ayah audio=${rec.seconds.toStringAsFixed(1)}s infer=${t.inferMs}ms total=${sw.elapsedMilliseconds}ms ${t.debugLine} text=${t.text}');
-        _debugNote = 'تسجيلك ${t.seconds.toStringAsFixed(1)} ث — التعرّف ${(t.inferMs / 1000).toStringAsFixed(2)} ث\n${t.debugLine}\n${t.text}';
+        debugPrint('[tutor] stages: $stages');
+        _debugNote = 'تسجيلك ${t.seconds.toStringAsFixed(1)} ث — التعرّف ${(t.inferMs / 1000).toStringAsFixed(2)} ث\n${t.debugLine}\n$stages\n${t.text}';
       }
       _grade(t.text);
     } on TutorError catch (e) {
-      _fail(e.message);
+      if (TutorStore.debug) debugPrint('[tutor] check failed: $e\n${engine.diag()}');
+      _fail(tutorErrorText(e), e);
     }
   }
 
-  void _fail(String message) {
+  void _fail(String message, [TutorError? error]) {
     _ticker?.cancel();
     if (!mounted) return;
     setState(() {
       _phase = _result != null ? _Phase.result : _Phase.idle;
       _error = message;
+      _errorObj = error;
     });
   }
 
@@ -837,16 +850,18 @@ class _TutorSessionScreenState extends State<TutorSessionScreen> {
     final sw = Stopwatch()..start();
     try {
       final t = await engine.transcribeUrl(husaryMuallimUrl(widget.surah, _ayah), words: recitationWords(_text).length);
-      final note = 'تلاوة الحصري ${t.seconds.toStringAsFixed(1)} ث — التعرّف ${(t.inferMs / 1000).toStringAsFixed(2)} ث (الكل ${(sw.elapsedMilliseconds / 1000).toStringAsFixed(2)} ث)\n${t.debugLine}\n${t.text}';
+      final stages = tutorStageLine(engine.diag());
+      final note = 'تلاوة الحصري ${t.seconds.toStringAsFixed(1)} ث — التعرّف ${(t.inferMs / 1000).toStringAsFixed(2)} ث (الكل ${(sw.elapsedMilliseconds / 1000).toStringAsFixed(2)} ث)\n${t.debugLine}\n$stages\n${t.text}';
       debugPrint('[tutor-debug] ${widget.surah}:$_ayah audio=${t.seconds.toStringAsFixed(1)}s infer=${t.inferMs}ms total=${sw.elapsedMilliseconds}ms ${t.debugLine} text=${t.text}');
+      debugPrint('[tutor-debug] stages: $stages');
       _checkTime = sw.elapsed;
       _grade(t.text);
       final r = _result;
       if (r != null) debugPrint('[tutor-debug] perfect=${r.perfect} ops=${r.ops.where((o) => o.status != WordStatus.ok).toList()}');
       setState(() => _debugNote = note);
     } on TutorError catch (e) {
-      debugPrint('[tutor-debug] failed: $e');
-      _fail(e.message);
+      debugPrint('[tutor-debug] failed: $e\n${engine.diag()}');
+      _fail(tutorErrorText(e), e);
     }
   }
 
@@ -899,6 +914,7 @@ class _TutorSessionScreenState extends State<TutorSessionScreen> {
             padding: const EdgeInsets.only(bottom: 10),
             child: Text(_error!, style: const TextStyle(color: _wrongColor, fontSize: 13, height: 1.6)),
           ),
+        if (_error != null && _errorObj != null) TutorSupportDetails(error: _errorObj!, where: 'check ${widget.surah}:$_ayah'),
         _controls(),
         const SizedBox(height: 12),
         SwitchListTile(
@@ -942,6 +958,13 @@ class _TutorSessionScreenState extends State<TutorSessionScreen> {
               'isolated ${store.modelInfo!.isolated}, load ${store.modelInfo!.loadMs} ms (warm-up ${store.modelInfo!.warmMs} ms)',
               style: toolMutedStyle,
             ),
+          TextButton(
+            onPressed: () {
+              engine.resetDevice();
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('safe mode / no-gpu flags cleared (reload)')));
+            },
+            child: const Text('reset safe mode / WebGPU ban', style: TextStyle(color: Colors.white54, fontSize: 12)),
+          ),
         ],
         const SizedBox(height: 8),
         const _Disclaimer(compact: true),
@@ -1112,7 +1135,15 @@ class _TutorSessionScreenState extends State<TutorSessionScreen> {
             const CircularProgressIndicator(color: AppColors.gold),
             const SizedBox(height: 12),
             const Text('بنسمع تسميعك…', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
-            Text(secs < 8 ? 'ثواني ونقولك' : 'لسه شغالين — الآيات الطويلة بتاخد وقت أكتر (${toArabicDigits(secs)} ث)', style: toolMutedStyle),
+            Text(
+              secs < 8
+                  ? 'ثواني ونقولك'
+                  : secs < 25
+                      ? 'لسه شغالين — الآيات الطويلة بتاخد وقت أكتر (${toArabicDigits(secs)} ث)'
+                      : 'واخد وقت أطول من العادي — لو علّق هنعيد تشغيله لوحدنا (${toArabicDigits(secs)} ث)',
+              textAlign: TextAlign.center,
+              style: toolMutedStyle,
+            ),
           ]),
         );
       default:
@@ -1228,6 +1259,9 @@ class _TutorReviewScreenState extends State<TutorReviewScreen> {
   Timer? _ticker;
   DateTime? _recStart;
   String? _error;
+
+  /// The last engine error (for «تفاصيل للدعم»).
+  TutorError? _lastError;
   Future<void> _queue = Future.value();
 
   TutorEngine get engine => store.engine;
@@ -1276,7 +1310,8 @@ class _TutorReviewScreenState extends State<TutorReviewScreen> {
       if (mounted) {
         setState(() {
           _current = null;
-          _error = e.message;
+          _error = tutorErrorText(e);
+          _lastError = e;
         });
       }
     }
@@ -1302,7 +1337,8 @@ class _TutorReviewScreenState extends State<TutorReviewScreen> {
     } on TutorError catch (e) {
       setState(() {
         _checking.remove(ayah);
-        _errors[ayah] = e.message;
+        _errors[ayah] = tutorErrorText(e);
+        _lastError = e;
       });
     }
     if (rec != null) {
@@ -1315,7 +1351,12 @@ class _TutorReviewScreenState extends State<TutorReviewScreen> {
           store.saveProgress();
           if (mounted) setState(() => _results[ayah] = res);
         } on TutorError catch (e) {
-          if (mounted) setState(() => _errors[ayah] = e.message);
+          if (mounted) {
+            setState(() {
+              _errors[ayah] = tutorErrorText(e);
+              _lastError = e;
+            });
+          }
         } finally {
           if (mounted) setState(() => _checking.remove(ayah));
         }
@@ -1334,6 +1375,7 @@ class _TutorReviewScreenState extends State<TutorReviewScreen> {
     setState(() {
       _results.clear();
       _errors.clear();
+      _lastError = null;
     });
   }
 
@@ -1357,6 +1399,7 @@ class _TutorReviewScreenState extends State<TutorReviewScreen> {
         for (var a = widget.from; a <= widget.to; a++) _row(a),
         const SizedBox(height: 8),
         if (_error != null) Text(_error!, style: const TextStyle(color: _wrongColor, fontSize: 13, height: 1.6)),
+        if (_lastError != null) TutorSupportDetails(error: _lastError!, where: 'review ${widget.surah}:${widget.from}-${widget.to}'),
         if (cur != null) ...[
           Text('بنسجّل آية ${toArabicDigits(cur)}… ${_clock(_recStart == null ? 0 : DateTime.now().difference(_recStart!).inSeconds)}',
               textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
@@ -1714,5 +1757,141 @@ class TutorCredits extends StatelessWidget {
         _link('everyayah.com', 'https://everyayah.com'),
       ]),
     );
+  }
+}
+
+// ============================================================ failures
+/// What to tell the user for an engine error (Egyptian Arabic): the
+/// watchdog's codes first, then the shared ones.
+String tutorErrorText(TutorError e) => switch (e.code) {
+      'timeout' => 'المحفّظ اتأخر أوي ومردّش، فوقّفناه وجرّبنا تاني بإعدادات أخف ومنفعش. '
+          'اقفل التابات والتطبيقات التانية وجرّب تاني — ولو اتكررت ابعتلنا التفاصيل تحت.',
+      'crashed' => 'المحفّظ وقف فجأة (غالبًا ذاكرة الجهاز مش مكفية). اقفل التابات والتطبيقات التانية وجرّب تاني — '
+          'ولو اتكررت ابعتلنا التفاصيل تحت.',
+      _ => e.message,
+    };
+
+/// A support report for a tutor failure: what failed, where, and the
+/// engine's diagnostics (backend, threads, safe mode, stage timings, UA).
+/// Kept under 2000 characters and without links (the feedback RPC refuses
+/// links from guests).
+String tutorSupportReport(TutorError e, String where, String diag) {
+  String clean(String s) => s
+      .replaceAll(RegExp(r'https?://'), '')
+      .replaceAll(RegExp(r'www\.'), 'www[.]')
+      .replaceAllMapped(RegExp(r'([A-Za-z0-9-]+)\.(com|net|org|io|xyz|ru|info|me|link)\b', caseSensitive: false), (m) => '${m[1]}[.]${m[2]}');
+  var d = clean(diag);
+  final head = clean('«المحفّظ» مشكلة على الجهاز ($where)\n${e.code}: ${e.detail}\n');
+  final room = 1990 - head.length;
+  if (d.length > room) d = room <= 1 ? '' : '${d.substring(0, room - 1)}…';
+  final out = '$head$d';
+  return out.length > 1990 ? out.substring(0, 1990) : out;
+}
+
+/// «تفاصيل للدعم» (expandable) + «ابعت التفاصيل للدعم» under a tutor error.
+class TutorSupportDetails extends StatefulWidget {
+  const TutorSupportDetails({super.key, required this.error, required this.where});
+  final TutorError error;
+  final String where;
+
+  @override
+  State<TutorSupportDetails> createState() => _TutorSupportDetailsState();
+}
+
+class _TutorSupportDetailsState extends State<TutorSupportDetails> {
+  bool _open = false;
+  bool _sending = false;
+  bool _sent = false;
+  String? _sendError;
+
+  String get _report => tutorSupportReport(widget.error, widget.where, TutorEngine.instance.diag());
+
+  Future<void> _send() async {
+    setState(() {
+      _sending = true;
+      _sendError = null;
+    });
+    try {
+      final ua = rawUserAgent();
+      await FeedbackService.submit(
+        kind: FeedbackKind.bug,
+        body: _report,
+        source: {
+          'app': appFlavorId,
+          'path': 'tutor › ${widget.where}',
+          if (ua != null) 'ua': ua.length > 160 ? ua.substring(0, 160) : ua,
+        },
+      );
+      if (mounted) setState(() => _sent = true);
+    } catch (e) {
+      final s = e is PostgrestException ? e.message : 'معرفناش نبعت — اتأكد من النت وجرّب تاني.';
+      if (mounted) setState(() => _sendError = s);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        InkWell(
+          onTap: () => setState(() => _open = !_open),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(children: [
+              Icon(_open ? Icons.expand_less_rounded : Icons.expand_more_rounded, color: Colors.white54, size: 18),
+              const SizedBox(width: 4),
+              const Text('تفاصيل للدعم', style: TextStyle(color: Colors.white60, fontSize: 12.5, decoration: TextDecoration.underline)),
+            ]),
+          ),
+        ),
+        if (_open)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(top: 4, bottom: 6),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(8)),
+            child: SelectableText(
+              _report,
+              textDirection: TextDirection.ltr,
+              style: const TextStyle(color: Colors.white70, fontSize: 11, height: 1.4),
+            ),
+          ),
+        if (_sent)
+          const Text('وصلتنا التفاصيل — شكرًا، هنبص عليها.', style: TextStyle(color: _okColor, fontSize: 12.5))
+        else
+          TextButton.icon(
+            style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 34), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+            onPressed: _sending ? null : _send,
+            icon: _sending
+                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold))
+                : const Icon(Icons.send_rounded, size: 16, color: AppColors.gold),
+            label: const Text('ابعت التفاصيل للدعم', style: TextStyle(color: AppColors.gold, fontSize: 12.5, fontWeight: FontWeight.w700)),
+          ),
+        if (_sendError != null) Text(_sendError!, style: const TextStyle(color: _wrongColor, fontSize: 12)),
+      ]),
+    );
+  }
+}
+
+/// Debug panel: stage timings of the last check (record → decode →
+/// resample → infer) from the engine's diagnostics.
+String tutorStageLine(String diag) {
+  try {
+    final j = jsonDecode(diag) as Map<String, dynamic>;
+    final rec = (j['rec'] as Map?) ?? const {};
+    final last = (j['last'] as Map?) ?? const {};
+    String n(Object? v) => v == null ? '–' : '$v';
+    final recovered = '${last['recovered'] ?? ''}';
+    return 'record ${n(rec['wall'])} s (${n(rec['source'])}, ${n(rec['ctxRate'])} Hz, peak ${n(rec['pcmPeak'])}, ${n(rec['ctxState'])}) → '
+        'stop/decode ${n(rec['stopMs'])} ms → resample ${n(last['prepMs'])} ms → '
+        'infer ${n(last['ms'])} ms (mel ${n(last['featMs'])}, enc ${n(last['encMs'])}, dec ${n(last['decMs'])}) → '
+        'wall ${n(last['wallMs'])} ms · ${n(last['backend'])} ×${n(last['threads'])}'
+        '${recovered.isNotEmpty ? ' · recovered from $recovered' : ''}'
+        '${j['safe'] == true ? ' · safe mode' : ''}${j['nogpu'] == true ? ' · no-gpu' : ''}';
+  } catch (_) {
+    return '';
   }
 }

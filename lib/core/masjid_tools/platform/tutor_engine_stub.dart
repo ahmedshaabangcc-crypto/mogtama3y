@@ -29,6 +29,8 @@ class TutorEngine {
   Future<TutorTranscript> transcribeUrl(String url, {int words = 0}) async => throw const TutorError('unsupported');
   Future<bool> play(List<String> urls, {int repeat = 1}) async => false;
   void stopPlayback() {}
+  String diag() => '{}';
+  void resetDevice() {}
   void prefetch(String url) {}
   void persistStorage() {}
 }
