@@ -7,6 +7,7 @@ import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
 import '../tutorials/tutorial_widgets.dart';
+import 'masjid_live_widgets.dart';
 import 'masjid_widgets.dart';
 import 'mosque_page_screen.dart' show ContributionsList;
 import 'package:mogtama3y/core/utils/numbers.dart';
@@ -25,6 +26,7 @@ class MosqueManageScreen extends StatelessWidget {
     final tabs = <(String, IconData, Widget)>[
       if (perms.contains('posts')) ('الإعلانات', Icons.campaign_rounded, _PostsTab(mosqueId: id)),
       if (perms.contains('lessons')) ('الدروس', Icons.menu_book_rounded, _LessonsTab(mosqueId: id)),
+      if (perms.contains('lessons')) ('أونلاين', Icons.live_tv_rounded, MosqueLiveManageTab(mosqueId: id)),
       if (perms.contains('needs')) ('الاحتياجات', Icons.volunteer_activism_rounded, _NeedsTab(mosqueId: id)),
       if (perms.contains('orphans')) ('الأيتام', Icons.child_care_rounded, _OrphansTab(mosqueId: id)),
       if (perms.contains('competitions')) ('المسابقات', Icons.emoji_events_rounded, _CompetitionsTab(mosqueId: id)),

@@ -2559,6 +2559,234 @@ const denied = (r) => !!r.error;
     check('qtut: guests cannot reset', denied(await as(db, null, `select public.quran_tutor_reset()`)));
   }
 
+  // ------------------------------------------------------------------
+  console.log('\nPhase mlive — «دروس أونلاين» live lessons (0085)');
+  {
+    const fs = require('fs');
+    const path = require('path');
+    let rerun = null;
+    try {
+      await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0085_masjid_live_lessons.sql'), 'utf8'));
+    } catch (e) {
+      rerun = e.message;
+    }
+    check('mlive: 0085 is safe to re-run', rerun === null, rerun);
+
+    const M = (await admin(db, `insert into mosques (name, lat, lng, verified) values ('مسجد الرحمن', 30.05, 31.25, true) returning id`))[0].id;
+    const U = (await admin(db, `insert into mosques (name, lat, lng) values ('مسجد مش موثق', 30.06, 31.26) returning id`))[0].id;
+    const Far = (await admin(db, `insert into mosques (name, lat, lng, verified) values ('مسجد بعيد', 31.2, 29.9, true) returning id`))[0].id;
+    const O = await signUp(db, 'mlive owner', null);
+    const H = await signUp(db, 'mlive helper posts', null);
+    const L = await signUp(db, 'mlive helper lessons', null);
+    const UO = await signUp(db, 'mlive unverified owner', null);
+    const FO = await signUp(db, 'mlive far owner', null);
+    const Mem1 = await signUp(db, 'mlive member one', null);
+    const Mem2 = await signUp(db, 'mlive member two', null);
+    const X = await signUp(db, 'mlive outsider', null);
+    const F = await signUp(db, 'mlive follower', null);
+    await admin(db, `insert into mosque_admins (mosque_id, user_id, role, permissions) values
+      ($1, $2, 'owner', '{}'), ($1, $3, 'helper', '{posts}'), ($1, $4, 'helper', '{lessons}'), ($5, $6, 'owner', '{}'), ($7, $8, 'owner', '{}')`,
+      [M, O, H, L, U, UO, Far, FO]);
+    await admin(db, `update profiles set phone_verified_at = now() where id = any($1::uuid[])`, [[Mem1, X]]);
+    for (const u of [Mem1, Mem2]) await as(db, u, `select public.masjid_join($1)`, [M]);
+    await as(db, F, `select public.masjid_follow($1, true)`, [M]);
+
+    const inMin = (m) => new Date(Date.now() + m * 60000).toISOString();
+    const create = (u, mosque, p) => as(db, u, `select public.masjid_live_create($1, $2::jsonb) as id`, [mosque, JSON.stringify(p)]);
+    const join = async (u, s) => (await as(db, u, `select public.masjid_live_join_check($1) as j`, [s])).rows?.[0]?.j;
+    const has = (r, text) => !!r.error && r.error.includes(text);
+    const notes = async (u, like) => (await admin(db, `select count(*)::int n from notifications where user_id = $1 and title like $2`, [u, like]))[0].n;
+
+    // ---- create
+    const base = { title: 'تفسير سورة الكهف', sheikh: 'الشيخ محمود', audience: 'all', scheduled_at: inMin(180), duration_minutes: 60, mode: 'audio', visibility: 'members' };
+    const c1 = await create(O, M, base);
+    check('mlive: the owner schedules a lesson', ok(c1) && !!c1.rows[0].id, c1);
+    const S1 = c1.rows?.[0]?.id;
+    check('mlive: a helper with «lessons» schedules one', ok(await create(L, M, { ...base, title: 'درس الفقه', visibility: 'public', mode: 'video', scheduled_at: inMin(30) })));
+    check('mlive: a helper without «lessons» cannot', has(await create(H, M, base), 'غير مصرح'));
+    check('mlive: a member cannot', has(await create(Mem1, M, base), 'غير مصرح'));
+    check('mlive: a guest cannot', denied(await create(null, M, base)));
+    check("mlive: an unverified mosque's owner cannot", has(await create(UO, U, base), 'غير مصرح'));
+    check('mlive: a 1-char title is refused', has(await create(O, M, { ...base, title: 'د' }), 'عنوان'));
+    check('mlive: a time in the past is refused', has(await create(O, M, { ...base, scheduled_at: inMin(-60) }), 'فات'));
+    check('mlive: more than 60 days ahead is refused', has(await create(O, M, { ...base, scheduled_at: inMin(61 * 24 * 60) }), 'شهرين'));
+    check('mlive: a 5-minute lesson is refused', has(await create(O, M, { ...base, duration_minutes: 5 }), 'مدة'));
+    check('mlive: an unknown mode is refused', denied(await create(O, M, { ...base, mode: 'tv' })));
+    check('mlive: an unknown visibility is refused', denied(await create(O, M, { ...base, visibility: 'secret' })));
+    check('mlive: max_participants over 1000 is refused', denied(await create(O, M, { ...base, max_participants: 5000 })));
+    const room1 = (await admin(db, `select room_name from mosque_live_sessions where id = $1`, [S1]))[0]?.room_name;
+    check('mlive: the room name is generated and unique-looking', /^mlive_[a-z0-9]{32}$/.test(room1 || ''), room1);
+    check('mlive: the client cannot read the table directly', denied(await as(db, Mem1, `select * from mosque_live_sessions`)));
+    check('mlive: …nor insert into it', denied(await as(db, O, `insert into mosque_live_sessions (mosque_id, title, scheduled_at, room_name) values ($1, 'x x', now(), 'mlive_aaaaaaaaaaaaaaaaaaaa')`, [M])));
+    check('mlive: …nor read participants', denied(await as(db, O, `select * from mosque_live_participants`)));
+    check('mlive: scheduling notifies the followers', (await notes(Mem1, 'درس أونلاين جديد%')) === 1 && (await notes(F, 'درس أونلاين جديد%')) === 1);
+    check("mlive: …not the one who scheduled it", (await notes(O, 'درس أونلاين جديد%')) === 0);
+    check('mlive: …and the 0080 2-hour limit holds (the 2nd lesson notified nobody)', (await notes(Mem1, 'درس أونلاين%')) === 1);
+
+    // ---- lists
+    const list = async (u, past = false) => (await as(db, u, `select public.masjid_live_sessions($1, $2) as j`, [M, past])).rows?.map((r) => r.j) ?? [];
+    const gl = await list(null);
+    check('mlive: guests see the upcoming lessons (cannot join)', gl.length === 2 && gl.every((s) => s.can_join === false) && !('room_name' in gl[0]), gl);
+    const ml = await list(Mem1);
+    check('mlive: a member can join both', ml.length === 2 && ml.every((s) => s.can_join === true));
+    const xl = await list(X);
+    check('mlive: an outsider can join the public one only', xl.find((s) => s.id === S1)?.can_join === false && xl.find((s) => s.id !== S1)?.can_join === true);
+    check('mlive: hosts are flagged', (await list(O)).every((s) => s.is_host === true) && ml.every((s) => s.is_host === false));
+
+    // ---- update / cancel
+    check('mlive: the owner edits a scheduled lesson', ok(await as(db, O, `select public.masjid_live_update($1, $2::jsonb)`, [S1, JSON.stringify({ ...base, title: 'تفسير الكهف — الجزء الأول', scheduled_at: inMin(20) })])));
+    check('mlive: a member cannot edit it', has(await as(db, Mem1, `select public.masjid_live_update($1, $2::jsonb)`, [S1, JSON.stringify(base)]), 'غير مصرح'));
+    const c3 = await create(O, M, { ...base, title: 'درس هيتلغي', scheduled_at: inMin(600) });
+    const S3 = c3.rows?.[0]?.id;
+    check('mlive: a member cannot cancel', denied(await as(db, Mem1, `select public.masjid_live_cancel($1)`, [S3])));
+    check('mlive: the owner cancels a scheduled lesson', ok(await as(db, O, `select public.masjid_live_cancel($1)`, [S3])) &&
+      (await admin(db, `select status from mosque_live_sessions where id = $1`, [S3]))[0].status === 'cancelled');
+    check('mlive: a cancelled lesson cannot be started', denied(await as(db, O, `select public.masjid_live_start($1)`, [S3])));
+    check('mlive: joining a cancelled lesson says so', (await join(Mem1, S3))?.reason === 'cancelled');
+
+    // ---- before it starts
+    check('mlive: joining before the start → not_live', (await join(Mem1, S1))?.reason === 'not_live');
+    const ownerEarly = await join(O, S1);
+    check('mlive: …the host is told to start it', ownerEarly?.reason === 'not_live' && ownerEarly.is_host === true, ownerEarly);
+    check('mlive: guests cannot call the join check at all', denied(await as(db, null, `select public.masjid_live_join_check($1)`, [S1])));
+    check('mlive: an unknown lesson → not_found', (await join(Mem1, '00000000-0000-0000-0000-000000000000'))?.reason === 'not_found');
+    const far = await create(FO, Far, { ...base, title: 'درس بكرة', scheduled_at: inMin(24 * 60) });
+    check('mlive: starting more than an hour early is refused', has(await as(db, FO, `select public.masjid_live_start($1)`, [far.rows?.[0]?.id]), 'بساعة'));
+
+    // ---- start
+    check('mlive: a member cannot start it', denied(await as(db, Mem1, `select public.masjid_live_start($1)`, [S1])));
+    check('mlive: a helper without «lessons» cannot start it', denied(await as(db, H, `select public.masjid_live_start($1)`, [S1])));
+    const st = await as(db, O, `select public.masjid_live_start($1) as s`, [S1]);
+    check('mlive: the owner starts it', ok(st) && st.rows[0].s.status === 'live', st);
+    check('mlive: going live notifies the members once', (await notes(Mem1, 'درس مباشر دلوقتي%')) === 1 && (await notes(F, 'درس مباشر دلوقتي%')) === 1);
+    check('mlive: starting again is a no-op (no second notification)', ok(await as(db, O, `select public.masjid_live_start($1)`, [S1])) && (await notes(Mem1, 'درس مباشر دلوقتي%')) === 1);
+    const S2 = (await admin(db, `select id from mosque_live_sessions where mosque_id = $1 and visibility = 'public' and status = 'scheduled'`, [M]))[0].id;
+    check('mlive: only one live lesson per mosque', has(await as(db, L, `select public.masjid_live_start($1)`, [S2]), 'درس تاني شغال'));
+    check('mlive: a started lesson cannot be edited', denied(await as(db, O, `select public.masjid_live_update($1, $2::jsonb)`, [S1, JSON.stringify(base)])));
+    check('mlive: a live lesson cannot be cancelled', denied(await as(db, O, `select public.masjid_live_cancel($1)`, [S1])));
+
+    // ---- join check
+    const jo = await join(O, S1);
+    check('mlive: the owner joins as host', jo?.ok === true && jo.role === 'host' && jo.room === room1 && jo.name === 'mlive owner', jo);
+    check('mlive: a helper with «lessons» is a host too', (await join(L, S1))?.role === 'host');
+    const j1 = await join(Mem1, S1);
+    check('mlive: a member joins as listener', j1?.ok === true && j1.role === 'listener' && j1.can_speak === true, j1);
+    check('mlive: the identity is an opaque participant id, not the account id',
+      /^[0-9a-f-]{36}$/.test(j1?.identity || '') && j1.identity !== Mem1 &&
+      (await admin(db, `select user_id from mosque_live_participants where id = $1`, [j1.identity]))[0]?.user_id === Mem1);
+    check('mlive: re-joining keeps the same identity', (await join(Mem1, S1))?.identity === j1?.identity);
+    const j2 = await join(Mem2, S1);
+    check('mlive: an unverified member listens (can_speak = false)', j2?.ok === true && j2.role === 'listener' && j2.can_speak === false, j2);
+    check('mlive: a non-member is refused a members-only lesson', (await join(X, S1))?.reason === 'members_only');
+    check('mlive: a follower who is not a member is refused too', (await join(F, S1))?.reason === 'members_only');
+    await as(db, Mem1, `select public.masjid_chat_set_nickname($1, 'أبو يوسف')`, [M]);
+    check("mlive: the display name is the member's chat nickname", (await join(Mem1, S1))?.name === 'أبو يوسف');
+
+    // ---- hands
+    const hand = (u, raise) => as(db, u, `select public.masjid_live_hand($1, $2) as r`, [S1, raise]);
+    check('mlive: an unverified listener cannot raise a hand', has(await hand(Mem2, true), 'توثّق'));
+    check('mlive: …but can lower it', ok(await hand(Mem2, false)));
+    check('mlive: someone who never joined cannot raise a hand', has(await hand(X, true), 'ادخل الدرس'));
+    check('mlive: a verified listener raises a hand', ok(await hand(Mem1, true)));
+    const hands = await as(db, O, `select * from public.masjid_live_hands($1)`, [S1]);
+    check('mlive: the host sees the raised hand (with the nickname)', ok(hands) && hands.rows.length === 1 && hands.rows[0].participant_id === j1.identity && hands.rows[0].name === 'أبو يوسف', hands);
+    check('mlive: a listener cannot list the hands', denied(await as(db, Mem1, `select * from public.masjid_live_hands($1)`, [S1])));
+
+    // ---- speakers
+    const speaker = (u, p, on) => as(db, u, `select public.masjid_live_set_speaker($1, $2, $3) as r`, [S1, p, on]);
+    check('mlive: a listener cannot promote anyone', denied(await speaker(Mem2, j1.identity, true)));
+    const pr = await speaker(O, j1.identity, true);
+    check('mlive: the host promotes the hand to speaker', ok(pr) && pr.rows[0].r.identity === j1.identity && pr.rows[0].r.room === room1 && pr.rows[0].r.speaker === true, pr);
+    check('mlive: …the hand is lowered', (await as(db, O, `select * from public.masjid_live_hands($1)`, [S1])).rows.every((r) => r.hand_raised_at === null));
+    check('mlive: the speaker re-joins as speaker', (await join(Mem1, S1))?.role === 'speaker');
+    check('mlive: an unverified listener cannot be promoted', has(await speaker(O, j2.identity, true), 'ماوثّقش'));
+    check('mlive: a host cannot be "promoted"', denied(await speaker(O, jo.identity, true)));
+    check('mlive: the host demotes the speaker', ok(await speaker(O, j1.identity, false)) && (await join(Mem1, S1))?.role === 'listener');
+    check('mlive: a verified phone is re-checked at join (speaker flag alone is not enough)', await (async () => {
+      await speaker(O, j1.identity, true);
+      await admin(db, `update profiles set phone_verified_at = null where id = $1`, [Mem1]);
+      const r = (await join(Mem1, S1))?.role;
+      await admin(db, `update profiles set phone_verified_at = now() where id = $1`, [Mem1]);
+      await speaker(O, j1.identity, false);
+      return r === 'listener';
+    })());
+
+    // ---- remove
+    check('mlive: a listener cannot remove anyone', denied(await as(db, Mem1, `select public.masjid_live_remove($1, $2)`, [S1, j2.identity])));
+    check('mlive: the host cannot remove a host', denied(await as(db, O, `select public.masjid_live_remove($1, $2)`, [S1, jo.identity])));
+    const rm = await as(db, O, `select public.masjid_live_remove($1, $2) as r`, [S1, j2.identity]);
+    check('mlive: the host removes a listener', ok(rm) && rm.rows[0].r.identity === j2.identity, rm);
+    check('mlive: …who cannot re-join that lesson', (await join(Mem2, S1))?.reason === 'removed');
+    check('mlive: …nor raise a hand', denied(await hand(Mem2, true)));
+    check('mlive: host_room is for hosts only', ok(await as(db, O, `select public.masjid_live_host_room($1)`, [S1])) && denied(await as(db, Mem1, `select public.masjid_live_host_room($1)`, [S1])));
+
+    // ---- feed
+    const feed = async (u, lat, lng) => (await as(db, u, `select public.masjid_live_feed($1, $2, 10, 20) as j`, [lat ?? null, lng ?? null])).rows?.map((r) => r.j) ?? [];
+    const fm = await feed(Mem1);
+    check("mlive: the feed shows a member their mosque's lessons (live first)", fm.length === 2 && fm[0].id === S1 && fm[0].status === 'live' && fm[0].my_mosque === true, fm);
+    const fx = await feed(X, 30.05, 31.25);
+    check('mlive: an outsider nearby sees only the public lesson', fx.length === 1 && fx[0].visibility === 'public' && typeof fx[0].distance_km === 'number', fx);
+    check('mlive: an outsider far away sees nothing from there', (await feed(X, 24.09, 32.9)).every((s) => s.mosque_id !== M));
+    const fg = await feed(null, 30.05, 31.25);
+    check('mlive: a guest nearby sees the public lesson (can_join = false)', fg.length === 1 && fg[0].can_join === false);
+    check('mlive: the far mosque shows up for its own owner', (await feed(FO)).some((s) => s.mosque_id === Far));
+
+    // ---- end
+    check('mlive: a member cannot end it', denied(await as(db, Mem1, `select public.masjid_live_end($1)`, [S1])));
+    const en = await as(db, O, `select public.masjid_live_end($1) as room`, [S1]);
+    check('mlive: the host ends it (room name back for LiveKit)', ok(en) && en.rows[0].room === room1, en);
+    check('mlive: joining an ended lesson says it is over', (await join(Mem1, S1))?.reason === 'ended');
+    check('mlive: …even for the host', (await join(O, S1))?.reason === 'ended');
+    check('mlive: hands are refused after the end', denied(await hand(Mem1, true)));
+    check('mlive: the ended lesson leaves the lists', (await list(Mem1)).every((s) => s.id !== S1) && (await feed(Mem1)).every((s) => s.id !== S1));
+    check('mlive: managers still see it with past lessons', (await list(O, true)).some((s) => s.id === S1 && s.status === 'ended'));
+    check('mlive: …members do not', (await list(Mem1, true)).every((s) => s.id !== S1));
+
+    // ---- stale & expiry
+    check('mlive: the public lesson can start now the other one ended', ok(await as(db, L, `select public.masjid_live_start($1)`, [S2])));
+    check('mlive: the outsider joins the public lesson as listener', (await join(X, S2))?.role === 'listener');
+    await admin(db, `update mosque_live_sessions set started_at = now() - interval '8 hours' where id = $1`, [S2]);
+    check('mlive: a forgotten live lesson counts as ended', (await join(X, S2))?.reason === 'ended' && (await feed(X, 30.05, 31.25)).every((s) => s.id !== S2));
+    check('mlive: members cannot run the expiry', denied(await as(db, Mem1, `select public.masjid_live_expire()`)));
+    const ex = await admin(db, `select public.masjid_live_expire() as n`);
+    check('mlive: the expiry closes it', ex[0].n >= 1 && (await admin(db, `select status from mosque_live_sessions where id = $1`, [S2]))[0].status === 'ended', ex);
+
+    // ---- the LiveKit token signer (the exact block from the Edge Function)
+    const src = fs.readFileSync(path.join(__dirname, '..', 'functions', 'livekit-token', 'index.ts'), 'utf8');
+    const block = src.slice(src.indexOf('// ----------------------------------------------------------------- jwt:begin'), src.indexOf('// ------------------------------------------------------------------- jwt:end'));
+    let lk = null;
+    try {
+      lk = new Function('crypto', block + '\nreturn { b64url, signJwtHs256, liveKitGrant, liveKitToken };')(require('crypto').webcrypto);
+    } catch (e) {
+      lk = { error: e.message };
+    }
+    check('mlive: the jwt block runs in Node as plain JavaScript', lk && !lk.error, lk);
+    if (lk && !lk.error) {
+      const vector = await lk.signJwtHs256({ sub: '1234567890', name: 'John Doe', iat: 1516239022 }, 'your-256-bit-secret');
+      check('mlive: HS256 matches the RFC/jwt.io test vector',
+        vector === 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c', vector);
+      const nodeCrypto = require('crypto');
+      const tok = await lk.liveKitToken('APIkey123', 'secret-ÄØ-عربي', j1.identity, 'أبو يوسف', lk.liveKitGrant('listener', 'audio', room1), 7200, '{"role":"listener"}', 1700000000000);
+      const [h, p, sig] = tok.split('.');
+      const expect = nodeCrypto.createHmac('sha256', 'secret-ÄØ-عربي').update(h + '.' + p).digest('base64url');
+      check('mlive: the LiveKit token verifies with Node crypto (UTF-8 secret)', sig === expect);
+      const payload = JSON.parse(Buffer.from(p, 'base64url').toString('utf8'));
+      check('mlive: token claims: iss, sub, name, nbf/exp = 2 h, metadata',
+        payload.iss === 'APIkey123' && payload.sub === j1.identity && payload.name === 'أبو يوسف' &&
+        payload.exp - payload.iat === 7200 && payload.nbf <= payload.iat && payload.iat === 1700000000 && payload.metadata === '{"role":"listener"}', payload);
+      const lg = payload.video;
+      check('mlive: listener grant: join + subscribe + data, no publish, no admin',
+        lg.room === room1 && lg.roomJoin === true && lg.canSubscribe === true && lg.canPublishData === true &&
+        lg.canPublish === false && !('canPublishSources' in lg) && !('roomAdmin' in lg), lg);
+      const sg = lk.liveKitGrant('speaker', 'audio', room1);
+      check('mlive: speaker grant in an audio lesson: microphone only', sg.canPublish === true && JSON.stringify(sg.canPublishSources) === '["microphone"]' && sg.roomAdmin === undefined);
+      const hg = lk.liveKitGrant('host', 'video', room1);
+      check('mlive: host grant in a video lesson: camera + mic + screen, room admin',
+        hg.canPublish === true && hg.roomAdmin === true && hg.canPublishSources.includes('camera') && hg.canPublishSources.includes('microphone'));
+      check('mlive: unknown roles get the listener grant', lk.liveKitGrant('owner', 'video', room1).canPublish === false);
+    }
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

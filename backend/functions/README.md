@@ -68,3 +68,51 @@ Firebase console: Authentication → Phone enabled; Authorized domains
 mogtama3y.com, tajer.mogtama3y.com, ittihad.mogtama3y.com, masjidi.mogtama3y.com; SMS region policy
 Allow → Egypt only. New projects can send 10 SMS/day until a billing account
 is linked (Blaze).
+
+## `livekit-token` — «دروس أونلاين» live lessons on LiveKit Cloud (migration 0085)
+
+The live-lesson page `web/live/` (served at `/live/?s=<lesson id>` on every
+domain) calls this function with the user's Supabase session. The function
+asks the database (as that user) whether they may join and in which role —
+`masjid_live_join_check` — and mints a LiveKit access token (HS256 JWT,
+signed with Web Crypto, no dependencies): hosts (the mosque's verified
+admins with the «الدروس» permission) publish and are room admins, speakers
+(listeners a host promoted; verified phone required) publish, listeners
+only subscribe. Everyone may send data messages (the in-room chat and ✋,
+never stored). Identity = an opaque per-lesson participant id (not the
+account id). The same function lets the host start / end the lesson,
+promote / demote speakers (LiveKit `UpdateParticipant`), remove someone
+(`RemoveParticipant`) and mute a track (`MutePublishedTrack`).
+
+Deploy (dashboard, no CLI needed):
+
+1. Run `backend/migrations/0085_masjid_live_lessons.sql` in the SQL editor.
+2. LiveKit Cloud → your project → **Settings → Keys** → copy the WebSocket URL
+   (`wss://<project>.livekit.cloud`), the API key and the API secret.
+3. Supabase → **Edge Functions → Secrets** → add:
+   - `LIVEKIT_URL` = `wss://<project>.livekit.cloud`
+   - `LIVEKIT_API_KEY` = the API key
+   - `LIVEKIT_API_SECRET` = the API secret
+4. Supabase → **Edge Functions → Deploy a new function → Via editor**:
+   - Name: `livekit-token` — paste the whole of `livekit-token/index.ts`, deploy.
+   - Turn **Enforce JWT verification OFF** (the function checks the session itself).
+   - Check the **slug** the dashboard gave it (in the function's URL,
+     `…/functions/v1/<slug>`). The page calls `livekit-token`; if the slug
+     differs (like `hyper-api` / `smooth-action` above), change
+     `FUNCTION_SLUG` at the top of `web/live/live.js` to it and redeploy the site.
+5. Test: schedule a lesson from «إدارة المسجد → أونلاين», press «ابدأ»,
+   then open it on a second phone as a member.
+
+CLI alternative:
+
+```bash
+supabase functions deploy livekit-token --no-verify-jwt --project-ref pxiabifybakbsqlycffc
+supabase secrets set LIVEKIT_URL=wss://... LIVEKIT_API_KEY=... LIVEKIT_API_SECRET=... --project-ref pxiabifybakbsqlycffc
+```
+
+Without the secrets the function answers 503 «الدروس الأونلاين لسه مش
+متفعّلة» and the page shows that message. CORS allows mogtama3y.com,
+www.mogtama3y.com, masjidi.mogtama3y.com and http://localhost / 127.0.0.1.
+The token signer is the block between `jwt:begin` / `jwt:end`; Node runs
+that exact code in `backend/tests/run.js` (phase «mlive») against a known
+HS256 vector.

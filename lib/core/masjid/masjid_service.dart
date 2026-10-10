@@ -294,6 +294,38 @@ class MasjidService {
 
   static Future<List<Map<String, dynamic>>> results(String competitionId) async =>
       _rows(await _db.rpc('masjid_competition_results', params: {'p_competition': competitionId}));
+
+  // ------------------------------------------- «دروس أونلاين» (0085)
+  /// The Edge Function's slug (backend/functions/README.md); web/live/live.js has the same.
+  static const liveFunctionSlug = 'livekit-token';
+
+  /// A mosque's upcoming + live lessons ([includePast]: its managers also get the last 30 days).
+  static Future<List<Map<String, dynamic>>> liveSessions(String mosqueId, {bool includePast = false}) async =>
+      _rows(await _db.rpc('masjid_live_sessions', params: {'p_mosque': mosqueId, 'p_include_past': includePast}));
+
+  /// «دروس أونلاين دلوقتي»: live now + the next 7 days near the user and in their mosques.
+  static Future<List<Map<String, dynamic>>> liveFeed({double? lat, double? lng, double km = 10}) async =>
+      _rows(await _db.rpc('masjid_live_feed', params: {'p_lat': lat, 'p_lng': lng, 'p_km': km, 'p_limit': 20}));
+
+  static Future<String> liveCreate(String mosqueId, Map<String, dynamic> values) async =>
+      await _db.rpc('masjid_live_create', params: {'p_mosque': mosqueId, 'p': values}) as String;
+
+  static Future<void> liveUpdate(String sessionId, Map<String, dynamic> values) =>
+      _db.rpc('masjid_live_update', params: {'p_session': sessionId, 'p': values});
+
+  static Future<void> liveCancel(String sessionId) => _db.rpc('masjid_live_cancel', params: {'p_session': sessionId});
+
+  static Future<void> liveStart(String sessionId) => _db.rpc('masjid_live_start', params: {'p_session': sessionId});
+
+  /// Ends the lesson and closes the LiveKit room (through the Edge
+  /// Function); falls back to the database alone if the function is down.
+  static Future<void> liveEnd(String sessionId) async {
+    try {
+      final r = await _db.functions.invoke(liveFunctionSlug, body: {'action': 'end', 'session': sessionId});
+      if (r.status == 200) return;
+    } catch (_) {}
+    await _db.rpc('masjid_live_end', params: {'p_session': sessionId});
+  }
 }
 
 /// "1,000" — Arabic-friendly money without decimals.

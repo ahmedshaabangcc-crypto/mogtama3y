@@ -13,7 +13,9 @@ import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import 'add_mosque_screen.dart';
 import 'join_mosque_screen.dart';
+import '../../core/masjid/masjid_live.dart';
 import 'masjid_community_widgets.dart';
+import 'masjid_live_widgets.dart';
 import 'masjid_widgets.dart';
 
 /// «المساجد» — the masjid app's home and the mosques section of مُجتمعي.
@@ -45,6 +47,7 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
   bool _mineLoaded = false;
   List<Map<String, dynamic>> _feed = [];
   bool _feedLoading = true;
+  List<Map<String, dynamic>> _live = [];
   List<Map<String, dynamic>>? _results;
   bool _loadingNearby = true;
   bool _nearbyError = false;
@@ -83,7 +86,21 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
     }
     _loadNearby();
     _loadFeed();
+    _loadLive();
   }
+
+  /// «دروس أونلاين» (0085): live now + this week, near you and in your mosques.
+  Future<void> _loadLive() async {
+    try {
+      final rows = await MasjidService.liveFeed(lat: _located ? _lat : null, lng: _located ? _lng : null);
+      if (mounted) setState(() => _live = rows..sort(compareLive));
+    } catch (_) {
+      // The section just stays hidden.
+    }
+  }
+
+  void _openLiveList() => Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => LiveLessonsScreen(lat: _located ? _lat : null, lng: _located ? _lng : null)));
 
   Future<void> _loadFeed() async {
     setState(() => _feedLoading = true);
@@ -139,6 +156,7 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
     if (!mounted) return;
     await _loadMine();
     _loadFeed();
+    _loadLive();
   }
 
   void _onSearch(String q) {
@@ -226,7 +244,15 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
                 icon: const Icon(Icons.my_location_rounded, color: AppColors.gold, size: 18),
                 label: const Text('فعّل الموقع لمواقيت منطقتك وأقرب مسجد', style: TextStyle(color: AppColors.gold)),
               ),
-            // 4. «قريب منك».
+            // 4. «دروس أونلاين» — live now / this week.
+            if (_live.isNotEmpty) ...[
+              _header(_live.any((s) => liveIsLive(s, DateTime.now())) ? 'دروس أونلاين دلوقتي' : 'دروس أونلاين جاية',
+                  trailing: _live.length > 3
+                      ? TextButton(onPressed: _openLiveList, child: Text('الكل (${_live.length})', style: const TextStyle(color: AppColors.gold, fontSize: 12)))
+                      : null),
+              for (final s in _live.take(3)) LiveLessonCard(session: s),
+            ],
+            // 5. «قريب منك».
             _header('قريب منك'),
             if (_feedLoading)
               const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator()))
@@ -316,7 +342,17 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                const Expanded(child: ComingSoonTile(icon: Icons.live_tv_rounded, title: 'دروس أونلاين', subtitle: 'دروس المسجد مباشرة من موبايلك')),
+                Expanded(
+                  child: ComingSoonTile(
+                    icon: Icons.live_tv_rounded,
+                    title: 'دروس أونلاين',
+                    subtitle: _live.any((s) => liveIsLive(s, DateTime.now()))
+                        ? 'فيه درس مباشر دلوقتي — ادخل واسمع'
+                        : 'دروس المسجد مباشرة من موبايلك — صوت بس أو صوت وصورة',
+                    badge: 'جديد',
+                    onTap: _openLiveList,
+                  ),
+                ),
               ]),
             ),
             const SizedBox(height: 16),

@@ -13,6 +13,7 @@ import '../tutorials/tutorial_widgets.dart';
 import '../../core/masjid/masjid_community.dart';
 import 'claim_mosque_screen.dart';
 import 'masjid_community_widgets.dart';
+import 'masjid_live_widgets.dart';
 import 'masjid_widgets.dart';
 import 'mosque_chat_nickname.dart';
 import 'mosque_manage_screen.dart';
@@ -38,6 +39,7 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
   List<Map<String, dynamic>> _needs = [];
   List<Map<String, dynamic>> _orphans = [];
   List<Map<String, dynamic>> _comps = [];
+  List<Map<String, dynamic>> _live = [];
   Map<String, Map<String, dynamic>> _compCounts = {};
   bool _loading = true;
   bool _error = false;
@@ -67,6 +69,8 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
         MasjidService.competitions(_id),
       ]);
       final counts = await MasjidService.competitionCounts(_id);
+      // «دروس أونلاين» (0085) — never blocks the page.
+      final live = await MasjidService.liveSessions(_id).catchError((_) => <Map<String, dynamic>>[]);
       if (!mounted) return;
       setState(() {
         _m = m;
@@ -76,6 +80,7 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
         _orphans = results[3];
         _comps = results[4];
         _compCounts = counts;
+        _live = live;
         _loading = false;
       });
     } catch (_) {
@@ -618,6 +623,11 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
           padding: const EdgeInsets.only(top: 12),
           child: ElevatedButton.icon(onPressed: _manage, icon: const Icon(Icons.admin_panel_settings_rounded), label: const Text('إدارة المسجد')),
         ),
+
+      // ---- live lessons (0085)
+      _section('دروس أونلاين', Icons.live_tv_rounded, [
+        for (final s in _live) LiveLessonCard(session: s, showMosque: false),
+      ]),
 
       // ---- announcements
       _section('إعلانات المسجد', Icons.campaign_rounded, [
