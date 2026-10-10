@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../core/masjid/prayer_times.dart' show egyptToday;
+import '../../core/masjid/world_time.dart' show deviceToday;
 import '../../core/masjid_tools/dhikr_counter.dart';
 import '../../core/masjid_tools/hijri.dart' show toArabicDigits;
 import '../../core/masjid_tools/platform/feedback.dart';
@@ -87,7 +87,7 @@ class _AdhkarListScreenState extends State<AdhkarListScreen> {
   late final _keys = List.generate(widget.category.items.length, (_) => GlobalKey());
 
   String get _prefsKey => 'mt.adhkar.${widget.category.id}';
-  String get _today => egyptToday().toIso8601String().substring(0, 10);
+  String get _today => deviceToday().toIso8601String().substring(0, 10);
 
   @override
   void initState() {

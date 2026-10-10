@@ -3,6 +3,8 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../core/masjid/masjid_service.dart';
 import '../../core/masjid/prayer_times.dart';
+import '../../core/masjid/world_places.dart' show pickableCurrencies;
+import '../../core/masjid/world_time.dart' show currencyLabel;
 import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
@@ -27,8 +29,8 @@ class MosqueManageScreen extends StatelessWidget {
       if (perms.contains('posts')) ('الإعلانات', Icons.campaign_rounded, _PostsTab(mosqueId: id)),
       if (perms.contains('lessons')) ('الدروس', Icons.menu_book_rounded, _LessonsTab(mosqueId: id)),
       if (perms.contains('lessons')) ('أونلاين', Icons.live_tv_rounded, MosqueLiveManageTab(mosqueId: id)),
-      if (perms.contains('needs')) ('الاحتياجات', Icons.volunteer_activism_rounded, _NeedsTab(mosqueId: id)),
-      if (perms.contains('orphans')) ('الأيتام', Icons.child_care_rounded, _OrphansTab(mosqueId: id)),
+      if (perms.contains('needs')) ('الاحتياجات', Icons.volunteer_activism_rounded, _NeedsTab(mosqueId: id, currency: mosque['currency'] as String?)),
+      if (perms.contains('orphans')) ('الأيتام', Icons.child_care_rounded, _OrphansTab(mosqueId: id, currency: mosque['currency'] as String?)),
       if (perms.contains('competitions')) ('المسابقات', Icons.emoji_events_rounded, _CompetitionsTab(mosqueId: id)),
       if (perms.contains('settings')) ('البيانات', Icons.tune_rounded, _SettingsTab(mosque: mosque)),
       if (perms.contains('team')) ('الفريق', Icons.groups_rounded, _TeamTab(mosqueId: id)),
@@ -335,8 +337,9 @@ class _LessonsTabState extends State<_LessonsTab> with _Loader {
 
 // ================================================================= needs
 class _NeedsTab extends StatefulWidget {
-  const _NeedsTab({required this.mosqueId});
+  const _NeedsTab({required this.mosqueId, this.currency});
   final String mosqueId;
+  final String? currency;
 
   @override
   State<_NeedsTab> createState() => _NeedsTabState();
@@ -344,7 +347,7 @@ class _NeedsTab extends StatefulWidget {
 
 class _NeedsTabState extends State<_NeedsTab> with _Loader {
   @override
-  Future<List<Map<String, dynamic>>> fetch() => MasjidService.needs(widget.mosqueId);
+  Future<List<Map<String, dynamic>>> fetch() async => [for (final n in await MasjidService.needs(widget.mosqueId)) {...n, 'currency': widget.currency}];
 
   Future<void> _add() async {
     final title = TextEditingController();
@@ -360,7 +363,7 @@ class _NeedsTabState extends State<_NeedsTab> with _Loader {
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               TextField(controller: title, decoration: const InputDecoration(labelText: 'الاحتياج', hintText: 'مروحة سقف للمصلى')),
               TextField(controller: desc, maxLines: 3, decoration: const InputDecoration(labelText: 'التفاصيل (اختياري)')),
-              TextField(controller: target, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'المبلغ المطلوب (ج.م)', hintText: '1000')),
+              TextField(controller: target, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'المبلغ المطلوب (${currencyLabel(widget.currency)})', hintText: '1000')),
               TextButton.icon(
                 onPressed: () async {
                   final f = await UploadService.pickImage(source: ImageSource.gallery);
@@ -404,7 +407,7 @@ class _NeedsTabState extends State<_NeedsTab> with _Loader {
       builder: (ctx) => AlertDialog(
         title: const Text('سجّل مبلغ وصل كاش'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: amount, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'المبلغ (ج.م)')),
+          TextField(controller: amount, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'المبلغ (${currencyLabel(widget.currency)})')),
           TextField(controller: name, decoration: const InputDecoration(labelText: 'اسم المتبرع (فاضي = فاعل خير)')),
         ]),
         actions: [
@@ -464,8 +467,9 @@ class _NeedsTabState extends State<_NeedsTab> with _Loader {
 
 // =============================================================== orphans
 class _OrphansTab extends StatefulWidget {
-  const _OrphansTab({required this.mosqueId});
+  const _OrphansTab({required this.mosqueId, this.currency});
   final String mosqueId;
+  final String? currency;
 
   @override
   State<_OrphansTab> createState() => _OrphansTabState();
@@ -473,7 +477,7 @@ class _OrphansTab extends StatefulWidget {
 
 class _OrphansTabState extends State<_OrphansTab> with _Loader {
   @override
-  Future<List<Map<String, dynamic>>> fetch() => MasjidService.orphanPrograms(widget.mosqueId);
+  Future<List<Map<String, dynamic>>> fetch() async => [for (final o in await MasjidService.orphanPrograms(widget.mosqueId)) {...o, 'currency': widget.currency}];
 
   Future<void> _edit([Map<String, dynamic>? o]) async {
     final title = TextEditingController(text: (o?['title'] as String?) ?? 'كفالة طفل');
@@ -489,12 +493,12 @@ class _OrphansTabState extends State<_OrphansTab> with _Loader {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(color: const Color(0xFFFFF4E5), borderRadius: BorderRadius.circular(10)),
-              child: const Text('ممنوع تكتب أسماء أو صور أو عناوين أو أي بيانات تعرّف الأطفال. اكتب البرنامج بشكل عام بس (مثلاً: كفالة طفل — 500 ج.م شهرياً).',
+              child: Text('ممنوع تكتب أسماء أو صور أو عناوين أو أي بيانات تعرّف الأطفال. اكتب البرنامج بشكل عام بس (مثلاً: كفالة طفل — 500 ${currencyLabel(widget.currency)} شهرياً).',
                   style: TextStyle(fontSize: 11.5, height: 1.6)),
             ),
             TextField(controller: title, decoration: const InputDecoration(labelText: 'اسم البرنامج')),
             TextField(controller: desc, maxLines: 3, decoration: const InputDecoration(labelText: 'وصف عام (اختياري)')),
-            TextField(controller: monthly, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'المبلغ الشهري (ج.م)')),
+            TextField(controller: monthly, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'المبلغ الشهري (${currencyLabel(widget.currency)})')),
             TextField(controller: slots, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'عدد الكفالات المطلوبة (اختياري)')),
           ]),
         ),
@@ -544,7 +548,7 @@ class _OrphansTabState extends State<_OrphansTab> with _Loader {
           for (final o in rows)
             Card(
               child: ListTile(
-                title: Text('${o['title']} — ${masjidMoney(o['monthly_amount'] as num?)} ج.م شهرياً'),
+                title: Text('${o['title']} — ${masjidAmount(o['monthly_amount'] as num?, widget.currency)} شهرياً'),
                 subtitle: Text('${o['active_sponsors']} كفيل مؤكد • ${o['pledged_sponsors']} مستني تأكيد${o['status'] == 'closed' ? ' • مقفول' : ''}'),
                 onTap: () => _sponsors(o),
                 trailing: PopupMenuButton<String>(
@@ -589,7 +593,7 @@ class _SponsorsListState extends State<_SponsorsList> with _Loader {
       for (final s in rows)
         Card(
           child: ListTile(
-            title: Text('${s['full_name']} — ${masjidMoney(s['monthly_amount'] as num?)} ج.م'),
+            title: Text('${s['full_name']} — ${masjidAmount(s['monthly_amount'] as num?, widget.program['currency'] as String?)}'),
             subtitle: Text([labels[s['status']] ?? '', if (s['phone'] != null) s['phone'], if (s['note'] != null) s['note']].join(' • ')),
             trailing: Row(mainAxisSize: MainAxisSize.min, children: [
               if (s['status'] == 'pledged')
@@ -803,6 +807,7 @@ class _SettingsTabState extends State<_SettingsTab> {
       'area': TextEditingController(text: t(m['area'])),
       'governorate': TextEditingController(text: t(m['governorate'])),
       'contact_whatsapp': TextEditingController(text: t(m['contact_whatsapp'])),
+      'currency': TextEditingController(text: (m['currency'] as String?) ?? 'EGP'),
       'contact_phone': TextEditingController(text: t(m['contact_phone'])),
       'payment_note': TextEditingController(text: t(m['payment_note'])),
       'khatib': TextEditingController(text: t(m['khatib'])),
@@ -866,7 +871,17 @@ class _SettingsTabState extends State<_SettingsTab> {
       _f('khatib', 'الخطيب', hint: 'الشيخ محمود'),
       const SizedBox(height: 6),
       const Text('التواصل والدفع', style: TextStyle(fontWeight: FontWeight.w800)),
-      _f('contact_whatsapp', 'واتساب المسجد', hint: '01xxxxxxxxx', type: TextInputType.phone),
+      _f('contact_whatsapp', 'واتساب المسجد', hint: widget.mosque['country'] == 'EG' || widget.mosque['country'] == null ? '01xxxxxxxxx' : '+9715xxxxxxxx', type: TextInputType.phone),
+      Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: DropdownButtonFormField<String>(
+          initialValue: pickableCurrencies.contains(_c['currency']!.text) ? _c['currency']!.text : null,
+          isExpanded: true,
+          decoration: const InputDecoration(labelText: 'عملة المبالغ (الاحتياجات والكفالة)'),
+          items: [for (final c in pickableCurrencies) DropdownMenuItem(value: c, child: Text('${currencyLabel(c)} — $c'))],
+          onChanged: (v) => _c['currency']!.text = v ?? 'EGP',
+        ),
+      ),
       _f('contact_phone', 'تليفون المسجد (اختياري)', type: TextInputType.phone),
       _f('payment_note', 'إزاي الناس تساهم؟', hint: 'سلّم لأمين المسجد بعد العشاء، أو فودافون كاش على رقم الواتساب'),
       const NoMoneyNote(extra: 'الرقم والطريقة دول بيظهروا للناس في صفحة المسجد.'),

@@ -8,6 +8,8 @@ import '../../core/app_flavor.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/location/where.dart';
 import '../../core/masjid/masjid_service.dart';
+import '../../core/masjid/osm_mosques.dart';
+import '../../core/masjid/world_time.dart';
 import '../../core/routing/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
@@ -32,11 +34,13 @@ class MasjidHomeScreen extends StatefulWidget {
 }
 
 class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
-  // Cairo (Tahrir) until the device gives a location.
-  static const _cairo = (30.0444, 31.2357);
+  // Until the device gives a location: the main city of the device's
+  // time zone (Dubai for Asia/Dubai…), Cairo when unknown.
+  static final _fallback = defaultPlace();
 
-  double _lat = _cairo.$1;
-  double _lng = _cairo.$2;
+  double _lat = _fallback.$2;
+  double _lng = _fallback.$3;
+  List<OsmMosque> _osm = [];
   bool _located = false;
   bool _locating = true;
 
@@ -80,7 +84,7 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
         _located = true;
       });
     } catch (_) {
-      // Keep Cairo; the card says so.
+      // Keep the default city; the card says so.
     } finally {
       if (mounted) setState(() => _locating = false);
     }
@@ -124,11 +128,23 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
       if (rows.length < 5) rows = await MasjidService.nearby(_lat, _lng, km: 15);
       if (!mounted) return;
       setState(() => _nearby = rows);
+      // Few of ours here (outside Egypt): add the ones on OpenStreetMap.
+      final near = rows.where((r) => ((r['distance_km'] as num?) ?? 99) <= 3).length;
+      if (_located && near < 5) {
+        _loadOsm(rows); // in the background — never holds the list
+      } else if (_osm.isNotEmpty) {
+        setState(() => _osm = []);
+      }
     } catch (_) {
       if (mounted) setState(() => _nearbyError = true);
     } finally {
       if (mounted) setState(() => _loadingNearby = false);
     }
+  }
+
+  Future<void> _loadOsm(List<Map<String, dynamic>> ours) async {
+    final osm = await OsmMosques.near(_lat, _lng, radiusM: 3000);
+    if (mounted && osm.isNotEmpty) setState(() => _osm = osmNotInOurs(osm, ours, _lat, _lng).take(15).toList());
   }
 
   Future<void> _loadMine() async {
@@ -236,7 +252,8 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
             PrayerTimesCard(
               lat: _lat,
               lng: _lng,
-              title: _located ? 'مواقيت الصلاة في مكانك النهارده' : 'مواقيت الصلاة (القاهرة) النهارده',
+              title: _located ? 'مواقيت الصلاة في مكانك النهارده' : 'مواقيت الصلاة (${_fallback.$1}) النهارده',
+              tz: _located ? null : _fallback.$4,
             ),
             if (!_located && !_locating)
               TextButton.icon(
@@ -325,10 +342,16 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
               const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))
             else if (_nearbyError)
               TextButton(onPressed: _loadNearby, child: const Text('تعذر التحميل — جرّب تاني', style: TextStyle(color: Colors.white70)))
-            else if (_nearby.isEmpty)
+            else if (_nearby.isEmpty && _osm.isEmpty)
               const Text('مفيش مساجد مسجلة قريب منك لسه — ضيف مسجدك.', style: TextStyle(color: Colors.white60, fontSize: 12.5))
-            else
+            else ...[
               for (final m in _nearby.take(15)) MosqueTile(mosque: m),
+              if (_osm.isNotEmpty) ...[
+                _header('مساجد قريبة على خريطة OpenStreetMap'),
+                for (final o in _osm) OsmMosqueTile(mosque: o),
+                const OsmAttribution(dark: true),
+              ],
+            ],
             _header('جديد وجاي قريب'),
             IntrinsicHeight(
               child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

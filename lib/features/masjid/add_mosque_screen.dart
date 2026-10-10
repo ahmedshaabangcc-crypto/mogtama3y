@@ -94,7 +94,7 @@ class _AddMosqueScreenState extends State<AddMosqueScreen> {
           const SizedBox(height: 10),
           TextField(controller: _area, decoration: const InputDecoration(labelText: 'المنطقة / الحي', hintText: 'مدينة نصر')),
           const SizedBox(height: 10),
-          TextField(controller: _gov, decoration: const InputDecoration(labelText: 'المحافظة', hintText: 'القاهرة')),
+          TextField(controller: _gov, decoration: const InputDecoration(labelText: 'المدينة / المحافظة', hintText: 'القاهرة')),
           const SizedBox(height: 10),
           TextField(controller: _address, decoration: const InputDecoration(labelText: 'العنوان (اختياري)')),
           const SizedBox(height: 14),
