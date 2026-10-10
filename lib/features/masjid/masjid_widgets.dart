@@ -3,11 +3,18 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/auth/auth_service.dart';
+import '../../core/masjid/masjid_community.dart' show formatMeters;
 import '../../core/masjid/masjid_service.dart';
+import '../../core/masjid/osm_mosques.dart';
+import '../../core/masjid/prayer_prefs.dart';
 import '../../core/masjid/prayer_times.dart';
+import '../../core/masjid/world_time.dart';
 import '../../core/routing/app_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../auth/auth_landing_screen.dart';
 
 const weekdayNames = {1: 'الإثنين', 2: 'الثلاثاء', 3: 'الأربعاء', 4: 'الخميس', 5: 'الجمعة', 6: 'السبت', 7: 'الأحد'};
 
@@ -34,10 +41,14 @@ String lessonWhen(Map<String, dynamic> l) {
 /// Today's prayer times for [lat]/[lng], the next prayer and a live
 /// countdown. With [iqama] (minutes after the adhan, per prayer name) each
 /// row also shows the iqama time; [khutba] replaces Dhuhr on Fridays.
+/// Times are on [tz]'s clock (the device's when null) with the method of
+/// [country] (from the coordinates when null) unless the user chose one.
 class PrayerTimesCard extends StatefulWidget {
-  const PrayerTimesCard({super.key, required this.lat, required this.lng, this.title, this.iqama, this.khutba, this.khatib, this.dark = true});
+  const PrayerTimesCard({super.key, required this.lat, required this.lng, this.tz, this.country, this.title, this.iqama, this.khutba, this.khatib, this.dark = true});
   final double lat;
   final double lng;
+  final String? tz;
+  final String? country;
   final String? title;
   final Map<String, dynamic>? iqama;
   final String? khutba;
@@ -55,28 +66,40 @@ class _PrayerTimesCardState extends State<PrayerTimesCard> {
   @override
   void initState() {
     super.initState();
+    PrayerPrefs.load();
+    PrayerPrefs.current.addListener(_onPrefs);
     _tick = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _now = DateTime.now());
     });
   }
 
+  void _onPrefs() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    PrayerPrefs.current.removeListener(_onPrefs);
     _tick?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final today = egyptToday(_now);
-    final day = PrayerCalculator.egypt.compute(today.year, today.month, today.day, widget.lat, widget.lng);
-    final next = nextPrayer(widget.lat, widget.lng, now: _now);
+    final tz = resolveTimeZone(widget.tz ?? deviceTimeZone, lng: widget.lng);
+    final country = widget.country ?? countryAt(widget.lat, widget.lng) ?? countryOfTimeZone(tz);
+    final prefs = PrayerPrefs.current.value;
+    final calc = prefs.calculatorFor(country);
+    final today = todayIn(tz, _now);
+    final day = calc.compute(today.year, today.month, today.day, widget.lat, widget.lng, tz: tz);
+    final next = nextPrayer(widget.lat, widget.lng, now: _now, calc: calc, tz: tz);
     final friday = today.weekday == DateTime.friday;
     final fg = widget.dark ? Colors.white : AppColors.ink;
     final muted = widget.dark ? Colors.white60 : AppColors.inkMuted;
+    final otherClock = differsFromDevice(tz, at: _now);
 
     Widget row(Prayer p) {
-      final isNext = p == next.prayer && egyptWallClock(next.at).day == today.day;
+      final isNext = p == next.prayer && wallClockIn(next.at, tz).day == today.day;
       final offset = (widget.iqama?[p.name] as num?)?.toInt();
       final label = p == Prayer.dhuhr && friday ? 'الجمعة' : prayerNames[p]!;
       return Container(
@@ -111,6 +134,12 @@ class _PrayerTimesCardState extends State<PrayerTimesCard> {
           const Icon(Icons.mosque_rounded, color: AppColors.gold, size: 20),
           const SizedBox(width: 8),
           Expanded(child: Text(widget.title ?? 'مواقيت الصلاة النهارده', style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 15))),
+          IconButton(
+            tooltip: 'طريقة الحساب',
+            visualDensity: VisualDensity.compact,
+            icon: Icon(Icons.tune_rounded, color: muted, size: 20),
+            onPressed: () => showPrayerSettingsSheet(context, country: country, lat: widget.lat),
+          ),
         ]),
         const SizedBox(height: 10),
         Container(
@@ -139,16 +168,84 @@ class _PrayerTimesCardState extends State<PrayerTimesCard> {
             ),
           ),
         const SizedBox(height: 4),
-        Text('حساب الهيئة المصرية العامة للمساحة — بتوقيت مصر', style: TextStyle(color: muted, fontSize: 10.5)),
+        Text('حساب ${calc.method.nameAr}${prefs.asr == 2 ? ' — العصر حنفي' : ''} — ${tzLabelAr(tz, at: _now)}',
+            style: TextStyle(color: muted, fontSize: 10.5)),
+        if (otherClock)
+          Text('المواعيد بتوقيت المكان (${utcOffsetLabel(tzOffsetMinutes(tz, _now.toUtc()))}) — مختلف عن ساعة جهازك',
+              style: TextStyle(color: widget.dark ? AppColors.gold : AppColors.inkMuted, fontSize: 10.5, fontWeight: FontWeight.w700)),
       ]),
     );
   }
 }
 
+/// «طريقة الحساب»: method (auto by country / a fixed one), Asr, high latitudes.
+Future<void> showPrayerSettingsSheet(BuildContext context, {String? country, double? lat}) => showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => ValueListenableBuilder<PrayerPrefs>(
+        valueListenable: PrayerPrefs.current,
+        builder: (ctx, p, _) {
+          final auto = methodForCountry(country);
+          return SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+                const Text('طريقة حساب مواقيت الصلاة', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  key: ValueKey('m${p.method}'),
+                  initialValue: p.isAuto ? 'auto' : p.method,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'الطريقة'),
+                  items: [
+                    DropdownMenuItem(value: 'auto', child: Text('تلقائي حسب البلد — ${auto.nameAr}', overflow: TextOverflow.ellipsis)),
+                    for (final m in prayerMethods) DropdownMenuItem(value: m.id, child: Text(m.nameAr, overflow: TextOverflow.ellipsis)),
+                  ],
+                  onChanged: (v) => PrayerPrefs.save(p.copyWith(method: v ?? 'auto')),
+                ),
+                const SizedBox(height: 14),
+                const Text('العصر', style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 6),
+                SegmentedButton<int>(
+                  segments: const [
+                    ButtonSegment(value: 1, label: Text('الجمهور (شافعي)')),
+                    ButtonSegment(value: 2, label: Text('حنفي')),
+                  ],
+                  selected: {p.asr},
+                  onSelectionChanged: (s) => PrayerPrefs.save(p.copyWith(asr: s.first)),
+                ),
+                const SizedBox(height: 14),
+                const Text('البلاد البعيدة عن خط الاستواء (فوق خط عرض 48)', style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<HighLatRule>(
+                  key: ValueKey('h${p.highLat.name}'),
+                  initialValue: p.highLat,
+                  isExpanded: true,
+                  items: [for (final r in HighLatRule.values) DropdownMenuItem(value: r, child: Text(highLatNames[r]!))],
+                  onChanged: (v) => PrayerPrefs.save(p.copyWith(highLat: v ?? HighLatRule.angle)),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  lat != null && lat.abs() > 48
+                      ? 'مكانك بعيد عن خط الاستواء: في الصيف الشمس مش بتنزل كفاية، فالفجر والعشاء بيتحسبوا بالقاعدة دي.'
+                      : 'القاعدة دي بتفرق بس في البلاد الشمالية (زي إنجلترا وألمانيا) في الصيف.',
+                  style: const TextStyle(fontSize: 11.5, color: AppColors.inkMuted, height: 1.6),
+                ),
+              ]),
+            ),
+          );
+        },
+      ),
+    );
+
 /// Progress of a need, from CONFIRMED amounts only.
 class NeedProgress extends StatelessWidget {
-  const NeedProgress({super.key, required this.need});
+  const NeedProgress({super.key, required this.need, this.currency});
   final Map<String, dynamic> need;
+
+  /// ISO code; else need['currency'] (feed rows), else EGP.
+  final String? currency;
 
   @override
   Widget build(BuildContext context) {
@@ -156,15 +253,16 @@ class NeedProgress extends StatelessWidget {
     final confirmed = (need['confirmed_amount'] as num?)?.toDouble() ?? 0;
     final pledged = (need['pledged_amount'] as num?)?.toDouble() ?? 0;
     final ratio = target <= 0 ? 0.0 : (confirmed / target).clamp(0.0, 1.0);
+    final cur = currency ?? need['currency'] as String?;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: LinearProgressIndicator(value: ratio, minHeight: 10, backgroundColor: AppColors.surfaceAlt, color: AppColors.success),
       ),
       const SizedBox(height: 6),
-      Text(needProgressText(confirmed, target), style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+      Text(needProgressText(confirmed, target, cur), style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
       if (pledged > 0)
-        Text('وفيه تعهدات بـ ${masjidMoney(pledged)} ج.م لسه ماوصلتش', style: const TextStyle(fontSize: 11, color: AppColors.inkMuted)),
+        Text('وفيه تعهدات بـ ${masjidAmount(pledged, cur)} لسه ماوصلتش', style: const TextStyle(fontSize: 11, color: AppColors.inkMuted)),
     ]);
   }
 }
@@ -269,3 +367,60 @@ class ComingSoonTile extends StatelessWidget {
 
 /// Shows a Postgres error message (Arabic, raised by the RPCs) or a fallback.
 String masjidError(Object e, [String fallback = 'حصلت مشكلة، جرّب تاني']) => e is PostgrestException ? e.message : fallback;
+
+
+// ------------------------------------------------- OpenStreetMap (0087)
+
+/// Opens (or, with [join], joins) a mosque found on OpenStreetMap: it is
+/// added to our directory once (masjid_import_osm), then its page opens.
+/// Signed-in users only (guests are asked to sign in first).
+Future<String?> openOsmMosque(BuildContext context, OsmMosque m, {bool join = false}) async {
+  if (!AuthService.isSignedIn) {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthLandingScreen()));
+    if (!AuthService.isSignedIn) return null;
+  }
+  try {
+    final id = await MasjidService.importOsm(osmType: m.type, osmId: m.id, name: m.name, lat: m.lat, lng: m.lng, join: join);
+    if (!join && context.mounted) context.push(AppRoutes.mosque(id));
+    return id;
+  } catch (e) {
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(masjidError(e))));
+    return null;
+  }
+}
+
+/// A mosque from OpenStreetMap (not in our directory yet).
+class OsmMosqueTile extends StatelessWidget {
+  const OsmMosqueTile({super.key, required this.mosque, this.trailing});
+  final OsmMosque mosque;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        margin: const EdgeInsets.only(bottom: 8),
+        child: ListTile(
+          leading: const CircleAvatar(backgroundColor: AppColors.night, child: Icon(Icons.mosque_rounded, color: AppColors.gold, size: 20)),
+          title: Text(mosque.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text('${formatMeters(mosque.distanceM)} • من خريطة OpenStreetMap', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5)),
+          trailing: trailing ?? const Icon(Icons.chevron_left_rounded),
+          onTap: () => openOsmMosque(context, mosque),
+        ),
+      );
+}
+
+/// «© OpenStreetMap contributors» (ODbL) under OSM results.
+class OsmAttribution extends StatelessWidget {
+  const OsmAttribution({super.key, this.dark = false});
+  final bool dark;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: () => launchUrl(Uri.parse(OsmMosques.copyrightUrl), mode: LaunchMode.externalApplication),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Text('بيانات الخريطة ${OsmMosques.attribution} — ODbL',
+              textDirection: TextDirection.ltr,
+              style: TextStyle(fontSize: 10.5, color: dark ? Colors.white54 : AppColors.inkMuted, decoration: TextDecoration.underline)),
+        ),
+      );
+}

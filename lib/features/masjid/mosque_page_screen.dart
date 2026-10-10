@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/maps/maps_launcher.dart';
 import '../../core/masjid/masjid_service.dart';
+import '../../core/masjid/world_time.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
@@ -76,8 +77,8 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
         _m = m;
         _posts = results[0];
         _lessons = results[1];
-        _needs = results[2];
-        _orphans = results[3];
+        _needs = [for (final n in results[2]) {...n, 'currency': m?['currency']}];
+        _orphans = [for (final o in results[3]) {...o, 'currency': m?['currency']}];
         _comps = results[4];
         _compCounts = counts;
         _live = live;
@@ -91,6 +92,9 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
       });
     }
   }
+
+  /// The mosque's currency (ISO), 0087.
+  String? get _cur => _m?['currency'] as String?;
 
   List<String> get _perms => ((_m?['my_permissions'] as List?) ?? const []).cast<String>();
   bool _can(String p) => _perms.contains(p);
@@ -225,10 +229,10 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Text('هساهم في «${need['title']}»', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
             const SizedBox(height: 4),
-            Text('أي مبلغ يفرق — ${needProgressText(need['confirmed_amount'] as num? ?? 0, need['target_amount'] as num? ?? 0)}',
+            Text('أي مبلغ يفرق — ${needProgressText(need['confirmed_amount'] as num? ?? 0, need['target_amount'] as num? ?? 0, _cur)}',
                 style: const TextStyle(fontSize: 12, color: AppColors.inkSecondary)),
             const SizedBox(height: 12),
-            TextField(controller: amount, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'هساهم بـ (ج.م)', hintText: '200')),
+            TextField(controller: amount, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'هساهم بـ (${currencyLabel(_cur)})', hintText: '200')),
             const SizedBox(height: 10),
             TextField(controller: note, decoration: const InputDecoration(labelText: 'ملاحظة للمسجد (اختياري)', hintText: 'هسلّمها بعد صلاة الجمعة')),
             SwitchListTile(
@@ -279,7 +283,7 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
       builder: (ctx) => AlertDialog(
         title: Text('هكفل — ${program['title']}'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: amount, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'المبلغ الشهري (ج.م)')),
+          TextField(controller: amount, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'المبلغ الشهري (${currencyLabel(_cur)})')),
           TextField(controller: note, decoration: const InputDecoration(labelText: 'ملاحظة (اختياري)')),
           const SizedBox(height: 10),
           const NoMoneyNote(extra: 'إدارة المسجد هتتواصل معاك وتأكد الكفالة.'),
@@ -583,6 +587,8 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
       PrayerTimesCard(
         lat: lat,
         lng: lng,
+        tz: m['tz'] as String?,
+        country: m['country'] as String?,
         title: 'مواقيت الصلاة في المسجد النهارده',
         iqama: Map<String, dynamic>.from((m['iqama'] as Map?) ?? const {}),
         khutba: m['friday_khutba_time'] as String?,
@@ -711,7 +717,7 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
                 if (wa != null)
                   TextButton.icon(
                     onPressed: () => launchUrl(
-                        Uri.parse('https://wa.me/2$wa?text=${Uri.encodeComponent('السلام عليكم، بخصوص المساهمة في احتياجات ${m['name']}')}'),
+                        Uri.parse('https://wa.me/${waDigits(wa)}?text=${Uri.encodeComponent('السلام عليكم، بخصوص المساهمة في احتياجات ${m['name']}')}'),
                         mode: LaunchMode.externalApplication),
                     icon: const Icon(Icons.chat_rounded, color: Color(0xFF1FA855)),
                     label: const Text('واتساب المسجد'),
@@ -733,7 +739,7 @@ class _MosquePageScreenState extends State<MosquePageScreen> {
           _card(
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Text(o['title'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5)),
-              Text('${masjidMoney(o['monthly_amount'] as num?)} ج.م شهرياً', style: const TextStyle(color: AppColors.crystal, fontWeight: FontWeight.w700)),
+              Text('${masjidAmount(o['monthly_amount'] as num?, _cur)} شهرياً', style: const TextStyle(color: AppColors.crystal, fontWeight: FontWeight.w700)),
               if (o['description'] != null) Text(o['description'] as String, style: const TextStyle(fontSize: 12.5, height: 1.6)),
               const SizedBox(height: 4),
               Text(
@@ -861,7 +867,7 @@ class _ContributionsListState extends State<ContributionsList> {
           child: ListTile(
             title: Text('${r['donor_label']}${r['anonymous'] == true && widget.canManage ? ' (مخفي للناس)' : ''}'),
             subtitle: Text([
-              '${masjidMoney(r['amount'] as num?)} ج.م',
+              masjidAmount(r['amount'] as num?, widget.need['currency'] as String?),
               switch (r['status']) { 'confirmed' => r['kind'] == 'cash' ? 'كاش مؤكد ✓' : 'وصل ✓', 'cancelled' => 'اتلغى', _ => 'تعهد — لسه ماوصلش' },
               if (r['note'] != null) r['note'],
             ].join(' • ')),

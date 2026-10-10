@@ -156,7 +156,7 @@ jobs:
           f=build/web_masjid/index.html
           sed -i 's|<title>[^<]*</title>|<title>مسجدي — كل مساجد حيّك</title>|' $f
           sed -i 's|<div class="name">[^<]*</div>|<div class="name">مسجدي</div>|' $f
-          sed -i -E 's#(<meta (name="(description|twitter:description)"|property="og:description") content=")[^"]*#\1مسجدي من مُجتمعي: مواقيت الصلاة لمكانك بحساب الهيئة المصرية العامة للمساحة، وأقرب مسجد ليك، ومواعيد الإقامة وخطبة الجمعة والدروس وحلقات القرآن وإعلانات مسجدك — ببلاش.#; s#(<meta (name="twitter:title"|property="og:title") content=")[^"]*#\1مسجدي — كل مساجد حيّك#; s#(<meta property="og:url" content=")[^"]*#\1https://masjidi.mogtama3y.com/#; s#(<meta name="apple-mobile-web-app-title" content=")[^"]*#\1مسجدي#; s#(<meta property="og:site_name" content=")[^"]*#\1مسجدي#' $f
+          sed -i -E 's#(<meta (name="(description|twitter:description)"|property="og:description") content=")[^"]*#\1مسجدي من مُجتمعي: مواقيت الصلاة لمكانك بطريقة الجهة الرسمية في بلدك، وأقرب مسجد ليك، ومواعيد الإقامة وخطبة الجمعة والدروس وحلقات القرآن وإعلانات مسجدك — ببلاش.#; s#(<meta (name="twitter:title"|property="og:title") content=")[^"]*#\1مسجدي — كل مساجد حيّك#; s#(<meta property="og:url" content=")[^"]*#\1https://masjidi.mogtama3y.com/#; s#(<meta name="apple-mobile-web-app-title" content=")[^"]*#\1مسجدي#; s#(<meta property="og:site_name" content=")[^"]*#\1مسجدي#' $f
           sed -i 's|"name": *"[^"]*"|"name": "مسجدي — كل مساجد حيّك"|; s|"short_name": *"[^"]*"|"short_name": "مسجدي"|; s|"description": *"[^"]*"|"description": "مواقيت الصلاة وأقرب مسجد، وإعلانات ودروس واحتياجات مسجدك."|' build/web_masjid/manifest.json
           # No merchant store pages on the mosques site; its own sitemap/robots.
           sed -i '/store-lite.js/d' $f

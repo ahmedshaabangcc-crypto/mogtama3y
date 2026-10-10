@@ -41,7 +41,9 @@ class PhoneVerify {
         'auth/code-expired' => 'الكود خلص وقته، ابعت كود جديد',
         'auth/too-many-requests' => 'جربت كتير، استنى شوية وجرّب تاني',
         'auth/quota-exceeded' => 'رسايل التأكيد خلصت النهارده، جرّب بكرة',
-        'auth/billing-not-enabled' || 'auth/operation-not-allowed' => 'تأكيد الرقم برسالة متوقف مؤقتاً، جرّب تاني بعد شوية ($code)',
+        'auth/billing-not-enabled' => 'تأكيد الرقم برسالة متوقف مؤقتاً، جرّب تاني بعد شوية ($code)',
+        // Firebase's SMS region policy blocks the number's country.
+        'auth/operation-not-allowed' || 'auth/unsupported-country-code' => 'التوثيق برسالة مش متاح لبلدك لسه ($code)',
         'auth/captcha-check-failed' || 'auth/internal-error' => 'حصلت مشكلة في التحقق، اعمل تحديث للصفحة وجرّب تاني',
         'unsupported' => 'تأكيد الرقم متاح من الموقع على المتصفح',
         'sdk-load-failed' => 'تعذر التحميل، اتأكد من النت وجرّب تاني',

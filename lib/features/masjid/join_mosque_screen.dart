@@ -7,6 +7,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/location/where.dart';
 import '../../core/masjid/masjid_community.dart';
 import '../../core/masjid/masjid_service.dart';
+import '../../core/masjid/osm_mosques.dart';
 import '../../core/routing/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
@@ -18,6 +19,8 @@ import 'masjid_widgets.dart';
 /// nearest few beyond), (b) search by name / area, (c) «مسجدك مش موجود؟
 /// سجّله» → add it (the creator joins it). Guests browse freely; tapping
 /// «انضم» signs them in first and then joins. Pops `true` after a join.
+/// Outside Egypt our directory is thin, so when fewer than 3 are within
+/// reach the nearby mosques on OpenStreetMap are listed too (0087).
 class JoinMosqueScreen extends StatefulWidget {
   const JoinMosqueScreen({super.key});
 
@@ -38,6 +41,10 @@ class _JoinMosqueScreenState extends State<JoinMosqueScreen> {
   final Set<String> _joined = {};
   final Set<String> _busy = {};
   bool _joinedAny = false;
+  List<OsmMosque> _osm = [];
+  bool _osmLoading = false;
+  final Set<String> _osmBusy = {};
+  final Set<String> _osmJoined = {};
   final _search = TextEditingController();
   Timer? _debounce;
 
@@ -91,11 +98,51 @@ class _JoinMosqueScreenState extends State<JoinMosqueScreen> {
           if (r['is_member'] == true) _joined.add(r['id'] as String);
         }
       });
+      if (split.within.length < 3) _loadOsm(rows);
     } catch (_) {
       if (mounted) setState(() => _error = true);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _loadOsm(List<Map<String, dynamic>> ours) async {
+    if (_lat == null || _lng == null) return;
+    setState(() => _osmLoading = true);
+    final all = await OsmMosques.near(_lat!, _lng!, radiusM: 1500);
+    if (!mounted) return;
+    setState(() {
+      _osm = osmNotInOurs(all, ours, _lat!, _lng!).take(15).toList();
+      _osmLoading = false;
+    });
+  }
+
+  Future<void> _joinOsm(OsmMosque o) async {
+    if (!await _ensureSignedIn() || !mounted) return;
+    final key = '${o.type}/${o.id}';
+    setState(() => _osmBusy.add(key));
+    final id = await openOsmMosque(context, o, join: true);
+    if (!mounted) return;
+    setState(() {
+      _osmBusy.remove(key);
+      if (id != null) {
+        _osmJoined.add(key);
+        _joinedAny = true;
+      }
+    });
+    if (id != null) _toast('بقيت عضو في «${o.name}» — تقدر تدخل شات المسجد دلوقتي 🤍');
+  }
+
+  Widget _osmTile(OsmMosque o) {
+    final key = '${o.type}/${o.id}';
+    return OsmMosqueTile(
+      mosque: o,
+      trailing: _osmJoined.contains(key)
+          ? const Text('عضو ✓', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w800))
+          : _osmBusy.contains(key)
+              ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+              : FilledButton(onPressed: () => _joinOsm(o), child: const Text('انضم')),
+    );
   }
 
   void _onSearch(String q) {
@@ -244,6 +291,12 @@ class _JoinMosqueScreenState extends State<JoinMosqueScreen> {
                 ),
               for (final m in _within) _tile(m),
               for (final m in _beyond) _tile(m),
+              if (_osmLoading) const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: LinearProgressIndicator()),
+              if (_osm.isNotEmpty) ...[
+                _header('مساجد قريبة على خريطة OpenStreetMap'),
+                for (final o in _osm) _osmTile(o),
+                const OsmAttribution(),
+              ],
             ],
             const SizedBox(height: 12),
             OutlinedButton.icon(

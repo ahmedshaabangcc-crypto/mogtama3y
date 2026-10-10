@@ -8,8 +8,9 @@ import '../../core/app_flavor.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/location/where.dart';
 import '../../core/masjid/masjid_service.dart';
+import '../../core/masjid/prayer_prefs.dart';
 import '../../core/masjid/prayer_times.dart';
-import '../../core/masjid_tools/egypt_cities.dart';
+import '../../core/masjid/world_time.dart';
 import '../../core/masjid_tools/hijri.dart' show toArabicDigits;
 import '../../core/masjid_tools/platform/feedback.dart';
 import '../../core/masjid_tools/reminder_settings.dart';
@@ -17,6 +18,8 @@ import '../../core/masjid_tools/reminders_service.dart';
 import '../../core/pwa/push.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../masjid/masjid_widgets.dart' show showPrayerSettingsSheet;
+import 'city_picker.dart';
 import 'tools_ui.dart';
 
 class PrayerRemindersScreen extends StatefulWidget {
@@ -34,9 +37,17 @@ class _PrayerRemindersScreenState extends State<PrayerRemindersScreen> {
   @override
   void initState() {
     super.initState();
+    PrayerPrefs.load();
     ReminderSettings.load().then((s) {
       if (mounted) setState(() => _s = s);
     });
+  }
+
+  Future<void> _method() async {
+    final s = _s!;
+    await showPrayerSettingsSheet(context, country: s.country, lat: s.lat);
+    if (!mounted) return;
+    await _update(s); // re-sync with the (maybe) new method
   }
 
   @override
@@ -66,7 +77,7 @@ class _PrayerRemindersScreenState extends State<PrayerRemindersScreen> {
     setState(() => _busy = true);
     try {
       final p = await Where.current();
-      await _update(_s!.copyWith(source: 'current', lat: p.latitude, lng: p.longitude, label: 'مكاني الحالي'));
+      await _update(_s!.copyWith(source: 'current', lat: p.latitude, lng: p.longitude, label: 'مكاني الحالي', tz: ''));
     } catch (_) {
       if (mounted) toolToast(context, 'مقدرناش نحدد مكانك — اختار مدينة أو مسجد');
     } finally {
@@ -75,16 +86,8 @@ class _PrayerRemindersScreenState extends State<PrayerRemindersScreen> {
   }
 
   Future<void> _pickCity() async {
-    final c = await showModalBottomSheet<(String, double, double)>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: ListView(children: [
-          const ListTile(title: Text('اختار مدينتك', style: TextStyle(fontWeight: FontWeight.w800))),
-          for (final c in egyptCities) ListTile(title: Text(c.$1), onTap: () => Navigator.pop(ctx, c)),
-        ]),
-      ),
-    );
-    if (c != null) await _update(_s!.copyWith(source: 'city', lat: c.$2, lng: c.$3, label: c.$1));
+    final c = await pickCity(context);
+    if (c != null) await _update(_s!.copyWith(source: 'city', lat: c.lat, lng: c.lng, label: c.label, tz: c.tz));
   }
 
   Future<void> _pickMosque() async {
@@ -115,7 +118,7 @@ class _PrayerRemindersScreenState extends State<PrayerRemindersScreen> {
       ),
     );
     if (m == null) return;
-    await _update(_s!.copyWith(source: 'mosque', lat: (m['lat'] as num).toDouble(), lng: (m['lng'] as num).toDouble(), label: '${m['name']}'));
+    await _update(_s!.copyWith(source: 'mosque', lat: (m['lat'] as num).toDouble(), lng: (m['lng'] as num).toDouble(), label: '${m['name']}', tz: (m['tz'] as String?) ?? ''));
   }
 
   Future<void> _togglePush(bool on) async {
@@ -164,8 +167,8 @@ class _PrayerRemindersScreenState extends State<PrayerRemindersScreen> {
   Widget _prayerRow(Prayer p) {
     final s = _s!;
     final on = s.offsets.containsKey(p);
-    final today = egyptToday();
-    final time = PrayerCalculator.egypt.compute(today.year, today.month, today.day, s.lat, s.lng).wall(p);
+    final today = todayIn(s.zone);
+    final time = s.calculator.compute(today.year, today.month, today.day, s.lat, s.lng, tz: s.zone).wall(p);
     return GlassCard(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.fromLTRB(14, 6, 6, 8),
@@ -218,7 +221,7 @@ class _PrayerRemindersScreenState extends State<PrayerRemindersScreen> {
             const Icon(Icons.alarm_rounded, color: AppColors.gold),
             const SizedBox(width: 10),
             Expanded(
-              child: Text('التنبيه الجاي: ${next.title} — ${format12(egyptWallClock(next.alertAt))}',
+              child: Text('التنبيه الجاي: ${next.title} — ${format12(wallClockIn(next.alertAt, s.zone))}',
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
             ),
           ]),
@@ -277,10 +280,17 @@ class _PrayerRemindersScreenState extends State<PrayerRemindersScreen> {
           ),
         ]),
       ),
-      const Text(
-        'التنبيه جوه التطبيق بيظهر طول ما التطبيق مفتوح. المواقيت بطريقة الهيئة المصرية العامة للمساحة، بتوقيت مصر.',
+      Text(
+        'التنبيه جوه التطبيق بيظهر طول ما التطبيق مفتوح. المواقيت بطريقة ${s.calculator.method.nameAr}، ${tzLabelAr(s.zone)}.',
         style: toolMutedStyle,
         textAlign: TextAlign.center,
+      ),
+      Center(
+        child: TextButton.icon(
+          onPressed: _method,
+          icon: const Icon(Icons.tune_rounded, color: AppColors.gold, size: 18),
+          label: const Text('طريقة الحساب', style: TextStyle(color: AppColors.gold)),
+        ),
       ),
     ]);
   }

@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../masjid/prayer_prefs.dart';
 import 'reminder_settings.dart';
 
 /// Server copy of «تنبيه الصلاة» (backend/migrations/0082_masjid_tools.sql):
@@ -20,6 +21,9 @@ class RemindersService {
       'p_lng': s.lng,
       'p_offsets': s.offsetsJson,
       'p_label': s.label,
+      // 0087: anywhere — the place's zone and the method the app uses there.
+      'p_tz': s.zone,
+      ...PrayerPrefs.current.value.serverParams(s.country),
     });
   }
 

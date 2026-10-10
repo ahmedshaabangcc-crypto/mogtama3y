@@ -2344,7 +2344,8 @@ const denied = (r) => !!r.error;
     const MT2 = await signUp(db, 'mtool two', '01000000882');
     const cairo = [30.0444, 31.2357];
     check('mtool: guests cannot save reminders', denied(await as(db, null, `select public.set_prayer_reminders(30, 31, '{"fajr":0}'::jsonb)`)));
-    check('mtool: a place outside Egypt is refused', denied(await as(db, MT1, `select public.set_prayer_reminders(51.5, -0.1, '{"fajr":0}'::jsonb)`)));
+    // 0087: anywhere on Earth (the mww block covers Dubai / London); nonsense is still refused.
+    check('mtool: a place off the planet is refused', denied(await as(db, MT1, `select public.set_prayer_reminders(95, -0.1, '{"fajr":0}'::jsonb)`)));
     check('mtool: odd offsets are refused', denied(await as(db, MT1, `select public.set_prayer_reminders($1, $2, '{"fajr":7}'::jsonb)`, cairo)));
     check('mtool: unknown prayers are refused', denied(await as(db, MT1, `select public.set_prayer_reminders($1, $2, '{"sunrise":0}'::jsonb)`, cairo)));
     check('mtool: a user saves reminders', ok(await as(db, MT1, `select public.set_prayer_reminders($1, $2, '{"fajr":10,"isha":0}'::jsonb, 'القاهرة')`, cairo)));
@@ -2409,6 +2410,8 @@ const denied = (r) => !!r.error;
       mascRerun = e.message;
     }
     check('masc: 0083 is safe to re-run (after 0081 re-ran too)', mascRerun === null, mascRerun);
+    // 0087 redefines 0081/0083 functions (chat send, profile, feed, add mosque) — put it back.
+    await db.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'migrations', '0087_masjid_worldwide.sql'), 'utf8'));
 
     const mascM = (await admin(db, `insert into mosques (name, lat, lng, verified) values ('مسجد النور', 30.4, 31.6, true) returning id`))[0].id;
     const mascN1 = await signUp(db, 'masc realname one', null);
@@ -2573,6 +2576,8 @@ const denied = (r) => !!r.error;
     check('mlive: 0085 is safe to re-run', rerun === null, rerun);
     // 0086 (lessons open to everyone) redefines the feed — put it back after the 0085 re-run.
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0086_masjid_live_public.sql'), 'utf8'));
+    // …and 0087 (worldwide: hands / speakers / create redefined).
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0087_masjid_worldwide.sql'), 'utf8'));
 
     const M = (await admin(db, `insert into mosques (name, lat, lng, verified) values ('مسجد الرحمن', 30.05, 31.25, true) returning id`))[0].id;
     const U = (await admin(db, `insert into mosques (name, lat, lng) values ('مسجد مش موثق', 30.06, 31.26) returning id`))[0].id;
@@ -2846,6 +2851,234 @@ const denied = (r) => !!r.error;
     check('fdb: guests share a daily budget of 200', denied(await submit(null, 'question', 'سؤال جديد بعد ما الحد خلص')));
     await admin(db, `update support_tickets set created_at = now() - interval '2 days' where user_id is null`);
     check('fdb: …which frees up the next day', ok(await submit(null, 'question', 'سؤال جديد بعد ما الحد خلص')));
+  }
+
+  // ------------------------------------------------------------------
+  console.log('\nPhase mww — «مسجدي» worldwide (0087)');
+  {
+    const fs = require('fs');
+    const path = require('path');
+    let rerun = null;
+    try {
+      await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0087_masjid_worldwide.sql'), 'utf8'));
+    } catch (e) {
+      rerun = e.message;
+    }
+    check('mww: 0087 is safe to re-run', rerun === null, rerun);
+    const has = (r, text) => !!r.error && r.error.includes(text);
+
+    // ---- places: country / zone / currency
+    check('mww: every mosque has a zone and a currency',
+      (await admin(db, `select count(*)::int n from mosques where tz is null or currency is null`))[0].n === 0);
+    const cairoM = (await admin(db, `insert into mosques (name, lat, lng, verified) values ('مسجد الحسين', 30.0478, 31.2625, true) returning id, country, tz, currency`))[0];
+    check('mww: a mosque inside Egypt is EG / Africa/Cairo / EGP', cairoM.country === 'EG' && cairoM.tz === 'Africa/Cairo' && cairoM.currency === 'EGP', cairoM);
+    const sharm = (await admin(db, `insert into mosques (name, lat, lng, country, tz) values ('مسجد شرم الشيخ', 27.9158, 34.33, 'SA', 'Asia/Riyadh') returning country, tz, currency`))[0];
+    check('mww: …even when the app says otherwise (Sharm El Sheikh)', sharm.country === 'EG' && sharm.tz === 'Africa/Cairo' && sharm.currency === 'EGP', sharm);
+    const zz = (await admin(db, `insert into mosques (name, lat, lng, country) values ('Mosque X', -30.5, -140.2, 'ZZ') returning country, tz, currency`))[0];
+    check('mww: unknown country → USD, zone from the longitude', zz.currency === 'USD' && zz.tz === 'Etc/GMT+9', zz);
+    const egy = await admin(db, `select private.in_egypt(30.0444, 31.2357) a, private.in_egypt(24.0889, 32.8998) b, private.in_egypt(29.502, 34.89) c,
+      private.in_egypt(28.3838, 36.555) d, private.in_egypt(29.5267, 35.0078) e, private.in_egypt(31.76, 25.09) f, private.in_egypt(25.2048, 55.2708) g,
+      private.in_egypt(31.5017, 34.4668) h, private.in_egypt(22.2, 36.6) i`);
+    check('mww: the Egypt polygon (Cairo, Aswan, Taba, Halaib in; Tabuk, Aqaba, Bardia, Dubai, Gaza out)',
+      egy[0].a && egy[0].b && egy[0].c && !egy[0].d && !egy[0].e && !egy[0].f && !egy[0].g && !egy[0].h && egy[0].i, egy[0]);
+
+    // ---- adding a mosque abroad
+    const AE1 = await signUp(db, 'mww dubai one', null);
+    const AE2 = await signUp(db, 'mww dubai two', null);
+    const EG1 = await signUp(db, 'mww cairo one', null);
+    const EG2 = await signUp(db, 'mww cairo imam', null);
+    const add = (u, name, lat, lng, tz, country) =>
+      as(db, u, `select public.masjid_add_mosque($1, $2, $3, null, null, null, $4, $5) as id`, [name, lat, lng, tz, country]);
+    const r1 = await add(AE1, 'مسجد الفاروق عمر بن الخطاب', 25.1867, 55.2531, 'Asia/Dubai', 'AE');
+    check('mww: a user adds a mosque in Dubai', ok(r1) && !!r1.rows[0].id, r1);
+    const DUB = r1.rows?.[0]?.id;
+    const dub = (await admin(db, `select country, tz, currency from mosques where id = $1`, [DUB]))[0];
+    check('mww: …AE / Asia/Dubai / AED', dub.country === 'AE' && dub.tz === 'Asia/Dubai' && dub.currency === 'AED', dub);
+    check('mww: …and the creator joined it', (await admin(db, `select count(*)::int n from mosque_members where mosque_id = $1 and user_id = $2`, [DUB, AE1]))[0].n === 1);
+    const r2 = await add(AE1, 'East London Mosque', 51.5175, -0.0653, 'Mars/Base', 'gb');
+    const lon = (await admin(db, `select country, tz, currency from mosques where id = $1`, [r2.rows?.[0]?.id]))[0];
+    check('mww: an unknown zone falls back to the longitude; country upper-cased; GBP',
+      ok(r2) && lon.tz === 'Etc/GMT' && lon.country === 'GB' && lon.currency === 'GBP', { r2, lon });
+    check('mww: impossible coordinates are refused',
+      denied(await add(AE1, 'مسجد غلط', 95, 10, null, null)) && denied(await add(AE1, 'مسجد غلط', 10, 190, null, null)) && denied(await add(AE1, 'مسجد غلط', 0, 0, null, null)));
+    check('mww: old 6-argument calls still work', ok(await as(db, AE1, `select public.masjid_add_mosque('Masjid Al Noor Sharjah', 25.3463, 55.4209)`)));
+    check('mww: the daily limit still holds', has(await add(AE1, 'مسجد رابع', 25.25, 55.3, 'Asia/Dubai', 'AE'), 'كتير'));
+    const gm = (await as(db, AE2, `select public.get_mosque($1) as m`, [DUB])).rows?.[0]?.m;
+    const gc = (await as(db, null, `select public.get_mosque($1) as m`, [cairoM.id])).rows?.[0]?.m;
+    check('mww: get_mosque returns country / tz / currency / phone_required',
+      gm?.tz === 'Asia/Dubai' && gm.currency === 'AED' && gm.country === 'AE' && gm.phone_required === false && gc?.phone_required === true && gc.tz === 'Africa/Cairo', { gm, gc });
+    check('mww: guests can read the new columns', ok(await as(db, null, `select country, tz, currency, osm_id from mosques limit 1`)));
+    check("mww: users can't write them", denied(await as(db, AE1, `update mosques set currency = 'USD', country = 'EG' where id = $1`, [DUB])));
+
+    // ---- OpenStreetMap import
+    const imp = (u, type, id, name, lat, lng, join = true) => as(db, u,
+      `select public.masjid_import_osm($1, $2, $3, $4, $5, 'Asia/Dubai', 'AE', $6) as id`, [type, id, name, lat, lng, join]);
+    const o1 = await imp(AE2, 'node', 123456789, 'Al Farooq Mosque', 25.2, 55.27);
+    check('mww: an OSM mosque is imported', ok(o1) && !!o1.rows[0].id, o1);
+    const OSM1 = o1.rows?.[0]?.id;
+    const o1row = (await admin(db, `select osm_type, osm_id, country, tz, currency, added_by from mosques where id = $1`, [OSM1]))[0];
+    check('mww: …with its OSM reference, AE / Asia/Dubai / AED', o1row.osm_type === 'node' && Number(o1row.osm_id) === 123456789 && o1row.currency === 'AED' && o1row.added_by === AE2, o1row);
+    check('mww: …and the importer joined it', (await admin(db, `select count(*)::int n from mosque_members where mosque_id = $1 and user_id = $2`, [OSM1, AE2]))[0].n === 1);
+    const o1again = await imp(AE1, 'node', 123456789, 'Al Farooq Mosque (renamed)', 25.2001, 55.2701, false);
+    check('mww: importing the same OSM object again → the same mosque (idempotent)',
+      o1again.rows?.[0]?.id === OSM1 && (await admin(db, `select count(*)::int n from mosques where osm_type = 'node' and osm_id = 123456789`))[0].n === 1, o1again);
+    check('mww: …opening it (p_join = false) does not join', (await admin(db, `select count(*)::int n from mosque_members where mosque_id = $1 and user_id = $2`, [OSM1, AE1]))[0].n === 0);
+    const near = await imp(AE2, 'way', 555, 'Masjid Al Farooq Omar Bin Al Khattab مسجد الفاروق عمر بن الخطاب', 25.18672, 55.25312);
+    const near2 = await imp(AE2, 'way', 556, 'مسجد الفاروق عمر بن الخطاب', 25.18673, 55.25314);
+    check('mww: an OSM mosque ~3 m from ours with the same name is matched, not duplicated',
+      near2.rows?.[0]?.id === DUB && (await admin(db, `select osm_type, osm_id from mosques where id = $1`, [DUB]))[0].osm_id !== null, { near, near2 });
+    const other = await imp(AE2, 'node', 557, 'Jumeirah Grand Mosque', 25.18675, 55.2532);
+    check('mww: …a different name 10 m away is another mosque', ok(other) && other.rows[0].id !== DUB);
+    const farSame = await imp(AE2, 'node', 558, 'مسجد الفاروق عمر بن الخطاب', 25.1880, 55.2531);
+    check('mww: …the same name 145 m away is another mosque', ok(farSame) && farSame.rows[0].id !== DUB);
+    check('mww: bad OSM references are refused',
+      denied(await imp(AE2, 'area', 1, 'x', 25.2, 55.2)) && denied(await imp(AE2, 'node', -5, 'x', 25.2, 55.2)) && denied(await imp(AE2, 'node', 9, 'x', 99, 55.2)));
+    check('mww: guests cannot import', denied(await as(db, null, `select public.masjid_import_osm('node', 77, 'x', 25.2, 55.2)`)));
+    const nb = await as(db, null, `select id from public.nearby_mosques(25.2, 55.27, 2, 40)`);
+    check('mww: imported mosques show up in nearby_mosques', ok(nb) && nb.rows.some((r) => r.id === OSM1));
+    const egOsm = await as(db, EG1, `select public.masjid_import_osm('node', 9001, 'مسجد السيدة زينب', 30.0293, 31.2425, 'Asia/Dubai', 'AE', false) as id`);
+    const egOsmRow = (await admin(db, `select country, tz, currency from mosques where id = $1`, [egOsm.rows?.[0]?.id]))[0];
+    check('mww: an OSM mosque in Cairo is still EG / Africa/Cairo / EGP', egOsmRow?.country === 'EG' && egOsmRow.tz === 'Africa/Cairo' && egOsmRow.currency === 'EGP', egOsmRow);
+
+    // ---- verified phone: Egypt only (owner decision)
+    await as(db, AE2, `select public.masjid_join($1)`, [DUB]);
+    const send = (u, m, b) => as(db, u, `select public.masjid_chat_send($1, $2) as id`, [m, b]);
+    check('mww: Dubai mosque: an unverified member can post in the chat', ok(await send(AE2, DUB, 'السلام عليكم يا جماعة')));
+    const pAE = (await as(db, AE2, `select public.masjid_my_chat_profile($1) as p`, [DUB])).rows?.[0]?.p;
+    check('mww: …and gets no «verify your phone» banner', pAE?.needs_phone === false && pAE.phone_required === false, pAE);
+    check('mww: international numbers are blocked in the chat too', has(await send(AE1, DUB, 'كلموني على +971501234567'), 'أرقام') && has(await send(AE1, DUB, 'رقمي 0501234567'), 'أرقام'));
+    await as(db, EG1, `select public.masjid_join($1)`, [cairoM.id]);
+    check('mww: Cairo mosque: an unverified member is still blocked', has(await send(EG1, cairoM.id, 'السلام عليكم'), 'توثّق'));
+    const pEG = (await as(db, EG1, `select public.masjid_my_chat_profile($1) as p`, [cairoM.id])).rows?.[0]?.p;
+    check('mww: …and sees the banner', pEG?.needs_phone === true && pEG.phone_required === true, pEG);
+
+    await admin(db, `update mosques set verified = true where id = $1`, [DUB]);
+    await admin(db, `insert into mosque_admins (mosque_id, user_id, role, permissions) values ($1, $2, 'owner', '{}'), ($3, $4, 'owner', '{}')`, [DUB, AE1, cairoM.id, EG2]);
+    const lesson = { title: 'درس الفجر', sheikh: 'الشيخ أحمد', audience: 'all', scheduled_at: new Date(Date.now() + 5 * 60000).toISOString(), duration_minutes: 60, mode: 'audio', visibility: 'public' };
+    const LD = (await as(db, AE1, `select public.masjid_live_create($1, $2::jsonb) as id`, [DUB, JSON.stringify(lesson)])).rows?.[0]?.id;
+    const LC = (await as(db, EG2, `select public.masjid_live_create($1, $2::jsonb) as id`, [cairoM.id, JSON.stringify(lesson)])).rows?.[0]?.id;
+    check('mww: lessons scheduled in both mosques', !!LD && !!LC);
+    await as(db, AE1, `select public.masjid_live_start($1)`, [LD]);
+    await as(db, EG2, `select public.masjid_live_start($1)`, [LC]);
+    const jD = (await as(db, AE2, `select public.masjid_live_join_check($1) as j`, [LD])).rows?.[0]?.j;
+    check('mww: Dubai lesson: an unverified listener can speak', jD?.ok === true && jD.can_speak === true && jD.phone_required === false, jD);
+    check('mww: …and raise a hand', ok(await as(db, AE2, `select public.masjid_live_hand($1, true)`, [LD])));
+    const hD = await as(db, AE1, `select * from public.masjid_live_hands($1)`, [LD]);
+    check('mww: …the host sees can_speak and can make them a speaker',
+      ok(hD) && hD.rows[0]?.can_speak === true && ok(await as(db, AE1, `select public.masjid_live_set_speaker($1, $2, true)`, [LD, hD.rows[0].participant_id])), hD);
+    const jC = (await as(db, EG1, `select public.masjid_live_join_check($1) as j`, [LC])).rows?.[0]?.j;
+    check('mww: Cairo lesson: an unverified listener still cannot speak', jC?.ok === true && jC.can_speak === false && jC.phone_required === true, jC);
+    check('mww: …nor raise a hand', has(await as(db, EG1, `select public.masjid_live_hand($1, true)`, [LC]), 'توثّق'));
+
+    // ---- currency
+    const need = await as(db, AE1, `insert into mosque_needs (mosque_id, title, target_amount) values ($1, 'تكييف', 5000) returning id`, [DUB]);
+    check('mww: the need notification uses the mosque currency',
+      (await admin(db, `select count(*)::int n from notifications where user_id = $1 and body like '%5,000 د.إ%'`, [AE2]))[0].n === 1);
+    await as(db, AE2, `select public.masjid_pledge($1, 250)`, [need.rows?.[0]?.id]);
+    check('mww: …and so does the pledge notification', (await admin(db, `select count(*)::int n from notifications where user_id = $1 and title = 'تعهد جديد بـ 250 د.إ'`, [AE1]))[0].n === 1);
+    const feed = await as(db, AE2, `select * from public.masjid_nearby_feed(25.1867, 55.2531, 3, 30) where kind = 'need'`);
+    check('mww: the nearby feed carries the currency of each need', ok(feed) && feed.rows.some((r) => r.extra.currency === 'AED'), feed);
+    const setCur = (u, c) => as(db, u, `select public.masjid_update_settings($1, $2::jsonb)`, [DUB, JSON.stringify({ currency: c, contact_whatsapp: '+971 50 123 4567' })]);
+    check('mww: the admin changes the currency (and an international WhatsApp is kept)',
+      ok(await setCur(AE1, 'usd')) && (await admin(db, `select currency, contact_whatsapp from mosques where id = $1`, [DUB]))[0].currency === 'USD' &&
+      (await admin(db, `select contact_whatsapp from mosques where id = $1`, [DUB]))[0].contact_whatsapp === '+971501234567');
+    check('mww: a bad currency / WhatsApp is refused', has(await setCur(AE1, 'US1'), 'العملة') &&
+      has(await as(db, AE1, `select public.masjid_update_settings($1, $2::jsonb)`, [DUB, JSON.stringify({ contact_whatsapp: '12' })]), 'واتساب'));
+    check('mww: a member cannot change it', denied(await setCur(AE2, 'EUR')));
+    check('mww: Egyptian WhatsApp numbers still work (+20 → 01…)',
+      ok(await as(db, EG2, `select public.masjid_update_settings($1, $2::jsonb)`, [cairoM.id, JSON.stringify({ contact_whatsapp: '+20 100 000 0000' })])) &&
+      (await admin(db, `select contact_whatsapp from mosques where id = $1`, [cairoM.id]))[0].contact_whatsapp === '01000000000');
+    check('mww: a claim abroad accepts an international phone',
+      ok(await as(db, AE2, `select public.masjid_claim($1, 'imam', '+971 50 765 4321')`, [OSM1])) &&
+      (await admin(db, `select phone from mosque_claims where user_id = $1`, [AE2]))[0].phone === '+971507654321');
+    check('mww: a nonsense phone is still refused', has(await as(db, EG1, `select public.masjid_claim($1, 'imam', '12345')`, [cairoM.id]), 'رقم'));
+    const spons = await as(db, AE2, `select * from public.masjid_my_sponsorships()`);
+    const sponsRes = (await admin(db, `select pg_get_function_result('public.masjid_my_sponsorships()'::regprocedure) r`))[0].r;
+    check('mww: masjid_my_sponsorships has a currency column', ok(spons) && sponsRes.includes('currency text'), sponsRes);
+
+    // ---- prayer times: SQL vs Dart (lib/core/masjid/prayer_times.dart), ±1 min
+    const mwwRefs = [
+      ['dubai',25.2048,55.2708,'uae',1,'angle','2026-01-15',{'fajr':'2026-01-15T01:45:00.000Z','sunrise':'2026-01-15T03:06:00.000Z','dhuhr':'2026-01-15T08:31:00.000Z','asr':'2026-01-15T11:30:00.000Z','maghrib':'2026-01-15T13:54:00.000Z','isha':'2026-01-15T15:12:00.000Z'}],
+      ['dubai',25.2048,55.2708,'uae',1,'angle','2026-03-01',{'fajr':'2026-03-01T01:25:00.000Z','sunrise':'2026-03-01T02:42:00.000Z','dhuhr':'2026-03-01T08:34:00.000Z','asr':'2026-03-01T11:52:00.000Z','maghrib':'2026-03-01T14:24:00.000Z','isha':'2026-03-01T15:38:00.000Z'}],
+      ['dubai',25.2048,55.2708,'uae',1,'angle','2026-06-21',{'fajr':'2026-06-20T23:59:00.000Z','sunrise':'2026-06-21T01:29:00.000Z','dhuhr':'2026-06-21T08:24:00.000Z','asr':'2026-06-21T11:43:00.000Z','maghrib':'2026-06-21T15:15:00.000Z','isha':'2026-06-21T16:43:00.000Z'}],
+      ['riyadh',24.7136,46.6753,'umm_al_qura',1,'angle','2026-01-15',{'fajr':'2026-01-15T02:17:00.000Z','sunrise':'2026-01-15T03:40:00.000Z','dhuhr':'2026-01-15T09:03:00.000Z','asr':'2026-01-15T12:05:00.000Z','maghrib':'2026-01-15T14:26:00.000Z','isha':'2026-01-15T15:56:00.000Z'}],
+      ['riyadh',24.7136,46.6753,'umm_al_qura',1,'angle','2026-03-01',{'fajr':'2026-03-01T01:58:00.000Z','sunrise':'2026-03-01T03:16:00.000Z','dhuhr':'2026-03-01T09:06:00.000Z','asr':'2026-03-01T12:26:00.000Z','maghrib':'2026-03-01T14:56:00.000Z','isha':'2026-03-01T16:56:00.000Z'}],
+      ['riyadh',24.7136,46.6753,'umm_al_qura',1,'angle','2026-06-21',{'fajr':'2026-06-21T00:33:00.000Z','sunrise':'2026-06-21T02:05:00.000Z','dhuhr':'2026-06-21T08:55:00.000Z','asr':'2026-06-21T12:16:00.000Z','maghrib':'2026-06-21T15:45:00.000Z','isha':'2026-06-21T17:15:00.000Z'}],
+      ['london',51.5074,-0.1278,'mwl',1,'angle','2026-01-15',{'fajr':'2026-01-15T05:59:00.000Z','sunrise':'2026-01-15T07:59:00.000Z','dhuhr':'2026-01-15T12:10:00.000Z','asr':'2026-01-15T14:01:00.000Z','maghrib':'2026-01-15T16:21:00.000Z','isha':'2026-01-15T18:15:00.000Z'}],
+      ['london',51.5074,-0.1278,'mwl',1,'angle','2026-03-01',{'fajr':'2026-03-01T04:55:00.000Z','sunrise':'2026-03-01T06:46:00.000Z','dhuhr':'2026-03-01T12:13:00.000Z','asr':'2026-03-01T15:04:00.000Z','maghrib':'2026-03-01T17:41:00.000Z','isha':'2026-03-01T19:25:00.000Z'}],
+      ['london',51.5074,-0.1278,'mwl',1,'angle','2026-06-21',{'fajr':'2026-06-21T01:31:00.000Z','sunrise':'2026-06-21T03:43:00.000Z','dhuhr':'2026-06-21T12:02:00.000Z','asr':'2026-06-21T16:25:00.000Z','maghrib':'2026-06-21T20:22:00.000Z','isha':'2026-06-21T22:27:00.000Z'}],
+      ['london7',51.5074,-0.1278,'mwl',1,'seventh','2026-01-15',{'fajr':'2026-01-15T05:59:00.000Z','sunrise':'2026-01-15T07:59:00.000Z','dhuhr':'2026-01-15T12:10:00.000Z','asr':'2026-01-15T14:01:00.000Z','maghrib':'2026-01-15T16:21:00.000Z','isha':'2026-01-15T18:15:00.000Z'}],
+      ['london7',51.5074,-0.1278,'mwl',1,'seventh','2026-03-01',{'fajr':'2026-03-01T04:55:00.000Z','sunrise':'2026-03-01T06:46:00.000Z','dhuhr':'2026-03-01T12:13:00.000Z','asr':'2026-03-01T15:04:00.000Z','maghrib':'2026-03-01T17:41:00.000Z','isha':'2026-03-01T19:25:00.000Z'}],
+      ['london7',51.5074,-0.1278,'mwl',1,'seventh','2026-06-21',{'fajr':'2026-06-21T02:40:00.000Z','sunrise':'2026-06-21T03:43:00.000Z','dhuhr':'2026-06-21T12:02:00.000Z','asr':'2026-06-21T16:25:00.000Z','maghrib':'2026-06-21T20:22:00.000Z','isha':'2026-06-21T21:25:00.000Z'}],
+      ['newyork',40.7128,-74.006,'isna',1,'angle','2026-01-15',{'fajr':'2026-01-15T10:58:00.000Z','sunrise':'2026-01-15T12:18:00.000Z','dhuhr':'2026-01-15T17:06:00.000Z','asr':'2026-01-15T19:34:00.000Z','maghrib':'2026-01-15T21:53:00.000Z','isha':'2026-01-15T23:14:00.000Z'}],
+      ['newyork',40.7128,-74.006,'isna',1,'angle','2026-03-01',{'fajr':'2026-03-01T10:15:00.000Z','sunrise':'2026-03-01T11:30:00.000Z','dhuhr':'2026-03-01T17:08:00.000Z','asr':'2026-03-01T20:17:00.000Z','maghrib':'2026-03-01T22:47:00.000Z','isha':'2026-03-02T00:02:00.000Z'}],
+      ['newyork',40.7128,-74.006,'isna',1,'angle','2026-06-21',{'fajr':'2026-06-21T07:45:00.000Z','sunrise':'2026-06-21T09:25:00.000Z','dhuhr':'2026-06-21T16:58:00.000Z','asr':'2026-06-21T20:58:00.000Z','maghrib':'2026-06-22T00:31:00.000Z','isha':'2026-06-22T02:11:00.000Z'}],
+      ['karachi_h',24.8607,67.0011,'karachi',2,'angle','2026-01-15',{'fajr':'2026-01-15T00:58:00.000Z','sunrise':'2026-01-15T02:19:00.000Z','dhuhr':'2026-01-15T07:41:00.000Z','asr':'2026-01-15T11:28:00.000Z','maghrib':'2026-01-15T13:04:00.000Z','isha':'2026-01-15T14:24:00.000Z'}],
+      ['karachi_h',24.8607,67.0011,'karachi',2,'angle','2026-03-01',{'fajr':'2026-03-01T00:39:00.000Z','sunrise':'2026-03-01T01:55:00.000Z','dhuhr':'2026-03-01T07:44:00.000Z','asr':'2026-03-01T11:56:00.000Z','maghrib':'2026-03-01T13:34:00.000Z','isha':'2026-03-01T14:50:00.000Z'}],
+      ['karachi_h',24.8607,67.0011,'karachi',2,'angle','2026-06-21',{'fajr':'2026-06-20T23:14:00.000Z','sunrise':'2026-06-21T00:43:00.000Z','dhuhr':'2026-06-21T07:34:00.000Z','asr':'2026-06-21T12:16:00.000Z','maghrib':'2026-06-21T14:24:00.000Z','isha':'2026-06-21T15:53:00.000Z'}],
+      ['istanbul',41.0082,28.9784,'turkey',1,'angle','2026-01-15',{'fajr':'2026-01-15T03:50:00.000Z','sunrise':'2026-01-15T05:20:00.000Z','dhuhr':'2026-01-15T10:18:00.000Z','asr':'2026-01-15T12:45:00.000Z','maghrib':'2026-01-15T15:07:00.000Z','isha':'2026-01-15T16:32:00.000Z'}],
+      ['istanbul',41.0082,28.9784,'turkey',1,'angle','2026-03-01',{'fajr':'2026-03-01T03:07:00.000Z','sunrise':'2026-03-01T04:32:00.000Z','dhuhr':'2026-03-01T10:21:00.000Z','asr':'2026-03-01T13:28:00.000Z','maghrib':'2026-03-01T16:02:00.000Z','isha':'2026-03-01T17:21:00.000Z'}],
+      ['istanbul',41.0082,28.9784,'turkey',1,'angle','2026-06-21',{'fajr':'2026-06-21T00:24:00.000Z','sunrise':'2026-06-21T02:25:00.000Z','dhuhr':'2026-06-21T10:11:00.000Z','asr':'2026-06-21T14:11:00.000Z','maghrib':'2026-06-21T17:47:00.000Z','isha':'2026-06-21T19:38:00.000Z'}],
+      ['tehran',35.6892,51.389,'tehran',1,'angle','2026-01-15',{'fajr':'2026-01-15T02:15:00.000Z','sunrise':'2026-01-15T03:44:00.000Z','dhuhr':'2026-01-15T08:44:00.000Z','asr':'2026-01-15T11:25:00.000Z','maghrib':'2026-01-15T14:04:00.000Z','isha':'2026-01-15T14:54:00.000Z'}],
+      ['tehran',35.6892,51.389,'tehran',1,'angle','2026-03-01',{'fajr':'2026-03-01T01:41:00.000Z','sunrise':'2026-03-01T03:05:00.000Z','dhuhr':'2026-03-01T08:47:00.000Z','asr':'2026-03-01T12:00:00.000Z','maghrib':'2026-03-01T14:48:00.000Z','isha':'2026-03-01T15:34:00.000Z'}],
+      ['tehran',35.6892,51.389,'tehran',1,'angle','2026-06-21',{'fajr':'2026-06-20T23:32:00.000Z','sunrise':'2026-06-21T01:19:00.000Z','dhuhr':'2026-06-21T08:36:00.000Z','asr':'2026-06-21T12:25:00.000Z','maghrib':'2026-06-21T16:15:00.000Z','isha':'2026-06-21T17:14:00.000Z'}],
+      ['jakarta',-6.2088,106.8456,'kemenag',1,'angle','2026-01-15',{'fajr':'2026-01-14T21:25:00.000Z','sunrise':'2026-01-14T22:49:00.000Z','dhuhr':'2026-01-15T05:02:00.000Z','asr':'2026-01-15T08:27:00.000Z','maghrib':'2026-01-15T11:15:00.000Z','isha':'2026-01-15T12:30:00.000Z'}],
+      ['jakarta',-6.2088,106.8456,'kemenag',1,'angle','2026-03-01',{'fajr':'2026-02-28T21:40:00.000Z','sunrise':'2026-02-28T22:58:00.000Z','dhuhr':'2026-03-01T05:05:00.000Z','asr':'2026-03-01T08:09:00.000Z','maghrib':'2026-03-01T11:12:00.000Z','isha':'2026-03-01T12:21:00.000Z'}],
+      ['jakarta',-6.2088,106.8456,'kemenag',1,'angle','2026-06-21',{'fajr':'2026-06-20T21:38:00.000Z','sunrise':'2026-06-20T23:01:00.000Z','dhuhr':'2026-06-21T04:54:00.000Z','asr':'2026-06-21T08:16:00.000Z','maghrib':'2026-06-21T10:47:00.000Z','isha':'2026-06-21T12:02:00.000Z'}],
+      ['oslo',59.9139,10.7522,'mwl',1,'middle','2026-01-15',{'fajr':'2026-01-15T05:28:00.000Z','sunrise':'2026-01-15T08:04:00.000Z','dhuhr':'2026-01-15T11:26:00.000Z','asr':'2026-01-15T12:35:00.000Z','maghrib':'2026-01-15T14:49:00.000Z','isha':'2026-01-15T17:18:00.000Z'}],
+      ['oslo',59.9139,10.7522,'mwl',1,'middle','2026-03-01',{'fajr':'2026-03-01T03:57:00.000Z','sunrise':'2026-03-01T06:15:00.000Z','dhuhr':'2026-03-01T11:29:00.000Z','asr':'2026-03-01T13:59:00.000Z','maghrib':'2026-03-01T16:44:00.000Z','isha':'2026-03-01T18:55:00.000Z'}],
+      ['oslo',59.9139,10.7522,'mwl',1,'middle','2026-06-21',{'fajr':'2026-06-20T23:19:00.000Z','sunrise':'2026-06-21T01:54:00.000Z','dhuhr':'2026-06-21T11:19:00.000Z','asr':'2026-06-21T16:00:00.000Z','maghrib':'2026-06-21T20:44:00.000Z','isha':'2026-06-21T23:19:00.000Z'}],
+    ];
+    for (const [city, lat, lng, method, asr, hl, day, want] of mwwRefs) {
+      const rows = await admin(db, `select prayer, prayer_at from private.mt_prayer_times($1::date, $2, $3, $4, $5, $6)`, [day, lat, lng, method, asr, hl]);
+      const got = Object.fromEntries(rows.map((r) => [r.prayer, new Date(r.prayer_at).getTime()]));
+      const worst = Math.max(...Object.entries(want).map(([p, iso]) => Math.abs((got[p] ?? 0) - new Date(iso).getTime())));
+      check(`mww: SQL prayer times match Dart — ${city} ${day} (${method})`, rows.length === 6 && worst <= 60000, { worst, got: rows });
+    }
+
+    // ---- reminders anywhere
+    const MW = await signUp(db, 'mww reminders', null);
+    await as(db, MW, `select public.save_push_subscription('https://fcm.googleapis.com/fcm/send/mww1', 'p256', 'authx', 'masjid')`);
+    const setR = (args) => as(db, MW, `select public.set_prayer_reminders($1, $2, $3::jsonb, $4, $5, $6, $7, $8)`, args);
+    check('mww: reminders in Dubai (Asia/Dubai, UAE method)', ok(await setR([25.2048, 55.2708, '{"fajr":0,"maghrib":5}', 'دبي', 'Asia/Dubai', 'uae', 1, 'angle'])));
+    const dubaiToday = (await admin(db, `select (now() at time zone 'Asia/Dubai')::date::text d`))[0].d;
+    const qd = await admin(db, `select day::text, prayer, adhan_at, due_at from prayer_reminder_queue where user_id = $1 order by day, prayer`, [MW]);
+    check("mww: …queued for Dubai's today and tomorrow", qd.length === 4 && qd[0].day === dubaiToday, qd);
+    const want = (await admin(db, `select prayer_at from private.mt_prayer_times($1::date, 25.2048, 55.2708, 'uae', 1, 'angle') where prayer = 'fajr'`, [qd[0].day]))[0].prayer_at;
+    const qf = qd.find((r) => r.prayer === 'fajr');
+    check('mww: …at the UAE-method adhan', new Date(qf.adhan_at).getTime() === new Date(want).getTime());
+    const clock = (iso, tz) => {
+      const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: 'numeric', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(iso)).map((p) => [p.type, p.value]));
+      const h = Number(parts.hour);
+      return `${h % 12 === 0 ? 12 : h % 12}:${parts.minute} ${h < 12 ? 'ص' : 'م'}`;
+    };
+    await admin(db, `select private.prayer_reminders_tick($1::timestamptz)`, [new Date(new Date(qf.due_at).getTime() + 30000).toISOString()]);
+    const nd = await admin(db, `select body from notifications where user_id = $1 and deep_link = '/masjid/tools/reminders'`, [MW]);
+    check("mww: …the notification shows Dubai's clock", nd.length === 1 && nd[0].body === 'أذان الفجر ' + clock(qf.adhan_at, 'Asia/Dubai'), { nd, want: clock(qf.adhan_at, 'Asia/Dubai') });
+    check('mww: reminders in London (Europe/London, MWL, 1/7 night)', ok(await setR([51.5074, -0.1278, '{"isha":0}', 'لندن', 'Europe/London', 'mwl', 2, 'seventh'])));
+    const ql = (await admin(db, `select day::text, adhan_at, due_at from prayer_reminder_queue where user_id = $1 and prayer = 'isha' and sent_at is null order by day limit 1`, [MW]))[0];
+    const wl = (await admin(db, `select prayer_at from private.mt_prayer_times($1::date, 51.5074, -0.1278, 'mwl', 2, 'seventh') where prayer = 'isha'`, [ql.day]))[0].prayer_at;
+    check("mww: …queued on London's dates at the MWL Isha", new Date(ql.adhan_at).getTime() === new Date(wl).getTime() &&
+      ql.day === (await admin(db, `select (now() at time zone 'Europe/London')::date::text d`))[0].d, ql);
+    await admin(db, `select private.prayer_reminders_tick($1::timestamptz)`, [new Date(new Date(ql.due_at).getTime() + 30000).toISOString()]);
+    const nl = await admin(db, `select body from notifications where user_id = $1 and deep_link = '/masjid/tools/reminders' order by created_at desc, body`, [MW]);
+    check("mww: …the notification shows London's clock (summer time aware)", nl.some((n) => n.body === 'أذان العشاء ' + clock(ql.adhan_at, 'Europe/London')), { nl, want: clock(ql.adhan_at, 'Europe/London') });
+    const mine = (await as(db, MW, `select * from public.my_prayer_reminders()`)).rows?.[0];
+    check('mww: my_prayer_reminders returns the zone and the method', mine?.tz === 'Europe/London' && mine.method === 'mwl' && mine.asr_factor === 2 && mine.high_lat === 'seventh', mine);
+    check('mww: an unknown time zone is refused', has(await setR([25.2, 55.2, '{"fajr":0}', null, 'Mars/Base', 'uae', 1, 'angle']), 'المنطقة الزمنية'));
+    check('mww: an unknown method / Asr / rule is refused',
+      has(await setR([25.2, 55.2, '{"fajr":0}', null, 'Asia/Dubai', 'nope', 1, 'angle']), 'طريقة') &&
+      has(await setR([25.2, 55.2, '{"fajr":0}', null, 'Asia/Dubai', 'uae', 3, 'angle']), 'طريقة') &&
+      has(await setR([25.2, 55.2, '{"fajr":0}', null, 'Asia/Dubai', 'uae', 1, 'polar']), 'طريقة'));
+    check('mww: impossible coordinates are refused', denied(await setR([91, 55.2, '{"fajr":0}', null, 'Asia/Dubai', 'uae', 1, 'angle'])));
+    check('mww: old 4-argument calls still work (Egypt → Africa/Cairo, Egyptian method)',
+      ok(await as(db, MW, `select public.set_prayer_reminders(30.0444, 31.2357, '{"fajr":0}'::jsonb, 'القاهرة')`)) &&
+      (await admin(db, `select tz, method from prayer_reminder_prefs where user_id = $1`, [MW]))[0].tz === 'Africa/Cairo' &&
+      (await admin(db, `select method from prayer_reminder_prefs where user_id = $1`, [MW]))[0].method === 'egypt');
+    const noTz = await as(db, MW, `select public.set_prayer_reminders(51.5, -0.12, '{"fajr":0}'::jsonb)`);
+    const noTzRow = (await admin(db, `select tz, method from prayer_reminder_prefs where user_id = $1`, [MW]))[0];
+    check('mww: outside Egypt without a zone → one from the longitude, MWL', ok(noTz) && noTzRow.tz === 'Etc/GMT' && noTzRow.method === 'mwl', noTzRow);
+    check("mww: users can't call the calculator", denied(await as(db, MW, `select * from private.mt_prayer_times(current_date, 25.2, 55.2)`)));
   }
 
   console.log(`\n${passed} passed, ${failures.length} failed`);

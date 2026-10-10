@@ -4,12 +4,13 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../core/location/where.dart';
-import '../../core/masjid_tools/egypt_cities.dart';
+import '../../core/masjid/world_time.dart' show defaultPlace;
 import '../../core/masjid_tools/hijri.dart' show toArabicDigits;
 import '../../core/masjid_tools/platform/compass.dart';
 import '../../core/masjid_tools/platform/feedback.dart';
 import '../../core/masjid_tools/qibla.dart';
 import '../../core/theme/app_colors.dart';
+import 'city_picker.dart';
 import 'tools_ui.dart';
 
 class QiblaScreen extends StatefulWidget {
@@ -20,9 +21,11 @@ class QiblaScreen extends StatefulWidget {
 }
 
 class _QiblaScreenState extends State<QiblaScreen> {
-  double _lat = egyptCities.first.$2;
-  double _lng = egyptCities.first.$3;
-  String _place = 'القاهرة (تقريبي)';
+  // The main city of the device's time zone until the location comes.
+  static final _start = defaultPlace();
+  double _lat = _start.$2;
+  double _lng = _start.$3;
+  String _place = '${_start.$1} (تقريبي)';
   bool _locating = false;
 
   final _compass = CompassSource();
@@ -99,20 +102,12 @@ class _QiblaScreenState extends State<QiblaScreen> {
   }
 
   Future<void> _pickCity() async {
-    final c = await showModalBottomSheet<(String, double, double)>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: ListView(children: [
-          const ListTile(title: Text('اختار مدينتك', style: TextStyle(fontWeight: FontWeight.w800))),
-          for (final c in egyptCities) ListTile(title: Text(c.$1), onTap: () => Navigator.pop(ctx, c)),
-        ]),
-      ),
-    );
+    final c = await pickCity(context);
     if (c == null || !mounted) return;
     setState(() {
-      _lat = c.$2;
-      _lng = c.$3;
-      _place = c.$1;
+      _lat = c.lat;
+      _lng = c.lng;
+      _place = c.label;
     });
   }
 

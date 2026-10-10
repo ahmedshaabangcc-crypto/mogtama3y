@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../core/masjid/prayer_times.dart' show egyptToday;
+import '../../core/masjid/world_time.dart' show deviceToday;
 import '../../core/masjid_tools/hijri.dart';
 import '../../core/masjid_tools/platform/kv_store.dart';
 import '../../core/theme/app_colors.dart';
@@ -18,7 +18,7 @@ class HijriCalendarScreen extends StatefulWidget {
 class _HijriCalendarScreenState extends State<HijriCalendarScreen> {
   static const _adjustKey = 'mt.hijri.adjust';
   int _adjust = 0;
-  late DateTime _today = egyptToday();
+  late DateTime _today = deviceToday();
   late HijriDate _month = toHijri(_today);
   DateTime? _convertG;
   HijriDate? _convertH;
@@ -42,7 +42,7 @@ class _HijriCalendarScreenState extends State<HijriCalendarScreen> {
   Future<void> _setAdjust(int v) async {
     setState(() {
       _adjust = v;
-      _today = egyptToday();
+      _today = deviceToday();
       _month = toHijri(_today, adjustDays: v);
     });
     try {

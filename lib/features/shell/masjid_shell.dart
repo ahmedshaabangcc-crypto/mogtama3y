@@ -126,7 +126,7 @@ class MasjidMoreScreen extends StatelessWidget {
           for (final r in rows)
             ListTile(
               title: Text('${r['title']} — ${r['mosque_name']}'),
-              subtitle: Text('${masjidMoney(r['monthly_amount'] as num?)} ج.م شهرياً • ${labels[r['status']] ?? ''}'),
+              subtitle: Text('${masjidAmount(r['monthly_amount'] as num?, r['currency'] as String?)} شهرياً • ${labels[r['status']] ?? ''}'),
               onTap: () {
                 Navigator.pop(ctx);
                 context.push(AppRoutes.mosque(r['mosque_id'] as String));

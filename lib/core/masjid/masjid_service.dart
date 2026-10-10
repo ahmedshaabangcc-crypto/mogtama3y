@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app_flavor.dart';
+import 'world_time.dart';
 
 /// «مسجدي» — backend/migrations/0080_masjid.sql. Public reads work for
 /// guests; everything that writes goes through RLS (content) or the
@@ -44,6 +45,9 @@ class MasjidService {
     return r == null ? null : Map<String, dynamic>.from(r as Map);
   }
 
+  /// Adds a mosque anywhere (0087): its time zone is the creator's device
+  /// zone and its country (→ currency) comes from the coordinates; the
+  /// server forces Egypt / Africa/Cairo / EGP inside Egypt.
   static Future<String> addMosque({required String name, required double lat, required double lng, String? address, String? area, String? governorate}) async {
     final r = await _db.rpc('masjid_add_mosque', params: {
       'p_name': name,
@@ -52,6 +56,25 @@ class MasjidService {
       'p_address': address,
       'p_area': area,
       'p_governorate': governorate,
+      'p_tz': deviceTimeZone,
+      'p_country': countryAt(lat, lng) ?? countryOfTimeZone(deviceTimeZone),
+    });
+    return r as String;
+  }
+
+  /// A mosque found on OpenStreetMap → ours (created once per OSM object,
+  /// or matched to one we already have within ~40 m), then joined. Returns
+  /// the mosque id.
+  static Future<String> importOsm({required String osmType, required int osmId, required String name, required double lat, required double lng, bool join = true}) async {
+    final r = await _db.rpc('masjid_import_osm', params: {
+      'p_osm_type': osmType,
+      'p_osm_id': osmId,
+      'p_name': name,
+      'p_lat': lat,
+      'p_lng': lng,
+      'p_tz': deviceTimeZone,
+      'p_country': countryAt(lat, lng) ?? countryOfTimeZone(deviceTimeZone),
+      'p_join': join,
     });
     return r as String;
   }
@@ -328,6 +351,9 @@ class MasjidService {
   }
 }
 
+/// WhatsApp number for wa.me: «01…» (Egypt) → 201…, «+971…» → 971….
+String waDigits(String wa) => wa.startsWith('+') ? wa.substring(1) : (wa.startsWith('0') ? '2$wa' : wa);
+
 /// "1,000" — Arabic-friendly money without decimals.
 String masjidMoney(num? v) {
   final n = (v ?? 0).round();
@@ -340,9 +366,14 @@ String masjidMoney(num? v) {
   return '${n < 0 ? '-' : ''}$b';
 }
 
+/// "1,000 د.إ" — an amount in the mosque's currency (ISO code; EGP when
+/// unknown — every mosque before 0087 was in Egypt).
+String masjidAmount(num? v, [String? currency]) => '${masjidMoney(v)} ${currencyLabel(currency)}';
+
 /// «اتدفع 500 من 1000 — باقي 500».
-String needProgressText(num confirmed, num target) {
+String needProgressText(num confirmed, num target, [String? currency]) {
   final left = target - confirmed;
-  if (left <= 0) return 'اكتمل بفضل الله: اتدفع ${masjidMoney(confirmed)} من ${masjidMoney(target)} ج.م';
-  return 'اتدفع ${masjidMoney(confirmed)} من ${masjidMoney(target)} — باقي ${masjidMoney(left)} ج.م';
+  final c = currencyLabel(currency);
+  if (left <= 0) return 'اكتمل بفضل الله: اتدفع ${masjidMoney(confirmed)} من ${masjidMoney(target)} $c';
+  return 'اتدفع ${masjidMoney(confirmed)} من ${masjidMoney(target)} — باقي ${masjidMoney(left)} $c';
 }
