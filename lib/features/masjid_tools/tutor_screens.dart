@@ -67,12 +67,21 @@ class TutorStore extends ChangeNotifier {
             if (validAyah(s, f) && validAyah(s, t) && f <= t) last = (s, f, t);
           }
         } catch (_) {}
+        if (settings.optedIn && engine.shouldIsolate()) {
+          // Reload at /tutor/ (multithreaded recognition); this page goes away.
+          engine.enterIsolation();
+          return;
+        }
         support = await engine.support();
         loaded = true;
         notifyListeners();
         if (settings.optedIn) loadModel();
         sync();
       }();
+
+  /// The ayah's shortest plausible recitation (auto-stop waits longer for a
+  /// pause before this).
+  static Duration minRecitation(int words) => Duration(milliseconds: 350 * words);
 
   Future<void> saveSettings(TutorSettings s) async {
     settings = s;
@@ -103,9 +112,14 @@ class TutorStore extends ChangeNotifier {
         bytesLoaded = l;
         bytesTotal = t;
         notifyListeners();
-      }, prefer: Uri.base.queryParameters['tutor_device'] ?? 'auto');
+      },
+          prefer: Uri.base.queryParameters['tutor_device'] ?? 'auto',
+          threads: int.tryParse(Uri.base.queryParameters['tutor_threads'] ?? '') ?? 0);
       model = ModelState.ready;
-      if (debug) debugPrint('[tutor] model ready: ${modelInfo!.device} ${modelInfo!.dtype} in ${modelInfo!.loadMs} ms (cached before: ${modelInfo!.cached})');
+      if (debug) {
+        final i = modelInfo!;
+        debugPrint('[tutor] model ready: ${i.device} ${i.dtype} threads=${i.threads} isolated=${i.isolated} in ${i.loadMs} ms (warm-up ${i.warmMs} ms, cached before: ${i.cached})');
+      }
     } on TutorError catch (e) {
       model = ModelState.failed;
       modelError = e;
@@ -157,6 +171,12 @@ class TutorStore extends ChangeNotifier {
 }
 
 String _mb(int bytes) => toArabicDigits((bytes / 1e6).round());
+
+/// «١٫٨» — tenths of a second, Arabic digits.
+String _seconds(Duration d) {
+  final tenths = (d.inMilliseconds / 100).round();
+  return '${toArabicDigits(tenths ~/ 10)}٫${toArabicDigits(tenths % 10)}';
+}
 
 /// The ayah's text as recited: the basmala Tanzil prefixes to ayah 1 (all
 /// surahs but 1 and 9) is not part of the ayah.
@@ -211,6 +231,10 @@ class _QuranTutorScreenState extends State<QuranTutorScreen> {
   Future<void> _optIn() async {
     await store.saveSettings(store.settings.copyWith(optedIn: true));
     store.engine.persistStorage();
+    if (store.engine.shouldIsolate()) {
+      store.engine.enterIsolation();
+      return;
+    }
     store.loadModel();
   }
 
@@ -233,6 +257,8 @@ class _QuranTutorScreenState extends State<QuranTutorScreen> {
     return ToolScaffold(
       title: 'المحفّظ',
       actions: [
+        if (store.engine.inIsolatedPage && !Navigator.of(context).canPop())
+          IconButton(tooltip: 'رجوع لمسجدي', icon: const Icon(Icons.home_rounded), onPressed: store.engine.leaveIsolation),
         if (s.optedIn)
           IconButton(
             tooltip: 'تقدّمي',
@@ -643,6 +669,9 @@ class _TutorSessionScreenState extends State<TutorSessionScreen> {
   String? _debugNote;
   int _thinkingSince = 0;
 
+  /// How long the last check took (from «خلصت» / auto-stop to the result).
+  Duration? _checkTime;
+
   TutorEngine get engine => store.engine;
 
   String get _text => tutorAyahText(widget.quran, widget.surah, _ayah);
@@ -680,6 +709,7 @@ class _TutorSessionScreenState extends State<TutorSessionScreen> {
       _peek = false;
       _error = null;
       _debugNote = null;
+      _checkTime = null;
     });
     engine.prefetch(husaryMuallimUrl(widget.surah, ayah));
     if (ayah < widget.to) engine.prefetch(husaryMuallimUrl(widget.surah, ayah + 1));
@@ -722,6 +752,7 @@ class _TutorSessionScreenState extends State<TutorSessionScreen> {
     try {
       await engine.startRecording(
         max: recordLimit(words),
+        min: TutorStore.minRecitation(words),
         autoStop: store.settings.autoStop,
         onLevel: (l) => _level = l,
         onAutoStop: (_) => _stop(),
@@ -747,14 +778,19 @@ class _TutorSessionScreenState extends State<TutorSessionScreen> {
     _ticker = Timer.periodic(const Duration(milliseconds: 500), (_) {
       if (mounted) setState(() {});
     });
+    final sw = Stopwatch()..start();
     try {
       final rec = await engine.stopRecording();
       if (rec.seconds < 0.8) {
         _fail('التسجيل قصير أوي — دوس «سمّع» واقرا الآية كلها، وبعدين دوس «خلصت».');
         return;
       }
-      final t = await engine.transcribe(rec);
-      if (TutorStore.debug) debugPrint('[tutor] ${widget.surah}:$_ayah audio=${rec.seconds.toStringAsFixed(1)}s infer=${t.inferMs}ms text=${t.text}');
+      final t = await engine.transcribe(rec, words: recitationWords(_text).length);
+      _checkTime = sw.elapsed;
+      if (TutorStore.debug) {
+        debugPrint('[tutor] ${widget.surah}:$_ayah audio=${rec.seconds.toStringAsFixed(1)}s infer=${t.inferMs}ms total=${sw.elapsedMilliseconds}ms ${t.debugLine} text=${t.text}');
+        _debugNote = 'تسجيلك ${t.seconds.toStringAsFixed(1)} ث — التعرّف ${(t.inferMs / 1000).toStringAsFixed(2)} ث\n${t.debugLine}\n${t.text}';
+      }
       _grade(t.text);
     } on TutorError catch (e) {
       _fail(e.message);
@@ -800,9 +836,10 @@ class _TutorSessionScreenState extends State<TutorSessionScreen> {
     });
     final sw = Stopwatch()..start();
     try {
-      final t = await engine.transcribeUrl(husaryMuallimUrl(widget.surah, _ayah));
-      final note = 'تلاوة الحصري ${t.seconds.toStringAsFixed(1)} ث — التعرّف ${(t.inferMs / 1000).toStringAsFixed(2)} ث (الكل ${(sw.elapsedMilliseconds / 1000).toStringAsFixed(2)} ث)\n${t.text}';
-      debugPrint('[tutor-debug] ${widget.surah}:$_ayah audio=${t.seconds.toStringAsFixed(1)}s infer=${t.inferMs}ms total=${sw.elapsedMilliseconds}ms text=${t.text}');
+      final t = await engine.transcribeUrl(husaryMuallimUrl(widget.surah, _ayah), words: recitationWords(_text).length);
+      final note = 'تلاوة الحصري ${t.seconds.toStringAsFixed(1)} ث — التعرّف ${(t.inferMs / 1000).toStringAsFixed(2)} ث (الكل ${(sw.elapsedMilliseconds / 1000).toStringAsFixed(2)} ث)\n${t.debugLine}\n${t.text}';
+      debugPrint('[tutor-debug] ${widget.surah}:$_ayah audio=${t.seconds.toStringAsFixed(1)}s infer=${t.inferMs}ms total=${sw.elapsedMilliseconds}ms ${t.debugLine} text=${t.text}');
+      _checkTime = sw.elapsed;
       _grade(t.text);
       final r = _result;
       if (r != null) debugPrint('[tutor-debug] perfect=${r.perfect} ops=${r.ops.where((o) => o.status != WordStatus.ok).toList()}');
@@ -852,6 +889,11 @@ class _TutorSessionScreenState extends State<TutorSessionScreen> {
           ]),
         ),
         if (_result != null && _phase == _Phase.result) _verdict(_result!),
+        if (_result != null && _phase == _Phase.result && _checkTime != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text('اتراجع في ${_seconds(_checkTime!)} ث', textAlign: TextAlign.center, style: toolMutedStyle),
+          ),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
@@ -895,7 +937,11 @@ class _TutorSessionScreenState extends State<TutorSessionScreen> {
           ),
           if (_debugNote != null) Padding(padding: const EdgeInsets.only(top: 6), child: SelectableText(_debugNote!, style: toolMutedStyle)),
           if (store.modelInfo != null)
-            Text('model: ${store.modelInfo!.device} ${store.modelInfo!.dtype}, load ${store.modelInfo!.loadMs} ms', style: toolMutedStyle),
+            Text(
+              'model: ${store.modelInfo!.device} ${store.modelInfo!.dtype} — ${store.modelInfo!.label}, '
+              'isolated ${store.modelInfo!.isolated}, load ${store.modelInfo!.loadMs} ms (warm-up ${store.modelInfo!.warmMs} ms)',
+              style: toolMutedStyle,
+            ),
         ],
         const SizedBox(height: 8),
         const _Disclaimer(compact: true),
@@ -1055,7 +1101,7 @@ class _TutorSessionScreenState extends State<TutorSessionScreen> {
           ),
           const SizedBox(height: 8),
           Text('بنسجّل… ${_clock(elapsed)} / ${_clock(limit)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-          Text(store.settings.autoStop ? 'لما تخلص اسكت ثانيتين أو دوس «خلصت»' : 'دوس «خلصت» لما تخلص', style: toolMutedStyle),
+          Text(store.settings.autoStop ? 'لما تخلص اسكت ثانية أو دوس «خلصت»' : 'دوس «خلصت» لما تخلص', style: toolMutedStyle),
           TextButton(onPressed: _stop, child: const Text('خلصت', style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.w800))),
         ]);
       case _Phase.thinking:
@@ -1220,6 +1266,7 @@ class _TutorReviewScreenState extends State<TutorReviewScreen> {
     try {
       await engine.startRecording(
         max: recordLimit(recitationWords(_text(ayah)).length),
+        min: TutorStore.minRecitation(recitationWords(_text(ayah)).length),
         autoStop: store.settings.autoStop,
         onLevel: (l) => _level = l,
         onAutoStop: (_) => _finish(ayah, next: false),
@@ -1262,7 +1309,7 @@ class _TutorReviewScreenState extends State<TutorReviewScreen> {
       final r = rec;
       _queue = _queue.then((_) async {
         try {
-          final t = await engine.transcribe(r);
+          final t = await engine.transcribe(r, words: recitationWords(_text(ayah)).length);
           final res = alignRecitation(_text(ayah), t.text);
           if (!res.empty) store.progress.record(widget.surah, ayah, perfect: res.perfect, needed: store.settings.perfectNeeded);
           store.saveProgress();
@@ -1616,7 +1663,7 @@ Future<void> showTutorSettings(BuildContext context) {
                 onChanged: (v) => store.saveSettings(s.copyWith(autoStop: v)),
                 activeThumbColor: AppColors.gold,
                 title: const Text('وقّف التسجيل لوحده لما أسكت', style: TextStyle(color: Colors.white)),
-                subtitle: const Text('بعد حوالي ثانيتين سكوت', style: toolMutedStyle),
+                subtitle: const Text('بعد حوالي ثانية سكوت', style: toolMutedStyle),
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -1625,6 +1672,10 @@ Future<void> showTutorSettings(BuildContext context) {
                 activeThumbColor: AppColors.gold,
                 title: const Text('اختبر نفسك (خبّي النص)', style: TextStyle(color: Colors.white)),
               ),
+              if (store.modelInfo != null) ...[
+                const SizedBox(height: 4),
+                Text('المعالج: ${store.modelInfo!.label}', textDirection: TextDirection.rtl, style: toolMutedStyle),
+              ],
               const SizedBox(height: 8),
               const TutorCredits(),
             ]),
