@@ -3052,7 +3052,8 @@ const denied = (r) => !!r.error;
       const h = Number(parts.hour);
       return `${h % 12 === 0 ? 12 : h % 12}:${parts.minute} ${h < 12 ? 'ص' : 'م'}`;
     };
-    await admin(db, `select private.prayer_reminders_tick($1::timestamptz)`, [new Date(new Date(qf.due_at).getTime() + 30000).toISOString()]);
+    await admin(db, `update prayer_reminder_queue set due_at = now() where user_id = $1 and day = $2::date and prayer = 'fajr'`, [MW, qf.day]);
+    await admin(db, `select private.prayer_reminders_tick(now() + interval '30 seconds')`);
     const nd = await admin(db, `select body from notifications where user_id = $1 and deep_link = '/masjid/tools/reminders'`, [MW]);
     check("mww: …the notification shows Dubai's clock", nd.length === 1 && nd[0].body === 'أذان الفجر ' + clock(qf.adhan_at, 'Asia/Dubai'), { nd, want: clock(qf.adhan_at, 'Asia/Dubai') });
     check('mww: reminders in London (Europe/London, MWL, 1/7 night)', ok(await setR([51.5074, -0.1278, '{"isha":0}', 'لندن', 'Europe/London', 'mwl', 2, 'seventh'])));
@@ -3060,7 +3061,10 @@ const denied = (r) => !!r.error;
     const wl = (await admin(db, `select prayer_at from private.mt_prayer_times($1::date, 51.5074, -0.1278, 'mwl', 2, 'seventh') where prayer = 'isha'`, [ql.day]))[0].prayer_at;
     check("mww: …queued on London's dates at the MWL Isha", new Date(ql.adhan_at).getTime() === new Date(wl).getTime() &&
       ql.day === (await admin(db, `select (now() at time zone 'Europe/London')::date::text d`))[0].d, ql);
-    await admin(db, `select private.prayer_reminders_tick($1::timestamptz)`, [new Date(new Date(ql.due_at).getTime() + 30000).toISOString()]);
+    // Tick at the real clock (the tick also purges reminder notifications older
+    // than 12 h relative to its time, so a far-future tick would delete them).
+    await admin(db, `update prayer_reminder_queue set due_at = now() where user_id = $1 and day = $2::date and prayer = 'isha'`, [MW, ql.day]);
+    await admin(db, `select private.prayer_reminders_tick(now() + interval '30 seconds')`);
     const nl = await admin(db, `select body from notifications where user_id = $1 and deep_link = '/masjid/tools/reminders' order by created_at desc, body`, [MW]);
     check("mww: …the notification shows London's clock (summer time aware)", nl.some((n) => n.body === 'أذان العشاء ' + clock(ql.adhan_at, 'Europe/London')), { nl, want: clock(ql.adhan_at, 'Europe/London') });
     const mine = (await as(db, MW, `select * from public.my_prayer_reminders()`)).rows?.[0];
