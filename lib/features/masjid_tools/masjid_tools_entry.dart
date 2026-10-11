@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/routing/app_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_theme.dart';
 
 /// «أدوات يومية» — the small, always-loaded part of the tools: the
 /// deferred-page wrapper the router uses and the strip of tool buttons
@@ -47,6 +48,8 @@ class _DeferredPageState extends State<DeferredPage> {
           appBar: AppBar(
             backgroundColor: AppColors.night,
             foregroundColor: Colors.white,
+            iconTheme: AppTheme.nightBarIcons,
+            actionsIconTheme: AppTheme.nightBarIcons,
             titleTextStyle: Theme.of(context).appBarTheme.titleTextStyle?.copyWith(color: Colors.white),
             title: Text(widget.title),
           ),

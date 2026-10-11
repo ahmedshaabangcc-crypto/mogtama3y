@@ -34,6 +34,60 @@ void main() {
       expect(turnToQibla(10, 350), closeTo(20, 1e-9));
       expect(turnToQibla(350, 10), closeTo(-20, 1e-9));
     });
+    test('alpha → heading (Android absolute: clockwise = 360 − alpha)', () {
+      expect(headingFromAlpha(0), 0);
+      expect(headingFromAlpha(360), 0);
+      expect(headingFromAlpha(270), 90); // top of phone faces east
+      expect(headingFromAlpha(224), 136); // facing the Cairo qibla
+      expect(headingFromAlpha(1), closeTo(359, 1e-9));
+    });
+    test('screen orientation compensation', () {
+      // Landscape (screen turned 90° counter-clockwise): device top points
+      // west (alpha 90 → 270°), so the screen's top faces north.
+      expect(headingFromAlpha(90, screenAngle: 90), 0);
+      expect(headingFromAlpha(0, screenAngle: 270), 270);
+      expect(headingFromAlpha(0, screenAngle: -90), 270);
+      expect(headingFromWebkit(136), 136);
+      expect(headingFromWebkit(300, screenAngle: 90), 30);
+      expect(headingFromWebkit(10, screenAngle: -90), 280);
+    });
+    test('circular smoothing never swings through 180 at the 0/360 seam', () {
+      expect(circularMean([350, 10]), anyOf(closeTo(0, 1e-6), closeTo(360, 1e-6)));
+      expect(circularMean([170, 190]), closeTo(180, 1e-6));
+      final s = HeadingSmoother(factor: 0.3);
+      expect(s.add(358), closeTo(358, 1e-9));
+      for (final h in <double>[359, 1, 2, 0, 359, 1]) {
+        final v = s.add(h);
+        expect(turnToQibla(v, 0).abs(), lessThan(3), reason: 'smoothed $v');
+      }
+      // Converges to a new steady heading.
+      for (var i = 0; i < 60; i++) {
+        s.add(90);
+      }
+      expect(s.value, closeTo(90, 0.5));
+      s.reset();
+      expect(s.value, isNull);
+    });
+    test('relative angle = arrow rotation (qibla − heading, shortest way)', () {
+      expect(turnToQibla(136, 136), 0);
+      expect(turnToQibla(136, 0), closeTo(136, 1e-9));
+      expect(turnToQibla(136, 300), closeTo(196 - 360, 1e-9)); // −164: turn left
+      expect(turnToQibla(0, 180).abs(), 180);
+      expect(turnToQibla(136, 132).abs() <= 5, isTrue);
+    });
+    test('spread, tilt and accuracy checks', () {
+      expect(circularSpread([10, 10, 10]), closeTo(0, 1e-6));
+      expect(circularSpread([358, 0, 2, 1, 359]), lessThan(3));
+      expect(circularSpread([0, 90, 180, 270, 45, 200]), greaterThan(40));
+      expect(isTilted(5, -8), isFalse);
+      expect(isTilted(70, 0), isTrue);
+      expect(isTilted(0, -50), isTrue);
+      expect(isTilted(null, null), isFalse);
+      expect(isPoorAccuracy(10), isFalse);
+      expect(isPoorAccuracy(40), isTrue);
+      expect(isPoorAccuracy(-1), isTrue);
+      expect(isPoorAccuracy(null), isFalse);
+    });
   });
 
   group('hijri', () {

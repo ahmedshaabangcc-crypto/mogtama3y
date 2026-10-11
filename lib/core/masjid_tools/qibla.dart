@@ -32,14 +32,101 @@ double normalizeDegrees(double d) {
   return r < 0 ? r + 360 : r;
 }
 
-/// Compass heading (clockwise from north) from a W3C `deviceorientation`
-/// alpha (counter-clockwise), corrected for the screen's rotation.
+/// Compass heading (clockwise from north) of the top of the *screen*, from
+/// a W3C absolute `deviceorientation(absolute)` alpha (counter-clockwise
+/// from north), corrected for the screen's rotation (`screen.orientation
+/// .angle`: 0 portrait, 90 landscape turned counter-clockwise, 270/-90 the
+/// other way).
 double headingFromAlpha(double alpha, {double screenAngle = 0}) => normalizeDegrees(360 - alpha + screenAngle);
 
-/// How far to turn the phone (clockwise, −180..180) so its top faces the qibla.
-double turnToQibla(double qibla, double heading) {
-  final d = normalizeDegrees(qibla - heading);
-  return d > 180 ? d - 360 : d;
+/// iOS Safari's `webkitCompassHeading` is already clockwise from north for
+/// the device's top edge; only the screen rotation has to be added.
+double headingFromWebkit(double webkitHeading, {double screenAngle = 0}) => normalizeDegrees(webkitHeading + screenAngle);
+
+/// Signed shortest turn from [heading] to [target] (−180..180, clockwise
+/// positive). With target = qibla it is how far to turn the phone — and the
+/// on-screen rotation of the qibla arrow.
+double turnToQibla(double target, double heading) {
+  final d = normalizeDegrees(target - heading);
+  return d >= 180 ? d - 360 : d;
+}
+
+/// The phone is far from flat (beta = front/back tilt, gamma = sideways
+/// tilt), so an alpha-based heading is unreliable.
+bool isTilted(double? beta, double? gamma, {double limit = 35}) =>
+    (beta != null && beta.abs() > limit) || (gamma != null && gamma.abs() > limit);
+
+/// iOS `webkitCompassAccuracy` (± degrees; negative = uncalibrated) is poor.
+bool isPoorAccuracy(double? accuracy) => accuracy != null && (accuracy < 0 || accuracy > 25);
+
+/// Circular mean of angles (degrees) — 350° and 10° average to 0°, not 180°.
+double circularMean(Iterable<double> angles) {
+  var x = 0.0, y = 0.0;
+  for (final a in angles) {
+    x += math.cos(_rad(a));
+    y += math.sin(_rad(a));
+  }
+  return normalizeDegrees(_deg(math.atan2(y, x)));
+}
+
+/// Circular standard deviation in degrees (0 = all equal). Large values mean
+/// the readings jump around — the magnetometer needs calibrating.
+double circularSpread(List<double> angles) {
+  if (angles.length < 2) return 0;
+  var x = 0.0, y = 0.0;
+  for (final a in angles) {
+    x += math.cos(_rad(a));
+    y += math.sin(_rad(a));
+  }
+  final r = math.sqrt(x * x + y * y) / angles.length;
+  if (r >= 1) return 0;
+  if (r <= 1e-9) return 180;
+  return _deg(math.sqrt(-2 * math.log(r)));
+}
+
+/// Exponential smoothing on the unit circle: averages the (cos, sin) vectors
+/// so the needle glides through 359° → 0° instead of spinning round.
+class HeadingSmoother {
+  HeadingSmoother({this.factor = 0.25});
+
+  /// Weight of each new reading (0..1]; 1 = no smoothing.
+  final double factor;
+  double? _x, _y;
+
+  double? get value => _x == null ? null : normalizeDegrees(_deg(math.atan2(_y!, _x!)));
+
+  double add(double heading) {
+    final cx = math.cos(_rad(heading)), cy = math.sin(_rad(heading));
+    if (_x == null) {
+      _x = cx;
+      _y = cy;
+    } else {
+      _x = _x! + (cx - _x!) * factor;
+      _y = _y! + (cy - _y!) * factor;
+      // Opposite readings can cancel out; restart from the newest one.
+      if (_x!.abs() < 1e-6 && _y!.abs() < 1e-6) {
+        _x = cx;
+        _y = cy;
+      }
+    }
+    return value!;
+  }
+
+  void reset() => _x = _y = null;
+}
+
+/// One compass sample from the browser.
+class CompassReading {
+  const CompassReading({required this.heading, this.accuracy, this.beta, this.gamma, this.ios = false});
+
+  /// Degrees clockwise from (magnetic) north for the top of the screen.
+  final double heading;
+
+  /// iOS `webkitCompassAccuracy` in ± degrees (null elsewhere).
+  final double? accuracy;
+  final double? beta;
+  final double? gamma;
+  final bool ios;
 }
 
 /// «جنوب شرق» — the 8-point name of a bearing.

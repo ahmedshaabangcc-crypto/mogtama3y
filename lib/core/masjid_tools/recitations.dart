@@ -7,6 +7,14 @@ library;
 
 const recitationsApi = 'https://www.mp3quran.net/api/v3/reciters?language=ar';
 
+/// Same API without «www» — tried when the first host is blocked or times out.
+const recitationsApiAlt = 'https://mp3quran.net/api/v3/reciters?language=ar';
+
+/// Bundled snapshot of the list (`Reciter.toJson` form, gzip) for when the
+/// API can't be reached and nothing is cached — audio still streams from
+/// the CDN servers it names.
+const recitationsSnapshotAsset = 'assets/listen/reciters.json.gz';
+
 /// Recording style of a mushaf.
 enum RecitationKind {
   murattal('مرتل'),

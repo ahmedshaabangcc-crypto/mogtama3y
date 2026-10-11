@@ -11,6 +11,7 @@ import '../../core/masjid_tools/platform/kv_store.dart';
 import '../../core/masjid_tools/quran_meta.dart';
 import '../../core/masjid_tools/quran_text.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_theme.dart';
 import 'tools_ui.dart';
 
 // ------------------------------------------------------------------ state
@@ -124,6 +125,8 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.night,
         foregroundColor: Colors.white,
+        iconTheme: AppTheme.nightBarIcons,
+        actionsIconTheme: AppTheme.nightBarIcons,
         titleTextStyle: nightTitleStyle(context),
         title: const Text('المصحف'),
         actions: [

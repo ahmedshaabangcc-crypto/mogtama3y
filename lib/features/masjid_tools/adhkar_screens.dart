@@ -9,6 +9,7 @@ import '../../core/masjid_tools/hijri.dart' show toArabicDigits;
 import '../../core/masjid_tools/platform/feedback.dart';
 import '../../core/masjid_tools/platform/kv_store.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_theme.dart';
 import 'adhkar_data.dart';
 import 'tools_ui.dart';
 
@@ -142,6 +143,8 @@ class _AdhkarListScreenState extends State<AdhkarListScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.night,
         foregroundColor: Colors.white,
+        iconTheme: AppTheme.nightBarIcons,
+        actionsIconTheme: AppTheme.nightBarIcons,
         titleTextStyle: nightTitleStyle(context),
         title: Text(c.title),
         actions: [
@@ -309,6 +312,8 @@ class _TasbeehScreenState extends State<TasbeehScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.night,
         foregroundColor: Colors.white,
+        iconTheme: AppTheme.nightBarIcons,
+        actionsIconTheme: AppTheme.nightBarIcons,
         titleTextStyle: nightTitleStyle(context),
         title: const Text('السبحة'),
         actions: [

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, rootBundle;
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
@@ -9,10 +10,12 @@ import '../../core/app_flavor.dart';
 import '../../core/masjid_tools/hijri.dart' show toArabicDigits;
 import '../../core/masjid_tools/listen_queue.dart';
 import '../../core/masjid_tools/platform/audio_player.dart';
+import '../../core/masjid_tools/platform/gunzip.dart';
 import '../../core/masjid_tools/platform/kv_store.dart';
 import '../../core/masjid_tools/quran_meta.dart';
 import '../../core/masjid_tools/recitations.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_theme.dart';
 import 'tools_ui.dart';
 
 // «استماع القرآن»: the whole Quran by 240+ reciters in many riwayat, from
@@ -79,8 +82,85 @@ class ListenStore {
 
   static Future<List<Reciter>>? _loading;
 
+  /// The list shown is the snapshot bundled with the app (no cache, API
+  /// unreachable) — a background refresh keeps trying.
+  static bool fromSnapshot = false;
+
+  /// What went wrong reaching the API (for the «تفاصيل» support line).
+  static String? lastError;
+
+  /// Bumped when a background refresh replaces the list.
+  static final changes = ValueNotifier<int>(0);
+
+  /// Test hook: replaces the network fetch.
+  @visibleForTesting
+  static Future<http.Response> Function(Uri url, Duration timeout)? httpGetOverride;
+
+  /// Fetches the API (www host, then the bare host once); throws with both
+  /// errors when neither answers.
+  static Future<List<Reciter>> _fetch() async {
+    final errors = <String>[];
+    for (final (url, timeout) in [(recitationsApi, const Duration(seconds: 20)), (recitationsApiAlt, const Duration(seconds: 15))]) {
+      try {
+        final uri = Uri.parse(url);
+        final get = httpGetOverride;
+        final res = await (get != null ? get(uri, timeout) : http.get(uri).timeout(timeout));
+        if (res.statusCode != 200) throw Exception('HTTP ${res.statusCode}');
+        final list = parseReciters(jsonDecode(utf8.decode(res.bodyBytes)));
+        if (list.isEmpty) throw Exception('empty list');
+        lastError = null;
+        return list;
+      } catch (e) {
+        errors.add('${Uri.parse(url).host}: ${_short(e)}');
+      }
+    }
+    lastError = errors.join(' • ');
+    throw Exception(lastError);
+  }
+
+  static String _short(Object e) {
+    final s = '$e'.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return s.length > 140 ? '${s.substring(0, 140)}…' : s;
+  }
+
+  static Future<void> _save(List<Reciter> list, DateTime at) =>
+      kvSet(_cacheKey, jsonEncode({'t': at.toIso8601String(), 'reciters': [for (final r in list) r.toJson()]}));
+
+  /// The snapshot bundled with the app — fetched only when needed.
+  static Future<List<Reciter>> loadSnapshot() async {
+    final data = await rootBundle.load(recitationsSnapshotAsset);
+    final text = await gunzipUtf8(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+    return parseReciters(jsonDecode(text));
+  }
+
+  static bool _refreshing = false;
+
+  /// After falling back to a saved/bundled list: keep trying the API quietly.
+  static Future<void> _refreshInBackground() async {
+    if (_refreshing) return;
+    _refreshing = true;
+    try {
+      for (final wait in const [Duration(seconds: 5), Duration(seconds: 30), Duration(minutes: 2)]) {
+        await Future<void>.delayed(wait);
+        if (!stale) return;
+        try {
+          final list = await _fetch();
+          final now = DateTime.now();
+          unawaited(_save(list, now));
+          fromSnapshot = false;
+          _set(list, now, false);
+          changes.value++;
+          return;
+        } catch (_) {}
+      }
+    } finally {
+      _refreshing = false;
+    }
+  }
+
   /// The reciters: a fresh device copy, else the API (then saved), else an
-  /// old copy. Throws when there is nothing at all (offline, first time).
+  /// old copy, else the snapshot bundled with the app (then a background
+  /// refresh). Throws only when even the snapshot can't be read.
   static Future<List<Reciter>> load({bool force = false}) {
     if (!force && reciters != null && !stale) return Future.value(reciters);
     return _loading ??= () async {
@@ -99,16 +179,29 @@ class ListenStore {
           return _set(cached, cachedAt, false);
         }
         try {
-          final res = await http.get(Uri.parse(recitationsApi)).timeout(const Duration(seconds: 25));
-          if (res.statusCode != 200) throw Exception('HTTP ${res.statusCode}');
-          final list = parseReciters(jsonDecode(utf8.decode(res.bodyBytes)));
-          if (list.isEmpty) throw Exception('empty');
+          final list = await _fetch();
           final now = DateTime.now();
-          unawaited(kvSet(_cacheKey, jsonEncode({'t': now.toIso8601String(), 'reciters': [for (final r in list) r.toJson()]})));
+          unawaited(_save(list, now));
+          fromSnapshot = false;
           return _set(list, now, false);
-        } catch (_) {
-          if (cached != null && cached.isNotEmpty) return _set(cached, cachedAt, true);
-          rethrow;
+        } catch (e) {
+          if (cached != null && cached.isNotEmpty) {
+            fromSnapshot = false;
+            final r = _set(cached, cachedAt, true);
+            unawaited(_refreshInBackground());
+            return r;
+          }
+          try {
+            final snap = await loadSnapshot();
+            if (snap.isEmpty) throw Exception('empty snapshot');
+            fromSnapshot = true;
+            final r = _set(snap, null, true);
+            unawaited(_refreshInBackground());
+            return r;
+          } catch (s) {
+            lastError = '${lastError ?? _short(e)} • snapshot: ${_short(s)}';
+            rethrow;
+          }
         }
       } finally {
         _loading = null;
@@ -534,13 +627,20 @@ class _ListenHomeScreenState extends State<ListenHomeScreen> {
   @override
   void initState() {
     super.initState();
+    ListenStore.changes.addListener(_onRefreshed);
     _load();
   }
 
   @override
   void dispose() {
+    ListenStore.changes.removeListener(_onRefreshed);
     _search.dispose();
     super.dispose();
+  }
+
+  /// A background refresh brought the live list.
+  void _onRefreshed() {
+    if (mounted) setState(() => _all = ListenStore.reciters);
   }
 
   Future<void> _load({bool force = false}) async {
@@ -657,6 +757,8 @@ class _ListenHomeScreenState extends State<ListenHomeScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.night,
         foregroundColor: Colors.white,
+        iconTheme: AppTheme.nightBarIcons,
+        actionsIconTheme: AppTheme.nightBarIcons,
         titleTextStyle: nightTitleStyle(context),
         title: const Text('استماع القرآن'),
         actions: [
@@ -717,12 +819,14 @@ class _ListenHomeScreenState extends State<ListenHomeScreen> {
                     child: Text(
                       all == null
                           ? 'الاستماع بيستهلك نت — السورة الطويلة ممكن توصل لعشرات الميجا'
-                          : '${_ar(list.length)} قارئ • الاستماع بيستهلك نت، الأحسن على الواي فاي${ListenStore.stale ? ' • قايمة محفوظة (مش متحدّثة)' : ''}',
+                          : '${_ar(list.length)} قارئ • الاستماع بيستهلك نت، الأحسن على الواي فاي'
+                              '${ListenStore.fromSnapshot ? ' • قايمة مخزّنة مع التطبيق (موقع القرّاء مش بيرد دلوقتي)' : ListenStore.stale ? ' • قايمة محفوظة (مش متحدّثة)' : ''}',
                       style: const TextStyle(color: Colors.white54, fontSize: 11.5),
                     ),
                   ),
                 ]),
               ),
+              if (all != null && ListenStore.stale && ListenStore.lastError != null) _ErrorDetails(ListenStore.lastError!),
             ]),
           ),
           if (_loading && all == null)
@@ -737,7 +841,8 @@ class _ListenHomeScreenState extends State<ListenHomeScreen> {
                     const Icon(Icons.wifi_off_rounded, color: Colors.white54, size: 40),
                     const SizedBox(height: 10),
                     const Text('معرفناش نجيب قايمة القرّاء — اتأكد من النت وجرّب تاني', textAlign: TextAlign.center, style: TextStyle(color: Colors.white70)),
-                    if (_error != null) const SizedBox(height: 10),
+                    const SizedBox(height: 10),
+                    if (_error != null) _ErrorDetails(ListenStore.lastError ?? '$_error'),
                     FilledButton(onPressed: () => _load(force: true), child: const Text('جرّب تاني')),
                   ]),
                 ),
@@ -769,6 +874,32 @@ class _ListenHomeScreenState extends State<ListenHomeScreen> {
               ),
             ),
         ]),
+      ),
+    );
+  }
+}
+
+/// «تفاصيل: …» — the actual network error, small, selectable and copyable
+/// on long-press, for support.
+class _ErrorDetails extends StatelessWidget {
+  const _ErrorDetails(this.details);
+  final String details;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GestureDetector(
+        onLongPress: () {
+          Clipboard.setData(ClipboardData(text: details));
+          toolToast(context, 'اتنسخت التفاصيل — ابعتها للدعم');
+        },
+        child: SelectableText(
+          'تفاصيل: $details',
+          textDirection: TextDirection.ltr,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.white38, fontSize: 10.5, height: 1.5),
+        ),
       ),
     );
   }
@@ -879,6 +1010,8 @@ class _ReciterScreenState extends State<ReciterScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.night,
         foregroundColor: Colors.white,
+        iconTheme: AppTheme.nightBarIcons,
+        actionsIconTheme: AppTheme.nightBarIcons,
         titleTextStyle: nightTitleStyle(context),
         title: Text(r.name),
         actions: [
@@ -967,6 +1100,8 @@ class _MoshafScreenState extends State<MoshafScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.night,
         foregroundColor: Colors.white,
+        iconTheme: AppTheme.nightBarIcons,
+        actionsIconTheme: AppTheme.nightBarIcons,
         titleTextStyle: nightTitleStyle(context),
         title: Text(r.name),
       ),

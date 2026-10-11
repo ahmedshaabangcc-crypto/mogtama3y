@@ -12,6 +12,7 @@ import '../../core/masjid/osm_mosques.dart';
 import '../../core/masjid/world_time.dart';
 import '../../core/routing/app_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_theme.dart';
 import '../auth/auth_landing_screen.dart';
 import 'add_mosque_screen.dart';
 import 'join_mosque_screen.dart';
@@ -219,6 +220,8 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.night,
         foregroundColor: Colors.white,
+        iconTheme: AppTheme.nightBarIcons,
+        actionsIconTheme: AppTheme.nightBarIcons,
         title: Text(isMasjidApp ? 'مسجدي — كل مساجد حيّك' : 'المساجد'),
       ),
       body: RefreshIndicator(

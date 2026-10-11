@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_theme.dart';
 
 /// Night-blue page in the masjid app's look, content centred on wide screens.
 class ToolScaffold extends StatelessWidget {
@@ -21,7 +22,12 @@ class ToolScaffold extends StatelessWidget {
     final s = side(context);
     return Scaffold(
       backgroundColor: AppColors.night,
-      appBar: AppBar(backgroundColor: AppColors.night, foregroundColor: Colors.white, titleTextStyle: nightTitleStyle(context), title: Text(title), actions: actions, bottom: bottom),
+      appBar: AppBar(
+          backgroundColor: AppColors.night,
+          foregroundColor: Colors.white,
+          iconTheme: AppTheme.nightBarIcons,
+          actionsIconTheme: AppTheme.nightBarIcons,
+          titleTextStyle: nightTitleStyle(context), title: Text(title), actions: actions, bottom: bottom),
       body: ListView(padding: padding ?? EdgeInsets.fromLTRB(s, 8, s, 60), children: children),
     );
   }

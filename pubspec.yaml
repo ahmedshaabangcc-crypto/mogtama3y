@@ -108,6 +108,9 @@ flutter:
     # Quran text (Tanzil, gzip) + Amiri Quran font: fetched only when the
     # Quran screen opens — never part of the first load.
     - assets/quran/
+    # Snapshot of the reciters list (gzip, ~8 KB): used by «استماع» only when
+    # mp3quran.net can't be reached and nothing is cached.
+    - assets/listen/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

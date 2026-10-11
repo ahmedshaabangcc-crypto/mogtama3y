@@ -10,6 +10,10 @@ class AppTheme {
 
   static const radius = 22.0;
 
+  /// Back arrow / leading / action icons on the night-blue app bars: white
+  /// and a touch bigger, so they never vanish into the dark background.
+  static const nightBarIcons = IconThemeData(color: Colors.white, size: 26);
+
   static ThemeData get light {
     final base = ThemeData(
       useMaterial3: true,
@@ -47,7 +51,9 @@ class AppTheme {
         centerTitle: true,
         shape: const Border(bottom: BorderSide(color: AppColors.border)),
         titleTextStyle: _almarai(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.ink),
-        iconTheme: const IconThemeData(color: AppColors.ink),
+        // No fixed iconTheme here: an explicit one would beat each bar's own
+        // foregroundColor, painting ink-dark arrows on the dark app bars.
+        // Without it the icons follow foregroundColor (ink on light bars).
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: AppColors.night,
