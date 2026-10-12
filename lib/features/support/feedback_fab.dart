@@ -24,6 +24,7 @@ import '../masjid/mosque_chat_screen.dart' show MosqueChatScreen;
 import '../people/chat_screen.dart' show ChatScreen;
 import '../profile/phone_verify_screen.dart' show PhoneVerifyScreen;
 import '../rooms/room_screen.dart' show RoomScreen;
+import '../shared/install_app_overlay.dart';
 import '../store/checkout_screen.dart' show CheckoutScreen;
 import '../visitor/visitor_pass_link_screen.dart' show VisitorPassLinkScreen;
 import '../visitor/visitor_qr_pass_screen.dart' show VisitorQrPassScreen;
@@ -36,6 +37,13 @@ import 'support_contact_screen.dart' show SupportContactScreen;
 /// QR passes.
 final _hiddenPaths = RegExp(
   r'^/(chat/|rooms/[0-9a-f-]{36}$|building-chat$|login$|reset-password$|support$|pass/|masjid/tools/(tutor|qibla)(/|$))',
+);
+
+/// Extra pages where the «نزّل التطبيق» card (shared/install_app_overlay.dart)
+/// also stays away: paying, emergencies, posting forms, admin, live /
+/// listening / recitation screens.
+final _installHiddenPaths = RegExp(
+  r'^/(sos|union-pay|post|report|admin)(/|$)|^/masjid/tools/(quran|listen)(/|$)|(^|/)live(/|$)',
 );
 
 /// Screens (also when opened with Navigator.push) where the button stays away.
@@ -72,12 +80,20 @@ const _buildDate = String.fromEnvironment('BUILD_DATE');
 /// while the keyboard is open. Long-press → «إخفاء» hides it until the
 /// page is reloaded. Never shown in the local demo build.
 class FeedbackFabHost extends StatelessWidget {
-  FeedbackFabHost({super.key, required this.router, required this.child, FeedbackRouteObserver? observer})
-      : observer = observer ?? feedbackRouteObserver;
+  FeedbackFabHost({
+    super.key,
+    required this.router,
+    required this.child,
+    FeedbackRouteObserver? observer,
+    this.installPlatform = const InstallPlatform(),
+  }) : observer = observer ?? feedbackRouteObserver;
 
   final GoRouter router;
   final FeedbackRouteObserver observer;
   final Widget child;
+
+  /// The browser behind the «نزّل التطبيق» card (faked in tests).
+  final InstallPlatform installPlatform;
 
   /// «إخفاء» — until the next page load.
   static final hiddenForSession = ValueNotifier<bool>(false);
@@ -115,14 +131,16 @@ class FeedbackFabHost extends StatelessWidget {
     return null;
   }
 
-  /// null = hidden; otherwise the distance from the bottom edge.
-  double? _bottomOffset(BuildContext context) {
-    if (hiddenForSession.value) return null;
+  /// null = hidden; otherwise the distance from the bottom edge. [install]:
+  /// for the «نزّل التطبيق» card, which ignores the button's own «إخفاء».
+  double? _bottomOffset(BuildContext context, {bool install = false}) {
+    if (!install && hiddenForSession.value) return null;
     if (MediaQuery.viewInsetsOf(context).bottom > 0) return null; // keyboard open
     final stack = observer.stack;
     if (stack.isEmpty || stack.last is PopupRoute) return null; // dialog / sheet / menu on top
     final path = _path();
     if (_hiddenPaths.hasMatch(path)) return null;
+    if (install && _installHiddenPaths.hasMatch(path)) return null;
     final screen = _screenOf(stack.last);
     if (screen != null && _isHiddenScreen(screen)) return null;
     // Home of every app has a bottom nav bar (and مُجتمعي's home a CTA
@@ -150,6 +168,14 @@ class FeedbackFabHost extends StatelessWidget {
               child: _FeedbackButton(onTap: () => _open(context)),
             );
           },
+        ),
+        // «نزّل التطبيق على موبايلك» for phone visitors — same quiet-screen
+        // rules, beside the button.
+        InstallAppOverlay(
+          placement: (context) => _bottomOffset(context, install: true),
+          listenable: Listenable.merge([router.routerDelegate, observer]),
+          navigator: () => observer.navigator,
+          platform: installPlatform,
         ),
       ],
     );

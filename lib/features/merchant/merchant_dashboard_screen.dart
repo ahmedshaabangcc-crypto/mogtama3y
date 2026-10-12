@@ -16,7 +16,6 @@ import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../e_address/e_address_widgets.dart';
 import '../profile/profile_screen.dart';
-import '../shared/install_app_banner.dart';
 import '../shared/load_error_view.dart';
 import '../shared/push_opt_in.dart';
 import '../../core/tutorials/tutorial_service.dart';
@@ -126,7 +125,6 @@ class _MerchantDashboardScreenState extends State<MerchantDashboardScreen> {
         backgroundColor: AppColors.bg,
         appBar: AppBar(title: const Text('سجّل محلك'), actions: const [if (isTajerApp) _TajerAccountMenu()]),
         body: Column(children: [
-          if (isTajerApp) const Padding(padding: EdgeInsets.fromLTRB(16, 12, 16, 0), child: InstallAppBanner()),
           Expanded(child: _RegisterShopForm(onCreated: _load)),
         ]),
       );
@@ -1332,7 +1330,6 @@ class _HomeTabState extends State<_HomeTab> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          if (isTajerApp) const InstallAppBanner(),
           const PushOptInCard(),
           Container(
             padding: const EdgeInsets.all(18),

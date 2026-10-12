@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
-import '../shared/install_app_banner.dart';
 import '../shared/made_by_apex.dart';
 
 /// The merchant app's front page (tajer.mogtama3y.com) — "مشروعك أونلاين":
@@ -34,7 +33,6 @@ class MerchantLandingScreen extends StatelessWidget {
             // On a wide screen keep it a centred phone-width column.
             padding: EdgeInsets.fromLTRB(side, 14, side, 32),
             children: [
-              const InstallAppBanner(),
               Row(children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
