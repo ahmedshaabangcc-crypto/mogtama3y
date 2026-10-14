@@ -8,8 +8,9 @@ import '../../core/places/directory_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/places/place_images.dart';
 import '../shared/load_error_view.dart';
+import 'osm_place_open.dart' show OsmPlacesAttribution;
 
-/// A business from the Egypt directory (not on مُجتمعي yet) as a store page:
+/// A business from the directory (not on مُجتمعي yet) as a store page:
 /// details, call, directions, and "اطلب دلوقتي" — the customer writes the
 /// order and sends it from their own WhatsApp, with an invitation for the
 /// shop to open its free store. Once the owner claims it, this opens the
@@ -114,6 +115,9 @@ class _DirectoryPlaceScreenState extends State<DirectoryPlaceScreen> {
   Widget _content(Map<String, dynamic> p) {
     final wa = p['whatsapp'] as String?;
     final phone = p['phone'] as String?;
+    final hours = p['opening_hours'] as String?;
+    final website = p['website'] as String?;
+    final id = '${p['id'] ?? widget.placeId}';
     final lat = (p['lat'] as num?)?.toDouble();
     final lng = (p['lng'] as num?)?.toDouble();
     final width = MediaQuery.sizeOf(context).width;
@@ -166,6 +170,24 @@ class _DirectoryPlaceScreenState extends State<DirectoryPlaceScreen> {
               ),
             ),
         ]),
+        if (hours != null && hours.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Row(children: [
+              const Icon(Icons.schedule_rounded, size: 18, color: AppColors.teal),
+              const SizedBox(width: 6),
+              Expanded(child: Text(hours, style: const TextStyle(color: AppColors.inkSecondary, fontSize: 13))),
+            ]),
+          ),
+        if (website != null && website.startsWith('http'))
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              onPressed: () => launchUrl(Uri.parse(website), mode: LaunchMode.externalApplication),
+              icon: const Icon(Icons.language_rounded, size: 18),
+              label: const Text('الموقع الإلكتروني'),
+            ),
+          ),
         const SizedBox(height: 20),
         if (wa != null) ...[
           const Text('اطلب دلوقتي', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
@@ -219,7 +241,12 @@ class _DirectoryPlaceScreenState extends State<DirectoryPlaceScreen> {
           ),
         ),
         const SizedBox(height: 6),
-        const Center(child: Text(DirectoryService.attribution, style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted))),
+        if (id.startsWith('osm-') || p['osm'] == true || p['source'] == 'osm')
+          const OsmPlacesAttribution()
+        else if (id.startsWith('usr-'))
+          const Center(child: Text('المحل ده ضافه واحد من مستخدمي مُجتمعي', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)))
+        else if (!id.startsWith('shop-'))
+          const Center(child: Text(DirectoryService.attribution, style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted))),
       ],
     );
   }

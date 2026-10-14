@@ -1,9 +1,11 @@
 // دليل مُجتمعي — dalil.mogtama3y.com
 //
-// Plain server-rendered HTML pages for the Egypt business directory
-// (public.directory_places, ~300k places from Overture Maps) so search
-// engines can index them: one page per place, category × city hubs, and
-// sitemaps. Every page links into the app (mogtama3y.com/#/d/<id>) where
+// Plain server-rendered HTML pages for the business directory
+// (public.directory_places: ~300k Egyptian places from Overture Maps, plus
+// places from OpenStreetMap / users / merchants anywhere in the Arab world —
+// migration 0094) so search engines can index them: one page per place,
+// category × city hubs (Egypt: /city/…, /c/…; other states:
+// /<country>/<city>/<category> — only where there are places), and sitemaps. Every page links into the app (mogtama3y.com/#/d/<id>) where
 // the visitor can order. Reads only public data through Supabase's REST
 // API with the publishable key — no secrets on this server.
 //
@@ -42,16 +44,53 @@ const CITIES = [
   ['شرم الشيخ', 27.9158, 34.33], ['مرسى مطروح', 31.3543, 27.2373], ['العريش', 31.1316, 33.7984],
 ];
 
+// The other Arab states (0094). Their hubs exist only where the directory
+// has places (no bulk import outside Egypt: OSM / user / merchant places
+// grow over time) — a city needs MIN_CITY_PLACES within CITY_KM, a
+// category hub MIN_HUB_PLACES; below that a page is noindex and stays out
+// of the sitemap. Egypt keeps its URLs (/, /city/…, /c/…).
+const MIN_CITY_PLACES = 15;
+const MIN_HUB_PLACES = 3;
+const CITY_KM = 15;
+const EGYPT = { iso: 'EG', slug: 'egypt', name: 'مصر', cities: CITIES };
+const COUNTRIES = [
+  EGYPT,
+  { iso: 'SA', slug: 'saudi-arabia', name: 'السعودية', cities: [['الرياض', 24.7136, 46.6753], ['جدة', 21.4858, 39.1925], ['مكة المكرمة', 21.3891, 39.8579], ['المدينة المنورة', 24.5247, 39.5692], ['الدمام', 26.4207, 50.0888], ['الخبر', 26.2172, 50.1971]] },
+  { iso: 'AE', slug: 'uae', name: 'الإمارات', cities: [['دبي', 25.2048, 55.2708], ['أبوظبي', 24.4539, 54.3773], ['الشارقة', 25.3463, 55.4209], ['العين', 24.2075, 55.7447], ['عجمان', 25.4052, 55.5136]] },
+  { iso: 'KW', slug: 'kuwait', name: 'الكويت', cities: [['مدينة الكويت', 29.3759, 47.9774], ['حولي', 29.3328, 48.0286], ['الجهراء', 29.3375, 47.6581], ['الأحمدي', 29.0769, 48.0838]] },
+  { iso: 'QA', slug: 'qatar', name: 'قطر', cities: [['الدوحة', 25.2854, 51.531], ['الريان', 25.2919, 51.4244], ['الوكرة', 25.1659, 51.5976]] },
+  { iso: 'BH', slug: 'bahrain', name: 'البحرين', cities: [['المنامة', 26.2285, 50.586], ['المحرق', 26.2572, 50.6119], ['الرفاع', 26.13, 50.555]] },
+  { iso: 'OM', slug: 'oman', name: 'عُمان', cities: [['مسقط', 23.588, 58.3829], ['صلالة', 17.0151, 54.0924], ['صحار', 24.3474, 56.7299], ['نزوى', 22.9333, 57.5333]] },
+  { iso: 'JO', slug: 'jordan', name: 'الأردن', cities: [['عمّان', 31.9539, 35.9106], ['الزرقاء', 32.0728, 36.088], ['إربد', 32.5568, 35.8469], ['العقبة', 29.5321, 35.0063]] },
+  { iso: 'PS', slug: 'palestine', name: 'فلسطين', cities: [['رام الله', 31.9038, 35.2034], ['غزة', 31.5017, 34.4668], ['نابلس', 32.2211, 35.2544], ['الخليل', 31.5326, 35.0998]] },
+  { iso: 'LB', slug: 'lebanon', name: 'لبنان', cities: [['بيروت', 33.8938, 35.5018], ['طرابلس', 34.4367, 35.8497], ['صيدا', 33.5571, 35.3729]] },
+  { iso: 'SY', slug: 'syria', name: 'سوريا', cities: [['دمشق', 33.5138, 36.2765], ['حلب', 36.2021, 37.1343], ['حمص', 34.7324, 36.7137], ['اللاذقية', 35.5317, 35.7914]] },
+  { iso: 'IQ', slug: 'iraq', name: 'العراق', cities: [['بغداد', 33.3152, 44.3661], ['البصرة', 30.5085, 47.7804], ['الموصل', 36.34, 43.13], ['أربيل', 36.1911, 44.0092], ['النجف', 32.0259, 44.3462]] },
+  { iso: 'YE', slug: 'yemen', name: 'اليمن', cities: [['صنعاء', 15.3694, 44.191], ['عدن', 12.7855, 45.0187], ['تعز', 13.5795, 44.0209], ['المكلا', 14.5425, 49.1242]] },
+  { iso: 'SD', slug: 'sudan', name: 'السودان', cities: [['الخرطوم', 15.5007, 32.5599], ['أم درمان', 15.6445, 32.4777], ['بورتسودان', 19.6158, 37.2164]] },
+  { iso: 'LY', slug: 'libya', name: 'ليبيا', cities: [['طرابلس', 32.8872, 13.1913], ['بنغازي', 32.1167, 20.0667], ['مصراتة', 32.3754, 15.0925]] },
+  { iso: 'TN', slug: 'tunisia', name: 'تونس', cities: [['تونس العاصمة', 36.8065, 10.1815], ['صفاقس', 34.7406, 10.7603], ['سوسة', 35.8256, 10.6084]] },
+  { iso: 'DZ', slug: 'algeria', name: 'الجزائر', cities: [['الجزائر العاصمة', 36.7538, 3.0588], ['وهران', 35.6971, -0.6308], ['قسنطينة', 36.365, 6.6147]] },
+  { iso: 'MA', slug: 'morocco', name: 'المغرب', cities: [['الدار البيضاء', 33.5731, -7.5898], ['الرباط', 34.0209, -6.8416], ['مراكش', 31.6295, -7.9811], ['فاس', 34.0181, -5.0078], ['طنجة', 35.7595, -5.834]] },
+  { iso: 'MR', slug: 'mauritania', name: 'موريتانيا', cities: [['نواكشوط', 18.0735, -15.9582], ['نواذيبو', 20.931, -17.0347]] },
+  { iso: 'SO', slug: 'somalia', name: 'الصومال', cities: [['مقديشو', 2.0469, 45.3182], ['هرجيسا', 9.56, 44.065]] },
+  { iso: 'DJ', slug: 'djibouti', name: 'جيبوتي', cities: [['جيبوتي', 11.5721, 43.1456]] },
+  { iso: 'KM', slug: 'comoros', name: 'جزر القمر', cities: [['موروني', -11.7172, 43.2473]] },
+];
+const COUNTRY_BY_ISO = new Map(COUNTRIES.map((c) => [c.iso, c]));
+const COUNTRY_BY_SLUG = new Map(COUNTRIES.map((c) => [c.slug, c]));
+const countryOf = (iso) => COUNTRY_BY_ISO.get(String(iso || 'EG').toUpperCase()) || EGYPT;
+
 // ---------------------------------------------------------------- helpers
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const slug = (s) => String(s).trim().replace(/\s+/g, '-');
 const unslug = (s) => decodeURIComponent(s).replace(/-/g, ' ');
 
-function cityOf(lat, lng) {
+function cityOf(lat, lng, iso = 'EG') {
   let best = null;
-  let bestKm = 25;
-  for (const [name, la, ln] of CITIES) {
+  let bestKm = iso === 'EG' ? 25 : 30;
+  for (const [name, la, ln] of countryOf(iso).cities) {
     const km = 111 * Math.hypot(lat - la, (lng - ln) * Math.cos((la * Math.PI) / 180));
     if (km < bestKm) [best, bestKm] = [name, km];
   }
@@ -86,9 +125,19 @@ function cached(key, ttlMs, make) {
   return value;
 }
 
+// Hub URLs: Egypt keeps /city/<city> and /c/<category>/<city>; the other
+// states live under /<country>/<city>/<category>.
+const cityUrl = (c, city) =>
+  c.iso === 'EG' ? `${SITE}/city/${encodeURIComponent(slug(city))}` : `${SITE}/${c.slug}/${encodeURIComponent(slug(city))}`;
+const hubUrl = (c, category, city) =>
+  c.iso === 'EG'
+    ? `${SITE}/c/${encodeURIComponent(slug(category))}/${encodeURIComponent(slug(city))}`
+    : `${SITE}/${c.slug}/${encodeURIComponent(slug(city))}/${encodeURIComponent(slug(category))}`;
+
 // ---------------------------------------------------------------- layout
 
-function page({ title, description, canonical, body, jsonLd, noindex = false, image }) {
+function page({ title, description, canonical, body, jsonLd, noindex = false, image, country = 'EG' }) {
+  const c = countryOf(country);
   return `<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
@@ -104,7 +153,7 @@ ${image ? `<meta property="og:image" content="${esc(image)}"><meta name="twitter
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:url" content="${esc(canonical)}">
 <meta property="og:site_name" content="دليل مُجتمعي">
-<meta property="og:locale" content="ar_EG">
+<meta property="og:locale" content="ar_${c.iso}">
 <link rel="icon" href="${APP}/favicon.png">
 ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>` : ''}
 <style>
@@ -123,12 +172,12 @@ footer{max-width:860px;margin:24px auto;padding:0 16px 32px;color:var(--muted);f
 </style>
 </head>
 <body>
-<header><div class="in"><a href="${SITE}/">دليل <span>مُجتمعي</span></a> <small style="opacity:.75">— كل محلات مصر، واطلب منها أونلاين</small></div></header>
+<header><div class="in"><a href="${SITE}/">دليل <span>مُجتمعي</span></a> <small style="opacity:.75">— كل محلات ${esc(c.name)}، واطلب منها أونلاين</small></div></header>
 <main>${body}</main>
 <footer>
 <p><a href="${APP}">مُجتمعي</a> — كل حيّك في تطبيق واحد. عندك محل؟ <a href="${APP}/tajer/">افتح متجرك أونلاين ببلاش</a>.</p>
 <p><a href="${APP}/dalil/">عن دليل المحلات</a> · <a href="${APP}/balagh/">بلّغ عن مشكلة في حيّك</a> · <a href="${APP}/ittihad/">اتحاد الملاك أونلاين</a> · <a href="${APP}/privacy/">الخصوصية</a> · <a href="${APP}/terms/">الشروط</a></p>
-<p>بيانات الأماكن: © Overture Maps Foundation (CDLA-Permissive-2.0). تصميم وتنفيذ <a href="https://getapex.tech">Get Apex</a>.</p>
+<p>بيانات الأماكن: © Overture Maps Foundation (CDLA-Permissive-2.0) و<a href="https://www.openstreetmap.org/copyright" rel="nofollow">© OpenStreetMap contributors</a> (ODbL). تصميم وتنفيذ <a href="https://getapex.tech">Get Apex</a>.</p>
 </footer>
 </body>
 </html>`;
@@ -137,8 +186,8 @@ footer{max-width:860px;margin:24px auto;padding:0 16px 32px;color:var(--muted);f
 const searchForm = (q = '') =>
   `<form action="${SITE}/search" method="get"><input name="q" value="${esc(q)}" placeholder="دوّر على محل، صيدلية، مطعم…" aria-label="بحث"><button>بحث</button></form>`;
 
-function placeItem(p) {
-  const city = cityOf(p.lat, p.lng);
+function placeItem(p, iso = 'EG') {
+  const city = cityOf(p.lat, p.lng, iso);
   return `<li><a href="${SITE}/p/${esc(p.id)}">${esc(p.name)}</a><br><span class="muted">${esc(p.category)}${city ? ' — ' + esc(city) : ''}${p.distance_km != null && p.distance_km < 50 ? ' · ' + (p.distance_km < 1 ? Math.round(p.distance_km * 1000) + ' م' : p.distance_km.toFixed(1) + ' كم') : ''}</span></li>`;
 }
 
@@ -146,6 +195,7 @@ function placeItem(p) {
 
 async function homePage() {
   const cities = CITIES.map(([c]) => `<a href="${SITE}/city/${encodeURIComponent(slug(c))}">${esc(c)}</a>`).join('');
+  const others = (await listedCountries().catch(() => [])).map((c) => `<a href="${SITE}/${c.slug}/">${esc(c.name)}</a>`).join('');
   const cats = CATEGORIES.map((c) => `<a href="${SITE}/c/${encodeURIComponent(slug(c))}/${encodeURIComponent(slug('القاهرة'))}">${esc(c)}</a>`).join('');
   return page({
     title: 'دليل مُجتمعي — محلات وصيدليات ومطاعم مصر وأرقامها',
@@ -154,7 +204,8 @@ async function homePage() {
     body: `<h1>كل محلات مصر في مكان واحد</h1><p class="muted">ابحث عن أي محل أو صيدلية أو مطعم، واعرف عنوانه ورقمه، واطلب منه على واتساب.</p>
 <div class="card">${searchForm()}</div>
 <div class="card"><h2>المدن</h2><div class="chips">${cities}</div></div>
-<div class="card"><h2>الأنشطة في القاهرة</h2><div class="chips">${cats}</div></div>`,
+<div class="card"><h2>الأنشطة في القاهرة</h2><div class="chips">${cats}</div></div>${others ? `
+<div class="card"><h2>دول عربية تانية</h2><div class="chips">${others}</div></div>` : ''}`,
   });
 }
 
@@ -167,9 +218,10 @@ async function placePage(id) {
     const shop = (await rest(`shops?id=eq.${p.claimed_shop_id}&select=slug`))[0];
     if (shop?.slug) return { redirect: `${SITE}/s/${shop.slug}` };
   }
-  const city = cityOf(p.lat, p.lng);
+  const country = countryOf(p.country);
+  const city = cityOf(p.lat, p.lng, country.iso);
   const near = await rpc('nearby_directory', { p_lat: p.lat, p_lng: p.lng, p_km: 1.5, p_category: p.category, p_limit: 11 }).catch(() => []);
-  const where = city ? ` في ${city}` : '';
+  const where = city ? ` في ${city}` : country.iso !== 'EG' ? ` في ${country.name}` : '';
   const title = `${p.name} — ${p.category}${where} | دليل مُجتمعي`;
   const description = `${p.name}: ${p.category}${where}${p.address ? '، ' + p.address : ''}. العنوان على الخريطة${p.phone ? ' ورقم التليفون' : ''}، واطلب منه أونلاين على مُجتمعي.`;
   const order = `${APP}/#/d/${encodeURIComponent(p.id)}`;
@@ -180,27 +232,29 @@ async function placePage(id) {
     url: `${SITE}/p/${p.id}`,
     ...(p.phone ? { telephone: p.phone } : {}),
     geo: { '@type': 'GeoCoordinates', latitude: p.lat, longitude: p.lng },
-    address: { '@type': 'PostalAddress', addressCountry: 'EG', ...(city ? { addressLocality: city } : {}), ...(p.address ? { streetAddress: p.address } : {}) },
+    address: { '@type': 'PostalAddress', addressCountry: country.iso, ...(city ? { addressLocality: city } : {}), ...(p.address ? { streetAddress: p.address } : {}) },
   };
   const others = near.filter((x) => x.id !== p.id).slice(0, 10);
   return page({
+    country: country.iso,
     title,
     description,
     canonical: `${SITE}/p/${p.id}`,
     jsonLd,
-    body: `<p class="muted"><a href="${SITE}/">الدليل</a>${city ? ` › <a href="${SITE}/c/${encodeURIComponent(slug(p.category))}/${encodeURIComponent(slug(city))}">${esc(p.category)} في ${esc(city)}</a>` : ''}</p>
+    body: `<p class="muted"><a href="${SITE}/">الدليل</a>${country.iso !== 'EG' ? ` › <a href="${SITE}/${country.slug}/">${esc(country.name)}</a>` : ''}${city ? ` › <a href="${hubUrl(country, p.category, city)}">${esc(p.category)} في ${esc(city)}</a>` : ''}</p>
 <div class="card">
 <h1>${esc(p.name)}</h1>
 <p class="muted">${esc(p.category)}${esc(where)}</p>
 ${p.address ? `<p>📍 ${esc(p.address)}</p>` : ''}
 ${p.phone ? `<p>📞 <a href="tel:${esc(p.phone.replace(/\s/g, ''))}" dir="ltr">${esc(p.phone)}</a></p>` : ''}
+${p.opening_hours ? `<p>🕒 ${esc(p.opening_hours)}</p>` : ''}
 <p>
 <a class="btn wa" href="${order}">اطلب منه على مُجتمعي</a>
 <a class="btn line" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}" rel="nofollow">الاتجاهات</a>
 </p>
 <p class="muted" style="font-size:13px">ده محلك؟ <a href="${TAJER}">افتح متجرك واستقبل الطلبات أونلاين ببلاش</a>.</p>
 </div>
-${others.length ? `<div class="card"><h2>${esc(p.category)} قريبة</h2><ul class="list">${others.map(placeItem).join('')}</ul></div>` : ''}`,
+${others.length ? `<div class="card"><h2>${esc(p.category)} قريبة</h2><ul class="list">${others.map((x) => placeItem(x, country.iso)).join('')}</ul></div>` : ''}`,
   });
 }
 
@@ -240,6 +294,89 @@ async function searchPage(q) {
     description: 'ابحث عن أي محل في مصر.',
     canonical: `${SITE}/search`,
     body: `<div class="card">${searchForm(q)}</div><div class="card"><ul class="list">${results.map(placeItem).join('') || '<li class="muted">اكتب اسم المحل.</li>'}</ul></div>`,
+  });
+}
+
+// ------------------------------------------------- other Arab states (0094)
+
+// Per city of a country: how many places within CITY_KM and which
+// categories have at least MIN_HUB_PLACES. One cheap «any row?» check
+// first (partial index on country), so empty countries cost one request.
+async function countryStats(c) {
+  return cached('cstats:' + c.iso, 6 * 3600e3, async () => {
+    const any = await rest(`directory_places?country=eq.${c.iso}&select=id&limit=1`);
+    if (!any.length) return [];
+    const out = [];
+    for (const [city, lat, lng] of c.cities) {
+      const rows = await rpc('nearby_directory', { p_lat: lat, p_lng: lng, p_km: CITY_KM, p_category: null, p_limit: 200 });
+      const counts = new Map();
+      for (const r of rows) counts.set(r.category, (counts.get(r.category) || 0) + 1);
+      const cats = CATEGORIES.filter((x) => (counts.get(x) || 0) >= MIN_HUB_PLACES);
+      out.push({ city, lat, lng, count: rows.length, cats });
+    }
+    return out;
+  });
+}
+const listedCities = async (c) => (await countryStats(c)).filter((x) => x.count >= MIN_CITY_PLACES);
+
+// The non-Egyptian countries that have at least one listed city.
+async function listedCountries() {
+  const out = [];
+  for (const c of COUNTRIES) {
+    if (c.iso === 'EG') continue;
+    if ((await listedCities(c).catch(() => [])).length) out.push(c);
+  }
+  return out;
+}
+
+const emptyNote = (c) =>
+  `<p class="muted">لسه مفيش محلات كفاية متسجلة هنا. عندك محل أو تعرف محل في ${esc(c.name)}؟ <a href="${APP}/#/nearby">ضيفه على مُجتمعي</a> أو <a href="${TAJER}">افتح متجرك ببلاش</a>.</p>`;
+
+async function countryPage(c) {
+  const cities = await listedCities(c);
+  const chips = cities.map((x) => `<a href="${cityUrl(c, x.city)}">${esc(x.city)}</a>`).join('');
+  return page({
+    country: c.iso,
+    noindex: cities.length === 0,
+    title: `محلات ${c.name} — صيدليات ومطاعم وسوبر ماركت | دليل مُجتمعي`,
+    description: `دليل محلات ${c.name}: صيدليات ومطاعم وسوبر ماركت وعيادات بالعنوان والتليفون، واطلب منها على مُجتمعي.`,
+    canonical: `${SITE}/${c.slug}/`,
+    body: `<p class="muted"><a href="${SITE}/">الدليل</a></p><h1>محلات ${esc(c.name)}</h1>
+<div class="card">${searchForm()}</div>
+<div class="card">${chips ? `<h2>المدن</h2><div class="chips">${chips}</div>` : emptyNote(c)}</div>`,
+  });
+}
+
+async function countryCityPage(c, city) {
+  if (!c.cities.some(([n]) => n === city)) return null;
+  const st = (await countryStats(c)).find((x) => x.city === city);
+  const listed = !!st && st.count >= MIN_CITY_PLACES;
+  const places = listed ? await rpc('nearby_directory', { p_lat: st.lat, p_lng: st.lng, p_km: CITY_KM, p_category: null, p_limit: 60 }) : [];
+  const cats = (st?.cats || []).map((x) => `<a href="${hubUrl(c, x, city)}">${esc(x)}</a>`).join('');
+  return page({
+    country: c.iso,
+    noindex: !listed,
+    title: `محلات ${city} — ${c.name} | دليل مُجتمعي`,
+    description: `دليل محلات ${city} في ${c.name}: صيدليات ومطاعم وسوبر ماركت ومحلات بالعنوان والتليفون.`,
+    canonical: cityUrl(c, city),
+    body: `<p class="muted"><a href="${SITE}/">الدليل</a> › <a href="${SITE}/${c.slug}/">${esc(c.name)}</a></p><h1>محلات ${esc(city)}</h1>
+${listed ? `${cats ? `<div class="card"><div class="chips">${cats}</div></div>` : ''}<div class="card"><ul class="list">${places.map((p) => placeItem(p, c.iso)).join('')}</ul></div>` : `<div class="card">${emptyNote(c)}</div>`}`,
+  });
+}
+
+async function countryHubPage(c, city, category) {
+  const ct = c.cities.find(([n]) => n === city);
+  if (!ct || !CATEGORIES.includes(category)) return null;
+  const places = await rpc('nearby_directory', { p_lat: ct[1], p_lng: ct[2], p_km: CITY_KM, p_category: category, p_limit: 200 });
+  return page({
+    country: c.iso,
+    noindex: places.length < MIN_HUB_PLACES,
+    title: `${category} في ${city} — العناوين والتليفونات | دليل مُجتمعي`,
+    description: `${places.length} من ${category} في ${city} (${c.name}) بالعنوان على الخريطة ورقم التليفون، واطلب أونلاين على مُجتمعي.`,
+    canonical: hubUrl(c, category, city),
+    body: `<p class="muted"><a href="${SITE}/">الدليل</a> › <a href="${SITE}/${c.slug}/">${esc(c.name)}</a> › <a href="${cityUrl(c, city)}">${esc(city)}</a></p>
+<h1>${esc(category)} في ${esc(city)}</h1>
+<div class="card"><ul class="list">${places.map((p) => placeItem(p, c.iso)).join('') || `<li class="muted">مفيش أماكن متسجلة هنا لسه.</li>`}</ul></div>`,
   });
 }
 
@@ -306,7 +443,7 @@ const curOf = (row) => (row && typeof row.currency === 'string' && row.currency.
 const money = (n, cur = 'EGP') =>
   `${Number(n).toLocaleString('en-US', { maximumFractionDigits: THREE_DECIMALS.has(cur) ? 3 : 2 })} ${CURRENCY_LABEL[cur] || cur}`;
 const imagesOf = (p) => (Array.isArray(p.images) && p.images.length ? p.images : p.image_url ? [p.image_url] : []);
-const SHOP_COLS = 'id,name,category,description,address,lat,lng,slug,logo_url,cover_image_url,delivery_fee,free_delivery_over,currency';
+const SHOP_COLS = 'id,name,category,description,address,lat,lng,slug,logo_url,cover_image_url,delivery_fee,free_delivery_over,currency,country';
 const PRODUCT_COLS = 'id,name,description,category,price,old_price,currency,images,image_url,stock';
 
 async function storeData(slugName) {
@@ -331,7 +468,8 @@ async function storePage(slugName) {
   const data = await cached('sd:' + slugName.toLowerCase(), 600e3, () => storeData(slugName));
   if (!data) return null;
   const { shop, products } = data;
-  const city = shop.lat != null ? cityOf(shop.lat, shop.lng) : null;
+  const country = countryOf(shop.country);
+  const city = shop.lat != null ? cityOf(shop.lat, shop.lng, country.iso) : null;
   const where = city ? ` في ${city}` : '';
   const appUrl = `${APP}/#/s/${shop.slug}`;
   const canonical = `${SITE}/s/${shop.slug}`;
@@ -344,7 +482,7 @@ async function storePage(slugName) {
     ...(shop.logo_url ? { image: shop.logo_url } : {}),
     ...(shop.description ? { description: shop.description } : {}),
     ...(shop.lat != null ? { geo: { '@type': 'GeoCoordinates', latitude: shop.lat, longitude: shop.lng } } : {}),
-    address: { '@type': 'PostalAddress', addressCountry: 'EG', ...(city ? { addressLocality: city } : {}), ...(shop.address ? { streetAddress: shop.address } : {}) },
+    address: { '@type': 'PostalAddress', addressCountry: country.iso, ...(city ? { addressLocality: city } : {}), ...(shop.address ? { streetAddress: shop.address } : {}) },
     hasOfferCatalog: {
       '@type': 'OfferCatalog',
       name: `منتجات ${shop.name}`,
@@ -363,12 +501,13 @@ async function storePage(slugName) {
     })
     .join('');
   return page({
+    country: country.iso,
     image: shop.cover_image_url || shop.logo_url || imagesOf(products[0] || {})[0],
     title: `${shop.name} — ${shop.category || 'متجر'}${where} | اطلب أونلاين على مُجتمعي`,
     description: `${shop.name}${where}: ${products.length} منتج بالأسعار${shop.description ? ' — ' + shop.description.slice(0, 120) : ''}. اطلب أونلاين والدفع عند الاستلام.`,
     canonical,
     jsonLd,
-    body: `<p class="muted"><a href="${SITE}/">الدليل</a>${city ? ` › <a href="${SITE}/city/${encodeURIComponent(slug(city))}">${esc(city)}</a>` : ''}</p>
+    body: `<p class="muted"><a href="${SITE}/">الدليل</a>${city ? ` › <a href="${cityUrl(country, city)}">${esc(city)}</a>` : ''}</p>
 <div class="card">
 ${shop.cover_image_url ? `<img src="${esc(shop.cover_image_url)}" alt="" style="width:100%;max-height:220px;object-fit:cover;border-radius:12px">` : ''}
 <h1>${shop.logo_url ? `<img src="${esc(shop.logo_url)}" alt="" width="44" height="44" style="border-radius:12px;vertical-align:middle;margin-left:8px">` : ''}${esc(shop.name)}</h1>
@@ -386,7 +525,8 @@ async function productPage(slugName, productId) {
   const p = data?.products.find((x) => x.id === productId);
   if (!p) return null;
   const { shop } = data;
-  const city = shop.lat != null ? cityOf(shop.lat, shop.lng) : null;
+  const country = countryOf(shop.country);
+  const city = shop.lat != null ? cityOf(shop.lat, shop.lng, country.iso) : null;
   const canonical = `${SITE}/s/${shop.slug}/p/${p.id}`;
   const imgs = imagesOf(p);
   const jsonLd = {
@@ -399,6 +539,7 @@ async function productPage(slugName, productId) {
     offers: { ...offerOf(p, canonical), seller: { '@type': 'Organization', name: shop.name } },
   };
   return page({
+    country: country.iso,
     image: imgs[0],
     title: `${p.name} بسعر ${money(p.price, curOf(p))} — ${shop.name}${city ? ' ' + city : ''} | مُجتمعي`,
     description: `${p.name} بـ ${money(p.price, curOf(p))} من ${shop.name}${city ? ' في ' + city : ''}. ${p.description ? p.description.slice(0, 120) + ' ' : ''}اطلب أونلاين والدفع عند الاستلام.`,
@@ -503,6 +644,17 @@ async function sitemapHubs() {
       return [...new Set(rows.map((r) => r.category))].filter((c) => CATEGORIES.includes(c));
     });
     for (const c of cats) urls.push(`${SITE}/c/${encodeURIComponent(slug(c))}/${encodeURIComponent(slug(city))}`);
+  }
+  // Other Arab states: only countries / cities / categories with places.
+  for (const c of COUNTRIES) {
+    if (c.iso === 'EG') continue;
+    const cities = await listedCities(c).catch(() => []);
+    if (!cities.length) continue;
+    urls.push(`${SITE}/${c.slug}/`);
+    for (const x of cities) {
+      urls.push(cityUrl(c, x.city));
+      for (const cat of x.cats) urls.push(hubUrl(c, cat, x.city));
+    }
   }
   return urlset(urls);
 }
@@ -858,6 +1010,22 @@ const server = http.createServer(async (req, res) => {
       return html ? send(res, 200, html) : send(res, 404, await cached('home', 3600e3, homePage));
     }
     if (path === '/search') return send(res, 200, await searchPage(url.searchParams.get('q') || ''), 'text/html; charset=utf-8', 300);
+    // Other Arab states (0094): /<country>/, /<country>/<city>, /<country>/<city>/<category>.
+    if ((m = path.match(/^\/([a-z-]{3,20})(?:\/([^/]+?))?(?:\/([^/]+?))?\/?$/)) && COUNTRY_BY_SLUG.has(m[1])) {
+      const c = COUNTRY_BY_SLUG.get(m[1]);
+      if (c.iso === 'EG') {
+        res.writeHead(301, { Location: `${SITE}/` });
+        return res.end();
+      }
+      const city = m[2] ? unslug(m[2]) : null;
+      const cat = m[3] ? unslug(m[3]) : null;
+      const html = !city
+        ? await cached('cc:' + c.iso, 3600e3, () => countryPage(c))
+        : !cat
+          ? await cached(`ccity:${c.iso}:${city}`, 3600e3, () => countryCityPage(c, city))
+          : await cached(`chub:${c.iso}:${city}:${cat}`, 3600e3, () => countryHubPage(c, city, cat));
+      return html ? send(res, 200, html) : send(res, 404, await cached('home', 3600e3, homePage));
+    }
     return send(res, 404, await cached('home', 3600e3, homePage));
   } catch (e) {
     console.error(req.url, e.message);
