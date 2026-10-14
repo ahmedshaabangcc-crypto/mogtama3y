@@ -6,6 +6,7 @@ import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../tutorials/tutorial_widgets.dart';
 import 'masjid_widgets.dart';
+import '../shared/phone_field.dart';
 
 /// «أنا مسؤول عن المسجد ده»: role, phone and an optional proof (a letter
 /// from the أوقاف, an ID with the mosque's stamp…) to the private bucket —
@@ -22,7 +23,7 @@ class ClaimMosqueScreen extends StatefulWidget {
 
 class _ClaimMosqueScreenState extends State<ClaimMosqueScreen> {
   String _role = 'imam';
-  final _phone = TextEditingController();
+  final _phone = PhoneController();
   final _note = TextEditingController();
   XFile? _doc;
   bool _busy = false;
@@ -47,7 +48,7 @@ class _ClaimMosqueScreenState extends State<ClaimMosqueScreen> {
       String? path;
       if (_doc != null) path = await UploadService.uploadPrivateDocument(purpose: 'mosque_claim', file: _doc!);
       await MasjidService.claim(widget.mosqueId,
-          role: _role, phone: _phone.text.trim(), docPath: path, note: _note.text.trim().isEmpty ? null : _note.text.trim());
+          role: _role, phone: _phone.stored ?? _phone.text.trim(), docPath: path, note: _note.text.trim().isEmpty ? null : _note.text.trim());
       if (!mounted) return;
       _toast('طلبك وصل — هيتراجع وهيوصلك إشعار');
       Navigator.of(context).pop(true);
@@ -79,11 +80,7 @@ class _ClaimMosqueScreenState extends State<ClaimMosqueScreen> {
               ChoiceChip(label: Text(e.value), selected: _role == e.key, onSelected: (_) => setState(() => _role = e.key)),
           ]),
           const SizedBox(height: 14),
-          TextField(
-            controller: _phone,
-            keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(labelText: 'رقم موبايلك', hintText: '01xxxxxxxxx', helperText: 'للتواصل معاك في المراجعة — مش هيظهر للناس'),
-          ),
+          PhoneFormField(controller: _phone, labelText: 'رقم موبايلك', helperText: 'للتواصل معاك في المراجعة — مش هيظهر للناس'),
           const SizedBox(height: 10),
           TextField(controller: _note, maxLines: 3, decoration: const InputDecoration(labelText: 'معلومة تساعدنا نتأكد (اختياري)', hintText: 'مثلاً: إمام المسجد من 2015 بتعيين من الأوقاف')),
           const SizedBox(height: 12),

@@ -15,6 +15,7 @@ import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'dues_status_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import '../shared/phone_field.dart';
 
 String fundMoney(num n) {
   final neg = n < 0;
@@ -214,7 +215,7 @@ class _UnionFundScreenState extends State<UnionFundScreen> {
   Future<void> _requestWithdrawal() async {
     final amountCtrl = TextEditingController();
     final noteCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
+    final phoneCtrl = PhoneController();
     var toWallet = true;
     final saved = await showModalBottomSheet<bool>(
       context: context,
@@ -240,7 +241,7 @@ class _UnionFundScreenState extends State<UnionFundScreen> {
             ]),
             const SizedBox(height: 8),
             if (!toWallet)
-              TextField(controller: phoneCtrl, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'رقم المحفظة (01xxxxxxxxx)')),
+              PhoneFormField(controller: phoneCtrl, labelText: 'رقم المحفظة'),
             const SizedBox(height: 12),
             ElevatedButton(
               onPressed: () => Navigator.of(context).pop(true),
@@ -263,7 +264,7 @@ class _UnionFundScreenState extends State<UnionFundScreen> {
         buildingId: _buildingId!,
         amount: amount,
         note: noteCtrl.text.trim(),
-        payoutPhone: toWallet ? null : phoneCtrl.text.trim(),
+        payoutPhone: toWallet ? null : (phoneCtrl.stored ?? phoneCtrl.text.trim()),
       );
       _toast('اتبعت طلب السحب للمراجعة');
       _load();

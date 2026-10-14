@@ -9,6 +9,8 @@ import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
 import 'scrap_widgets.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import '../../core/geo/phones.dart';
+import '../shared/phone_field.dart';
 
 /// Register (or edit) as a scrap dealer ("تاجر خردة"): business name,
 /// WhatsApp, the materials you buy and where you work — a governorate and
@@ -30,7 +32,7 @@ class ScrapDealerRegisterScreen extends StatefulWidget {
 class _ScrapDealerRegisterScreenState extends State<ScrapDealerRegisterScreen> {
   final _form = GlobalKey<FormState>();
   final _name = TextEditingController();
-  final _whatsapp = TextEditingController();
+  final _whatsapp = PhoneController();
   final _areaInput = TextEditingController();
   final _radius = TextEditingController();
 
@@ -53,7 +55,7 @@ class _ScrapDealerRegisterScreenState extends State<ScrapDealerRegisterScreen> {
     final e = _existing;
     if (e != null) {
       _name.text = e['business_name'] as String? ?? '';
-      _whatsapp.text = e['whatsapp'] as String? ?? '';
+      _whatsapp.setPhone(e['whatsapp'] as String?);
       _materials.addAll(((e['materials'] as List?) ?? const []).cast<String>());
       _areas.addAll(((e['areas'] as List?) ?? const []).cast<String>());
       _governorate = e['governorate'] as String?;
@@ -74,9 +76,9 @@ class _ScrapDealerRegisterScreenState extends State<ScrapDealerRegisterScreen> {
   Future<void> _prefillWhatsapp() async {
     try {
       final profile = await AuthService.fetchCurrentProfile();
-      final phone = normalizeEgyptMobile(profile?['phone'] as String?);
+      final phone = canonicalPhone(profile?['phone'] as String?);
       if (!mounted || phone == null || _whatsapp.text.isNotEmpty) return;
-      setState(() => _whatsapp.text = phone);
+      setState(() => _whatsapp.setPhone(phone));
     } catch (_) {}
   }
 
@@ -156,7 +158,7 @@ class _ScrapDealerRegisterScreenState extends State<ScrapDealerRegisterScreen> {
       await ScrapDealerService.save(
         isNew: _existing == null,
         businessName: _name.text.trim(),
-        whatsapp: normalizeEgyptMobile(_whatsapp.text) ?? _whatsapp.text.trim(),
+        whatsapp: _whatsapp.stored ?? _whatsapp.text.trim(),
         materials: _materials.toList(),
         governorate: _governorate,
         areas: _areas,
@@ -249,13 +251,7 @@ class _ScrapDealerRegisterScreenState extends State<ScrapDealerRegisterScreen> {
               validator: (v) => (v == null || v.trim().length < 2) ? 'اكتب اسم النشاط' : null,
             ),
             const SizedBox(height: 10),
-            TextFormField(
-              controller: _whatsapp,
-              keyboardType: TextInputType.phone,
-              textDirection: TextDirection.ltr,
-              decoration: _dec('رقم الواتساب *', hint: '01xxxxxxxxx'),
-              validator: (v) => scrapWhatsappPattern.hasMatch(normalizeEgyptMobile(v) ?? v?.trim() ?? '') ? null : 'رقم موبايل مصري صحيح (11 رقم يبدأ بـ 01)',
-            ),
+            PhoneFormField(controller: _whatsapp, decoration: _dec('رقم الواتساب *')),
             const SizedBox(height: 4),
             const Text('رقمك مش بيظهر لحد — بيوصل للبائع بس لو قبل عرضك.', style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
             _section('بتشتري إيه؟ *'),

@@ -8,6 +8,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/tutoring/tutoring_service.dart';
 import '../auth/auth_landing_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import '../../core/geo/phones.dart';
+import '../shared/phone_field.dart';
 
 /// Post a tutoring listing, or edit one when [existing] is given. The name
 /// shown is the poster's profile name. Pops `true` once saved.
@@ -28,8 +30,8 @@ class _AddTutorListingScreenState extends State<AddTutorListingScreen> {
   late final _years = TextEditingController(text: _e?['experience_years']?.toString() ?? '');
   late final _area = TextEditingController(text: _e?['area'] as String? ?? '');
   late final _bio = TextEditingController(text: _e?['bio'] as String? ?? '');
-  late final _phone = TextEditingController(text: _e?['phone'] as String? ?? '');
-  late final _whatsapp = TextEditingController(text: _e?['whatsapp'] as String? ?? '');
+  late final _phone = PhoneController(phone: _e?['phone'] as String?);
+  late final _whatsapp = PhoneController(phone: _e?['whatsapp'] as String?);
 
   late final Set<String> _subjects = _codes('subjects');
   late final Set<String> _stages = _codes('stages');
@@ -53,8 +55,8 @@ class _AddTutorListingScreenState extends State<AddTutorListingScreen> {
   Future<void> _prefillPhone() async {
     try {
       final phone = await TutoringService.myPhone();
-      if (!mounted || phone == null || normaliseTutorPhone(phone) == null) return;
-      if (_whatsapp.text.isEmpty) _whatsapp.text = normaliseTutorPhone(phone)!;
+      if (!mounted || phone == null || canonicalPhone(phone) == null) return;
+      if (_whatsapp.text.isEmpty) _whatsapp.setPhone(canonicalPhone(phone));
     } catch (_) {}
   }
 
@@ -70,19 +72,14 @@ class _AddTutorListingScreenState extends State<AddTutorListingScreen> {
 
   void _toast(String text) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 
-  String? _phoneError(String? v) {
-    final t = (v ?? '').trim();
-    if (t.isEmpty) return null;
-    return normaliseTutorPhone(t) == null ? 'رقم الموبايل لازم يكون 11 رقم ويبدأ بـ 010 أو 011 أو 012 أو 015' : null;
-  }
 
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
     if (_subjects.isEmpty) return _toast('اختار مادة واحدة على الأقل');
     if (_stages.isEmpty) return _toast('اختار المرحلة');
     if (_modes.isEmpty) return _toast('اختار فين بتدّي الدرس');
-    final phone = normaliseTutorPhone(_phone.text);
-    final whatsapp = normaliseTutorPhone(_whatsapp.text);
+    final phone = _phone.stored;
+    final whatsapp = _whatsapp.stored;
     if (phone == null && whatsapp == null) return _toast('اكتب رقم واتساب أو موبايل عشان الطلبة يكلموك');
     setState(() => _saving = true);
     final data = <String, dynamic>{
@@ -255,19 +252,9 @@ class _AddTutorListingScreenState extends State<AddTutorListingScreen> {
             const SizedBox(height: 10),
             TextFormField(controller: _area, maxLength: 80, decoration: _dec('المنطقة', hint: 'مثلاً: مدينة نصر، سموحة')),
             _section('إزاي الطلبة يكلموك؟', hint: 'رقم واحد على الأقل'),
-            TextFormField(
-              controller: _whatsapp,
-              keyboardType: TextInputType.phone,
-              decoration: _dec('رقم الواتساب', hint: '01xxxxxxxxx'),
-              validator: _phoneError,
-            ),
+            PhoneFormField(controller: _whatsapp, decoration: _dec('رقم الواتساب'), required: false),
             const SizedBox(height: 10),
-            TextFormField(
-              controller: _phone,
-              keyboardType: TextInputType.phone,
-              decoration: _dec('رقم للاتصال (لو مختلف)', hint: '01xxxxxxxxx'),
-              validator: _phoneError,
-            ),
+            PhoneFormField(controller: _phone, decoration: _dec('رقم للاتصال (لو مختلف)'), required: false),
             const SizedBox(height: 22),
             SizedBox(
               height: 52,

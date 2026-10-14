@@ -12,6 +12,7 @@ import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
 import 'scrap_widgets.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import '../../core/geo/phones.dart';
 
 /// Auction detail + real-time bidding — matches
 /// design/screens/20_recycling_auction_bidding.png, now backed by a
@@ -412,8 +413,8 @@ class _ContactCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final name = (contact['business_name'] as String?) ?? (contact['full_name'] as String?) ?? (forSeller ? 'المشتري' : 'البائع');
-    final phone = normalizeEgyptMobile(contact['phone'] as String?) ?? normalizeEgyptMobile(contact['whatsapp'] as String?);
-    final whatsapp = normalizeEgyptMobile(contact['whatsapp'] as String?) ?? phone;
+    final phone = canonicalPhone(contact['phone'] as String?) ?? canonicalPhone(contact['whatsapp'] as String?);
+    final whatsapp = canonicalPhone(contact['whatsapp'] as String?) ?? phone;
     final message = forSeller
         ? 'السلام عليكم، بخصوص مزاد «$lotTitle» على مُجتمعي — قبلت عرضك، نتفق على الاستلام؟'
         : 'السلام عليكم، بخصوص مزاد «$lotTitle» على مُجتمعي — عرضي اتقبل، نتفق على الاستلام؟';

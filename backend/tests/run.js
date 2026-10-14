@@ -2412,6 +2412,8 @@ const denied = (r) => !!r.error;
     check('masc: 0083 is safe to re-run (after 0081 re-ran too)', mascRerun === null, mascRerun);
     // 0087 redefines 0081/0083 functions (chat send, profile, feed, add mosque) — put it back.
     await db.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'migrations', '0087_masjid_worldwide.sql'), 'utf8'));
+    // …and 0089 (chat send's phone filter, mosque helpers by any Arab mobile).
+    await db.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'migrations', '0089_arab_world_foundation.sql'), 'utf8'));
 
     const mascM = (await admin(db, `insert into mosques (name, lat, lng, verified) values ('مسجد النور', 30.4, 31.6, true) returning id`))[0].id;
     const mascN1 = await signUp(db, 'masc realname one', null);
@@ -2578,6 +2580,7 @@ const denied = (r) => !!r.error;
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0086_masjid_live_public.sql'), 'utf8'));
     // …and 0087 (worldwide: hands / speakers / create redefined).
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0087_masjid_worldwide.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0089_arab_world_foundation.sql'), 'utf8'));
 
     const M = (await admin(db, `insert into mosques (name, lat, lng, verified) values ('مسجد الرحمن', 30.05, 31.25, true) returning id`))[0].id;
     const U = (await admin(db, `insert into mosques (name, lat, lng) values ('مسجد مش موثق', 30.06, 31.26) returning id`))[0].id;
@@ -2865,6 +2868,7 @@ const denied = (r) => !!r.error;
       rerun = e.message;
     }
     check('mww: 0087 is safe to re-run', rerun === null, rerun);
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0089_arab_world_foundation.sql'), 'utf8'));
     const has = (r, text) => !!r.error && r.error.includes(text);
 
     // ---- places: country / zone / currency
@@ -3167,6 +3171,176 @@ const denied = (r) => !!r.error;
     check('adhan: a prayer without a style gets a quiet notification',
       ok(await as(db, AD, `select public.set_prayer_reminder_style('{}'::jsonb, 'short')`)) &&
       (await admin(db, `select coalesce(styles ->> 'asr', 'quiet') s from prayer_reminder_prefs where user_id = $1`, [AD]))[0].s === 'quiet');
+  }
+
+  // ------------------------------------------------------------------
+  console.log('\nPhase arab — the 22 Arab states: geo foundation + phones (0089)');
+  {
+    const fs = require('fs');
+    const path = require('path');
+    let rerun = null;
+    try {
+      await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0089_arab_world_foundation.sql'), 'utf8'));
+    } catch (e) {
+      rerun = e.message;
+    }
+    check('arab: 0089 is safe to re-run', rerun === null, rerun);
+    const norm = async (p, c) => (await admin(db, `select private.norm_phone($1, $2) as n`, [p, c ?? null]))[0].n;
+    const store = async (p, c) => (await admin(db, `select private.phone_store($1, $2) as n`, [p, c ?? null]))[0].n;
+
+    // ---- norm_phone in several countries, local and international
+    const cases = [
+      ['01012345678', null, '+201012345678'], ['+20 101 234 5678', null, '+201012345678'], ['00201012345678', 'SA', '+201012345678'],
+      ['٠١٠١٢٣٤٥٦٧٨', 'EG', '+201012345678'], ['201012345678', null, '+201012345678'],
+      ['0512345678', 'SA', '+966512345678'], ['+966 51 234 5678', null, '+966512345678'], ['966512345678', 'EG', '+966512345678'],
+      ['050-123-4567', 'AE', '+971501234567'], ['+971501234567', null, '+971501234567'], ['00971 50 123 4567', 'EG', '+971501234567'],
+      ['51234567', 'KW', '+96551234567'], ['+965 9123 4567', null, '+96591234567'],
+      ['0612345678', 'MA', '+212612345678'], ['+212 6 12 34 56 78', null, '+212612345678'],
+      ['07712345678', 'IQ', '+9647712345678'], ['+964 771 234 5678', null, '+9647712345678'],
+      ['0791234567', 'JO', '+962791234567'], ['+962 79 123 4567', null, '+962791234567'],
+      ['+44 7700 900123', null, '+447700900123'],
+    ];
+    const bad = [];
+    for (const [p, c, want] of cases) {
+      const got = await norm(p, c);
+      if (got !== want) bad.push({ p, c, got, want });
+    }
+    check('arab: norm_phone reads EG/SA/AE/KW/MA/IQ/JO numbers, local and international', bad.length === 0, bad);
+    check('arab: norm_phone refuses junk, a Saudi number read as Egyptian, landlines, a wrong length',
+      (await norm('12345')) === null && (await norm('0512345678', 'EG')) === null && (await norm('0225551234', 'EG')) === null &&
+      (await norm('+96651234567')) === null && (await norm('abc01012345678')) === null);
+    check('arab: the stored form is 01… for Egypt and E.164 for others',
+      (await store('+201012345678')) === '01012345678' && (await store('0512345678', 'SA')) === '+966512345678');
+    const misc = (await admin(db, `select private.phone_country('+971501234567') a, private.phone_country('01012345678') b, private.phone_country('+447700900123') c,
+      private.wa_digits('01012345678') d, private.wa_digits('+966512345678') e, private.is_mobile('+212612345678') f, private.is_mobile('0225551234') g,
+      private.money_text(1250.5, 'AED') h, private.money_text(3.1256, 'KWD') i, private.money_text(150, null) j,
+      private.has_phone_number('كلمني على 07712345678') k, private.has_phone_number('واتس +966 51 234 5678') l, private.has_phone_number('السعر 1500 جنيه') m`))[0];
+    check('arab: phone_country / wa_digits / is_mobile', misc.a === 'AE' && misc.b === 'EG' && misc.c === null && misc.d === '201012345678' &&
+      misc.e === '966512345678' && misc.f === true && misc.g === false, misc);
+    check('arab: money_text («1,250.5 د.إ», 3 decimals for KWD, EGP by default)', misc.h === '1,250.5 د.إ' && misc.i === '3.126 د.ك' && misc.j === '150 ج.م', misc);
+    check('arab: has_phone_number catches local and international numbers, not prices', misc.k && misc.l && !misc.m, misc);
+    check("arab: users can't call the private helpers", denied(await as(db, X, `select private.norm_phone('01012345678')`)));
+
+    // ---- profiles.country
+    const UAE = await signUp(db, 'uae user', '+971 50 123 4567');
+    const KSA = await signUp(db, 'saudi user', '00966512345678');
+    const EGU = await signUp(db, 'egypt user', '+201000009001');
+    const EGN = await signUp(db, 'egypt nophone', '');
+    const prof = async (u) => (await admin(db, `select phone, country, currency, phone_verified_at from profiles where id = $1`, [u]))[0];
+    check('arab: sign-up with a UAE number → country AE, AED, phone in E.164',
+      (await prof(UAE)).country === 'AE' && (await prof(UAE)).currency === 'AED' && (await prof(UAE)).phone === '+971501234567', await prof(UAE));
+    check('arab: sign-up with 00966… → SA, +966…', (await prof(KSA)).country === 'SA' && (await prof(KSA)).phone === '+966512345678', await prof(KSA));
+    check('arab: an Egyptian sign-up stays EG / EGP / 01…', (await prof(EGU)).country === 'EG' && (await prof(EGU)).currency === 'EGP' && (await prof(EGU)).phone === '01000009001', await prof(EGU));
+    check('arab: existing users are EG / EGP', (await prof(A)).country === 'EG' && (await prof(A)).currency === 'EGP');
+    const metaU = (await admin(db, `insert into auth.users (email, raw_user_meta_data) values ('meta@test.local', '{"full_name":"meta","phone":"0791234567","country":"JO"}'::jsonb) returning id`))[0].id;
+    check('arab: the country the app sends reads a local number', (await prof(metaU)).country === 'JO' && (await prof(metaU)).phone === '+962791234567', await prof(metaU));
+    const tzU = (await admin(db, `insert into auth.users (email, raw_user_meta_data) values ('tz@test.local', '{"full_name":"tz","tz":"Africa/Casablanca"}'::jsonb) returning id`))[0].id;
+    check('arab: no phone → the device zone gives the country', (await prof(tzU)).country === 'MA', await prof(tzU));
+    check('arab: set_my_country changes country + currency', ok(await as(db, tzU, `select public.set_my_country('TN', 'Africa/Tunis')`)) &&
+      (await prof(tzU)).country === 'TN' && (await prof(tzU)).currency === 'TND');
+    check('arab: set_my_country refuses a non-Arab / bogus code or zone',
+      denied(await as(db, tzU, `select public.set_my_country('XX')`)) && denied(await as(db, tzU, `select public.set_my_country('FR')`)) &&
+      denied(await as(db, tzU, `select public.set_my_country('SA', 'Mars/Base')`)));
+    check('arab: the user reads their own country / currency', (await as(db, KSA, `select country, currency from profiles where id = $1`, [KSA])).rows?.[0]?.currency === 'SAR');
+    check('arab: EXPLOIT blocked: writing currency / country directly',
+      denied(await as(db, KSA, `update profiles set currency = 'USD' where id = $1`, [KSA])) && denied(await as(db, KSA, `update profiles set country = 'EG' where id = $1`, [KSA])));
+    check('arab: editing the phone keeps the stored form', ok(await as(db, KSA, `update profiles set phone = '055 123 4567' where id = $1`, [KSA])) &&
+      (await prof(KSA)).phone === '+966551234567', await prof(KSA));
+    check('arab: an Egyptian typing +20… is stored as 01…', ok(await as(db, EGN, `update profiles set phone = '+20 100 000 9003' where id = $1`, [EGN])) &&
+      (await prof(EGN)).phone === '01000009003');
+    // SMS verification stays Egyptian; +20 input works.
+    const confirm = async (u, p) => {
+      await db.exec('begin; set local role service_role;');
+      let err = null;
+      try { await db.query('select public.confirm_phone_verified($1, $2)', [u, p]); } catch (e) { err = e.message; } finally { await db.exec(err ? 'rollback' : 'commit'); }
+      return err;
+    };
+    const vErr = await confirm(EGU, '+201000009001');
+    check('arab: confirm_phone_verified accepts +20… and keeps 01…', vErr === null && (await prof(EGU)).phone === '01000009001' && !!(await prof(EGU)).phone_verified_at, vErr);
+    check('arab: confirm_phone_verified still refuses non-Egyptian numbers', (await confirm(UAE, '+971501234567')) !== null);
+    await admin(db, `update profiles set phone = '01000009004', phone_verified_at = null where id = $1`, [EGN]);
+
+    // ---- store checkout with a Saudi customer
+    const ArM = await signUp(db, 'arab merchant', '+971509990000');
+    const arShop = await as(db, ArM, `select public.create_my_shop('متجر دبي', 'بقالة', 'dubai-shop', '0509990000') as id`);
+    check('arab: a UAE merchant opens a shop with a local UAE WhatsApp', ok(arShop) &&
+      (await admin(db, `select whatsapp from shops where id = $1`, [arShop.rows?.[0]?.id]))[0]?.whatsapp === '+971509990000', arShop.error);
+    check('arab: an Egyptian merchant still opens one with 01…', ok(await as(db, EGU, `select public.create_my_shop('محل مصر', 'بقالة', 'masr-shop', '01000009001')`)) &&
+      (await admin(db, `select whatsapp from shops where slug = 'masr-shop'`))[0].whatsapp === '01000009001');
+    check('arab: a bad shop WhatsApp is still refused', denied(await as(db, ArM, `select public.create_my_shop('x', 'بقالة', 'bad-wa', '12345')`)));
+    const arShopId = arShop.rows?.[0]?.id;
+    const arProd = (await as(db, ArM, `insert into shop_products (shop_id, name, price) values ($1, 'تمر', 30) returning id`, [arShopId])).rows?.[0]?.id;
+    const arItems = JSON.stringify([{ product_id: arProd, quantity: 2 }]);
+    const sOrder = await as(db, null, `select public.place_store_order($1, $2::jsonb, 'فهد', '+966 50 111 2222', 'حي النخيل، شارع 5، فيلا 3') as code`, [arShopId, arItems]);
+    check('arab: a guest orders with a Saudi number', ok(sOrder) &&
+      (await admin(db, `select customer_phone from shop_orders where order_code = $1`, [sOrder.rows?.[0]?.code]))[0]?.customer_phone === '+966501112222', sOrder.error);
+    const sOrder2 = await as(db, KSA, `select public.place_store_order($1, $2::jsonb, 'سعود', '0503334444', 'حي العليا، شارع 7، عمارة 2') as code`, [arShopId, arItems]);
+    check("arab: a Saudi user's local number is read in their country", ok(sOrder2) &&
+      (await admin(db, `select customer_phone from shop_orders where order_code = $1`, [sOrder2.rows?.[0]?.code]))[0]?.customer_phone === '+966503334444', sOrder2.error);
+    check('arab: an Egyptian guest checkout still works (01…)', ok(await as(db, null, `select public.place_store_order($1, $2::jsonb, 'منى', '01077771111', 'شارع 9، المعادي، عمارة 4') as code`, [arShopId, arItems])));
+    check('arab: a bad checkout phone is still refused', denied(await as(db, null, `select public.place_store_order($1, $2::jsonb, 'منى', '12345', 'شارع 9، المعادي، عمارة 4')`, [arShopId, arItems])));
+    check('arab: the in-app place_shop_order takes a UAE number', ok(await as(db, UAE, `select public.place_shop_order($1, $2::jsonb, '+971501234567')`, [arShopId, arItems])));
+
+    // ---- listings with a UAE WhatsApp
+    check('arab: a tutor listing with a UAE WhatsApp',
+      ok(await as(db, UAE, `insert into tutor_listings (owner_id, subjects, stages, modes, price, whatsapp) values ($1, '{math}', '{primary}', '{online}', 100, '+971501234567')`, [UAE])));
+    check('arab: a hall with a UAE phone + WhatsApp', ok(await hallIns(UAE, { phone: '+971501234567', whatsapp: '+971501234567' })));
+    check('arab: a pet listing with a UAE phone',
+      ok(await as(db, UAE, `insert into pet_listings (owner_id, kind, animal, title, price, phone) values ($1, 'supplies', 'cat', 'قفص', 300, '+971501234567')`, [UAE])));
+    check('arab: a kids listing with a UAE phone',
+      ok(await as(db, UAE, `insert into kids_listings (owner_id, category, title, price, phone) values ($1, 'toys', 'لعبة', 50, '+971501234567')`, [UAE])));
+    check('arab: listings refuse a non-normalised or invalid foreign number',
+      denied(await as(db, UAE, `insert into pet_listings (owner_id, kind, animal, title, price, phone) values ($1, 'supplies', 'cat', 'قفص', 300, '+971 50 123 4567')`, [UAE])) &&
+      denied(await as(db, UAE, `insert into kids_listings (owner_id, category, title, price, phone) values ($1, 'toys', 'لعبة', 50, '+9715012')`, [UAE])) &&
+      denied(await hallIns(UAE, { whatsapp: '0501234567' })));
+    check('arab: a scrap dealer with a Moroccan WhatsApp',
+      ok(await as(db, tzU, `insert into scrap_dealers (user_id, business_name, whatsapp, materials, governorate) values ($1, 'خردة الرباط', '+212612345678', '{iron}', 'الرباط')`, [tzU])));
+    check('arab: Egyptian listings unchanged',
+      ok(await as(db, EGU, `insert into pet_listings (owner_id, kind, animal, title, price, phone) values ($1, 'supplies', 'cat', 'قفص', 300, '01000009001')`, [EGU])));
+
+    // ---- payouts
+    await admin(db, `update wallets set available_balance = 500 where user_id = $1`, [UAE]);
+    check('arab: a wallet payout to a UAE number', ok(await as(db, UAE, `select public.request_wallet_withdrawal(20, '050 123 4567')`)) &&
+      (await admin(db, `select payout_phone from wallet_withdrawal_requests where user_id = $1`, [UAE]))[0]?.payout_phone === '+971501234567');
+    check('arab: a bad payout number is refused', denied(await as(db, UAE, `select public.request_wallet_withdrawal(20, '12345')`)));
+
+    // ---- e-address lookup by +971
+    const uaeAddr = await as(db, UAE, `select public.save_my_e_address(null, $1::jsonb) as code`,
+      [JSON.stringify({ label: 'البيت', governorate: 'القاهرة', city: 'المعادي', street: 'شارع 9', building: '12', lat: 29.96, lng: 31.25 })]);
+    await admin(db, `update e_addresses set phone_lookup = true where owner_id = $1`, [UAE]);
+    check('arab: the address opens by +971 (international form)', ok(uaeAddr) &&
+      (await as(db, null, `select public.get_e_address('+971 50 123 4567') as a`)).rows?.[0]?.a?.label === 'البيت', uaeAddr.error);
+    check('arab: …and by the local form for a UAE caller', (await as(db, ArM, `select public.get_e_address('0501234567') as a`)).rows?.[0]?.a?.label === 'البيت');
+    check('arab: an unverified Egyptian number still opens nothing', (await as(db, null, `select public.get_e_address('01000009004') as a`)).rows?.[0]?.a == null);
+    check('arab: the admin finds the address by +971', (await as(db, SA, `select * from public.admin_find_e_addresses('+971501234567')`)).rows?.length === 1);
+
+    // ---- chat rooms: verified phone only for Egyptian users
+    const rooms = (await as(db, null, `select * from public.list_chat_rooms()`)).rows;
+    const general = rooms.find((r) => r.name === 'دردشة عامة')?.id;
+    await admin(db, `update chat_room_messages set created_at = created_at - interval '2 minutes'`);
+    await as(db, UAE, `select public.set_chat_nickname('Khalid_AE')`);
+    await as(db, EGN, `select public.set_chat_nickname('Masry_NoSms')`);
+    const pUAE = (await as(db, UAE, `select public.my_chat_profile() as p`)).rows?.[0]?.p;
+    check('arab: rooms profile — a UAE user needs no phone verification', pUAE?.needs_phone === false && pUAE?.phone_required === false, pUAE);
+    const rUAE = (await as(db, UAE, `select public.get_chat_room($1) as r`, [general])).rows?.[0]?.r;
+    check('arab: …the room says they can write', rUAE?.can_write === true && rUAE?.blocked_reason === null, rUAE);
+    check('arab: an unverified UAE user posts in a room', ok(await as(db, UAE, `select public.send_room_message($1, 'مساء الخير من دبي')`, [general])));
+    const pEG = (await as(db, EGN, `select public.my_chat_profile() as p`)).rows?.[0]?.p;
+    check('arab: an unverified Egyptian user still needs verification', pEG?.needs_phone === true, pEG);
+    const sendEG = await as(db, EGN, `select public.send_room_message($1, 'سلام')`, [general]);
+    check('arab: …and is blocked from posting', !!sendEG.error && sendEG.error.includes('أكّد رقمك'), sendEG);
+    await admin(db, `update chat_room_messages set created_at = created_at - interval '2 minutes'`);
+    const spam = await as(db, UAE, `select public.send_room_message($1, 'كلموني على 0501234567')`, [general]);
+    check('arab: a new account cannot post a phone number in a room', !!spam.error && spam.error.includes('أرقام الموبايل'), spam);
+    const noPhoneSA = (await admin(db, `insert into auth.users (email, raw_user_meta_data) values ('nophone-sa@test.local', '{"full_name":"np","country":"SA"}'::jsonb) returning id`))[0].id;
+    check('arab: no phone + country SA → no verification needed', (await as(db, noPhoneSA, `select public.my_chat_profile() as p`)).rows?.[0]?.p?.needs_phone === false);
+    const egInUae = await signUp(db, 'egyptian abroad', '01000009005');
+    await admin(db, `update profiles set country = 'AE' where id = $1`, [egInUae]);
+    check('arab: an Egyptian number abroad still needs verification', (await as(db, egInUae, `select public.my_chat_profile() as p`)).rows?.[0]?.p?.needs_phone === true);
+
+    // ---- mosque chat: the phone filter sees local Arab numbers
+    check('arab: masjid_chat_send uses the 22-state phone filter',
+      (await admin(db, `select pg_get_functiondef('public.masjid_chat_send(uuid, text, uuid)'::regprocedure) d`))[0].d.includes('private.has_phone_number'));
   }
 
   console.log(`\n${passed} passed, ${failures.length} failed`);

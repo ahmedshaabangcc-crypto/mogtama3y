@@ -8,6 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'halls_market_screen.dart' show HallPhotoPlaceholder;
+import '../../core/geo/phones.dart';
 
 /// One event hall (`/halls/<id>`, public): photo gallery, what it suits,
 /// capacity, price, what's included, and contact — call, WhatsApp, or an
@@ -86,11 +87,11 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
     }
   }
 
-  void _call(String phone) => launchUrl(Uri.parse('tel:$phone'));
+  void _call(String phone) => launchUrl(telLink(phone));
 
   void _whatsapp(String number) {
     final text = 'السلام عليكم، شفت «${_h!['name']}» على مُجتمعي وعايز أستفسر عن الحجز والأسعار.\n${HallService.shareUrl(widget.hallId)}';
-    launchUrl(Uri.parse('https://wa.me/2$number?text=${Uri.encodeComponent(text)}'), mode: LaunchMode.externalApplication);
+    launchUrl(waLink(number, text: text), mode: LaunchMode.externalApplication);
   }
 
   Future<void> _share() async {

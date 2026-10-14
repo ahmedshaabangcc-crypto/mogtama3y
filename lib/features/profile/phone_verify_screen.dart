@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/geo/phones.dart';
+import '../../core/geo/user_country.dart';
 import '../../core/phone/phone_verify.dart';
 import '../../core/theme/app_colors.dart';
 
@@ -29,22 +31,19 @@ class _PhoneVerifyScreenState extends State<PhoneVerifyScreen> {
     super.dispose();
   }
 
+  /// SMS codes go to Egyptian numbers only (Firebase cost — 0089): 01…
+  /// in any form (+20…, 0020…, Arabic-Indic digits); null otherwise.
   String? get _normalisedPhone {
-    const arabic = '٠١٢٣٤٥٦٧٨٩';
-    var d = _phone.text.split('').map((c) {
-      final i = arabic.indexOf(c);
-      return i >= 0 ? '$i' : c;
-    }).join().replaceAll(RegExp(r'[^0-9]'), '');
-    if (d.startsWith('0020')) d = d.substring(4);
-    if (d.startsWith('20') && d.length == 12) d = d.substring(2);
-    if (d.length == 10 && d.startsWith('1')) d = '0$d';
-    return RegExp(r'^01[0125]\d{8}$').hasMatch(d) ? d : null;
+    final p = storePhone(_phone.text, country: 'EG');
+    return p != null && isEgyptianPhone(p) ? p : null;
   }
 
   Future<void> _send() async {
     final phone = _normalisedPhone;
     if (phone == null) {
-      setState(() => _error = 'اكتب رقم موبايل مصري صحيح (11 رقم يبدأ بـ 01)');
+      setState(() => _error = isValidPhone(_phone.text, country: UserCountry.iso.value)
+          ? 'التأكيد برسالة متاح لأرقام مصر بس حالياً — في باقي الدول مش محتاج تأكّد رقمك'
+          : invalidPhoneMessage);
       return;
     }
     setState(() {

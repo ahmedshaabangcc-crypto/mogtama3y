@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app_flavor.dart';
+import '../geo/phones.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 
@@ -35,14 +36,13 @@ class DirectoryService {
     return List<Map<String, dynamic>>.from(rows as List);
   }
 
-  /// wa.me link (Egyptian mobile 01xxxxxxxxx → 201xxxxxxxxx) with a
+  /// wa.me link (stored number: 01… Egypt, or E.164) with a
   /// customer's message to a shop that isn't on مُجتمعي yet: their request,
   /// plus an invitation to open a free store and answer it.
   static Uri whatsappToShop(String whatsapp, {required String shopName, required String request}) {
-    final number = '2${whatsapp.replaceAll(RegExp(r'[^0-9]'), '')}';
     final text = 'السلام عليكم يا $shopName 👋\n'
         'لقيت محلكم على مُجتمعي وعايز أطلب:\n$request\n\n'
         '— لو حابب تستقبل طلبات زباين منطقتك أونلاين ببلاش ومن غير عمولة، افتح متجرك في دقيقتين: $tajerUrl';
-    return Uri.parse('https://wa.me/$number?text=${Uri.encodeComponent(text)}');
+    return waLink(whatsapp, text: text);
   }
 }

@@ -10,6 +10,7 @@ import '../../core/routing/app_router.dart';
 import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
+import '../../core/geo/phones.dart';
 
 /// Super-admin review of «مسجدي» claims (migration 0080): who claims which
 /// mosque, as what, their phone and the optional proof (opened through a
@@ -181,7 +182,7 @@ class _AdminMosqueClaimsScreenState extends State<AdminMosqueClaimsScreen> {
         const SizedBox(height: 8),
         Wrap(spacing: 8, runSpacing: 8, children: [
           OutlinedButton.icon(
-            onPressed: () => launchUrl(Uri.parse('https://wa.me/2${c['phone']}'), mode: LaunchMode.externalApplication),
+            onPressed: () => launchUrl(waLink(c['phone'] as String?), mode: LaunchMode.externalApplication),
             icon: const Icon(Icons.chat_rounded, size: 16),
             label: const Text('واتساب', style: TextStyle(fontSize: 11.5)),
           ),

@@ -5,6 +5,7 @@ import '../../core/shops/store_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
 import 'store_cart.dart';
+import '../../core/geo/phones.dart';
 
 /// `mogtama3y.com/#/o/<code>` — anyone with the order code follows it.
 class OrderTrackingScreen extends StatefulWidget {
@@ -99,7 +100,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                         if (o['shop_whatsapp'] != null) ...[
                           const SizedBox(height: 16),
                           OutlinedButton.icon(
-                            onPressed: () => launchUrl(Uri.parse('https://wa.me/2${o['shop_whatsapp']}?text=${Uri.encodeComponent('بخصوص طلب رقم ${o['code']}')}'),
+                            onPressed: () => launchUrl(waLink(o['shop_whatsapp'] as String?, text: 'بخصوص طلب رقم ${o['code']}'),
                                 mode: LaunchMode.externalApplication),
                             icon: const Icon(Icons.chat_rounded),
                             label: const Text('كلّم المحل على واتساب'),

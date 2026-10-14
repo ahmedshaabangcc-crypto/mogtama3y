@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/wallet/wallet_service.dart';
 import '../shared/load_error_view.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import '../shared/phone_field.dart';
 
 /// Manual withdrawal: the amount leaves the available balance right away
 /// and the admin transfers it to the given mobile wallet (migration 0045).
@@ -21,7 +22,7 @@ class _WalletWithdrawScreenState extends State<WalletWithdrawScreen> {
   bool _loadError = false;
   double _available = 0;
   final _amountCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
+  final _phoneCtrl = PhoneController();
   bool _submitting = false;
   bool _submitted = false;
   String? _error;
@@ -71,7 +72,7 @@ class _WalletWithdrawScreenState extends State<WalletWithdrawScreen> {
       _error = null;
     });
     try {
-      await WalletService.requestWithdrawal(amount: amount, payoutPhone: _phoneCtrl.text.trim());
+      await WalletService.requestWithdrawal(amount: amount, payoutPhone: _phoneCtrl.stored ?? _phoneCtrl.text.trim());
       if (!mounted) return;
       setState(() => _submitted = true);
     } catch (e) {
@@ -160,7 +161,7 @@ class _WalletWithdrawScreenState extends State<WalletWithdrawScreen> {
           const SizedBox(height: 14),
           const Text('رقم محفظتك (فودافون كاش / إنستاباي) *', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
           const SizedBox(height: 8),
-          TextField(controller: _phoneCtrl, keyboardType: TextInputType.phone, decoration: _decoration('01xxxxxxxxx')),
+          PhoneFormField(controller: _phoneCtrl, decoration: _decoration('')),
           if (_error != null) ...[
             const SizedBox(height: 12),
             Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),

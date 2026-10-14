@@ -8,6 +8,10 @@ import '../auth/auth_landing_screen.dart';
 import '../promote/token_wallet_screen.dart';
 import '../shared/load_error_view.dart';
 import '../wallet/wallet_screen.dart';
+import '../../core/geo/phones.dart';
+import '../../core/geo/user_country.dart';
+import '../shared/country_picker.dart';
+import '../shared/phone_field.dart';
 import 'phone_verify_screen.dart';
 
 /// Real profile page — there was previously no profile screen anywhere
@@ -29,7 +33,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _saving = false;
   bool _uploadingAvatar = false;
   final _nameCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
+  final _phoneCtrl = PhoneController();
+  String _country = UserCountry.iso.value;
 
   @override
   void initState() {
@@ -62,7 +67,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _profile = profile;
         _nameCtrl.text = profile?['full_name'] as String? ?? '';
-        _phoneCtrl.text = profile?['phone'] as String? ?? '';
+        _country = (profile?['country'] as String?) ?? UserCountry.iso.value;
+        _phoneCtrl.country.value = _country;
+        _phoneCtrl.setPhone(profile?['phone'] as String?);
         _loading = false;
       });
     } catch (_) {
@@ -75,9 +82,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _save() async {
+    final rawPhone = _phoneCtrl.text.trim();
+    final phone = rawPhone.isEmpty ? '' : _phoneCtrl.stored;
+    if (phone == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text(invalidPhoneMessage)));
+      return;
+    }
     setState(() => _saving = true);
     try {
-      await AuthService.updateProfile(fullName: _nameCtrl.text.trim(), phone: _phoneCtrl.text.trim());
+      if (_country != (_profile?['country'] as String? ?? 'EG')) await AuthService.setMyCountry(_country);
+      await AuthService.updateProfile(fullName: _nameCtrl.text.trim(), phone: phone.isEmpty ? null : phone);
       if (!mounted) return;
       setState(() => _editing = false);
       _load();
@@ -189,9 +203,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 6),
             _EditableField(controller: _nameCtrl),
             const SizedBox(height: 14),
+            CountryPickerTile(
+              value: _country,
+              label: 'دولتك',
+              onChanged: (iso) => setState(() {
+                _country = iso;
+                _phoneCtrl.country.value = iso;
+              }),
+            ),
+            const SizedBox(height: 8),
             const _FieldLabel('رقم الهاتف'),
             const SizedBox(height: 6),
-            _EditableField(controller: _phoneCtrl, keyboardType: TextInputType.phone),
+            PhoneFormField(controller: _phoneCtrl, required: false),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
@@ -211,7 +234,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ]),
                 const SizedBox(height: 4),
                 Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text(_profile?['phone'] as String? ?? 'لا يوجد رقم هاتف مسجّل', style: const TextStyle(color: AppColors.inkMuted, fontSize: 12.5)),
+                  Text(_profile?['phone'] == null ? 'لا يوجد رقم هاتف مسجّل' : displayPhone(_profile?['phone'] as String?),
+                      textDirection: TextDirection.ltr, style: const TextStyle(color: AppColors.inkMuted, fontSize: 12.5)),
                   if (phoneVerified)
                     const Padding(
                       padding: EdgeInsets.only(right: 6),
@@ -222,7 +246,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ]),
                     ),
                 ]),
-                if (!phoneVerified) ...[
+                // SMS verification is offered for Egyptian numbers only (0089).
+                if (!phoneVerified && (isEgyptianPhone(_profile?['phone'] as String?) || (_profile?['phone'] == null && _country == 'EG'))) ...[
                   const SizedBox(height: 10),
                   OutlinedButton.icon(
                     onPressed: _verifyPhone,
@@ -265,9 +290,8 @@ class _FieldLabel extends StatelessWidget {
 }
 
 class _EditableField extends StatelessWidget {
-  const _EditableField({required this.controller, this.keyboardType});
+  const _EditableField({required this.controller});
   final TextEditingController controller;
-  final TextInputType? keyboardType;
 
   @override
   Widget build(BuildContext context) {
@@ -276,7 +300,6 @@ class _EditableField extends StatelessWidget {
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
       child: TextField(
         controller: controller,
-        keyboardType: keyboardType,
         decoration: const InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 12)),
       ),
     );

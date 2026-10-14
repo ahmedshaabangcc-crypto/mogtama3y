@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
+import '../geo/phones.dart';
 import 'demo_mode.dart';
 import 'demo_platform.dart';
 

@@ -24,6 +24,8 @@ import '../tutorials/tutorial_widgets.dart';
 import 'starter_products_screen.dart';
 import 'store_qr_card_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import '../../core/geo/phones.dart';
+import '../shared/phone_field.dart';
 
 String _money(num v) => '${NumberFormat('#,##0.##').format(v)} ج.م';
 String _errorText(Object e, String fallback) => e is PostgrestException ? e.message : fallback;
@@ -186,7 +188,7 @@ class _RegisterShopForm extends StatefulWidget {
 class _RegisterShopFormState extends State<_RegisterShopForm> {
   final _name = TextEditingController();
   final _slug = TextEditingController();
-  final _whatsapp = TextEditingController();
+  final _whatsapp = PhoneController();
   final _address = TextEditingController();
   final _otherActivity = TextEditingController();
   String _category = StoreService.categories.first;
@@ -230,7 +232,7 @@ class _RegisterShopFormState extends State<_RegisterShopForm> {
         name: _name.text.trim(),
         category: _isOther ? typed : _category,
         slug: _slug.text.trim(),
-        whatsapp: _whatsapp.text.trim(),
+        whatsapp: _whatsapp.stored ?? _whatsapp.text.trim(),
         address: _address.text.trim(),
       );
       widget.onCreated();
@@ -292,7 +294,7 @@ class _RegisterShopFormState extends State<_RegisterShopForm> {
               textDirection: TextDirection.ltr, style: const TextStyle(fontSize: 11, color: AppColors.teal)),
         ),
         const SizedBox(height: 10),
-        TextField(controller: _whatsapp, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'رقم الواتساب لاستقبال الطلبات *', hintText: '01xxxxxxxxx')),
+        PhoneFormField(controller: _whatsapp, labelText: 'رقم الواتساب لاستقبال الطلبات *'),
         const SizedBox(height: 10),
         TextField(controller: _address, decoration: const InputDecoration(labelText: 'العنوان (المحافظة، الحي، الشارع)')),
         if (_error != null) ...[
@@ -1058,10 +1060,10 @@ class _OrdersTabState extends State<_OrdersTab> {
               if (phone != null) ...[
                 const SizedBox(height: 8),
                 Row(children: [
-                  OutlinedButton.icon(onPressed: () => launchUrl(Uri.parse('tel:$phone')), icon: const Icon(Icons.call_rounded, size: 16), label: Text(phone)),
+                  OutlinedButton.icon(onPressed: () => launchUrl(telLink(phone)), icon: const Icon(Icons.call_rounded, size: 16), label: Text(displayPhone(phone), textDirection: TextDirection.ltr)),
                   const SizedBox(width: 8),
                   OutlinedButton.icon(
-                    onPressed: () => launchUrl(Uri.parse('https://wa.me/2$phone'), mode: LaunchMode.externalApplication),
+                    onPressed: () => launchUrl(waLink(phone), mode: LaunchMode.externalApplication),
                     icon: const Icon(Icons.chat_rounded, size: 16),
                     label: const Text('واتساب'),
                   ),
@@ -1099,7 +1101,7 @@ class _MyStoreTab extends StatefulWidget {
 
 class _MyStoreTabState extends State<_MyStoreTab> {
   late final _slug = TextEditingController(text: widget.shop['slug'] as String? ?? '');
-  late final _whatsapp = TextEditingController(text: widget.shop['whatsapp'] as String? ?? '');
+  late final _whatsapp = PhoneController(phone: widget.shop['whatsapp'] as String?);
   bool _saving = false;
 
   @override
@@ -1112,7 +1114,7 @@ class _MyStoreTabState extends State<_MyStoreTab> {
   Future<void> _saveLink() async {
     setState(() => _saving = true);
     try {
-      await StoreService.updateShopLink(shopId: widget.shop['id'] as String, slug: _slug.text, whatsapp: _whatsapp.text);
+      await StoreService.updateShopLink(shopId: widget.shop['id'] as String, slug: _slug.text, whatsapp: _whatsapp.stored ?? _whatsapp.text);
       widget.onChanged();
     } catch (e) {
       if (!mounted) return;
@@ -1136,7 +1138,7 @@ class _MyStoreTabState extends State<_MyStoreTab> {
         const SizedBox(height: 12),
         TextField(controller: _slug, textDirection: TextDirection.ltr, decoration: const InputDecoration(labelText: 'اسم الرابط بالإنجليزي', hintText: 'elsalam')),
         const SizedBox(height: 10),
-        TextField(controller: _whatsapp, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'رقم الواتساب', hintText: '01xxxxxxxxx')),
+        PhoneFormField(controller: _whatsapp, labelText: 'رقم الواتساب'),
         const SizedBox(height: 16),
         ElevatedButton(onPressed: _saving ? null : _saveLink, child: const Text('حفظ')),
       ]);

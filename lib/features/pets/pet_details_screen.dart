@@ -9,6 +9,7 @@ import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'add_pet_listing_screen.dart';
+import '../../core/geo/phones.dart';
 
 /// One pet listing (`/pets/<id>`, public): photos, details, last-seen box
 /// for lost / found, contact (WhatsApp, call, in-app "أنا مهتم") and a
@@ -93,7 +94,7 @@ class _PetDetailsScreenState extends State<PetDetailsScreen> {
   Future<void> _call() async {
     final p = await _getPhone();
     if (p == null) return;
-    await launchUrl(Uri.parse('tel:$p'));
+    await launchUrl(telLink(p));
   }
 
   Future<void> _whatsapp() async {
@@ -101,7 +102,7 @@ class _PetDetailsScreenState extends State<PetDetailsScreen> {
     if (p == null) return;
     final c = _c!;
     final text = 'السلام عليكم، شفت إعلانك «${c['title']}» على مُجتمعي:\n${PetService.shareUrl(widget.listingId)}';
-    await launchUrl(Uri.parse('https://wa.me/2$p?text=${Uri.encodeComponent(text)}'), mode: LaunchMode.externalApplication);
+    await launchUrl(waLink(p, text: text), mode: LaunchMode.externalApplication);
   }
 
   Future<void> _interested() async {

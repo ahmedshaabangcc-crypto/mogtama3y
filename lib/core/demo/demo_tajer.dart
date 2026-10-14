@@ -349,13 +349,13 @@ extension _TajerBackend on DemoStore {
         if (_uid == null) throw DemoError('يجب تسجيل الدخول أولاً');
         final name = (p['p_name'] as String? ?? '').trim();
         final slug = (p['p_slug'] as String? ?? '').trim().toLowerCase();
-        final phone = (p['p_whatsapp'] as String? ?? '').replaceAll(RegExp(r'\s'), '');
+        final phone = canonicalPhone(p['p_whatsapp'] as String?) ?? '';
         if (name.length < 2) throw DemoError('اكتب اسم المحل');
         if (!RegExp(r'^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$').hasMatch(slug)) {
           throw DemoError('اسم الرابط لازم يكون بالإنجليزي (حروف وأرقام وشرطة) من 3 لـ 40 حرف');
         }
         if (t('shops').any((s) => s['slug'] == slug)) throw DemoError('اسم الرابط ده مستخدم، جرّب اسم تاني');
-        if (!RegExp(r'^01[0125][0-9]{8}$').hasMatch(phone)) throw DemoError('رقم الواتساب غير صحيح (مثال: 01012345678)');
+        if (phone.isEmpty) throw DemoError('رقم الواتساب مش صحيح');
         if (t('shops').where((s) => s['owner_id'] == _uid).length >= 3) throw DemoError('وصلت للحد الأقصى (3 محلات لكل حساب)');
         final id = newId();
         final address = (p['p_address'] as String? ?? '').trim();
@@ -446,15 +446,14 @@ extension _TajerBackend on DemoStore {
 
       // ---- 0054 / 0057: guest checkout & tracking ----
       case 'place_store_order':
-        var phone = (p['p_customer_phone'] as String? ?? '').replaceAll(RegExp(r'[^0-9]'), '');
-        if (RegExp(r'^201[0125][0-9]{8}$').hasMatch(phone)) phone = phone.substring(1);
+        final phone = canonicalPhone(p['p_customer_phone'] as String?) ?? '';
         final name = (p['p_customer_name'] as String? ?? '').trim();
         final address = (p['p_address'] as String? ?? '').trim();
         final shop = _firstWhere('shops', (s) => s['id'] == p['p_shop_id']);
         if (shop == null || shop['owner_id'] == null) throw DemoError('المحل ده مش مستقبل طلبات حالياً');
         if (_uid != null && shop['owner_id'] == _uid) throw DemoError('مينفعش تطلب من محلك');
         if (name.length < 2) throw DemoError('اكتب اسمك');
-        if (!RegExp(r'^01[0125][0-9]{8}$').hasMatch(phone)) throw DemoError('اكتب رقم موبايل صحيح (مثال: 01012345678)');
+        if (phone.isEmpty) throw DemoError(invalidPhoneMessage);
         if (address.length < 8) throw DemoError('اكتب العنوان بالتفصيل عشان الطلب يوصلك');
         final lines = p['p_items'] as List? ?? const [];
         if (lines.isEmpty) throw DemoError('السلة فاضية');
@@ -567,15 +566,15 @@ extension _TajerBackend on DemoStore {
       // ---- 0048 / 0049 / 0052 / 0074: digital addresses ----
       case 'get_e_address':
         final raw = (p['p_code'] as String? ?? '').trim();
-        var digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
         var code = raw.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase();
         DemoRow? a;
         if (RegExp(r'^[+0-9 -]+$').hasMatch(raw)) {
-          if (RegExp(r'^201[0125][0-9]{8}$').hasMatch(digits)) digits = digits.substring(1);
-          if (RegExp(r'^01[0125][0-9]{8}$').hasMatch(digits)) {
+          final digits = canonicalPhone(raw);
+          if (digits != null) {
             a = _firstWhere('e_addresses', (x) {
               final owner = profileOf(x['owner_id'] as String?);
-              return owner?['phone'] == digits && owner?['phone_verified_at'] != null && x['phone_lookup'] == true && x['is_active'] == true;
+              return owner?['phone'] == digits && (owner?['phone_verified_at'] != null || !digits.startsWith('01')) &&
+                  x['phone_lookup'] == true && x['is_active'] == true;
             });
           }
         }

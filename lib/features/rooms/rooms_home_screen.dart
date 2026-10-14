@@ -168,7 +168,8 @@ class _RoomsHomeScreenState extends State<RoomsHomeScreen> {
       text = 'تقدر تقرا الغرف كضيف. سجّل دخولك عشان تكتب وتتعرف على ناس من منطقتك.';
       action = 'تسجيل الدخول';
       onTap = () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthLandingScreen()));
-    } else if (_me?['phone_verified'] != true) {
+    } else if ((_me?['needs_phone'] as bool?) ?? (_me?['phone_verified'] != true)) {
+      // Only Egyptian users verify by SMS (0089); elsewhere needs_phone is false.
       text = 'أكّد رقمك عشان تكتب في الغرف — كل اللي بيكتبوا أرقامهم متأكدة، عشان الغرف تفضل محترمة.';
       action = 'أكّد رقمك';
       onTap = _verifyPhone;

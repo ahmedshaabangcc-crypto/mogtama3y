@@ -8,6 +8,7 @@ import '../../core/storage/multi_photo_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import '../shared/phone_field.dart';
 
 /// Post a kids-gear listing, or edit one when [initial] is given (from
 /// "إعلاناتي"). Pops `true` once saved.
@@ -32,7 +33,7 @@ class _AddKidsItemScreenState extends State<AddKidsItemScreen> {
   late final _price = TextEditingController(text: (_i['price'] as num?)?.toStringAsFixed(0) ?? '');
   late final _area = TextEditingController(text: _i['area'] as String? ?? '');
   late final _description = TextEditingController(text: _i['description'] as String? ?? '');
-  late final _phone = TextEditingController(text: _i['phone'] as String? ?? '');
+  late final _phone = PhoneController(phone: _i['phone'] as String?);
 
   late String _category = _i['category'] as String? ?? 'stroller';
   late String _condition = _i['condition'] as String? ?? 'good';
@@ -61,7 +62,7 @@ class _AddKidsItemScreenState extends State<AddKidsItemScreen> {
       final p = await AuthService.fetchCurrentProfile();
       final phone = p?['phone'] as String?;
       if (!mounted || phone == null || _phone.text.isNotEmpty) return;
-      _phone.text = phone;
+      _phone.setPhone(phone);
     } catch (_) {}
   }
 
@@ -93,7 +94,7 @@ class _AddKidsItemScreenState extends State<AddKidsItemScreen> {
       'area': _trimOrNull(_area),
       'description': _trimOrNull(_description),
       'images': [..._kept, ..._added],
-      'phone': _phone.text.trim(),
+      'phone': _phone.stored ?? _phone.text.trim(),
       'phone_on_whatsapp': _whatsapp,
     };
     try {
@@ -299,13 +300,7 @@ class _AddKidsItemScreenState extends State<AddKidsItemScreen> {
             const SizedBox(height: 10),
             TextFormField(controller: _area, maxLength: 80, decoration: _dec('المنطقة', hint: 'مثلاً: مدينة نصر')),
             const SizedBox(height: 4),
-            TextFormField(
-              controller: _phone,
-              keyboardType: TextInputType.phone,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)],
-              decoration: _dec('رقم الموبايل', hint: '01xxxxxxxxx'),
-              validator: (v) => RegExp(r'^01[0125][0-9]{8}$').hasMatch((v ?? '').trim()) ? null : 'اكتب رقم موبايل مصري صحيح',
-            ),
+            PhoneFormField(controller: _phone, decoration: _dec('رقم الموبايل')),
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
               controlAffinity: ListTileControlAffinity.leading,

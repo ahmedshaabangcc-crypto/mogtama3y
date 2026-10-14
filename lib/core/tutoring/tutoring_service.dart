@@ -1,5 +1,7 @@
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../geo/phones.dart';
+import '../geo/user_country.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 
@@ -60,20 +62,11 @@ String tutorPrice(num? price, String? unit) =>
 String tutorLabels(Object? codes, Map<String, String> labels) =>
     ((codes as List?)?.cast<String>() ?? const []).map((c) => labels[c] ?? c).join('، ');
 
-/// Egyptian mobile in the 01xxxxxxxxx form: Arabic-Indic digits, spaces,
-/// dashes and a +20 / 0020 prefix are accepted and normalised. Null if
-/// it isn't a valid mobile number.
-String? normaliseTutorPhone(String raw) {
-  const arabic = '٠١٢٣٤٥٦٧٨٩';
-  var d = raw.split('').map((c) {
-    final i = arabic.indexOf(c);
-    return i >= 0 ? '$i' : c;
-  }).join().replaceAll(RegExp(r'[^0-9]'), '');
-  if (d.startsWith('0020')) d = d.substring(4);
-  if (d.startsWith('20') && d.length == 12) d = d.substring(2);
-  if (d.length == 10 && d.startsWith('1')) d = '0$d';
-  return RegExp(r'^01[0125]\d{8}$').hasMatch(d) ? d : null;
-}
+/// A mobile of any of the 22 Arab states in the stored form (01… for
+/// Egypt, E.164 otherwise — 0089): Arabic-Indic digits, spaces, dashes and
+/// +/00 prefixes are accepted. Local input is read in [country] (default:
+/// the user's). Null if it isn't a valid mobile number.
+String? normaliseTutorPhone(String raw, {String? country}) => storePhone(raw, country: country ?? UserCountry.iso.value);
 
 /// Filters for [TutoringService.fetch]; nulls mean "any".
 class TutorFilters {

@@ -9,6 +9,7 @@ import '../../core/storage/multi_photo_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import '../shared/phone_field.dart';
 
 /// Post (or, with [initial], edit) a pet listing. The form adapts to the
 /// kind: adoption / lost / found have no price, lost / found ask when and
@@ -37,7 +38,7 @@ class _AddPetListingScreenState extends State<AddPetListingScreen> {
   late final _area = TextEditingController(text: _i?['area'] as String? ?? '');
   late final _lastSeenArea = TextEditingController(text: _i?['last_seen_area'] as String? ?? '');
   late final _description = TextEditingController(text: _i?['description'] as String? ?? '');
-  final _phone = TextEditingController();
+  final _phone = PhoneController();
 
   late String _kind = _i?['kind'] as String? ?? widget.initialKind ?? 'sale';
   late String _animal = _i?['animal'] as String? ?? 'cat';
@@ -69,7 +70,7 @@ class _AddPetListingScreenState extends State<AddPetListingScreen> {
           ? await PetService.phone(_i!['id'] as String)
           : (await AuthService.fetchCurrentProfile())?['phone'] as String?;
       if (!mounted || p == null || _phone.text.isNotEmpty) return;
-      setState(() => _phone.text = p);
+      setState(() => _phone.setPhone(p));
     } catch (_) {}
   }
 
@@ -118,7 +119,7 @@ class _AddPetListingScreenState extends State<AddPetListingScreen> {
       'area': _trimOrNull(_area),
       'last_seen_date': _lostFound && _lastSeen != null ? DateFormat('yyyy-MM-dd').format(_lastSeen!) : null,
       'last_seen_area': _lostFound ? _trimOrNull(_lastSeenArea) : null,
-      'phone': _phone.text.trim(),
+      'phone': _phone.stored ?? _phone.text.trim(),
       'has_whatsapp': _hasWhatsapp,
       'images': _images,
     };
@@ -303,13 +304,7 @@ class _AddPetListingScreenState extends State<AddPetListingScreen> {
             _dropdown<String>('المحافظة', _governorate, {for (final g in reportGovernorates) g: g}, (v) => setState(() => _governorate = v)),
             const SizedBox(height: 10),
             TextFormField(controller: _area, maxLength: 80, decoration: _dec('المنطقة', hint: 'مثلاً: مدينة نصر')),
-            TextFormField(
-              controller: _phone,
-              keyboardType: TextInputType.phone,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)],
-              decoration: _dec('رقم الموبايل', hint: '01xxxxxxxxx'),
-              validator: (v) => RegExp(r'^01[0125][0-9]{8}$').hasMatch((v ?? '').trim()) ? null : 'اكتب رقم موبايل مصري صحيح',
-            ),
+            PhoneFormField(controller: _phone, decoration: _dec('رقم الموبايل')),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: _hasWhatsapp,

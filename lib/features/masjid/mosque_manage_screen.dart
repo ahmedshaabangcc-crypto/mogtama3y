@@ -13,6 +13,8 @@ import 'masjid_live_widgets.dart';
 import 'masjid_widgets.dart';
 import 'mosque_page_screen.dart' show ContributionsList;
 import 'package:mogtama3y/core/utils/numbers.dart';
+import '../../core/geo/phones.dart';
+import '../../core/geo/user_country.dart';
 
 /// «إدارة المسجد» for the mosque's verified owner and helpers. Each tab
 /// appears only with its permission; the database enforces the same rules
@@ -871,7 +873,7 @@ class _SettingsTabState extends State<_SettingsTab> {
       _f('khatib', 'الخطيب', hint: 'الشيخ محمود'),
       const SizedBox(height: 6),
       const Text('التواصل والدفع', style: TextStyle(fontWeight: FontWeight.w800)),
-      _f('contact_whatsapp', 'واتساب المسجد', hint: widget.mosque['country'] == 'EG' || widget.mosque['country'] == null ? '01xxxxxxxxx' : '+9715xxxxxxxx', type: TextInputType.phone),
+      _f('contact_whatsapp', 'واتساب المسجد', hint: intlPhoneHint(widget.mosque['country'] as String?), type: TextInputType.phone),
       Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: DropdownButtonFormField<String>(
@@ -920,7 +922,7 @@ class _TeamTabState extends State<_TeamTab> with _Loader {
           title: const Text('ضيف مساعد'),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              TextField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'موبايله المسجّل على مُجتمعي', hintText: '01xxxxxxxxx')),
+              TextField(controller: phone, keyboardType: TextInputType.phone, decoration: InputDecoration(labelText: 'موبايله المسجّل على مُجتمعي', hintText: intlPhoneHint(UserCountry.iso.value))),
               TextField(controller: title, decoration: const InputDecoration(labelText: 'صفته (اختياري)', hintText: 'مؤذن، محفّظ، عضو مجلس')),
               const SizedBox(height: 8),
               const Text('الصلاحيات', style: TextStyle(fontSize: 12)),

@@ -27,7 +27,8 @@ String roomTime(String? iso) {
   return '${t.day}/${t.month} $hm';
 }
 
-/// Nickname + the «موثّق ✓» badge (every writer has a verified phone).
+/// Nickname + the «موثّق ✓» badge (writers with an SMS-verified phone —
+/// Egyptian users; outside Egypt writing needs no verification, 0089).
 class RoomNickname extends StatelessWidget {
   const RoomNickname({super.key, required this.nickname, this.verified = true, this.color, this.fontSize = 12.5});
 

@@ -10,6 +10,7 @@ import '../legal/terms_conditions_screen.dart';
 import 'login_screen.dart';
 import 'widgets/auth_text_field.dart';
 import 'widgets/google_sign_in_button.dart';
+import '../shared/phone_field.dart';
 
 /// Real Supabase email/password sign-up. Creates the `profiles` +
 /// `wallets` rows for the new account (see AuthService).
@@ -23,7 +24,7 @@ class SignupScreen extends StatefulWidget {
 class _SignupScreenState extends State<SignupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
+  final _phoneCtrl = PhoneController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
@@ -56,7 +57,8 @@ class _SignupScreenState extends State<SignupScreen> {
     try {
       final signedInImmediately = await AuthService.signUpWithEmail(
         fullName: _nameCtrl.text,
-        phone: _phoneCtrl.text,
+        phone: _phoneCtrl.stored ?? _phoneCtrl.text,
+        country: _phoneCtrl.country.value,
         email: _emailCtrl.text.trim(),
         password: _passwordCtrl.text,
       );
@@ -152,12 +154,9 @@ class _SignupScreenState extends State<SignupScreen> {
                   const SizedBox(height: 14),
                   const AuthFieldLabel('رقم الهاتف'),
                   const SizedBox(height: 6),
-                  TextFormField(
-                    controller: _phoneCtrl,
-                    keyboardType: TextInputType.phone,
-                    decoration: authInputDecoration(hint: '01xxxxxxxxx', icon: Icons.phone_outlined),
-                    validator: (v) => (v == null || v.trim().length < 10) ? 'أدخل رقم هاتف صحيح' : null,
-                  ),
+                  // Dial-code prefix = the account's country (0089); defaults
+                  // to the device's country.
+                  PhoneFormField(controller: _phoneCtrl, decoration: authInputDecoration(hint: '', icon: Icons.phone_outlined)),
                   const SizedBox(height: 14),
                   const AuthFieldLabel('البريد الإلكتروني'),
                   const SizedBox(height: 6),
