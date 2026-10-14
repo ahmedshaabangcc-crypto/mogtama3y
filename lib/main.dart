@@ -96,7 +96,7 @@ class MogtamayApp extends StatelessWidget {
               // الصلاة» banner in the apps that carry the mosque tools.
               : FeedbackFabHost(
                   router: appRouter,
-                  child: isUnionApp || isTajerApp ? child! : PrayerReminderHost(child: child!),
+                  child: isUnionApp || isTajerApp ? child! : PrayerReminderHost(router: appRouter, child: child!),
                 ),
         ),
       ),

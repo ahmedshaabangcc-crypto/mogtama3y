@@ -25,6 +25,11 @@ class RemindersService {
       'p_tz': s.zone,
       ...PrayerPrefs.current.value.serverParams(s.country),
     });
+    // 0090: the adhan style per prayer + voice, carried by the push link.
+    // A server without 0090 yet just sends the quiet notification.
+    try {
+      await _db.rpc('set_prayer_reminder_style', params: {'p_styles': s.stylesJson, 'p_voice': s.voice});
+    } catch (_) {}
   }
 
   /// The saved server settings, or null.

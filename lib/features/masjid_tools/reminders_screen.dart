@@ -11,6 +11,7 @@ import '../../core/masjid/masjid_service.dart';
 import '../../core/masjid/prayer_prefs.dart';
 import '../../core/masjid/prayer_times.dart';
 import '../../core/masjid/world_time.dart';
+import '../../core/masjid_tools/adhan_player.dart';
 import '../../core/masjid_tools/hijri.dart' show toArabicDigits;
 import '../../core/masjid_tools/platform/feedback.dart';
 import '../../core/masjid_tools/reminder_settings.dart';
@@ -192,7 +193,8 @@ class _PrayerRemindersScreenState extends State<PrayerRemindersScreen> {
           ),
         ]),
         if (on)
-          Wrap(spacing: 6, children: [
+          Wrap(spacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+            _stylePicker(p),
             for (final m in ReminderSettings.allowedOffsets)
               ChoiceChip(
                 label: Text(m == 0 ? 'وقت الأذان' : 'قبلها ${toArabicDigits(m)} د'),
@@ -243,6 +245,7 @@ class _PrayerRemindersScreenState extends State<PrayerRemindersScreen> {
         ]),
       ),
       for (final p in fivePrayers) _prayerRow(p),
+      _adhanCard(s),
       GlassCard(
         child: Column(children: [
           SwitchListTile(
@@ -250,7 +253,7 @@ class _PrayerRemindersScreenState extends State<PrayerRemindersScreen> {
             value: s.sound,
             activeThumbColor: AppColors.gold,
             title: const Text('صوت تنبيه هادي', style: toolTitleStyle),
-            subtitle: const Text('بيشتغل وإنت فاتح التطبيق', style: toolMutedStyle),
+            subtitle: const Text('مع «إشعار هادي» وقبل الأذان — وإنت فاتح التطبيق', style: toolMutedStyle),
             onChanged: (v) {
               if (v) unlockAudio();
               _update(s.copyWith(sound: v), sync: false);
@@ -294,6 +297,135 @@ class _PrayerRemindersScreenState extends State<PrayerRemindersScreen> {
       ),
     ]);
   }
+
+  static const _styleIcons = {
+    AdhanStyle.quiet: Icons.notifications_none_rounded,
+    AdhanStyle.full: Icons.mosque_rounded,
+    AdhanStyle.takbir: Icons.campaign_rounded,
+  };
+
+  /// This prayer's announcement (its own choice, or «زي الكل»).
+  Widget _stylePicker(Prayer p) {
+    final s = _s!;
+    final own = s.styles[p];
+    return PopupMenuButton<String>(
+      tooltip: 'شكل التنبيه',
+      color: const Color(0xFF1B2747),
+      onSelected: (v) {
+        final m = Map.of(s.styles);
+        final st = AdhanStyle.tryParse(v);
+        if (st == null) {
+          m.remove(p);
+        } else {
+          m[p] = st;
+          if (st.playsAdhan) unlockAudio();
+        }
+        _update(s.copyWith(styles: m));
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem(value: 'all', child: Text('زي الكل (${s.style.labelAr})', style: const TextStyle(color: Colors.white))),
+        for (final st in AdhanStyle.values)
+          PopupMenuItem(value: st.name, child: Text(st.labelAr, style: const TextStyle(color: Colors.white))),
+      ],
+      child: Chip(
+        avatar: Icon(_styleIcons[s.styleFor(p)], size: 16, color: AppColors.gold),
+        label: Text(own == null ? s.styleFor(p).labelAr : '${own.labelAr} ✱', style: const TextStyle(color: Colors.white, fontSize: 12)),
+        backgroundColor: const Color(0xFF2A3A63),
+        side: BorderSide.none,
+      ),
+    );
+  }
+
+  Future<void> _preview(String voice) async {
+    unlockAudio();
+    final err = await AdhanPlayer.instance.preview(voice);
+    if (err != null && mounted) toolToast(context, 'معرفناش نشغّل الصوت — اتأكد من النت وجرّب تاني');
+  }
+
+  Widget _adhanCard(ReminderSettings s) => GlassCard(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          const Text('وقت الأذان يتنبّه إزاي؟', style: toolTitleStyle),
+          const SizedBox(height: 8),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final st in AdhanStyle.values)
+              ChoiceChip(
+                avatar: Icon(_styleIcons[st], size: 16, color: s.style == st ? AppColors.night : Colors.white70),
+                label: Text(st.labelAr),
+                selected: s.style == st,
+                onSelected: (_) {
+                  if (st.playsAdhan) unlockAudio();
+                  _update(s.copyWith(style: st));
+                },
+                labelStyle: TextStyle(color: s.style == st ? AppColors.night : Colors.white),
+                color: WidgetStateProperty.resolveWith((x) => x.contains(WidgetState.selected) ? AppColors.gold : const Color(0xFF2A3A63)),
+                side: BorderSide.none,
+                showCheckmark: false,
+              ),
+          ]),
+          const SizedBox(height: 4),
+          const Text('وتقدر تغيّر صلاة لوحدها من الزرار اللي جنبها فوق.', style: toolMutedStyle),
+          const SizedBox(height: 12),
+          const Text('صوت المؤذن', style: toolTitleStyle),
+          RadioGroup<String>(
+            groupValue: s.voice,
+            onChanged: (id) => _update(s.copyWith(voice: id)),
+            child: Column(children: [
+              for (final v in adhanVoices)
+                RadioListTile<String>(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  value: v.id,
+                  activeColor: AppColors.gold,
+                  title: Text(v.nameAr, style: const TextStyle(color: Colors.white, fontSize: 13.5)),
+                  secondary: IconButton(
+                    tooltip: 'اسمع',
+                    onPressed: () => _preview(v.id),
+                    icon: const Icon(Icons.play_circle_outline_rounded, color: AppColors.gold),
+                  ),
+                ),
+            ]),
+          ),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              onPressed: AdhanPlayer.instance.stop,
+              icon: const Icon(Icons.stop_rounded, color: Colors.white70, size: 18),
+              label: const Text('وقّف الصوت', style: TextStyle(color: Colors.white70, fontSize: 12.5)),
+            ),
+          ),
+          const Divider(color: Colors.white24),
+          const Text(
+            'مهم: وإنت فاتح التطبيق الأذان بيشتغل بالصوت اللي اخترته. لكن والتطبيق مقفول، الموبايل (أندرويد أو آيفون) '
+            'مش بيسمح للتطبيقات اللي بتشتغل من المتصفح تشغّل صوت خاص مع الإشعار — هيرنّ بصوت الإشعارات العادي بتاعه. '
+            'دوس على الإشعار وهيفتح التطبيق ويشغّل الأذان على طول (لو المتصفح طلب، هتلاقي زرار «شغّل الأذان»).\n'
+            'على الآيفون: لازم تضيف التطبيق للشاشة الرئيسية (iOS 16.4 أو أحدث) عشان الإشعارات توصل.',
+            style: toolMutedStyle,
+          ),
+          const SizedBox(height: 6),
+          Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              collapsedIconColor: Colors.white54,
+              iconColor: Colors.white54,
+              title: const Text('حقوق الأصوات', style: TextStyle(color: Colors.white70, fontSize: 12.5)),
+              children: [
+                for (final v in adhanVoices)
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text('«${v.nameAr}»: ${v.credit} — ${v.license}. اتقصّ واتضغط للتطبيق.\n${v.source}',
+                          style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                    ),
+                  ),
+                const Text('صلاة الفجر بتشتغل بنفس الأذان — ملقيناش تسجيل حر فيه «الصلاة خير من النوم».',
+                    style: TextStyle(color: Colors.white54, fontSize: 11)),
+              ],
+            ),
+          ),
+        ]),
+      );
 
   Widget _sourceChip(String label, IconData icon, bool selected, VoidCallback onTap) => ChoiceChip(
         avatar: Icon(icon, size: 16, color: selected ? AppColors.night : Colors.white70),

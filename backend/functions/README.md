@@ -116,3 +116,25 @@ www.mogtama3y.com, masjidi.mogtama3y.com and http://localhost / 127.0.0.1.
 The token signer is the block between `jwt:begin` / `jwt:end`; Node runs
 that exact code in `backend/tests/run.js` (phase «mlive») against a known
 HS256 vector.
+
+## `send-push` — phone notifications (Web Push, migrations 0055 / 0090)
+
+The `notifications_push` trigger posts every new notification — with the
+user's devices (0090) — to this function through pg_net; the function sends
+it with the VAPID keys and drops devices the push service says are gone.
+
+- Secrets: `VAPID_PUBLIC_KEY` (same as `lib/core/pwa/push.dart`),
+  `VAPID_PRIVATE_KEY`, `PUSH_SECRET` (= `private.push_settings.secret`).
+- `private.push_settings.function_url` = this function's URL
+  (`https://pxiabifybakbsqlycffc.supabase.co/functions/v1/<slug>` — check the
+  slug the dashboard gave it).
+- Deploy: dashboard → Edge Functions → the push function → paste
+  `send-push/index.ts` → Deploy. **Enforce JWT verification OFF.**
+- Every answer says why. Last calls:
+  ```sql
+  select created, status_code, content::text from net._http_response order by created desc limit 20;
+  ```
+  `{"sent":1,"total":1,"failures":[],"removed":0}` = delivered to Apple/Google.
+  `reason`: `no_subscriptions` (device not registered), `no_notification`,
+  `db_error` (+`error`: e.g. permission denied → run 0090), `all_failed`
+  (+`failures[].status/body`: 403 = VAPID key pair mismatch, 410 = device gone).

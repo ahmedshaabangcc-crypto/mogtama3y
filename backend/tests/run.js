@@ -2369,10 +2369,10 @@ const denied = (r) => !!r.error;
       new Date(fajr.adhan_at).getTime() - new Date(fajr.due_at).getTime() === 600000 && new Date(fajr.adhan_at).getTime() === new Date(dartFajr).getTime());
     const at = new Date(new Date(fajr.due_at).getTime() + 30000).toISOString();
     const sent1 = (await admin(db, `select private.prayer_reminders_tick($1::timestamptz) n`, [at]))[0].n;
-    const note = await admin(db, `select title, body, deep_link from notifications where user_id = $1 and deep_link = '/masjid/tools/reminders'`, [MT1]);
+    const note = await admin(db, `select title, body, deep_link from notifications where user_id = $1 and deep_link like '%/masjid/tools/reminders%'`, [MT1]);
     check('mtool: the tick sends the due reminder as a notification (→ push)', sent1 === 1 && note.length === 1 && note[0].title === 'الفجر بعد 10 دقايق' && note[0].body.startsWith('أذان الفجر '), { sent1, note });
     const sent2 = (await admin(db, `select private.prayer_reminders_tick($1::timestamptz) n`, [at]))[0].n;
-    check('mtool: …once only', sent2 === 0 && (await admin(db, `select count(*)::int n from notifications where user_id = $1 and deep_link = '/masjid/tools/reminders'`, [MT1]))[0].n === 1);
+    check('mtool: …once only', sent2 === 0 && (await admin(db, `select count(*)::int n from notifications where user_id = $1 and deep_link like '%/masjid/tools/reminders%'`, [MT1]))[0].n === 1);
     const isha = (await admin(db, `select due_at from prayer_reminder_queue where user_id = $1 and prayer = 'isha' order by day limit 1`, [MT1]))[0];
     const late = new Date(new Date(isha.due_at).getTime() + 20 * 60000).toISOString();
     check('mtool: a reminder more than 10 minutes late is dropped, not sent',
@@ -2388,7 +2388,7 @@ const denied = (r) => !!r.error;
     const later = new Date(Date.now() + 13 * 3600000).toISOString();
     await admin(db, `select private.prayer_reminders_tick($1::timestamptz)`, [later]);
     check('mtool: old reminder notifications are cleaned up',
-      (await admin(db, `select count(*)::int n from notifications where user_id = $1 and deep_link = '/masjid/tools/reminders' and created_at < $2::timestamptz - interval '12 hours'`, [MT1, later]))[0].n === 0);
+      (await admin(db, `select count(*)::int n from notifications where user_id = $1 and deep_link like '%/masjid/tools/reminders%' and created_at < $2::timestamptz - interval '12 hours'`, [MT1, later]))[0].n === 0);
     check('mtool: turning reminders off clears them',
       ok(await as(db, MT1, `select public.clear_prayer_reminders()`)) &&
       (await admin(db, `select count(*)::int n from prayer_reminder_prefs where user_id = $1`, [MT1]))[0].n === 0 &&
@@ -3054,7 +3054,7 @@ const denied = (r) => !!r.error;
     };
     await admin(db, `update prayer_reminder_queue set due_at = now() where user_id = $1 and day = $2::date and prayer = 'fajr'`, [MW, qf.day]);
     await admin(db, `select private.prayer_reminders_tick(now() + interval '30 seconds')`);
-    const nd = await admin(db, `select body from notifications where user_id = $1 and deep_link = '/masjid/tools/reminders'`, [MW]);
+    const nd = await admin(db, `select body from notifications where user_id = $1 and deep_link like '%/masjid/tools/reminders%'`, [MW]);
     check("mww: …the notification shows Dubai's clock", nd.length === 1 && nd[0].body === 'أذان الفجر ' + clock(qf.adhan_at, 'Asia/Dubai'), { nd, want: clock(qf.adhan_at, 'Asia/Dubai') });
     check('mww: reminders in London (Europe/London, MWL, 1/7 night)', ok(await setR([51.5074, -0.1278, '{"isha":0}', 'لندن', 'Europe/London', 'mwl', 2, 'seventh'])));
     const ql = (await admin(db, `select day::text, adhan_at, due_at from prayer_reminder_queue where user_id = $1 and prayer = 'isha' and sent_at is null order by day limit 1`, [MW]))[0];
@@ -3065,7 +3065,7 @@ const denied = (r) => !!r.error;
     // than 12 h relative to its time, so a far-future tick would delete them).
     await admin(db, `update prayer_reminder_queue set due_at = now() where user_id = $1 and day = $2::date and prayer = 'isha'`, [MW, ql.day]);
     await admin(db, `select private.prayer_reminders_tick(now() + interval '30 seconds')`);
-    const nl = await admin(db, `select body from notifications where user_id = $1 and deep_link = '/masjid/tools/reminders' order by created_at desc, body`, [MW]);
+    const nl = await admin(db, `select body from notifications where user_id = $1 and deep_link like '%/masjid/tools/reminders%' order by created_at desc, body`, [MW]);
     check("mww: …the notification shows London's clock (summer time aware)", nl.some((n) => n.body === 'أذان العشاء ' + clock(ql.adhan_at, 'Europe/London')), { nl, want: clock(ql.adhan_at, 'Europe/London') });
     const mine = (await as(db, MW, `select * from public.my_prayer_reminders()`)).rows?.[0];
     check('mww: my_prayer_reminders returns the zone and the method', mine?.tz === 'Europe/London' && mine.method === 'mwl' && mine.asr_factor === 2 && mine.high_lat === 'seventh', mine);
@@ -3083,6 +3083,90 @@ const denied = (r) => !!r.error;
     const noTzRow = (await admin(db, `select tz, method from prayer_reminder_prefs where user_id = $1`, [MW]))[0];
     check('mww: outside Egypt without a zone → one from the longitude, MWL', ok(noTz) && noTzRow.tz === 'Etc/GMT' && noTzRow.method === 'mwl', noTzRow);
     check("mww: users can't call the calculator", denied(await as(db, MW, `select * from private.mt_prayer_times(current_date, 25.2, 55.2)`)));
+  }
+
+  // ------------------------------------------------------------------
+  console.log('\nمسجدي — the push that arrives, the adhan as the notification (0090)');
+  {
+    // Earlier blocks re-ran 0087 (its tick) — re-running 0090 is both the
+    // re-run check and the restore.
+    let adhanRerun = null;
+    try {
+      await db.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'migrations', '0090_adhan_push.sql'), 'utf8'));
+    } catch (e) {
+      adhanRerun = e.message;
+    }
+    check('adhan: 0090 is safe to re-run', adhanRerun === null, adhanRerun);
+    const asService = async (sql, params = []) => {
+      await db.exec('begin');
+      try {
+        await db.exec('set local role service_role');
+        const r = await db.query(sql, params);
+        await db.exec('commit');
+        return { rows: r.rows };
+      } catch (e) {
+        await db.exec('rollback');
+        return { error: e.message };
+      }
+    };
+    const AD = await signUp(db, 'adhan one', '01000000991');
+    const AD2 = await signUp(db, 'adhan two', '01000000992');
+    await as(db, AD, `select public.save_push_subscription('https://web.push.apple.com/adhan1', 'p256', 'authx', 'masjid')`);
+    await admin(db, `insert into notifications (user_id, title) values ($1, 'adhan probe')`, [AD]);
+    check('adhan: send-push (service role) can read the notification — the {"sent":0} cause',
+      (await asService(`select title from public.notifications where user_id = $1`, [AD])).rows?.length === 1);
+    check('adhan: …and the devices, and remove gone ones',
+      (await asService(`select endpoint from public.push_subscriptions where user_id = $1`, [AD])).rows?.length === 1 &&
+      ok(await asService(`delete from public.push_subscriptions where endpoint = 'https://nowhere/none'`)));
+    check('adhan: the service role still cannot write notifications', denied(await asService(`insert into public.notifications (user_id, title) values ($1, 'x')`, [AD])));
+
+    // A stand-in for pg_net: the trigger hands send-push everything it needs.
+    await db.exec(`create schema if not exists net;
+      create table net._calls (url text, body jsonb, headers jsonb);
+      create function net.http_post(url text, body jsonb, headers jsonb, timeout_milliseconds int) returns bigint
+        language sql as $$ insert into net._calls values (url, body, headers); select 1::bigint $$;
+      insert into private.push_settings (function_url, secret) values ('https://x.supabase.co/functions/v1/send-push', 's3') on conflict (id) do nothing;`);
+    await admin(db, `insert into notifications (user_id, title, body, deep_link) values ($1, 'حان الآن', 'أذان', '/#/masjid/tools/reminders?adhan=asr')`, [AD]);
+    const call = (await admin(db, `select * from net._calls order by ctid desc limit 1`))[0];
+    check('adhan: the push request carries the notification and the devices (no table read needed)',
+      call?.body?.notification?.title === 'حان الآن' && call.body.notification.deep_link === '/#/masjid/tools/reminders?adhan=asr' &&
+      call.body.subscriptions?.length === 1 && call.body.subscriptions[0].endpoint === 'https://web.push.apple.com/adhan1' &&
+      call.body.subscriptions[0].app === 'masjid' && call.headers?.['x-push-secret'] === 's3' && !!call.body.notification_id, call);
+    await admin(db, `insert into notifications (user_id, title) values ($1, 'no device')`, [AD2]);
+    check('adhan: no request for a user without devices', (await admin(db, `select count(*)::int n from net._calls`))[0].n === 1);
+    await db.exec(`drop schema net cascade; delete from private.push_settings;`);
+    await admin(db, `delete from notifications where user_id = $1`, [AD]);
+
+    // Style & voice
+    const cairo = [30.0444, 31.2357];
+    check('adhan: guests cannot set the adhan style', denied(await as(db, null, `select public.set_prayer_reminder_style('{"asr":"full"}'::jsonb, 'madinah')`)));
+    check('adhan: an unknown style is refused', denied(await as(db, AD, `select public.set_prayer_reminder_style('{"asr":"loud"}'::jsonb, 'madinah')`)));
+    check('adhan: an unknown prayer is refused', denied(await as(db, AD, `select public.set_prayer_reminder_style('{"sunrise":"full"}'::jsonb, 'madinah')`)));
+    check('adhan: an unknown voice is refused', denied(await as(db, AD, `select public.set_prayer_reminder_style('{"asr":"full"}'::jsonb, 'nope')`)));
+    check('adhan: a user saves reminders + styles + voice',
+      ok(await as(db, AD, `select public.set_prayer_reminders($1, $2, '{"asr":0,"isha":10}'::jsonb, 'القاهرة')`, cairo)) &&
+      ok(await as(db, AD, `select public.set_prayer_reminder_style('{"asr":"full","isha":"takbir"}'::jsonb, 'calm')`)));
+    const pref = (await admin(db, `select styles, voice from prayer_reminder_prefs where user_id = $1`, [AD]))[0];
+    check('adhan: …stored', pref?.styles?.asr === 'full' && pref.styles.isha === 'takbir' && pref.voice === 'calm', pref);
+    check('adhan: saving the times again keeps the style',
+      ok(await as(db, AD, `select public.set_prayer_reminders($1, $2, '{"asr":0,"isha":10}'::jsonb, 'القاهرة')`, cairo)) &&
+      (await admin(db, `select voice from prayer_reminder_prefs where user_id = $1`, [AD]))[0].voice === 'calm');
+    const qa = (await admin(db, `select day from prayer_reminder_queue where user_id = $1 and prayer = 'asr' order by day limit 1`, [AD]))[0];
+    await admin(db, `update prayer_reminder_queue set due_at = now() where user_id = $1 and day = $2::date and prayer in ('asr', 'isha')`, [AD, qa.day]);
+    await admin(db, `select private.prayer_reminders_tick(now() + interval '30 seconds')`);
+    const adn = await admin(db, `select title, deep_link from notifications where user_id = $1 and deep_link like '%/masjid/tools/reminders%' order by deep_link`, [AD]);
+    const asrN = adn.find((n) => n.deep_link.includes('adhan=asr'));
+    const ishaN = adn.find((n) => !n.deep_link.includes('adhan='));
+    check('adhan: at adhan time the notification opens the app on the chosen adhan',
+      asrN?.deep_link === '/#/masjid/tools/reminders?adhan=asr&style=full&voice=calm' && asrN.title === 'حان الآن موعد أذان العصر 🕌', adn);
+    check('adhan: an early reminder (10 min before) just opens the reminders (no adhan), with a working # link',
+      ishaN?.deep_link === '/#/masjid/tools/reminders' && ishaN.title.startsWith('العشاء بعد'), adn);
+    await admin(db, `select private.prayer_reminders_tick(now() + interval '13 hours')`);
+    check('adhan: the new reminder links are cleaned up after 12 hours too',
+      (await admin(db, `select count(*)::int n from notifications where user_id = $1 and deep_link like '%/masjid/tools/reminders%'`, [AD]))[0].n === 0);
+    check('adhan: a prayer without a style gets a quiet notification',
+      ok(await as(db, AD, `select public.set_prayer_reminder_style('{}'::jsonb, 'short')`)) &&
+      (await admin(db, `select coalesce(styles ->> 'asr', 'quiet') s from prayer_reminder_prefs where user_id = $1`, [AD]))[0].s === 'quiet');
   }
 
   console.log(`\n${passed} passed, ${failures.length} failed`);

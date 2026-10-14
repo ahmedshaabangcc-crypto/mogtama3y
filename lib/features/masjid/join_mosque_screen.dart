@@ -33,6 +33,7 @@ class _JoinMosqueScreenState extends State<JoinMosqueScreen> {
   double? _lng;
   bool _locating = false;
   bool _locationFailed = false;
+  DateTime? _fixAt; // when the position shown was taken
   bool _loading = false;
   bool _error = false;
   List<Map<String, dynamic>> _within = [];
@@ -61,24 +62,38 @@ class _JoinMosqueScreenState extends State<JoinMosqueScreen> {
     super.dispose();
   }
 
-  Future<void> _locate() async {
+  /// Opening: the remembered position (no prompt); a tap on «حدّد مكاني» /
+  /// «حدّث موقعي» asks for a fresh one — the 500 m list needs it current.
+  Future<void> _locate({bool tap = false}) async {
     setState(() {
       _locating = true;
       _locationFailed = false;
     });
     try {
-      final p = await Where.current();
+      final p = tap ? await Where.current(fresh: true) : await Where.quiet();
       if (!mounted) return;
+      if (p == null) return;
+      _fixAt = p.timestamp;
       setState(() {
         _lat = p.latitude;
         _lng = p.longitude;
       });
       await _loadCandidates();
     } catch (_) {
-      if (mounted) setState(() => _locationFailed = true);
+      if (mounted) setState(() => _locationFailed = tap);
     } finally {
       if (mounted) setState(() => _locating = false);
     }
+  }
+
+  String? get _fixAgo {
+    final at = _fixAt;
+    if (at == null) return null;
+    final m = DateTime.now().difference(at).inMinutes;
+    if (m < 2) return null;
+    if (m < 60) return '$m دقيقة';
+    final h = m ~/ 60;
+    return h == 1 ? 'ساعة' : (h == 2 ? 'ساعتين' : '$h ساعات');
   }
 
   Future<void> _loadCandidates() async {
@@ -270,13 +285,22 @@ class _JoinMosqueScreenState extends State<JoinMosqueScreen> {
                     Text(_locationFailed ? 'معرفناش نحدد مكانك — اسمح للموقع وجرّب تاني، أو دوّر بالاسم فوق.' : 'محتاجين مكانك عشان نوريك أقرب مساجد ليك.',
                         style: const TextStyle(fontSize: 12.5)),
                     const SizedBox(height: 8),
-                    FilledButton.icon(onPressed: _locate, icon: const Icon(Icons.my_location_rounded), label: const Text('حدّد مكاني')),
+                    FilledButton.icon(onPressed: () => _locate(tap: true), icon: const Icon(Icons.my_location_rounded), label: const Text('حدّد مكاني')),
                   ]),
                 ),
               )
             else if (_error)
               TextButton(onPressed: _loadCandidates, child: const Text('تعذر التحميل — جرّب تاني'))
             else ...[
+              // The list uses the remembered position; one tap refreshes it.
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton.icon(
+                  onPressed: () => _locate(tap: true),
+                  icon: const Icon(Icons.my_location_rounded, size: 18),
+                  label: Text(_fixAgo == null ? 'حدّث موقعي' : 'حدّث موقعي (المكان ده من $_fixAgo)', style: const TextStyle(fontSize: 12.5)),
+                ),
+              ),
               if (_within.isEmpty)
                 Container(
                   padding: const EdgeInsets.all(12),

@@ -5,7 +5,10 @@ import 'package:flutter/foundation.dart';
 import '../masjid/prayer_prefs.dart';
 import '../masjid/prayer_times.dart';
 import '../masjid/world_time.dart';
+import 'adhan_voices.dart';
 import 'platform/kv_store.dart';
+
+export 'adhan_voices.dart';
 
 /// «تنبيه الصلاة» settings, kept on this device (and mirrored to the
 /// server for push when the user is signed in — see
@@ -22,6 +25,9 @@ class ReminderSettings {
     this.sound = true,
     this.push = false,
     this.tz,
+    this.style = AdhanStyle.quiet,
+    this.styles = const {},
+    this.voice = defaultAdhanVoice,
   });
 
   /// Minutes before the adhan per enabled prayer (0/5/10/15). A prayer
@@ -41,6 +47,19 @@ class ReminderSettings {
   /// IANA zone of the place (a picked city's); null = the device's.
   final String? tz;
 
+  /// How the adhan time is announced, for every prayer without its own
+  /// choice in [styles].
+  final AdhanStyle style;
+  final Map<Prayer, AdhanStyle> styles;
+
+  /// [adhanVoices] id.
+  final String voice;
+
+  AdhanStyle styleFor(Prayer p) => styles[p] ?? style;
+
+  /// What the server stores (0090): every enabled prayer's style.
+  Map<String, String> get stylesJson => {for (final p in offsets.keys) p.name: styleFor(p).name};
+
   /// The zone the times are shown in.
   String get zone => resolveTimeZone(tz ?? deviceTimeZone, lng: lng);
 
@@ -54,7 +73,20 @@ class ReminderSettings {
   bool get anyOn => offsets.isNotEmpty;
 
   /// [tz]: pass '' to go back to the device's zone.
-  ReminderSettings copyWith({Map<Prayer, int>? offsets, String? source, double? lat, double? lng, String? label, bool? sound, bool? push, String? tz}) => ReminderSettings(
+  ReminderSettings copyWith({
+    Map<Prayer, int>? offsets,
+    String? source,
+    double? lat,
+    double? lng,
+    String? label,
+    bool? sound,
+    bool? push,
+    String? tz,
+    AdhanStyle? style,
+    Map<Prayer, AdhanStyle>? styles,
+    String? voice,
+  }) =>
+      ReminderSettings(
         offsets: offsets ?? this.offsets,
         source: source ?? this.source,
         lat: lat ?? this.lat,
@@ -63,6 +95,9 @@ class ReminderSettings {
         sound: sound ?? this.sound,
         push: push ?? this.push,
         tz: tz == null ? this.tz : (tz.isEmpty ? null : tz),
+        style: style ?? this.style,
+        styles: styles ?? this.styles,
+        voice: voice ?? this.voice,
       );
 
   /// The JSON the server RPC takes: {"fajr": 10, "isha": 0}.
@@ -77,6 +112,9 @@ class ReminderSettings {
         'sound': sound,
         'push': push,
         if (tz != null) 'tz': tz,
+        'style': style.name,
+        'styles': {for (final e in styles.entries) e.key.name: e.value.name},
+        'voice': voice,
       };
 
   factory ReminderSettings.fromJson(Map<String, dynamic> j) {
@@ -95,6 +133,12 @@ class ReminderSettings {
       sound: j['sound'] != false,
       push: j['push'] == true,
       tz: j['tz'] is String ? j['tz'] as String : null,
+      style: AdhanStyle.tryParse(j['style']) ?? AdhanStyle.quiet,
+      styles: {
+        for (final p in fivePrayers)
+          if (AdhanStyle.tryParse((j['styles'] as Map?)?[p.name]) != null) p: AdhanStyle.tryParse((j['styles'] as Map)[p.name])!,
+      },
+      voice: adhanVoices.any((v) => v.id == j['voice']) ? j['voice'] as String : defaultAdhanVoice,
     );
   }
 

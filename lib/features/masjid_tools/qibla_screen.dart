@@ -114,18 +114,20 @@ class _QiblaScreenState extends State<QiblaScreen> {
     }
   }
 
-  Future<void> _locate() async {
+  /// Opening uses the remembered position (no location prompt); the
+  /// «حدّد مكاني» button ([tap]) asks for a new one.
+  Future<void> _locate({bool tap = false}) async {
     setState(() => _locating = true);
     try {
-      final p = await Where.current();
-      if (!mounted) return;
+      final p = tap ? await Where.current(fresh: true) : await Where.quiet();
+      if (!mounted || p == null) return;
       setState(() {
         _lat = p.latitude;
         _lng = p.longitude;
         _place = 'مكانك الحالي';
       });
     } catch (_) {
-      if (mounted) toolToast(context, 'مقدرناش نحدد مكانك — اختار مدينتك من القائمة');
+      if (mounted && tap) toolToast(context, 'مقدرناش نحدد مكانك — اختار مدينتك من القائمة');
     } finally {
       if (mounted) setState(() => _locating = false);
     }
@@ -161,7 +163,7 @@ class _QiblaScreenState extends State<QiblaScreen> {
           if (_locating)
             const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold))
           else
-            IconButton(tooltip: 'حدّد مكاني', onPressed: _locate, icon: const Icon(Icons.my_location_rounded, color: Colors.white70)),
+            IconButton(tooltip: 'حدّد مكاني', onPressed: () => _locate(tap: true), icon: const Icon(Icons.my_location_rounded, color: Colors.white70)),
           TextButton(onPressed: _pickCity, child: const Text('مدينة تانية', style: TextStyle(color: AppColors.gold))),
         ]),
       ),

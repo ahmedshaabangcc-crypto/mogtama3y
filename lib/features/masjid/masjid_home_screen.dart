@@ -43,6 +43,7 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
   double _lng = _fallback.$3;
   List<OsmMosque> _osm = [];
   bool _located = false;
+  bool _stale = false; // showing the last place (over 12 h old)
   bool _locating = true;
 
   List<Map<String, dynamic>> _nearby = [];
@@ -74,18 +75,39 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
     super.dispose();
   }
 
-  Future<void> _locate() async {
+  /// Opening the screen never shows the location prompt (iPhone home-screen
+  /// apps asked on every launch): a remembered fix (12 h), else the last one
+  /// of any age marked «قديم», else the default city — the user taps
+  /// «فعّل الموقع» / «حدّث موقعي» to ask the browser ([tap]).
+  Future<void> _locate({bool tap = false}) async {
     setState(() => _locating = true);
     try {
-      final Position p = await Where.current();
+      var p = tap ? await Where.current(fresh: true) : await Where.quiet();
+      var stale = false;
+      if (p == null) {
+        final last = await Where.lastKnown();
+        if (last != null) {
+          stale = true;
+          p = Position(latitude: last.lat, longitude: last.lng, timestamp: last.at, accuracy: last.accuracy,
+              altitude: 0, altitudeAccuracy: 0, heading: 0, headingAccuracy: 0, speed: 0, speedAccuracy: 0);
+        }
+      }
       if (!mounted) return;
-      setState(() {
-        _lat = p.latitude;
-        _lng = p.longitude;
-        _located = true;
-      });
+      final fix = p;
+      if (fix != null) {
+        setState(() {
+          _lat = fix.latitude;
+          _lng = fix.longitude;
+          _located = true;
+          _stale = stale;
+        });
+      }
     } catch (_) {
-      // Keep the default city; the card says so.
+      // Keep the default city (or the last place); the card says so.
+      if (tap && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(Where.denied.value ? 'الموقع مقفول للتطبيق — افتحه من إعدادات المتصفح/الموبايل' : 'معرفناش نحدد مكانك — جرّب تاني')));
+      }
     } finally {
       if (mounted) setState(() => _locating = false);
     }
@@ -258,11 +280,11 @@ class _MasjidHomeScreenState extends State<MasjidHomeScreen> {
               title: _located ? 'مواقيت الصلاة في مكانك النهارده' : 'مواقيت الصلاة (${_fallback.$1}) النهارده',
               tz: _located ? null : _fallback.$4,
             ),
-            if (!_located && !_locating)
+            if ((!_located || _stale) && !_locating)
               TextButton.icon(
-                onPressed: _locate,
+                onPressed: () => _locate(tap: true),
                 icon: const Icon(Icons.my_location_rounded, color: AppColors.gold, size: 18),
-                label: const Text('فعّل الموقع لمواقيت منطقتك وأقرب مسجد', style: TextStyle(color: AppColors.gold)),
+                label: Text(_located ? 'حدّث موقعي' : 'فعّل الموقع لمواقيت منطقتك وأقرب مسجد', style: const TextStyle(color: AppColors.gold)),
               ),
             // 4. «دروس أونلاين» — live now / this week.
             if (_live.isNotEmpty) ...[

@@ -44,7 +44,8 @@ class _AddMosqueScreenState extends State<AddMosqueScreen> {
 
   Future<void> _locate() async {
     try {
-      final p = await Where.current();
+      // The mosque's own spot: always a new fix (a tap, so a prompt is fine).
+      final p = await Where.current(fresh: true);
       if (mounted) {
         setState(() {
           _lat = p.latitude;
