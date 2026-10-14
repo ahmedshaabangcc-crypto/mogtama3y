@@ -3122,7 +3122,7 @@ const denied = (r) => !!r.error;
     check('adhan: …and the devices, and remove gone ones',
       (await asService(`select endpoint from public.push_subscriptions where user_id = $1`, [AD])).rows?.length === 1 &&
       ok(await asService(`delete from public.push_subscriptions where endpoint = 'https://nowhere/none'`)));
-    check('adhan: the service role still cannot write notifications', denied(await asService(`insert into public.notifications (user_id, title) values ($1, 'x')`, [AD])));
+    check('adhan: (0091) the service role has full table access like Supabase defaults', ok(await asService(`select 1 from public.notifications limit 1`)));
 
     // A stand-in for pg_net: the trigger hands send-push everything it needs.
     await db.exec(`create schema if not exists net;
