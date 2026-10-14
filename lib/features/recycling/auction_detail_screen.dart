@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart' show NumberFormat;
 import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import 'package:url_launcher/url_launcher.dart';
 
@@ -13,6 +12,7 @@ import '../shared/load_error_view.dart';
 import 'scrap_widgets.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
 import '../../core/geo/phones.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 /// Auction detail + real-time bidding — matches
 /// design/screens/20_recycling_auction_bidding.png, now backed by a
@@ -256,7 +256,7 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
               children: [
                 const Text('أعلى عرض حالي', style: TextStyle(color: Colors.white70, fontSize: 11)),
                 const SizedBox(height: 6),
-                Text(topBid != null ? '${NumberFormat('#,##0').format(topBid['amount'])} ج.م' : 'لا توجد عروض بعد', style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800)),
+                Text(topBid != null ? moneyOf(_lot, topBid['amount'] as num) : 'لا توجد عروض بعد', style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 8),
                 Row(children: [
                   const Icon(Icons.storefront_rounded, size: 14, color: Colors.white70),
@@ -282,7 +282,7 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
                   child: TextField(
                     controller: _bidCtrl,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(hintText: 'قيمة العرض بالجنيه', border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 13)),
+                    decoration: InputDecoration(hintText: 'قيمة العرض (${currencyLabelOf(_lot)})', border: InputBorder.none, isDense: true, contentPadding: const EdgeInsets.symmetric(vertical: 13)),
                   ),
                 ),
               ),
@@ -339,7 +339,7 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
                       ],
                     ]),
                   ),
-                  Text('${NumberFormat('#,##0').format(b['amount'])} ج.م', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppColors.teal)),
+                  Text(moneyOf(_lot, b['amount'] as num), style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppColors.teal)),
                 ]),
               ),
             ],

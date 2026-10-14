@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import 'job_applicants_dashboard_screen.dart';
 import 'job_application_confirm_screen.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 const _employmentLabels = {
   'full_time': 'دوام كامل (Full-time)',
@@ -28,8 +29,8 @@ String _salaryLabel(Map<String, dynamic> job) {
   final max = (job['salary_max'] as num?)?.toDouble();
   final fmt = NumberFormat('#,##0');
   if (min == null && max == null) return 'حسب الاتفاق';
-  if (min != null && max != null) return '${fmt.format(min)} - ${fmt.format(max)} ج.م';
-  return '${fmt.format(min ?? max)} ج.م';
+  if (min != null && max != null) return '${fmt.format(min)} - ${fmt.format(max)} ${currencyLabelOf(job)}';
+  return moneyOf(job, (min ?? max)!);
 }
 
 /// Job details + inline application — matches

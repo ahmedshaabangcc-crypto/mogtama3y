@@ -6,6 +6,7 @@ import '../../core/cars/car_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
 import 'add_car_listing_screen.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 /// "إعلاناتي" for cars: the signed-in user's listings, with mark-as-sold
 /// and remove.
@@ -138,7 +139,7 @@ class _MyCarListingsScreenState extends State<MyCarListingsScreen> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(c['title'] as String? ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.ink)),
                 const SizedBox(height: 2),
-                Text('${carPrice(c['price'] as num?)}${carPriceSuffix(c['offer_type'] as String?)}',
+                Text('${carPrice(c['price'] as num?, currencyOf(c))}${carPriceSuffix(c['offer_type'] as String?)}',
                     style: const TextStyle(color: AppColors.teal, fontWeight: FontWeight.w700, fontSize: 13)),
                 const SizedBox(height: 2),
                 Text('${carOfferTypes[c['offer_type']] ?? ''} · $statusLabel', style: TextStyle(fontSize: 12, color: statusColor)),

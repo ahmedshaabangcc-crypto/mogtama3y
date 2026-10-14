@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/auth/auth_service.dart';
@@ -18,6 +17,8 @@ import '../notifications/notifications_screen.dart';
 import '../profile/profile_screen.dart';
 import '../shared/made_by_apex.dart';
 import 'home_feed.dart';
+import 'package:mogtama3y/core/geo/money.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
 
 class _Category {
   const _Category(this.label, this.sublabel, this.image, {this.icon = Icons.directions_car_filled_rounded});
@@ -541,6 +542,7 @@ class _LatestListingsState extends State<_LatestListings> {
           .from('marketplace_listings')
           .select('*, seller:profiles(full_name, is_verified)')
           .eq('status', 'active')
+          .eq('country', UserCountry.feedCountry)
           .order('created_at', ascending: false)
           .limit(4);
       if (!mounted) return;
@@ -637,7 +639,7 @@ class _ListingCard extends StatelessWidget {
                 ],
               ),
             ),
-            Text('${NumberFormat('#,##0').format(price)} ج.م', style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700, fontSize: 13)),
+            Text(moneyOf(listing, price), style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700, fontSize: 13)),
           ],
         ),
       ),

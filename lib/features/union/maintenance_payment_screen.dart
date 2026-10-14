@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/dues/dues_service.dart';
@@ -7,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import 'package:mogtama3y/core/union/union_service.dart';
 
 /// Monthly maintenance-dues payment — matches
 /// design/screens/11_maintenance_payment.png, now backed by real
@@ -89,7 +89,7 @@ class _MaintenancePaymentScreenState extends State<MaintenancePaymentScreen> {
           children: [
             TextField(controller: periodCtrl, decoration: const InputDecoration(labelText: 'الوصف (مثال: اشتراك صيانة مارس)')),
             const SizedBox(height: 10),
-            TextField(controller: amountCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'المبلغ لكل وحدة (ج.م)')),
+            TextField(controller: amountCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'المبلغ لكل وحدة (${UnionService.buildingCurrencyText})')),
           ],
         ),
         actions: [
@@ -197,7 +197,7 @@ class _MaintenancePaymentScreenState extends State<MaintenancePaymentScreen> {
                           Row(children: [
                             const Text('المبلغ المستحق', style: TextStyle(fontSize: 12, color: AppColors.inkSecondary)),
                             const Spacer(),
-                            Text('${NumberFormat('#,##0.00').format(_due!['amount'])} ج.م', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20, color: AppColors.teal)),
+                            Text(buildingMoney(_due!['amount'] as num), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20, color: AppColors.teal)),
                           ]),
                         ],
                       ),
@@ -259,7 +259,7 @@ class _MaintenancePaymentScreenState extends State<MaintenancePaymentScreen> {
                         ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white))
                         : const Icon(Icons.lock_outline_rounded, size: 17),
                     label: Text(
-                      _due == null ? '' : 'سداد ${NumberFormat('#,##0.00').format(_due!['amount'])} ج.م',
+                      _due == null ? '' : 'سداد ${buildingMoney(_due!['amount'] as num)}',
                       style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                     ),
                   ),

@@ -8,6 +8,7 @@ import '../shared/load_error_view.dart';
 import 'checkout_screen.dart';
 import 'product_screen.dart';
 import 'store_cart.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 /// A merchant's storefront at `mogtama3y.com/#/s/<slug>` — what the QR on
 /// the shop and every shared product link open. Browsing and ordering need
@@ -250,7 +251,7 @@ class _StorePageScreenState extends State<StorePageScreen> {
                       ),
                       const SizedBox(width: 10),
                       const Expanded(child: Text('السلة — كمّل الطلب', style: TextStyle(fontWeight: FontWeight.w800))),
-                      Text(egp(_cart.total), style: const TextStyle(fontWeight: FontWeight.w800)),
+                      Text(shopMoney(_cart.total, currencyOf(_shop)), style: const TextStyle(fontWeight: FontWeight.w800)),
                     ]),
                   ),
                 ),
@@ -354,9 +355,9 @@ class _ProductCard extends StatelessWidget {
             child: Row(children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(egp((product['price'] as num?) ?? 0), style: const TextStyle(color: AppColors.crystal, fontWeight: FontWeight.w800, fontSize: 14)),
+                  Text(shopMoney((product['price'] as num?) ?? 0, currencyOf(product)), style: const TextStyle(color: AppColors.crystal, fontWeight: FontWeight.w800, fontSize: 14)),
                   if (old != null && discount != null)
-                    Text(egp(old), style: const TextStyle(color: AppColors.inkMuted, fontSize: 11, decoration: TextDecoration.lineThrough)),
+                    Text(shopMoney(old, currencyOf(product)), style: const TextStyle(color: AppColors.inkMuted, fontSize: 11, decoration: TextDecoration.lineThrough)),
                 ]),
               ),
               if (canOrder && !soldOut)

@@ -39,7 +39,7 @@ class DuesService {
     return role == 'president' || role == 'board_member';
   }
 
-  /// Issues [amount] EGP due for [periodLabel] to every unit in the
+  /// Issues an [amount] due (in the building's currency, 0092) for [periodLabel] to every unit in the
   /// caller's building. Returns how many units were charged.
   static Future<int> issueDuesForBuilding({
     required String periodLabel,

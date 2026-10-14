@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:mogtama3y/core/geo/money.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 
@@ -64,7 +65,7 @@ String petPrice(Map<String, dynamic> item) {
   if (petKindIsLostFound(kind)) return petKinds[kind]!;
   final price = item['price'] as num?;
   if (price == null || price <= 0) return kind == 'mating' ? 'بالاتفاق' : '';
-  return '${NumberFormat('#,##0').format(price)} ج.م';
+  return moneyOf(item, price);
 }
 
 /// Filters for [PetService.fetch]; nulls mean "any".
@@ -104,13 +105,13 @@ class PetService {
   /// it comes per listing from [phone].
   static const _cols = 'id, owner_id, kind, animal, breed, age_text, gender, vaccinated, condition, title, '
       'description, price, negotiable, governorate, area, last_seen_date, last_seen_area, has_whatsapp, '
-      'images, is_active, outcome, created_at, updated_at';
+      'images, is_active, outcome, created_at, updated_at, currency, country';
 
   static String shareUrl(String id) => 'https://mogtama3y.com/#/pets/$id';
 
   /// Active listings matching [f], newest first.
   static Future<List<Map<String, dynamic>>> fetch([PetFilters f = const PetFilters(), int limit = 60]) async {
-    var q = _db.from(_table).select(_cols).eq('is_active', true);
+    var q = _db.from(_table).select(_cols).eq('is_active', true).eq('country', UserCountry.feedCountry);
     if (f.kind != null) q = q.eq('kind', f.kind!);
     if (f.animal != null) q = q.eq('animal', f.animal!);
     if (f.governorate != null) q = q.eq('governorate', f.governorate!);

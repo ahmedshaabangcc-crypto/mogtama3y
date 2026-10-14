@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:mogtama3y/core/geo/money.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 
@@ -54,7 +55,7 @@ const hallIncludedIcons = <String, IconData>{
 String hallPrice(Map<String, dynamic> h) {
   final price = h['price_from'] as num?;
   if (price == null) return 'السعر بالاتفاق';
-  return 'يبدأ من ${NumberFormat('#,##0').format(price)} ج.م${h['price_per_person'] == true ? ' للفرد' : ''}';
+  return 'يبدأ من ${moneyOf(h, price)}${h['price_per_person'] == true ? ' للفرد' : ''}';
 }
 
 /// "من 100 لـ 400 فرد" or "لحد 60 فرد".
@@ -105,7 +106,7 @@ class HallService {
 
   /// Active halls matching [f], featured first then newest.
   static Future<List<Map<String, dynamic>>> fetch([HallFilters f = const HallFilters(), int limit = 60]) async {
-    var q = _db.from(_table).select().eq('is_active', true);
+    var q = _db.from(_table).select().eq('is_active', true).eq('country', UserCountry.feedCountry);
     if (f.hallType != null) q = q.eq('hall_type', f.hallType!);
     if (f.occasion != null) q = q.contains('occasions', [f.occasion!]);
     if (f.governorate != null) q = q.eq('governorate', f.governorate!);

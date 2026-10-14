@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import 'package:url_launcher/url_launcher.dart';
 
@@ -22,8 +21,9 @@ import 'admin_scrap_dealers_screen.dart';
 import 'admin_tutorial_videos_screen.dart';
 import 'admin_user_flags_screen.dart';
 import '../../core/geo/phones.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
-String _money(num v) => '${NumberFormat('#,##0.00').format(v)} ج.م';
+String _money(num v) => money(v, 'EGP');
 
 /// Platform super-admin control panel — real stats plus two real
 /// arbitration queues (shop-claim review, maintenance-escrow disputes)
@@ -525,7 +525,7 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
                 _WalletRequestCard(
                   request: r,
                   detail: '${r['destination'] == 'wallet' ? 'إلى محفظته في مُجتمعي' : 'حوّل إلى: ${r['payout_phone'] ?? ''}'}'
-                      ' • ${r['note'] ?? ''} • رصيد الصندوق ${r['fund_balance'] ?? 0} ج.م',
+                      ' • ${r['note'] ?? ''} • رصيد الصندوق ${moneyOf(r, (r['fund_balance'] as num?) ?? 0)}',
                   rejectLabel: 'رفض',
                   approveLabel: r['destination'] == 'wallet' ? 'اعتماد وتحويل للمحفظة' : 'تم التحويل',
                   onReview: (paid) => _reviewFundWithdrawal(r, paid),
@@ -756,7 +756,7 @@ class _TokenTopUpCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text('$tokens توكن', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.gold)),
-                Text('$amount ج.م', style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
+                Text(money(amount, 'EGP'), style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
               ],
             ),
           ]),
@@ -1005,7 +1005,7 @@ class _WalletRequestCard extends StatelessWidget {
                 ],
               ),
             ),
-            Text('$amount ج.م', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.teal)),
+            Text(moneyOf(request, amount), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.teal)),
           ]),
           const SizedBox(height: 8),
           Container(

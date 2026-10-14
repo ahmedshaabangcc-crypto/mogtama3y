@@ -4,6 +4,7 @@ import '../demo/demo_mode.dart';
 import '../demo/demo_store.dart';
 import 'scan_flag.dart';
 import '../geo/phones.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 /// Merchant stores ("مشروعك أونلاين") — see
 /// backend/migrations/0047_merchant_stores.sql. Every store has a public
@@ -11,6 +12,10 @@ import '../geo/phones.dart';
 /// server-side, then handed to the shop on WhatsApp. No payment or
 /// delivery goes through مُجتمعي.
 class StoreService {
+  /// Currency of the shop the merchant dashboard shows (0092); EGP until
+  /// one loads. Prices the merchant types are in it.
+  static String merchantCurrency = 'EGP';
+
   StoreService._();
 
   static SupabaseClient get _client => Supabase.instance.client;
@@ -59,7 +64,7 @@ class StoreService {
   static Future<Map<String, dynamic>?> fetchStoreBySlug(String slug) async {
     return _client
         .from('shops')
-        .select('id, name, category, description, cover_image_url, logo_url, address, lat, lng, slug, whatsapp, owner_id, is_claimed, delivery_fee, free_delivery_over')
+        .select('id, name, category, description, cover_image_url, logo_url, address, lat, lng, slug, whatsapp, owner_id, is_claimed, delivery_fee, free_delivery_over, currency, country')
         .eq('slug', slug.toLowerCase())
         .maybeSingle();
   }
@@ -112,7 +117,7 @@ class StoreService {
     if (userId == null) return [];
     final rows = await _client
         .from('shops')
-        .select('id, name, category, description, address, slug, whatsapp, scan_count, cover_image_url, logo_url, delivery_fee, free_delivery_over')
+        .select('id, name, category, description, address, slug, whatsapp, scan_count, cover_image_url, logo_url, delivery_fee, free_delivery_over, currency, country')
         .eq('owner_id', userId)
         .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(rows as List);
@@ -241,7 +246,7 @@ class StoreService {
   static String deliveryLabel(Map<String, dynamic> shop) {
     final fee = (shop['delivery_fee'] as num?)?.toDouble() ?? 0;
     final freeOver = (shop['free_delivery_over'] as num?)?.toDouble();
-    String m(double v) => '${v == v.roundToDouble() ? v.toInt() : v} ج.م';
+    String m(double v) => moneyOf(shop, v);
     if (fee == 0) return 'التوصيل مجاني';
     return 'التوصيل ${m(fee)}${freeOver != null ? ' • مجاني فوق ${m(freeOver)}' : ''}';
   }

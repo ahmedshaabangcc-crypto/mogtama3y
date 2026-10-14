@@ -4,8 +4,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/shops/store_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
-import 'store_cart.dart';
 import '../../core/geo/phones.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 /// `mogtama3y.com/#/o/<code>` — anyone with the order code follows it.
 class OrderTrackingScreen extends StatefulWidget {
@@ -82,20 +82,20 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                             contentPadding: EdgeInsets.zero,
                             title: Text('${it['name']} × ${it['quantity']}'),
                             subtitle: (it['options'] as String?)?.isNotEmpty ?? false ? Text(it['options'] as String) : null,
-                            trailing: Text(egp(((it['price'] as num?) ?? 0) * ((it['quantity'] as num?) ?? 1))),
+                            trailing: Text(moneyOf(o, ((it['price'] as num?) ?? 0) * ((it['quantity'] as num?) ?? 1))),
                           ),
                         if (((o['delivery_fee'] as num?) ?? 0) > 0)
                           ListTile(
                             dense: true,
                             contentPadding: EdgeInsets.zero,
                             title: const Text('التوصيل'),
-                            trailing: Text(egp(o['delivery_fee'] as num)),
+                            trailing: Text(moneyOf(o, o['delivery_fee'] as num)),
                           ),
                         const Divider(),
                         Row(children: [
                           const Text('الإجمالي', style: TextStyle(fontWeight: FontWeight.w800)),
                           const Spacer(),
-                          Text(egp((o['total'] as num?) ?? 0), style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.crystal)),
+                          Text(moneyOf(o, (o['total'] as num?) ?? 0), style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.crystal)),
                         ]),
                         if (o['shop_whatsapp'] != null) ...[
                           const SizedBox(height: 16),

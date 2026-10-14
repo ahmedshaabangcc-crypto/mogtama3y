@@ -5,6 +5,7 @@ import '../../core/maintenance/technician_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 const _statusLabels = {
   'requested': 'بانتظار عرض سعر',
@@ -93,7 +94,7 @@ class _MaintenanceRequestDetailScreenState extends State<MaintenanceRequestDetai
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('تحديد سعر المعاينة'),
-        content: TextField(controller: ctrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'المبلغ بالجنيه')),
+        content: TextField(controller: ctrl, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'المبلغ (${currencyLabelOf(_request)})')),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('إلغاء')),
           ElevatedButton(onPressed: () => Navigator.of(context).pop(ctrl.text.trim()), child: const Text('تأكيد')),
@@ -198,7 +199,7 @@ class _MaintenanceRequestDetailScreenState extends State<MaintenanceRequestDetai
                     ),
                     if (_request['quoted_amount'] != null) ...[
                       const SizedBox(width: 8),
-                      Text('${(_request['quoted_amount'] as num).toStringAsFixed(2)} ج.م', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+                      Text(moneyOf(_request, _request['quoted_amount'] as num), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
                     ],
                   ]),
                   if (_request['description'] != null && (_request['description'] as String).isNotEmpty) ...[

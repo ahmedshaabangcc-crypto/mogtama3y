@@ -9,6 +9,7 @@ import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import 'cars_market_screen.dart' show BrandPickerField;
 import 'package:mogtama3y/core/utils/numbers.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
 
 /// Post a car / motorcycle / tuktuk for sale or rent, or parts. The form
 /// adapts to the offer type (parts hide year, km, gearbox…). Pops `true`
@@ -242,7 +243,7 @@ class _AddCarListingScreenState extends State<AddCarListingScreen> {
               controller: _price,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: _dec('السعر', suffix: 'ج.م${carPriceSuffix(_offerType)}'),
+              decoration: _dec('السعر', suffix: '${UserCountry.currencyText}${carPriceSuffix(_offerType)}'),
               validator: (v) => (looseNum((v ?? '').trim()) ?? 0) <= 0 ? 'اكتب السعر' : null,
             ),
             CheckboxListTile(

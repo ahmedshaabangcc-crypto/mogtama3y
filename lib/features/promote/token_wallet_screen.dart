@@ -4,6 +4,7 @@ import '../../core/promote/ad_token_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
 import 'top_up_tokens_screen.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 String _timeAgo(DateTime dt) {
   final diff = DateTime.now().difference(dt.toLocal());
@@ -109,7 +110,7 @@ class _TokenWalletScreenState extends State<TokenWalletScreen> {
                     const Text('توكن', style: TextStyle(color: Colors.white70, fontSize: 14)),
                   ]),
                   const SizedBox(height: 4),
-                  Text('≈ ${(_balance * _tokenPrice).toStringAsFixed(0)} ج.م بسعر التوكن الحالي (${_tokenPrice.toStringAsFixed(0)} ج.م)', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  Text('≈ ${money((_balance * _tokenPrice).round(), 'EGP')} بسعر التوكن الحالي (${money(_tokenPrice, 'EGP')})', style: const TextStyle(color: Colors.white54, fontSize: 10)),
                   const SizedBox(height: 14),
                   SizedBox(
                     width: double.infinity,
@@ -140,7 +141,7 @@ class _TokenWalletScreenState extends State<TokenWalletScreen> {
                     Text('كيف يعمل تمييز الإعلانات؟', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
                   ]),
                   const SizedBox(height: 8),
-                  _StepLine(number: 1, text: 'اشحن رصيدك بالتوكن (${_tokenPrice.toStringAsFixed(0)} ج.م للتوكن، بحد أدنى 5 توكن).'),
+                  _StepLine(number: 1, text: 'اشحن رصيدك بالتوكن (${money(_tokenPrice, 'EGP')} للتوكن، بحد أدنى 5 توكن).'),
                   const _StepLine(number: 2, text: 'اختر أي إعلان (سوق مستعمل، عقار، أو وظيفة) وحدد عدد أيام التمييز.'),
                   _StepLine(number: 3, text: 'يُخصم رصيد يومي من توكناتك طوال مدة التمييز (السعر اليومي الحالي: $_dailyRate توكن/يوم).'),
                   const _StepLine(number: 4, text: 'إعلانك يظهر أولاً في نتائج البحث وبعلامة "إعلان مميز" مدة التمييز.'),

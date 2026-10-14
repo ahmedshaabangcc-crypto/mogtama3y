@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../geo/phones.dart';
+import 'package:mogtama3y/core/geo/money.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 
@@ -67,7 +68,7 @@ const kidsSafetyNote = 'اتأكد من سلامة كرسي العربية وا�
 
 /// "2,500 ج.م" or "ببلاش" for a giveaway.
 String kidsPrice(Map<String, dynamic> item) =>
-    item['is_free'] == true ? 'ببلاش' : '${NumberFormat('#,##0').format(item['price'] ?? 0)} ج.م';
+    item['is_free'] == true ? 'ببلاش' : moneyOf(item, (item['price'] as num?) ?? 0);
 
 /// Filters for [KidsService.fetch]; nulls mean "any".
 class KidsFilters {
@@ -127,7 +128,7 @@ class KidsService {
   /// Every column guests may read (the phone is for signed-in users only).
   static const _publicCols =
       'id, owner_id, category, title, condition, age_range, gender, clothes_size, brand, price, is_free, swap_allowed, '
-      'governorate, area, description, images, phone_on_whatsapp, is_active, is_sold, created_at, updated_at';
+      'governorate, area, description, images, phone_on_whatsapp, is_active, is_sold, created_at, updated_at, currency, country';
 
   static String shareUrl(String id) => 'https://mogtama3y.com/#/kids/$id';
 
@@ -135,7 +136,8 @@ class KidsService {
 
   /// Active, unsold listings matching [f], newest first.
   static Future<List<Map<String, dynamic>>> fetch([KidsFilters f = const KidsFilters(), int limit = 60]) async {
-    var q = _db.from(_table).select(_publicCols).eq('is_active', true).eq('is_sold', false);
+    var q = _db.from(_table).select(_publicCols).eq('is_active', true).eq('is_sold', false)
+        .eq('country', UserCountry.feedCountry);
     if (f.category != null) q = q.eq('category', f.category!);
     if (f.condition != null) q = q.eq('condition', f.condition!);
     if (f.ageRange != null) q = q.eq('age_range', f.ageRange!);

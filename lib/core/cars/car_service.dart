@@ -1,5 +1,6 @@
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:mogtama3y/core/geo/money.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 
@@ -128,8 +129,8 @@ const carBrands = <String>[
   'أخرى',
 ];
 
-/// Prices like "650,000 ج.م".
-String carPrice(num? price) => '${NumberFormat('#,##0').format(price ?? 0)} ج.م';
+/// Prices like "650,000 ج.م" — in the listing's [currency] (EGP default).
+String carPrice(num? price, [String? currency]) => money(price ?? 0, currency);
 
 /// "/ يوم" or "/ شهر" after a rental price.
 String carPriceSuffix(String? offerType) => switch (offerType) {
@@ -191,7 +192,7 @@ class CarService {
 
   /// Active listings matching [f], featured first then newest.
   static Future<List<Map<String, dynamic>>> fetch([CarFilters f = const CarFilters(), int limit = 60]) async {
-    var q = _db.from(_table).select().eq('status', 'active');
+    var q = _db.from(_table).select().eq('status', 'active').eq('country', UserCountry.feedCountry);
     if (f.offerTypes != null && f.offerTypes!.isNotEmpty) q = q.inFilter('offer_type', f.offerTypes!);
     if (f.vehicleType != null) q = q.eq('vehicle_type', f.vehicleType!);
     if (f.brand != null) q = q.eq('brand', f.brand!);

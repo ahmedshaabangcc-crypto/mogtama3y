@@ -10,6 +10,8 @@ import '../auth/auth_landing_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
 import '../../core/geo/phones.dart';
 import '../shared/phone_field.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 /// Post a tutoring listing, or edit one when [existing] is given. The name
 /// shown is the poster's profile name. Pops `true` once saved.
@@ -26,6 +28,9 @@ class AddTutorListingScreen extends StatefulWidget {
 class _AddTutorListingScreenState extends State<AddTutorListingScreen> {
   final _form = GlobalKey<FormState>();
   late final Map<String, dynamic>? _e = widget.existing;
+
+  /// The listing's own currency when editing, else the user's (0092).
+  String get _cur => _e?['currency'] is String ? currencyOf(_e) : UserCountry.currency;
   late final _price = TextEditingController(text: (_e?['price'] as num?)?.toStringAsFixed(0) ?? '');
   late final _years = TextEditingController(text: _e?['experience_years']?.toString() ?? '');
   late final _area = TextEditingController(text: _e?['area'] as String? ?? '');
@@ -201,11 +206,11 @@ class _AddTutorListingScreenState extends State<AddTutorListingScreen> {
                   controller: _price,
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: _dec('السعر', suffix: 'ج.م'),
+                  decoration: _dec('السعر', suffix: currencyLabel(_cur)),
                   validator: (v) {
                     final n = looseNum((v ?? '').trim()) ?? 0;
                     if (n <= 0) return 'اكتب السعر';
-                    if (n > 100000) return 'السعر كبير أوي';
+                    if (n > moneyCap(100000, _cur)) return 'السعر كبير أوي';
                     return null;
                   },
                 ),

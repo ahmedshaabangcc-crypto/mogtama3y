@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/auth/auth_service.dart';
@@ -11,6 +10,7 @@ import '../shared/load_error_view.dart';
 import '../union/maintenance_payment_screen.dart';
 import 'wallet_topup_screen.dart';
 import 'wallet_withdraw_screen.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 (IconData, String) _txMeta(String type) => switch (type) {
       'top_up' => (Icons.add_card_rounded, 'شحن رصيد المحفظة'),
@@ -41,9 +41,8 @@ String _formatDateTime(DateTime dt) {
 }
 
 String _formatAmount(double amount) {
-  final formatted = NumberFormat('#,##0.00').format(amount.abs());
   final sign = amount >= 0 ? '+' : '-';
-  return '$sign$formatted ج.م';
+  return '$sign${money(amount.abs(), 'EGP')}';
 }
 
 /// Digital wallet & transaction ledger — matches
@@ -205,7 +204,7 @@ class _WalletScreenState extends State<WalletScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: Text(
-                      _loading ? '...' : _loadError ? '—' : '${NumberFormat('#,##0.00').format(_available)} ج.م',
+                      _loading ? '...' : _loadError ? '—' : money(_available, 'EGP'),
                       style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w800),
                     ),
                   ),
@@ -220,7 +219,7 @@ class _WalletScreenState extends State<WalletScreen> {
                         const Expanded(
                           child: Text('مبلغ مُعلّق بالضمان الذكي', style: TextStyle(color: Colors.white70, fontSize: 10)),
                         ),
-                        Text('${NumberFormat('#,##0.00').format(_held)} ج.م',
+                        Text(money(_held, 'EGP'),
                             style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700, fontSize: 13)),
                       ]),
                     ),

@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:intl/intl.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 /// One line in the storefront cart: a product + its chosen options.
 class CartLine {
@@ -57,7 +57,9 @@ class StoreCart extends ChangeNotifier {
       ];
 }
 
-String egp(num v) => '${NumberFormat('#,##0.##').format(v)} ج.م';
+/// A storefront price in the shop's [currency] (EGP when unknown) — was
+/// egp() before 0092.
+String shopMoney(num v, [String? currency]) => money(v, currency);
 
 /// "−20%" when the product has a real discount, else null.
 String? discountLabel(Map<String, dynamic> p) {

@@ -10,6 +10,8 @@ import '../auth/auth_landing_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
 import '../../core/geo/phones.dart';
 import '../shared/phone_field.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 /// List an event hall, or edit one when [existing] is given. Pops `true`
 /// once saved.
@@ -26,6 +28,9 @@ class AddHallScreen extends StatefulWidget {
 class _AddHallScreenState extends State<AddHallScreen> {
   final _form = GlobalKey<FormState>();
   late final Map<String, dynamic> _e = widget.existing ?? const {};
+
+  /// The listing's own currency when editing, else the user's (0092).
+  String get _cur => _e['currency'] is String ? currencyOf(_e) : UserCountry.currency;
   late final _name = TextEditingController(text: _e['name'] as String? ?? '');
   late final _capMin = TextEditingController(text: _e['capacity_min']?.toString() ?? '');
   late final _capMax = TextEditingController(text: _e['capacity_max']?.toString() ?? '');
@@ -241,7 +246,7 @@ class _AddHallScreenState extends State<AddHallScreen> {
               controller: _price,
               keyboardType: TextInputType.number,
               inputFormatters: digits,
-              decoration: _dec('السعر يبدأ من (اختياري)', suffix: _perPerson ? 'ج.م للفرد' : 'ج.م', hint: 'سيبه فاضي لو بالاتفاق'),
+              decoration: _dec('السعر يبدأ من (اختياري)', suffix: _perPerson ? '${currencyLabel(_cur)} للفرد' : currencyLabel(_cur), hint: 'سيبه فاضي لو بالاتفاق'),
               validator: (v) => (v ?? '').trim().isNotEmpty && (looseNum(v!.trim()) ?? 0) <= 0 ? 'سعر غلط' : null,
             ),
             const SizedBox(height: 8),

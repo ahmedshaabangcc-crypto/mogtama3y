@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/auth_service.dart';
 import '../promote/ad_token_service.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
 
 /// Real job postings + applications — see backend/migrations/0010_jobs.sql.
 class JobsService {
@@ -14,6 +15,7 @@ class JobsService {
         .from('job_postings')
         .select('*, poster:profiles(full_name, is_verified)')
         .eq('is_active', true)
+        .eq('country', UserCountry.feedCountry)
         .order('created_at', ascending: false)
         .limit(30);
     return AdTokenService.sortFeaturedFirst(List<Map<String, dynamic>>.from(rows as List));

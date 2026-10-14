@@ -10,6 +10,8 @@ import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
 import '../shared/phone_field.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 /// Post (or, with [initial], edit) a pet listing. The form adapts to the
 /// kind: adoption / lost / found have no price, lost / found ask when and
@@ -31,6 +33,9 @@ class AddPetListingScreen extends StatefulWidget {
 class _AddPetListingScreenState extends State<AddPetListingScreen> {
   final _form = GlobalKey<FormState>();
   late final Map<String, dynamic>? _i = widget.initial;
+
+  /// The listing's own currency when editing, else the user's (0092).
+  String get _cur => _i?['currency'] is String ? currencyOf(_i) : UserCountry.currency;
   late final _title = TextEditingController(text: _i?['title'] as String? ?? '');
   late final _breed = TextEditingController(text: _i?['breed'] as String? ?? '');
   late final _age = TextEditingController(text: _i?['age_text'] as String? ?? '');
@@ -279,7 +284,7 @@ class _AddPetListingScreenState extends State<AddPetListingScreen> {
                 controller: _price,
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: _dec(_kind == 'mating' ? 'السعر (اختياري)' : 'السعر', suffix: 'ج.م'),
+                decoration: _dec(_kind == 'mating' ? 'السعر (اختياري)' : 'السعر', suffix: currencyLabel(_cur)),
                 validator: (v) => _kind != 'mating' && (looseNum((v ?? '').trim()) ?? 0) <= 0 ? 'اكتب السعر' : null,
               ),
               CheckboxListTile(

@@ -14,6 +14,7 @@ import '../shared/load_error_view.dart';
 import 'add_hall_screen.dart';
 import 'my_halls_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
 
 /// "قاعات المناسبات" (`/halls`) — wedding halls, party halls, conference
 /// rooms, rooftops, boats… Guests browse and contact; listing needs an
@@ -427,7 +428,7 @@ class _FiltersSheetState extends State<_FiltersSheet> {
                       controller: _price,
                       keyboardType: TextInputType.number,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: _dec('أقصى سعر', suffix: 'ج.م'),
+                      decoration: _dec('أقصى سعر', suffix: UserCountry.currencyText),
                     ),
                   ),
                 ]),

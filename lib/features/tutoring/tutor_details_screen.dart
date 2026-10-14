@@ -10,6 +10,7 @@ import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'tutoring_market_screen.dart' show TutorPhotoPlaceholder;
 import '../../core/geo/phones.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 /// One tutor listing (`/tutoring/<id>`, public): photos, subjects, stages,
 /// price, bio, and ways to reach the tutor — WhatsApp, a call, or an
@@ -92,7 +93,7 @@ class _TutorDetailsScreenState extends State<TutorDetailsScreen> {
   Future<void> _share() async {
     final t = _t!;
     final url = TutoringService.shareUrl(widget.listingId);
-    final text = '${t['tutor_name']} — ${tutorLabels(t['subjects'], tutorSubjects)}\n${tutorPrice(t['price'] as num?, t['price_unit'] as String?)}\nشوفه على مُجتمعي:\n$url';
+    final text = '${t['tutor_name']} — ${tutorLabels(t['subjects'], tutorSubjects)}\n${tutorPrice(t['price'] as num?, t['price_unit'] as String?, currencyOf(t))}\nشوفه على مُجتمعي:\n$url';
     await Clipboard.setData(ClipboardData(text: url));
     if (!mounted) return;
     await showModalBottomSheet<void>(
@@ -273,7 +274,7 @@ class _TutorDetailsScreenState extends State<TutorDetailsScreen> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(t['tutor_name'] as String? ?? '', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: AppColors.ink)),
               const SizedBox(height: 2),
-              Text(tutorPrice(t['price'] as num?, t['price_unit'] as String?),
+              Text(tutorPrice(t['price'] as num?, t['price_unit'] as String?, currencyOf(t)),
                   style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: AppColors.teal)),
             ]),
           ),

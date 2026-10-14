@@ -1,14 +1,30 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/contact_phones.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 /// Real "found a building" / "join with invite code" flow, backed by the
 /// two SECURITY DEFINER functions in
 /// backend/migrations/0003_union_building_flow.sql (found_building,
 /// join_building_with_code) rather than raw table access — a joining
 /// user never needs direct write rights on other people's rows.
+/// [amount] in the currency of the user's building (0092).
+String buildingMoney(num amount) => money(amount, UnionService.buildingCurrency);
+
 class UnionService {
   UnionService._();
+
+  /// Currency of the user's building (buildings.currency, 0092) — set by
+  /// [fetchMyMembership]; EGP until then. Dues, the fund and the financial
+  /// report are all in it.
+  static String buildingCurrency = 'EGP';
+  static String get buildingCurrencyText => currencyLabel(buildingCurrency);
+
+  static Map<String, dynamic>? _noteCurrency(Map<String, dynamic>? m) {
+    final b = m?['building'];
+    buildingCurrency = b is Map ? currencyOf(b) : 'EGP';
+    return m;
+  }
 
   static SupabaseClient get _client => Supabase.instance.client;
 
@@ -20,7 +36,7 @@ class UnionService {
   static Future<Map<String, dynamic>?> fetchMyMembership() async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return null;
-    const columns = '*, building:buildings(name, district, city, governorate, lat, lng)';
+    const columns = '*, building:buildings(name, district, city, governorate, lat, lng, currency)';
     final verified = await _client
         .from('union_members')
         .select(columns)
@@ -29,14 +45,14 @@ class UnionService {
         .order('created_at', ascending: false)
         .limit(1)
         .maybeSingle();
-    if (verified != null) return verified;
-    return _client
+    if (verified != null) return _noteCurrency(verified);
+    return _noteCurrency(await _client
         .from('union_members')
         .select(columns)
         .eq('user_id', userId)
         .order('created_at', ascending: false)
         .limit(1)
-        .maybeSingle();
+        .maybeSingle());
   }
 
   /// Creates a new building with the caller as its founding, verified

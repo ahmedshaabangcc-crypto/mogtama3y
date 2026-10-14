@@ -976,7 +976,9 @@ class DemoStore {
   bool _matches(DemoRow r, Map<String, String> query) {
     for (final e in query.entries) {
       if (_reserved.contains(e.key)) continue;
-      if (!_test(r[e.key], e.value)) return false;
+      // Demo rows predate 0092's country column: they're Egyptian.
+      final value = r[e.key] ?? (e.key == 'country' ? 'EG' : null);
+      if (!_test(value, e.value)) return false;
     }
     return true;
   }

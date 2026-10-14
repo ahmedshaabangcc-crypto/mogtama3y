@@ -10,7 +10,7 @@ import 'package:flutter/foundation.dart';
 
 import 'arab_countries.dart';
 import 'phones.dart';
-import 'world_time.dart' show countryOfTimeZone, deviceTimeZone;
+import 'world_time.dart' show countryOfTimeZone, currencyLabel, deviceTimeZone;
 
 /// Country for a new account: the phone's dial code if given, else the
 /// device's zone, else the location's country, else Egypt.
@@ -39,6 +39,18 @@ class UserCountry {
   static final ValueNotifier<String> iso = ValueNotifier<String>(guessCountry());
 
   static ArabCountry get country => arabCountry(iso.value) ?? egypt;
+
+  /// Country whose listings the feeds show (0092): the user's own unless a
+  /// screen picked another one (phase 3 adds the picker).
+  static String? feedOverride;
+  static String get feedCountry => feedOverride ?? iso.value;
+
+  /// The user's currency (ISO) — the default for new listings and the
+  /// suffix of price fields.
+  static String get currency => country.currency;
+
+  /// «ج.م», «ر.س»… of [currency].
+  static String get currencyText => currencyLabel(currency);
 
   /// Whether the user is treated as Egyptian (SMS verification offered).
   static bool get inEgypt => iso.value == 'EG';

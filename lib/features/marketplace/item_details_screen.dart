@@ -6,6 +6,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import 'marketplace_chat_screen.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 const _conditionLabels = {
   'new': 'جديد',
@@ -122,9 +123,10 @@ class ItemDetailsScreen extends StatelessWidget {
             children: [
               Text(NumberFormat('#,##0').format(price), style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppColors.teal)),
               const SizedBox(width: 6),
-              const Padding(
-                padding: EdgeInsets.only(bottom: 4),
-                child: Text('جنيه مصري', style: TextStyle(fontSize: 13, color: AppColors.inkMuted)),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(currencyOf(listing) == 'EGP' ? 'جنيه مصري' : currencyLabelOf(listing),
+                    style: const TextStyle(fontSize: 13, color: AppColors.inkMuted)),
               ),
               if (isNegotiable) ...[
                 const Spacer(),

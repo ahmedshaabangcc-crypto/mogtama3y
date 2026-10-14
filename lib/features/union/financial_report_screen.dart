@@ -131,7 +131,7 @@ class _FinancialReportScreenState extends State<FinancialReportScreen> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(label, style: const TextStyle(fontSize: 10, color: AppColors.inkMuted)),
               const SizedBox(height: 4),
-              Text('${_fmt(value)} ج.م', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: color)),
+              Text('${_fmt(value)} ${UnionService.buildingCurrencyText}', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: color)),
             ]),
           ),
         );
@@ -190,7 +190,7 @@ class _FinancialReportScreenState extends State<FinancialReportScreen> {
                   _LegendRow(
                     color: _legendColors[i % _legendColors.length],
                     label: top3[i]['label'] as String? ?? '',
-                    value: '${_fmt((top3[i]['amount'] as num?) ?? 0)} ج.م',
+                    value: '${_fmt((top3[i]['amount'] as num?) ?? 0)} ${UnionService.buildingCurrencyText}',
                   ),
                   if (i != top3.length - 1) const SizedBox(height: 8),
                 ],
@@ -317,8 +317,8 @@ class _FinancialReportScreenState extends State<FinancialReportScreen> {
                       ),
                   ]),
                   const SizedBox(height: 6),
-                  Text('${_fmt(totalCollected)} ج.م', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 24)),
-                  Text('من أصل ${_fmt(totalExpected)} ج.م', style: const TextStyle(fontSize: 10, color: AppColors.inkMuted)),
+                  Text('${_fmt(totalCollected)} ${UnionService.buildingCurrencyText}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 24)),
+                  Text('من أصل ${_fmt(totalExpected)} ${UnionService.buildingCurrencyText}', style: const TextStyle(fontSize: 10, color: AppColors.inkMuted)),
                   const SizedBox(height: 8),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(100),
@@ -342,7 +342,7 @@ class _FinancialReportScreenState extends State<FinancialReportScreen> {
                         Text('صندوق الطوارئ', style: TextStyle(fontSize: 10, color: AppColors.inkMuted)),
                       ]),
                       const SizedBox(height: 6),
-                      Text('${_fmt(emergencyFund)} ج.م', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                      Text('${_fmt(emergencyFund)} ${UnionService.buildingCurrencyText}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                     ],
                   ),
                 ),
@@ -361,7 +361,7 @@ class _FinancialReportScreenState extends State<FinancialReportScreen> {
                         Text('مصروفات فعلية', style: TextStyle(fontSize: 10, color: AppColors.inkMuted)),
                       ]),
                       const SizedBox(height: 6),
-                      Text('${_fmt(actualExpenses)} ج.م', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                      Text('${_fmt(actualExpenses)} ${UnionService.buildingCurrencyText}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                     ],
                   ),
                 ),
@@ -390,7 +390,7 @@ class _FinancialReportScreenState extends State<FinancialReportScreen> {
                             _LegendRow(
                               color: _legendColors[i % _legendColors.length],
                               label: top3[i]['label'] as String? ?? '',
-                              value: '${_fmt((top3[i]['amount'] as num?) ?? 0)} ج.م',
+                              value: '${_fmt((top3[i]['amount'] as num?) ?? 0)} ${UnionService.buildingCurrencyText}',
                             ),
                             if (i != top3.length - 1) const SizedBox(height: 8),
                           ],
@@ -443,7 +443,7 @@ class _FinancialReportScreenState extends State<FinancialReportScreen> {
                             ],
                           ),
                         ),
-                        Text('${_fmt((e['amount'] as num?) ?? 0)} ج.م', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                        Text('${_fmt((e['amount'] as num?) ?? 0)} ${UnionService.buildingCurrencyText}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
                       ]),
                       if ((e['invoice_ref'] as String?)?.isNotEmpty == true) ...[
                         const SizedBox(height: 8),

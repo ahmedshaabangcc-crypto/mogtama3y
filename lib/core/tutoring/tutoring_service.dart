@@ -1,7 +1,7 @@
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../geo/phones.dart';
 import '../geo/user_country.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 
@@ -54,9 +54,9 @@ const tutorPriceUnits = <String, String>{
   'month': 'الشهر',
 };
 
-/// "250 ج.م / الحصة".
-String tutorPrice(num? price, String? unit) =>
-    '${NumberFormat('#,##0').format(price ?? 0)} ج.م / ${tutorPriceUnits[unit] ?? 'الحصة'}';
+/// "250 ج.م / الحصة" — in the listing's [currency] (EGP default).
+String tutorPrice(num? price, String? unit, [String? currency]) =>
+    '${money(price ?? 0, currency)} / ${tutorPriceUnits[unit] ?? 'الحصة'}';
 
 /// Labels for a list of codes, e.g. subjects → "رياضيات، فيزياء".
 String tutorLabels(Object? codes, Map<String, String> labels) =>
@@ -112,7 +112,7 @@ class TutoringService {
 
   /// Active listings matching [f], newest first.
   static Future<List<Map<String, dynamic>>> fetch([TutorFilters f = const TutorFilters(), int limit = 60]) async {
-    var q = _db.from(_table).select().eq('is_active', true);
+    var q = _db.from(_table).select().eq('is_active', true).eq('country', UserCountry.feedCountry);
     if (f.subject != null) q = q.contains('subjects', [f.subject!]);
     if (f.stage != null) q = q.contains('stages', [f.stage!]);
     if (f.mode != null) q = q.contains('modes', [f.mode!]);

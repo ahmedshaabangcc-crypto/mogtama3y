@@ -12,6 +12,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/location/where.dart';
 import '../../core/places/place_images.dart';
 import '../store/store_cart.dart';
+import 'package:mogtama3y/core/geo/money.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
 
 /// Live content for the home page: offers and new products from the
 /// neighbourhood's online stores, newly opened stores, and promo banners.
@@ -157,10 +159,11 @@ class _StoreProductsRailState extends State<StoreProductsRail> {
     try {
       var q = _db
           .from('shop_products')
-          .select('id, name, price, old_price, images, image_url, stock, shop:shops!inner(slug, name)')
+          .select('id, name, price, old_price, currency, images, image_url, stock, shop:shops!inner(slug, name, country)')
           .eq('is_available', true)
           .gt('price', 0)
-          .not('shop.slug', 'is', null);
+          .not('shop.slug', 'is', null)
+          .eq('shop.country', UserCountry.feedCountry);
       if (widget.offersOnly) q = q.not('old_price', 'is', null);
       final rows = await q.order('created_at', ascending: false).limit(widget.offersOnly ? 40 : 20);
       var items = List<Map<String, dynamic>>.from(rows as List);
@@ -237,11 +240,11 @@ class _ProductCard extends StatelessWidget {
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
               const SizedBox(height: 2),
               Row(children: [
-                Text(egp(p['price'] as num), style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w800, fontSize: 13)),
+                Text(shopMoney(p['price'] as num, currencyOf(p)), style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w800, fontSize: 13)),
                 if (off != null && old != null) ...[
                   const SizedBox(width: 6),
                   Flexible(
-                    child: Text(egp(old), maxLines: 1, overflow: TextOverflow.ellipsis,
+                    child: Text(shopMoney(old, currencyOf(p)), maxLines: 1, overflow: TextOverflow.ellipsis,
                         style: const TextStyle(color: Colors.white38, fontSize: 11, decoration: TextDecoration.lineThrough)),
                   ),
                 ],
@@ -292,6 +295,7 @@ class _NewStoresRailState extends State<NewStoresRail> {
           .from('shops')
           .select('id, name, category, slug, logo_url, cover_image_url')
           .not('slug', 'is', null)
+          .eq('country', UserCountry.feedCountry)
           .order('created_at', ascending: false)
           .limit(16);
       if (mounted) setState(() => _shops = List<Map<String, dynamic>>.from(rows as List));

@@ -13,7 +13,7 @@ import '../auth/auth_service.dart';
 /// granted — so every select against this table below MUST list
 /// columns explicitly, never `*`.
 const _requestColumns = 'id, unit_id, resident_id, technician_id, category, description, status, '
-    'quoted_amount, escrow_status, visit_scheduled_at, completed_at, created_at';
+    'quoted_amount, escrow_status, visit_scheduled_at, completed_at, created_at, currency';
 
 // technicians has a column-level GRANT that deliberately excludes
 // id_card_url/verification_video_url (see

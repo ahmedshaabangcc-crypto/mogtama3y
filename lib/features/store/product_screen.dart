@@ -5,6 +5,7 @@ import '../../core/shops/store_service.dart';
 import '../../core/theme/app_colors.dart';
 import 'checkout_screen.dart';
 import 'store_cart.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 /// Product page: swipeable photos, price/discount, options (size,
 /// colour…), quantity, highlights, description, share, add to cart / buy.
@@ -48,7 +49,7 @@ class _ProductScreenState extends State<ProductScreen> {
   void _share() {
     final slug = widget.shop['slug'] as String?;
     if (slug == null) return;
-    final text = '${p['name']} — ${egp((p['price'] as num?) ?? 0)}\nمن ${widget.shop['name']}، اطلبه من هنا:\n${StoreService.productUrl(slug, p['id'] as String)}';
+    final text = '${p['name']} — ${shopMoney((p['price'] as num?) ?? 0, currencyOf(p))}\nمن ${widget.shop['name']}، اطلبه من هنا:\n${StoreService.productUrl(slug, p['id'] as String)}';
     launchUrl(Uri.parse('https://wa.me/?text=${Uri.encodeComponent(text)}'), mode: LaunchMode.externalApplication);
   }
 
@@ -107,10 +108,10 @@ class _ProductScreenState extends State<ProductScreen> {
               Text(p['name'] as String? ?? '', style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800, height: 1.35)),
               const SizedBox(height: 8),
               Row(children: [
-                Text(egp((p['price'] as num?) ?? 0), style: const TextStyle(color: AppColors.crystal, fontSize: 22, fontWeight: FontWeight.w800)),
+                Text(shopMoney((p['price'] as num?) ?? 0, currencyOf(p)), style: const TextStyle(color: AppColors.crystal, fontSize: 22, fontWeight: FontWeight.w800)),
                 if (old != null && discount != null) ...[
                   const SizedBox(width: 10),
-                  Text(egp(old), style: const TextStyle(color: AppColors.inkMuted, fontSize: 14, decoration: TextDecoration.lineThrough)),
+                  Text(shopMoney(old, currencyOf(p)), style: const TextStyle(color: AppColors.inkMuted, fontSize: 14, decoration: TextDecoration.lineThrough)),
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

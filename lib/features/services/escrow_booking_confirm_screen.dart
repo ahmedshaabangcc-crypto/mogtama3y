@@ -6,6 +6,7 @@ import '../../core/maintenance/technician_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
 import 'my_maintenance_requests_screen.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 /// Escrow payment confirmation for a booked service visit — now a real
 /// booking against the caller's real wallet balance, see
@@ -201,9 +202,9 @@ class _EscrowBookingConfirmScreenState extends State<EscrowBookingConfirmScreen>
             decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
             child: Column(
               children: [
-                _FeeRow(label: 'رسم المعاينة والتشخيص الأولي', value: '${widget.inspectionFee.toStringAsFixed(2)} ج.م'),
+                _FeeRow(label: 'رسم المعاينة والتشخيص الأولي', value: money(widget.inspectionFee, 'EGP')),
                 const Divider(height: 24, color: AppColors.border),
-                _FeeRow(label: 'إجمالي الحجز المطلوب', value: '${total.toStringAsFixed(2)} ج.م', emphasize: true),
+                _FeeRow(label: 'إجمالي الحجز المطلوب', value: money(total, 'EGP'), emphasize: true),
                 const SizedBox(height: 4),
                 if (_loadError)
                   LoadErrorView(onRetry: _loadWallet)
@@ -211,7 +212,7 @@ class _EscrowBookingConfirmScreenState extends State<EscrowBookingConfirmScreen>
                   Align(
                     alignment: Alignment.centerRight,
                     child: Text(
-                      _loadingWallet ? 'جارِ تحميل رصيدك...' : 'رصيدك المتاح: ${_availableBalance.toStringAsFixed(2)} ج.م',
+                      _loadingWallet ? 'جارِ تحميل رصيدك...' : 'رصيدك المتاح: ${money(_availableBalance, 'EGP')}',
                       style: TextStyle(fontSize: 10, color: _availableBalance >= total ? AppColors.inkMuted : Colors.redAccent),
                     ),
                   ),

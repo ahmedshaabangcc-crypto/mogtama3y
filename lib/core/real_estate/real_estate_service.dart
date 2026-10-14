@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../auth/auth_service.dart';
 import '../promote/ad_token_service.dart';
 import '../union/union_service.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
 
 /// Offer types (migration 0065) — value → Arabic label.
 const realEstateOfferTypes = <String, String>{
@@ -64,7 +65,7 @@ class RealEstateService {
     int? bedroomsMin,
     String? search,
   }) async {
-    var query = _client.from('real_estate_listings').select('*, owner:profiles(full_name), building:buildings(lat, lng)').eq('status', 'active');
+    var query = _client.from('real_estate_listings').select('*, owner:profiles(full_name), building:buildings(lat, lng)').eq('status', 'active').eq('country', UserCountry.feedCountry);
     if (dealType != null) query = query.eq('deal_type', dealType);
     if (offerType != null) query = query.eq('offer_type', offerType);
     if (group != null) {

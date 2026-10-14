@@ -13,6 +13,7 @@ import 'store_cart.dart';
 import '../legal/privacy_policy_screen.dart';
 import '../../core/geo/phones.dart';
 import '../shared/phone_field.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 /// Cart + checkout: no account needed — name, mobile, address, cash on
 /// delivery. Signed-in customers can fill the address from their digital
@@ -153,7 +154,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text(l.product['name'] as String? ?? '', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
                           if (l.options.isNotEmpty) Text(l.options, style: const TextStyle(color: AppColors.inkMuted, fontSize: 12)),
-                          Text(egp(l.total), style: const TextStyle(color: AppColors.crystal, fontWeight: FontWeight.w800)),
+                          Text(moneyOf(widget.shop, l.total), style: const TextStyle(color: AppColors.crystal, fontWeight: FontWeight.w800)),
                         ]),
                       ),
                       IconButton(onPressed: () => cart.setQuantity(l, l.quantity - 1), icon: const Icon(Icons.remove_circle_outline_rounded)),
@@ -217,24 +218,24 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     Row(children: [
                       const Text('المنتجات'),
                       const Spacer(),
-                      Text(egp(cart.total)),
+                      Text(moneyOf(widget.shop, cart.total)),
                     ]),
                     const SizedBox(height: 4),
                     Row(children: [
                       const Text('التوصيل'),
                       const Spacer(),
-                      Text(_delivery == 0 ? 'مجاني' : egp(_delivery), style: TextStyle(color: _delivery == 0 ? AppColors.success : null, fontWeight: _delivery == 0 ? FontWeight.w800 : null)),
+                      Text(_delivery == 0 ? 'مجاني' : moneyOf(widget.shop, _delivery), style: TextStyle(color: _delivery == 0 ? AppColors.success : null, fontWeight: _delivery == 0 ? FontWeight.w800 : null)),
                     ]),
                     if (_freeOver != null && _delivery > 0)
                       Align(
                         alignment: AlignmentDirectional.centerStart,
-                        child: Text('زوّد ${egp(_freeOver! - cart.total)} والتوصيل يبقى مجاني', style: const TextStyle(fontSize: 11.5, color: AppColors.gold)),
+                        child: Text('زوّد ${moneyOf(widget.shop, _freeOver! - cart.total)} والتوصيل يبقى مجاني', style: const TextStyle(fontSize: 11.5, color: AppColors.gold)),
                       ),
                     const Divider(height: 18),
                     Row(children: [
                       const Text('الإجمالي', style: TextStyle(fontWeight: FontWeight.w800)),
                       const Spacer(),
-                      Text(egp(_grandTotal), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: AppColors.crystal)),
+                      Text(moneyOf(widget.shop, _grandTotal), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: AppColors.crystal)),
                     ]),
                     const SizedBox(height: 6),
                     const Row(children: [
@@ -253,7 +254,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     onPressed: _placing ? null : _place,
                     child: _placing
                         ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : Text('تأكيد الطلب — ${egp(_grandTotal)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                        : Text('تأكيد الطلب — ${moneyOf(widget.shop, _grandTotal)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -296,7 +297,7 @@ class _OrderPlacedScreen extends StatelessWidget {
         'الطلب:',
         summary,
         '',
-        'الإجمالي: ${egp(total)} (الدفع عند الاستلام)',
+        'الإجمالي: ${moneyOf(shop, total)} (الدفع عند الاستلام)',
         'العنوان: $address',
         if (note.isNotEmpty) 'ملاحظة: $note',
         '',
@@ -328,7 +329,7 @@ class _OrderPlacedScreen extends StatelessWidget {
                 child: Text(code, style: const TextStyle(color: AppColors.gold, fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: 2)),
               ),
               const SizedBox(height: 6),
-              Text('الإجمالي ${egp(total)} — الدفع عند الاستلام', style: const TextStyle(color: Colors.white)),
+              Text('الإجمالي ${moneyOf(shop, total)} — الدفع عند الاستلام', style: const TextStyle(color: Colors.white)),
             ]),
           ),
           if (hasWhatsapp) ...[

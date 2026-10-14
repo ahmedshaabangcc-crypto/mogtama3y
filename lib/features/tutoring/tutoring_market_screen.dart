@@ -13,6 +13,8 @@ import '../shared/load_error_view.dart';
 import 'add_tutor_listing_screen.dart';
 import 'my_tutor_listings_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import 'package:mogtama3y/core/geo/money.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
 
 /// "دروس خصوصية" (`/tutoring`) — teachers and tutors near you, by subject,
 /// stage and how they teach. Guests can browse; posting needs an account.
@@ -291,7 +293,7 @@ class TutorCard extends StatelessWidget {
                     maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5, color: AppColors.inkSecondary)),
                 const SizedBox(height: 4),
                 Row(children: [
-                  Text(tutorPrice(item['price'] as num?, item['price_unit'] as String?),
+                  Text(tutorPrice(item['price'] as num?, item['price_unit'] as String?, currencyOf(item)),
                       style: const TextStyle(color: AppColors.teal, fontWeight: FontWeight.w800, fontSize: 13)),
                   const SizedBox(width: 8),
                   if (place.isNotEmpty) ...[
@@ -379,7 +381,7 @@ class _FiltersSheetState extends State<_FiltersSheet> {
                       controller: _price,
                       keyboardType: TextInputType.number,
                       decoration: InputDecoration(
-                        labelText: 'أقصى سعر (ج.م)',
+                        labelText: 'أقصى سعر (${UserCountry.currencyText})',
                         isDense: true,
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       ),

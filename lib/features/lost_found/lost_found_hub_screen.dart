@@ -9,6 +9,7 @@ import '../shared/load_error_view.dart';
 import 'add_lost_found_item_screen.dart';
 import '../../core/app_flavor.dart';
 import '../union/union_home_link.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 IconData _categoryIcon(String category) => switch (category) {
   'مفاتيح' => Icons.vpn_key_rounded,
@@ -333,7 +334,7 @@ class _ItemCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(8)),
                     child: Text(
-                      'مكافأة ${rewardAmount.toStringAsFixed(0)} ج.م',
+                      'مكافأة ${moneyOf(item, rewardAmount)}',
                       style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700),
                     ),
                   ),

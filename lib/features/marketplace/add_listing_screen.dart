@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/union/union_service.dart';
 import '../promote/promote_listing_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
 
 /// Add a new used-item listing — matches design/screens/04_add_used_item_listing.png.
 class AddListingScreen extends StatefulWidget {
@@ -176,7 +177,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
                           decoration: const InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
                         ),
                       ),
-                      const Text('ج.م', style: TextStyle(fontSize: 12, color: AppColors.inkMuted)),
+                      Text(UserCountry.currencyText, style: const TextStyle(fontSize: 12, color: AppColors.inkMuted)),
                     ],
                   ),
                 ),

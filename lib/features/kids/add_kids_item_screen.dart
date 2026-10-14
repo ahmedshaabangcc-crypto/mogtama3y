@@ -9,6 +9,8 @@ import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
 import '../shared/phone_field.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 /// Post a kids-gear listing, or edit one when [initial] is given (from
 /// "إعلاناتي"). Pops `true` once saved.
@@ -27,6 +29,9 @@ class _AddKidsItemScreenState extends State<AddKidsItemScreen> {
 
   final _form = GlobalKey<FormState>();
   late final Map<String, dynamic> _i = widget.initial ?? const {};
+
+  /// The listing's own currency when editing, else the user's (0092).
+  String get _cur => _i['currency'] is String ? currencyOf(_i) : UserCountry.currency;
   late final _title = TextEditingController(text: _i['title'] as String? ?? '');
   late final _brand = TextEditingController(text: _i['brand'] as String? ?? '');
   late final _size = TextEditingController(text: _i['clothes_size'] as String? ?? '');
@@ -277,7 +282,7 @@ class _AddKidsItemScreenState extends State<AddKidsItemScreen> {
                 controller: _price,
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: _dec('السعر', suffix: 'ج.م'),
+                decoration: _dec('السعر', suffix: currencyLabel(_cur)),
                 validator: (v) => (looseNum((v ?? '').trim()) ?? 0) <= 0 ? 'اكتب السعر' : null,
               ),
             CheckboxListTile(

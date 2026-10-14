@@ -5,6 +5,7 @@ import '../../core/shops/starter_catalog.dart';
 import '../../core/shops/store_service.dart';
 import '../../core/theme/app_colors.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 
@@ -211,7 +212,7 @@ class _QuickPricingScreenState extends State<QuickPricingScreen> {
                             controller: _prices[p['id']],
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             textAlign: TextAlign.center,
-                            decoration: const InputDecoration(hintText: 'السعر', suffixText: 'ج.م', isDense: true),
+                            decoration: InputDecoration(hintText: 'السعر', suffixText: currencyLabelOf(p), isDense: true),
                           ),
                         ),
                       ]),

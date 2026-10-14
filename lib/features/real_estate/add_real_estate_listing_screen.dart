@@ -6,6 +6,7 @@ import '../../core/storage/multi_photo_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../promote/promote_listing_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
 
 /// Publishes a real real_estate_listings row — see
 /// backend/migrations/0023_real_estate.sql. Requires the caller to
@@ -145,7 +146,7 @@ class _AddRealEstateListingScreenState extends State<AddRealEstateListingScreen>
           const SizedBox(height: 12),
           TextField(controller: _descriptionCtrl, maxLines: 3, decoration: _decoration('الوصف')),
           const SizedBox(height: 12),
-          TextField(controller: _priceCtrl, keyboardType: TextInputType.number, decoration: _decoration(_offerType == 'sale' ? 'السعر (ج.م)' : (_offerType == 'rent_daily' ? 'الإيجار في الليلة (ج.م)' : 'الإيجار الشهري (ج.م)'))),
+          TextField(controller: _priceCtrl, keyboardType: TextInputType.number, decoration: _decoration(_offerType == 'sale' ? 'السعر (${UserCountry.currencyText})' : (_offerType == 'rent_daily' ? 'الإيجار في الليلة (${UserCountry.currencyText})' : 'الإيجار الشهري (${UserCountry.currencyText})'))),
           const SizedBox(height: 12),
           Row(children: [
             Expanded(child: TextField(controller: _areaCtrl, keyboardType: TextInputType.number, decoration: _decoration('المساحة (م²)'))),

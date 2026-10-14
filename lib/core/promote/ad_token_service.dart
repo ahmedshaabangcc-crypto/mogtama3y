@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/auth_service.dart';
 import '../auth/contact_phones.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 /// Real featured-ad token economy — see
 /// backend/migrations/0026_ad_tokens.sql. Works across any of the
@@ -43,7 +44,7 @@ class AdTokenService {
       ...List<Map<String, dynamic>>.from(pending as List).map((p) => {
             'kind': 'pending',
             'tokens': p['tokens_requested'],
-            'description': 'طلب شحن قيد المراجعة (${p['amount_egp']} ج.م)',
+            'description': 'طلب شحن قيد المراجعة (${money((p['amount_egp'] as num?) ?? 0, 'EGP')})',
             'created_at': p['created_at'],
           }),
     ];

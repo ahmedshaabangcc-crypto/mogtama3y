@@ -17,16 +17,8 @@ import 'dues_status_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
 import '../shared/phone_field.dart';
 
-String fundMoney(num n) {
-  final neg = n < 0;
-  final s = n.abs().round().toString();
-  final buf = StringBuffer();
-  for (var i = 0; i < s.length; i++) {
-    if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
-    buf.write(s[i]);
-  }
-  return '${neg ? '-' : ''}$buf ج.م';
-}
+/// An amount in the building's currency (0092).
+String fundMoney(num n) => buildingMoney(n);
 
 String fundDate(String? iso) {
   final d = DateTime.tryParse(iso ?? '')?.toLocal();
@@ -136,7 +128,7 @@ class _UnionFundScreenState extends State<UnionFundScreen> {
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             const Text('سجّل مصروف', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
             const SizedBox(height: 12),
-            TextField(controller: amountCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'المبلغ (ج.م)')),
+            TextField(controller: amountCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'المبلغ (${UnionService.buildingCurrencyText})')),
             const SizedBox(height: 8),
             TextField(controller: noteCtrl, decoration: const InputDecoration(labelText: 'اتصرف على إيه؟ (مثال: تغيير لمبات السلم)')),
             const SizedBox(height: 10),
@@ -231,7 +223,7 @@ class _UnionFundScreenState extends State<UnionFundScreen> {
             const Text('إدارة مُجتمعي بتراجع الطلب وتحوّل المبلغ، والصندوق بيتخصم منه بعد التحويل بس.',
                 style: TextStyle(fontSize: 11, color: AppColors.inkMuted, height: 1.6)),
             const SizedBox(height: 12),
-            TextField(controller: amountCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'المبلغ (ج.م)')),
+            TextField(controller: amountCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'المبلغ (${UnionService.buildingCurrencyText})')),
             const SizedBox(height: 8),
             TextField(controller: noteCtrl, decoration: const InputDecoration(labelText: 'السبب (مثال: أجرة الكهربائي)')),
             const SizedBox(height: 8),

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/auth/auth_service.dart';
@@ -11,6 +10,8 @@ import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'add_listing_screen.dart';
 import 'item_details_screen.dart';
+import 'package:mogtama3y/core/geo/money.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
 
 const _conditionLabels = {
   'new': 'جديد',
@@ -70,6 +71,7 @@ class _MarketplaceListingScreenState extends State<MarketplaceListingScreen> {
           .from('marketplace_listings')
           .select('*, seller:profiles(full_name, is_verified)')
           .eq('status', 'active')
+          .eq('country', UserCountry.feedCountry)
           .order('created_at', ascending: false)
           .limit(30);
       final listings = List<Map<String, dynamic>>.from(rows as List);
@@ -292,7 +294,7 @@ class _ListingCard extends StatelessWidget {
                             style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5, height: 1.4)),
                       ),
                       const SizedBox(width: 8),
-                      Text('${NumberFormat('#,##0').format(price)} ج.م', style: const TextStyle(color: AppColors.teal, fontWeight: FontWeight.w700, fontSize: 15)),
+                      Text(moneyOf(listing, price), style: const TextStyle(color: AppColors.teal, fontWeight: FontWeight.w700, fontSize: 15)),
                     ],
                   ),
                   const SizedBox(height: 8),

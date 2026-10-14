@@ -26,8 +26,10 @@ import 'store_qr_card_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
 import '../../core/geo/phones.dart';
 import '../shared/phone_field.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
-String _money(num v) => '${NumberFormat('#,##0.##').format(v)} ج.م';
+/// An amount in the shown shop's currency (0092).
+String _money(num v) => money(v, StoreService.merchantCurrency);
 String _errorText(Object e, String fallback) => e is PostgrestException ? e.message : fallback;
 
 /// The merchant panel (mogtama3y.com/#/merchant): register a shop, then
@@ -133,6 +135,7 @@ class _MerchantDashboardScreenState extends State<MerchantDashboardScreen> {
     }
 
     final shop = _shops[_selected];
+    StoreService.merchantCurrency = currencyOf(shop);
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
@@ -837,7 +840,7 @@ class _ProductEditorState extends State<_ProductEditor> {
                 child: TextField(
                   controller: _price,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'السعر بالجنيه *'),
+                  decoration: InputDecoration(labelText: 'السعر (${currencyLabel(StoreService.merchantCurrency)}) *'),
                 ),
               ),
               const SizedBox(width: 10),
@@ -1593,7 +1596,7 @@ class _DeliveryCardState extends State<_DeliveryCard> {
             child: TextField(
               controller: _fee,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'قيمة التوصيل (ج.م)', hintText: 'فاضية = مجاني'),
+              decoration: InputDecoration(labelText: 'قيمة التوصيل (${currencyLabelOf(widget.shop)})', hintText: 'فاضية = مجاني'),
             ),
           ),
           const SizedBox(width: 10),

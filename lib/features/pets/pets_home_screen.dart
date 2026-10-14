@@ -13,6 +13,7 @@ import '../shared/load_error_view.dart';
 import 'add_pet_listing_screen.dart';
 import 'my_pet_listings_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
 
 /// "الحيوانات الأليفة" (`/pets`) — pets for sale, adoption and mating,
 /// lost & found pets, and supplies. Guests can browse; posting needs an
@@ -418,7 +419,7 @@ class _FiltersSheetState extends State<_FiltersSheet> {
                 TextField(
                   controller: _price,
                   keyboardType: TextInputType.number,
-                  decoration: _dec('أقصى سعر (ج.م)'),
+                  decoration: _dec('أقصى سعر (${UserCountry.currencyText})'),
                 ),
                 const SizedBox(height: 16),
                 Row(children: [

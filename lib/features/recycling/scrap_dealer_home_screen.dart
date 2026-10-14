@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/auth/auth_service.dart';
@@ -11,8 +10,9 @@ import 'auction_detail_screen.dart';
 import 'scrap_dealer_register_screen.dart';
 import 'scrap_widgets.dart';
 import '../../core/geo/phones.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
-String _money(num v) => '${NumberFormat('#,##0').format(v)} ج.م';
+String _money(num v, Map<String, dynamic> row) => moneyOf(row, v);
 
 /// «لوحة تاجر الخردة» (/#/scrap-dealer): the dealer's status, what they
 /// buy and where, the active lots matching them, their bids (top / outbid
@@ -320,8 +320,8 @@ class _MatchingLotTile extends StatelessWidget {
           style: const TextStyle(fontSize: 11),
         ),
         trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text(top == null ? 'مفيش عروض' : _money(top), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: AppColors.teal)),
-          if (mine != null) Text(mine >= (top ?? 0) ? 'إنت الأعلى' : 'عرضك ${_money(mine)}', style: const TextStyle(fontSize: 10, color: AppColors.inkMuted)),
+          Text(top == null ? 'مفيش عروض' : _money(top, lot), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: AppColors.teal)),
+          if (mine != null) Text(mine >= (top ?? 0) ? 'إنت الأعلى' : 'عرضك ${_money(mine, lot)}', style: const TextStyle(fontSize: 10, color: AppColors.inkMuted)),
         ]),
       ),
     );
@@ -348,7 +348,7 @@ class _BidTile extends StatelessWidget {
       child: ListTile(
         onTap: onTap,
         title: Text(bid['title'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-        subtitle: Text('عرضك ${_money(mine)} • أعلى عرض ${_money(top)}', style: const TextStyle(fontSize: 11)),
+        subtitle: Text('عرضك ${_money(mine, bid)} • أعلى عرض ${_money(top, bid)}', style: const TextStyle(fontSize: 11)),
         trailing: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(100)),
@@ -408,7 +408,7 @@ class _AcceptedTileState extends State<_AcceptedTile> {
               const Icon(Icons.emoji_events_rounded, color: AppColors.teal, size: 18),
               const SizedBox(width: 6),
               Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
-              Text(_money((b['my_amount'] as num?) ?? 0), style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.teal)),
+              Text(_money((b['my_amount'] as num?) ?? 0, b), style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.teal)),
             ]),
           ),
           const SizedBox(height: 8),

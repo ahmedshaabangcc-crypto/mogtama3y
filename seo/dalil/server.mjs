@@ -295,10 +295,19 @@ ${r.after_photo ? `<h2>بعد الحل</h2><img src="${esc(r.after_photo)}" alt=
 
 // ------------------------------------------------- registered online stores
 
-const egp = (n) => `${Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م`;
+// «150 ج.م», «75.5 ر.س» — 0092: every product / listing carries its currency.
+const CURRENCY_LABEL = {
+  EGP: 'ج.م', AED: 'د.إ', SAR: 'ر.س', KWD: 'د.ك', QAR: 'ر.ق', BHD: 'د.ب', OMR: 'ر.ع', JOD: 'د.أ', IQD: 'د.ع', LBP: 'ل.ل',
+  SYP: 'ل.س', YER: 'ر.ي', LYD: 'د.ل', TND: 'د.ت', DZD: 'د.ج', MAD: 'د.م', SDG: 'ج.س', USD: '$', EUR: '€', GBP: '£',
+  TRY: '₺', ILS: '₪', MRU: 'أ.م', SOS: 'ش.ص', DJF: 'ف.ج', KMF: 'ف.ق',
+};
+const THREE_DECIMALS = new Set(['KWD', 'BHD', 'OMR', 'JOD', 'IQD', 'LYD', 'TND']);
+const curOf = (row) => (row && typeof row.currency === 'string' && row.currency.length === 3 ? row.currency.toUpperCase() : 'EGP');
+const money = (n, cur = 'EGP') =>
+  `${Number(n).toLocaleString('en-US', { maximumFractionDigits: THREE_DECIMALS.has(cur) ? 3 : 2 })} ${CURRENCY_LABEL[cur] || cur}`;
 const imagesOf = (p) => (Array.isArray(p.images) && p.images.length ? p.images : p.image_url ? [p.image_url] : []);
-const SHOP_COLS = 'id,name,category,description,address,lat,lng,slug,logo_url,cover_image_url,delivery_fee,free_delivery_over';
-const PRODUCT_COLS = 'id,name,description,category,price,old_price,images,image_url,stock';
+const SHOP_COLS = 'id,name,category,description,address,lat,lng,slug,logo_url,cover_image_url,delivery_fee,free_delivery_over,currency';
+const PRODUCT_COLS = 'id,name,description,category,price,old_price,currency,images,image_url,stock';
 
 async function storeData(slugName) {
   const shops = await rest(`shops?slug=eq.${encodeURIComponent(slugName.toLowerCase())}&select=${SHOP_COLS}`);
@@ -312,7 +321,7 @@ function offerOf(p, url) {
   return {
     '@type': 'Offer',
     price: Number(p.price),
-    priceCurrency: 'EGP',
+    priceCurrency: curOf(p),
     url,
     availability: typeof p.stock === 'number' && p.stock <= 0 ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
   };
@@ -326,7 +335,7 @@ async function storePage(slugName) {
   const where = city ? ` في ${city}` : '';
   const appUrl = `${APP}/#/s/${shop.slug}`;
   const canonical = `${SITE}/s/${shop.slug}`;
-  const delivery = shop.delivery_fee > 0 ? `توصيل ${egp(shop.delivery_fee)}${shop.free_delivery_over ? ` — مجاني فوق ${egp(shop.free_delivery_over)}` : ''}` : 'توصيل مجاني';
+  const delivery = shop.delivery_fee > 0 ? `توصيل ${money(shop.delivery_fee, curOf(shop))}${shop.free_delivery_over ? ` — مجاني فوق ${money(shop.free_delivery_over, curOf(shop))}` : ''}` : 'توصيل مجاني';
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Store',
@@ -349,8 +358,8 @@ async function storePage(slugName) {
   const items = products
     .map((p) => {
       const img = imagesOf(p)[0];
-      const off = p.old_price && Number(p.old_price) > Number(p.price) ? ` <s class="muted">${egp(p.old_price)}</s>` : '';
-      return `<li style="display:flex;gap:12px;align-items:center">${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" width="64" height="64" loading="lazy" style="border-radius:12px;object-fit:cover">` : ''}<div><a href="${SITE}/s/${esc(shop.slug)}/p/${esc(p.id)}">${esc(p.name)}</a><br><b style="color:#b7791f">${egp(p.price)}</b>${off}</div></li>`;
+      const off = p.old_price && Number(p.old_price) > Number(p.price) ? ` <s class="muted">${money(p.old_price, curOf(p))}</s>` : '';
+      return `<li style="display:flex;gap:12px;align-items:center">${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" width="64" height="64" loading="lazy" style="border-radius:12px;object-fit:cover">` : ''}<div><a href="${SITE}/s/${esc(shop.slug)}/p/${esc(p.id)}">${esc(p.name)}</a><br><b style="color:#b7791f">${money(p.price, curOf(p))}</b>${off}</div></li>`;
     })
     .join('');
   return page({
@@ -391,15 +400,15 @@ async function productPage(slugName, productId) {
   };
   return page({
     image: imgs[0],
-    title: `${p.name} بسعر ${egp(p.price)} — ${shop.name}${city ? ' ' + city : ''} | مُجتمعي`,
-    description: `${p.name} بـ ${egp(p.price)} من ${shop.name}${city ? ' في ' + city : ''}. ${p.description ? p.description.slice(0, 120) + ' ' : ''}اطلب أونلاين والدفع عند الاستلام.`,
+    title: `${p.name} بسعر ${money(p.price, curOf(p))} — ${shop.name}${city ? ' ' + city : ''} | مُجتمعي`,
+    description: `${p.name} بـ ${money(p.price, curOf(p))} من ${shop.name}${city ? ' في ' + city : ''}. ${p.description ? p.description.slice(0, 120) + ' ' : ''}اطلب أونلاين والدفع عند الاستلام.`,
     canonical,
     jsonLd,
     body: `<p class="muted"><a href="${SITE}/">الدليل</a> › <a href="${SITE}/s/${esc(shop.slug)}">${esc(shop.name)}</a></p>
 <div class="card">
 ${imgs[0] ? `<img src="${esc(imgs[0])}" alt="${esc(p.name)}" style="width:100%;max-height:420px;object-fit:contain;border-radius:12px;background:#fff">` : ''}
 <h1>${esc(p.name)}</h1>
-<p style="font-size:22px"><b style="color:#b7791f">${egp(p.price)}</b>${p.old_price && Number(p.old_price) > Number(p.price) ? ` <s class="muted">${egp(p.old_price)}</s>` : ''}</p>
+<p style="font-size:22px"><b style="color:#b7791f">${money(p.price, curOf(p))}</b>${p.old_price && Number(p.old_price) > Number(p.price) ? ` <s class="muted">${money(p.old_price, curOf(p))}</s>` : ''}</p>
 ${p.description ? `<p>${esc(p.description)}</p>` : ''}
 <a class="btn wa" href="${APP}/#/s/${encodeURIComponent(shop.slug)}/p/${encodeURIComponent(p.id)}">اطلب دلوقتي</a>
 <a class="btn line" href="${SITE}/s/${esc(shop.slug)}">كل منتجات ${esc(shop.name)}</a>
@@ -531,7 +540,7 @@ function offerComplete(o) {
 }
 
 async function offerPage(id) {
-  const rows = await rest(`marketplace_listings?id=eq.${id}&select=id,title,description,price,is_negotiable,condition,images,status,lat,lng,created_at`);
+  const rows = await rest(`marketplace_listings?id=eq.${id}&select=id,title,description,price,currency,is_negotiable,condition,images,status,lat,lng,created_at`);
   const o = rows[0];
   if (!o || o.status !== 'active') return { gone: true };
   const city = o.lat != null ? cityOf(o.lat, o.lng) : null;
@@ -549,7 +558,7 @@ async function offerPage(id) {
     offers: {
       '@type': 'Offer',
       price,
-      priceCurrency: 'EGP',
+      priceCurrency: curOf(o),
       url: canonical,
       availability: 'https://schema.org/InStock',
       ...(SCHEMA_CONDITION[o.condition] ? { itemCondition: `https://schema.org/${SCHEMA_CONDITION[o.condition]}` } : {}),
@@ -560,15 +569,15 @@ async function offerPage(id) {
     html: page({
       noindex: !offerComplete(o),
       image: imgs[0],
-      title: `${o.title} بسعر ${egp(price)}${where} | سوق المستعمل — مُجتمعي`,
-      description: `${o.title} بـ ${egp(price)}${o.is_negotiable ? ' (قابل للتفاوض)' : ''}${where}${CONDITION[o.condition] ? ' — ' + CONDITION[o.condition] : ''}. ${(o.description || '').slice(0, 120)}`,
+      title: `${o.title} بسعر ${money(price, curOf(o))}${where} | سوق المستعمل — مُجتمعي`,
+      description: `${o.title} بـ ${money(price, curOf(o))}${o.is_negotiable ? ' (قابل للتفاوض)' : ''}${where}${CONDITION[o.condition] ? ' — ' + CONDITION[o.condition] : ''}. ${(o.description || '').slice(0, 120)}`,
       canonical,
       jsonLd,
       body: `<p class="muted"><a href="${SITE}/">الدليل</a>${city ? ` › <a href="${SITE}/city/${encodeURIComponent(slug(city))}">${esc(city)}</a>` : ''} › سوق المستعمل</p>
 <div class="card">
 ${imgs[0] ? `<img src="${esc(imgs[0])}" alt="${esc(o.title)}" style="width:100%;max-height:420px;object-fit:contain;border-radius:12px;background:#fff">` : ''}
 <h1>${esc(o.title)}</h1>
-<p style="font-size:22px"><b style="color:#b7791f">${egp(price)}</b>${o.is_negotiable ? ' <span class="muted">قابل للتفاوض</span>' : ''}</p>
+<p style="font-size:22px"><b style="color:#b7791f">${money(price, curOf(o))}</b>${o.is_negotiable ? ' <span class="muted">قابل للتفاوض</span>' : ''}</p>
 <p class="muted">${esc(CONDITION[o.condition] || '')}${esc(where)}</p>
 ${o.description ? `<p>${esc(o.description)}</p>` : ''}
 ${imgs.slice(1, 5).map((u) => `<img src="${esc(u)}" alt="" width="96" height="96" loading="lazy" style="border-radius:10px;object-fit:cover;margin:4px">`).join('')}

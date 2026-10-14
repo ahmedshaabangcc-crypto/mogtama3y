@@ -8,6 +8,7 @@ import '../../core/cars/car_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 /// One car listing (`/cars/<id>`, public): photos, specs, "أنا مهتم" and
 /// a share link.
@@ -81,7 +82,7 @@ class _CarDetailsScreenState extends State<CarDetailsScreen> {
   Future<void> _share() async {
     final c = _c!;
     final url = CarService.shareUrl(widget.listingId);
-    final text = '${c['title']} — ${carPrice(c['price'] as num?)}${carPriceSuffix(c['offer_type'] as String?)}\nشوفه على مُجتمعي:\n$url';
+    final text = '${c['title']} — ${carPrice(c['price'] as num?, currencyOf(c))}${carPriceSuffix(c['offer_type'] as String?)}\nشوفه على مُجتمعي:\n$url';
     await Clipboard.setData(ClipboardData(text: url));
     if (!mounted) return;
     await showModalBottomSheet<void>(
@@ -231,7 +232,7 @@ class _CarDetailsScreenState extends State<CarDetailsScreen> {
         Text(c['title'] as String? ?? '', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: AppColors.ink)),
         const SizedBox(height: 6),
         Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, children: [
-          Text('${carPrice(c['price'] as num?)}${carPriceSuffix(c['offer_type'] as String?)}',
+          Text('${carPrice(c['price'] as num?, currencyOf(c))}${carPriceSuffix(c['offer_type'] as String?)}',
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AppColors.teal)),
           if (c['negotiable'] == true)
             Container(

@@ -7,6 +7,7 @@ import '../../core/tutoring/tutoring_service.dart';
 import '../shared/load_error_view.dart';
 import 'add_tutor_listing_screen.dart';
 import 'tutoring_market_screen.dart' show TutorPhotoPlaceholder;
+import 'package:mogtama3y/core/geo/money.dart';
 
 /// "إعلاناتي" for tutoring: the signed-in user's listings, with edit,
 /// stop / show again and delete.
@@ -152,7 +153,7 @@ class _MyTutorListingsScreenState extends State<MyTutorListingsScreen> {
                 Text(tutorLabels(t['subjects'], tutorSubjects),
                     maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.ink)),
                 const SizedBox(height: 2),
-                Text(tutorPrice(t['price'] as num?, t['price_unit'] as String?),
+                Text(tutorPrice(t['price'] as num?, t['price_unit'] as String?, currencyOf(t)),
                     style: const TextStyle(color: AppColors.teal, fontWeight: FontWeight.w700, fontSize: 13)),
                 const SizedBox(height: 2),
                 Text('${tutorLabels(t['stages'], tutorStages)} · ${active ? 'منشور' : 'متوقف'}',

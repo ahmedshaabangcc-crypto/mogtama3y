@@ -13,6 +13,9 @@ import '../shared/load_error_view.dart';
 import 'add_car_listing_screen.dart';
 import 'my_car_listings_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import 'package:mogtama3y/core/geo/money.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
+import 'package:intl/intl.dart';
 
 /// "سيارات" (`/cars`) — cars, motorcycles and tuktuks for sale or rent,
 /// plus parts & accessories. Guests can browse; posting needs an account.
@@ -246,7 +249,7 @@ class CarCard extends StatelessWidget {
     final images = (item['images'] as List?)?.cast<String>() ?? const [];
     final specs = [
       if (item['year'] != null) '${item['year']}',
-      if (item['km'] != null) '${carPrice(item['km']).replaceAll(' ج.م', '')} كم',
+      if (item['km'] != null) '${NumberFormat('#,##0').format(item['km'] as num)} كم',
       if (item['transmission'] != null) carTransmissions[item['transmission']] ?? '',
     ].where((s) => s.isNotEmpty).join(' · ');
     final place = [item['area'], item['governorate']].whereType<String>().where((s) => s.trim().isNotEmpty).join('، ');
@@ -303,7 +306,7 @@ class CarCard extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text.rich(
                     TextSpan(children: [
-                      TextSpan(text: carPrice(item['price'] as num?) + carPriceSuffix(item['offer_type'] as String?)),
+                      TextSpan(text: carPrice(item['price'] as num?, currencyOf(item)) + carPriceSuffix(item['offer_type'] as String?)),
                       if (item['negotiable'] == true)
                         const TextSpan(text: '  قابل للتفاوض', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: AppColors.inkMuted)),
                     ]),
@@ -421,7 +424,7 @@ class _FiltersSheetState extends State<_FiltersSheet> {
                   controller: _price,
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
-                    labelText: 'أقصى سعر (ج.م)',
+                    labelText: 'أقصى سعر (${UserCountry.currencyText})',
                     isDense: true,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   ),

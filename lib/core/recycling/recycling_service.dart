@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/auth_service.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
 
 /// Real recycling/بيكيا auction listings + bids — see
 /// backend/migrations/0011_recycling.sql.
@@ -14,6 +15,7 @@ class RecyclingService {
         .from('recycling_listings')
         .select('*, seller:profiles(full_name, is_verified), recycling_bids!recycling_bids_listing_id_fkey(id, bidder_id, amount, created_at)')
         .eq('status', 'active')
+        .eq('country', UserCountry.feedCountry)
         .order('created_at', ascending: false)
         .limit(30);
     return List<Map<String, dynamic>>.from(rows as List);

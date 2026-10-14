@@ -13,6 +13,8 @@ import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'add_real_estate_listing_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import 'package:mogtama3y/core/geo/money.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
 
 const _safetyTips = [
   'لا تحوّل أي مبلغ مالي مهما كان صغيراً إلا بعد معاينة الوحدة شخصياً على الطبيعة.',
@@ -259,7 +261,7 @@ extension on _RealEstateMarketplaceScreenState {
               onChanged: (v) => setSheet(() => gov = v),
             ),
             const SizedBox(height: 10),
-            TextField(controller: price, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'أقصى سعر (ج.م)')),
+            TextField(controller: price, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'أقصى سعر (${UserCountry.currencyText})')),
             const SizedBox(height: 10),
             const Text('أقل عدد غرف'),
             const SizedBox(height: 6),
@@ -400,7 +402,7 @@ class _ListingCardState extends State<_ListingCard> {
     final l = widget.listing;
     final owner = l['owner'] as Map<String, dynamic>?;
     final isSale = l['deal_type'] == 'sale';
-    final price = (l['price'] as num).toStringAsFixed(0);
+    final price = moneyOf(l, l['price'] as num);
     final isFeatured = AdTokenService.isCurrentlyFeatured(l);
     final images = (l['images'] as List?)?.cast<String>() ?? const [];
     final building = l['building'] as Map<String, dynamic>?;
@@ -487,7 +489,7 @@ class _ListingCardState extends State<_ListingCard> {
                   ),
                   const Spacer(),
                   Text(
-                    isSale ? '$price ج.م' : (l['offer_type'] == 'rent_daily' ? '$price ج.م / ليلة' : '$price ج.م / شهرياً'),
+                    isSale ? price : (l['offer_type'] == 'rent_daily' ? '$price / ليلة' : '$price / شهرياً'),
                     style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
                   ),
                 ]),

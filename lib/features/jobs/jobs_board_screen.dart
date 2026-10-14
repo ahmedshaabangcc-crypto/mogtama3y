@@ -9,6 +9,7 @@ import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'job_details_screen.dart';
 import 'post_job_form_screen.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 const _employmentLabels = {
   'full_time': 'دوام كامل',
@@ -30,8 +31,8 @@ String _salaryLabel(Map<String, dynamic> job) {
   final max = (job['salary_max'] as num?)?.toDouble();
   final fmt = NumberFormat('#,##0');
   if (min == null && max == null) return 'حسب الاتفاق';
-  if (min != null && max != null) return '${fmt.format(min)} - ${fmt.format(max)}';
-  return fmt.format(min ?? max);
+  if (min != null && max != null) return '${fmt.format(min)} - ${fmt.format(max)} ${currencyLabelOf(job)}';
+  return moneyOf(job, (min ?? max)!);
 }
 
 /// Simple jobs board listing nearby postings — matches
@@ -209,7 +210,7 @@ class _JobCard extends StatelessWidget {
             ]),
             const SizedBox(height: 8),
             Row(children: [
-              Text('${_salaryLabel(job)} ج.م', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.teal)),
+              Text(_salaryLabel(job), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.teal)),
               const Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

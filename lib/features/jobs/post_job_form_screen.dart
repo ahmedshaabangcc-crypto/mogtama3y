@@ -4,6 +4,7 @@ import '../../core/jobs/jobs_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../promote/promote_listing_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
 
 /// Post a new job listing (step 1 of 2) — matches
 /// design/screens/32_post_job_form.png.
@@ -173,7 +174,7 @@ class _PostJobFormScreenState extends State<PostJobFormScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(100)),
-              child: const Text('بالجنيه المصري', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
+              child: Text(UserCountry.currency == 'EGP' ? 'بالجنيه المصري' : 'بال${UserCountry.currencyText}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
             ),
           ]),
           const SizedBox(height: 10),

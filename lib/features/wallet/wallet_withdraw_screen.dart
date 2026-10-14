@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -7,6 +6,7 @@ import '../../core/wallet/wallet_service.dart';
 import '../shared/load_error_view.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
 import '../shared/phone_field.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 /// Manual withdrawal: the amount leaves the available balance right away
 /// and the admin transfers it to the given mobile wallet (migration 0045).
@@ -151,7 +151,7 @@ class _WalletWithdrawScreenState extends State<WalletWithdrawScreen> {
             decoration: BoxDecoration(color: AppColors.navy, borderRadius: BorderRadius.circular(16)),
             child: Row(children: [
               const Expanded(child: Text('رصيدك المتاح للسحب', style: TextStyle(color: Colors.white70, fontSize: 12))),
-              Text('${NumberFormat('#,##0.00').format(_available)} ج.م', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+              Text(money(_available, 'EGP'), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
             ]),
           ),
           const SizedBox(height: 18),

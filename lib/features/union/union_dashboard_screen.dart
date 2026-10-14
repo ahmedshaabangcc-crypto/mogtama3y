@@ -29,16 +29,6 @@ import 'union_fund_screen.dart';
 import 'union_landing_screen.dart';
 import 'union_home_link.dart';
 
-String _fmt(num n) {
-  final s = n.round().toString();
-  final buf = StringBuffer();
-  for (var i = 0; i < s.length; i++) {
-    if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
-    buf.write(s[i]);
-  }
-  return buf.toString();
-}
-
 const _weekdaysAr = ['الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'];
 String _weekdayAr(DateTime d) => _weekdaysAr[d.weekday - 1];
 
@@ -408,7 +398,7 @@ class _UnionDashboardScreenState extends State<UnionDashboardScreen> {
                   ]),
                   if (_canViewFund) ...[
                     const SizedBox(height: 10),
-                    Text('${_fmt(_fundBalance ?? 0)} ج.م', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)),
+                    Text(buildingMoney(_fundBalance ?? 0), style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)),
                   ],
                   if (collectionRatio == null) ...[
                     const SizedBox(height: 6),

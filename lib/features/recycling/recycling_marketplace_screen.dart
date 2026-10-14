@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/recycling/recycling_service.dart';
@@ -13,6 +12,7 @@ import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'add_recycling_lot_screen.dart';
 import 'auction_detail_screen.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 Duration _remainingFor(Map<String, dynamic> lot) {
   final endsAt = DateTime.tryParse(lot['auction_ends_at'] as String? ?? '');
@@ -314,7 +314,7 @@ class _LotCard extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text('أعلى عرض حالي', style: TextStyle(fontSize: 10, color: AppColors.inkMuted)),
-                            Text(topBid > 0 ? '${NumberFormat('#,##0').format(topBid)} ج.م' : 'لا توجد عروض بعد', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.teal)),
+                            Text(topBid > 0 ? moneyOf(lot, topBid) : 'لا توجد عروض بعد', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.teal)),
                           ],
                         ),
                       ),

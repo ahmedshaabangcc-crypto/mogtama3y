@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/promote/ad_token_service.dart';
 import '../../core/theme/app_colors.dart';
+import 'package:mogtama3y/core/geo/money.dart';
 
 const _minTokens = 5;
 
@@ -115,7 +116,7 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         children: [
           Text(
-            'استخدم رصيد التوكن لتمييز إعلاناتك وظهورها أولاً لجيرانك. السعر الحالي ${_tokenPrice.toStringAsFixed(0)} ج.م للتوكن الواحد.',
+            'استخدم رصيد التوكن لتمييز إعلاناتك وظهورها أولاً لجيرانك. السعر الحالي ${money(_tokenPrice, 'EGP')} للتوكن الواحد.',
             style: const TextStyle(fontSize: 11.5, color: AppColors.inkSecondary, height: 1.8),
           ),
           const SizedBox(height: 18),
@@ -143,12 +144,12 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
                   ],
                 ),
                 const SizedBox(height: 6),
-                Text('الحد الأدنى $_minTokens توكن (${(_minTokens * _tokenPrice).round()} ج.م) • بمضاعفات 5', style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
+                Text('الحد الأدنى $_minTokens توكن (${money((_minTokens * _tokenPrice).round(), 'EGP')}) • بمضاعفات 5', style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
                 const Divider(height: 28, color: AppColors.border),
                 Row(children: [
                   const Text('المبلغ المطلوب تحويله', style: TextStyle(fontSize: 12, color: AppColors.inkSecondary)),
                   const Spacer(),
-                  Text('$_amountEgp ج.م', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: AppColors.teal)),
+                  Text(money(_amountEgp, 'EGP'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: AppColors.teal)),
                 ]),
               ],
             ),
@@ -247,7 +248,7 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
           const Text('طلبك قيد المراجعة', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
           const SizedBox(height: 8),
           Text(
-            'تم استلام طلب شحن $_tokens توكن ($_amountEgp ج.م). سيتم مراجعته واعتماده يدوياً وإضافة الرصيد لحسابك خلال ساعات قليلة.',
+            'تم استلام طلب شحن $_tokens توكن (${money(_amountEgp, 'EGP')}). سيتم مراجعته واعتماده يدوياً وإضافة الرصيد لحسابك خلال ساعات قليلة.',
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 12, color: AppColors.inkSecondary, height: 1.8),
           ),

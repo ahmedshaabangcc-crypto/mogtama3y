@@ -2414,6 +2414,8 @@ const denied = (r) => !!r.error;
     await db.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'migrations', '0087_masjid_worldwide.sql'), 'utf8'));
     // …and 0089 (chat send's phone filter, mosque helpers by any Arab mobile).
     await db.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'migrations', '0089_arab_world_foundation.sql'), 'utf8'));
+    // …and 0092 (shop orders / fund withdrawal redefined with the currency).
+    await db.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'migrations', '0092_arab_currency.sql'), 'utf8'));
 
     const mascM = (await admin(db, `insert into mosques (name, lat, lng, verified) values ('مسجد النور', 30.4, 31.6, true) returning id`))[0].id;
     const mascN1 = await signUp(db, 'masc realname one', null);
@@ -2581,6 +2583,7 @@ const denied = (r) => !!r.error;
     // …and 0087 (worldwide: hands / speakers / create redefined).
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0087_masjid_worldwide.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0089_arab_world_foundation.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0092_arab_currency.sql'), 'utf8'));
 
     const M = (await admin(db, `insert into mosques (name, lat, lng, verified) values ('مسجد الرحمن', 30.05, 31.25, true) returning id`))[0].id;
     const U = (await admin(db, `insert into mosques (name, lat, lng) values ('مسجد مش موثق', 30.06, 31.26) returning id`))[0].id;
@@ -2869,6 +2872,7 @@ const denied = (r) => !!r.error;
     }
     check('mww: 0087 is safe to re-run', rerun === null, rerun);
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0089_arab_world_foundation.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0092_arab_currency.sql'), 'utf8'));
     const has = (r, text) => !!r.error && r.error.includes(text);
 
     // ---- places: country / zone / currency
@@ -3185,6 +3189,7 @@ const denied = (r) => !!r.error;
       rerun = e.message;
     }
     check('arab: 0089 is safe to re-run', rerun === null, rerun);
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0092_arab_currency.sql'), 'utf8'));
     const norm = async (p, c) => (await admin(db, `select private.norm_phone($1, $2) as n`, [p, c ?? null]))[0].n;
     const store = async (p, c) => (await admin(db, `select private.phone_store($1, $2) as n`, [p, c ?? null]))[0].n;
 
@@ -3341,6 +3346,122 @@ const denied = (r) => !!r.error;
     // ---- mosque chat: the phone filter sees local Arab numbers
     check('arab: masjid_chat_send uses the 22-state phone filter',
       (await admin(db, `select pg_get_functiondef('public.masjid_chat_send(uuid, text, uuid)'::regprocedure) d`))[0].d.includes('private.has_phone_number'));
+  }
+
+  // ------------------------------------------------------------------
+  console.log('\nPhase cur — a currency on everything priced (0092)');
+  {
+    const fs = require('fs');
+    const path = require('path');
+    let rerun = null;
+    try {
+      await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0092_arab_currency.sql'), 'utf8'));
+    } catch (e) {
+      rerun = e.message;
+    }
+    check('cur: 0092 is safe to re-run', rerun === null, rerun);
+    const notes = async (u) => (await admin(db, `select title, body from notifications where user_id = $1 order by created_at`, [u])).map((n) => n.title + ' | ' + n.body);
+    const lastNote = async (u) => (await notes(u)).pop() ?? '';
+
+    const curSA = await signUp(db, 'cur saudi', '+966 50 700 0001');
+    const curEG = await signUp(db, 'cur egypt', '01000007001');
+    const curAE = await signUp(db, 'cur emirati', '+971 50 700 0001');
+    const curKW = await signUp(db, 'cur kuwaiti', '+965 5070 0001');
+    const curLB = await signUp(db, 'cur lebanese', '+961 3 700001');
+    const curBuyer = await signUp(db, 'cur buyer', '01000007002');
+
+    // ---- listings take the seller's country / currency
+    const saL = await as(db, curSA, `insert into marketplace_listings (seller_id, title, price, condition) values ($1, 'آيفون', 2500, 'used') returning currency, country`, [curSA]);
+    check('cur: a Saudi seller\'s listing is SAR / SA', saL.rows?.[0]?.currency === 'SAR' && saL.rows?.[0]?.country === 'SA', saL);
+    const egL = await as(db, curEG, `insert into marketplace_listings (seller_id, title, price, condition) values ($1, 'تلاجة', 9000, 'used') returning currency, country`, [curEG]);
+    check('cur: an Egyptian seller\'s listing stays EGP / EG', egL.rows?.[0]?.currency === 'EGP' && egL.rows?.[0]?.country === 'EG', egL);
+    check('cur: every existing row is EGP / EG',
+      (await admin(db, `select count(*)::int n from marketplace_listings where (currency, country) <> ('EGP', 'EG') and seller_id <> $1`, [curSA]))[0].n === 0 &&
+      (await admin(db, `select count(*)::int n from buildings where currency <> 'EGP'`))[0].n === 0);
+    const sent = await as(db, curSA, `insert into car_listings (owner_id, offer_type, brand, year, title, price, currency) values ($1, 'sale', 'تويوتا', 2020, 'كامري', 85000, 'usd') returning currency, country`, [curSA]);
+    check('cur: a currency the client sends is kept (upper-cased)', sent.rows?.[0]?.currency === 'USD' && sent.rows?.[0]?.country === 'SA', sent);
+    check('cur: a bogus currency is replaced by the seller\'s',
+      (await as(db, curAE, `insert into kids_listings (owner_id, category, title, price, phone, currency) values ($1, 'toys', 'لعبة', 40, '+971507000001', 'dirham') returning currency`, [curAE])).rows?.[0]?.currency === 'AED');
+    check('cur: guests can read a pet listing\'s currency',
+      ok(await as(db, curAE, `insert into pet_listings (owner_id, kind, animal, title, price, phone) values ($1, 'sale', 'cat', 'شيرازي', 900, '+971507000001')`, [curAE])) &&
+      (await as(db, null, `select currency, country from pet_listings where owner_id = $1`, [curAE])).rows?.[0]?.currency === 'AED');
+    check('cur: the feed filters by country', (await as(db, null, `select title from marketplace_listings where country = 'SA'`)).rows?.every((r) => r.title === 'آيفون'));
+
+    // ---- recycling: bids in the lot's currency
+    const saLot = (await as(db, curSA, `insert into recycling_listings (seller_id, category, title, auction_ends_at) values ($1, 'metal', 'حديد خردة', now() + interval '2 days') returning id, currency`, [curSA])).rows?.[0];
+    check('cur: a Saudi lot is SAR', saLot?.currency === 'SAR', saLot);
+    check('cur: a bid on it', ok(await as(db, curBuyer, `select public.place_recycling_bid($1, 1500)`, [saLot?.id])));
+    check('cur: the seller is notified in «ر.س»', (await lastNote(curSA)).includes('1,500 ر.س'), await lastNote(curSA));
+    const lowBid = await as(db, curEG, `select public.place_recycling_bid($1, 1000)`, [saLot?.id]);
+    check('cur: the "higher than" error is in «ر.س»', !!lowBid.error && lowBid.error.includes('1,500 ر.س'), lowBid.error);
+    const egLot = (await as(db, curEG, `insert into recycling_listings (seller_id, category, title, auction_ends_at) values ($1, 'metal', 'نحاس', now() + interval '2 days') returning id`, [curEG])).rows?.[0]?.id;
+    await as(db, curBuyer, `select public.place_recycling_bid($1, 500)`, [egLot]);
+    check('cur: an Egyptian lot is unchanged («500 ج.م»)', (await lastNote(curEG)).includes('500 ج.م'), await lastNote(curEG));
+    check('cur: accepting notifies the winner in the lot\'s currency',
+      ok(await as(db, curSA, `select public.accept_recycling_top_bid($1)`, [saLot?.id])) && (await lastNote(curBuyer)).includes('1,500 ر.س'));
+    const myBids = (await as(db, curBuyer, `select * from public.recycling_my_bids()`)).rows ?? [];
+    check('cur: «عروضي» carries each lot\'s currency', myBids.find((b) => b.listing_id === saLot?.id)?.currency === 'SAR' && myBids.find((b) => b.listing_id === egLot)?.currency === 'EGP', myBids);
+
+    // ---- a shop in AED with a delivery fee
+    const aeShop = (await as(db, curAE, `select public.create_my_shop('سوبر ماركت دبي', 'بقالة', 'cur-dubai', '0507000001') as id`)).rows?.[0]?.id;
+    check('cur: a UAE shop is AED / AE', (await admin(db, `select currency, country from shops where id = $1`, [aeShop]))[0]?.currency === 'AED');
+    const aeProd = (await as(db, curAE, `insert into shop_products (shop_id, name, price, currency) values ($1, 'حليب', 12.5, 'EGP') returning id, currency`, [aeShop])).rows?.[0];
+    check('cur: EXPLOIT blocked: a product is always in its shop\'s currency', aeProd?.currency === 'AED', aeProd);
+    check('cur: the UAE shop sets a 15 د.إ delivery fee', ok(await as(db, curAE, `select public.set_my_shop_delivery($1, 15)`, [aeShop])));
+    const aeCode = (await as(db, null, `select public.place_store_order($1, $2::jsonb, 'سالم', '+971 50 700 0099', 'مرسى دبي، برج 3، شقة 12') as c`,
+      [aeShop, JSON.stringify([{ product_id: aeProd?.id, quantity: 2 }])])).rows?.[0]?.c;
+    const aeOrder = (await as(db, null, `select public.get_store_order($1) as o`, [aeCode])).rows?.[0]?.o;
+    check('cur: the order is AED: 2 × 12.5 + 15 delivery = 40', aeOrder?.currency === 'AED' && Number(aeOrder?.total) === 40 && Number(aeOrder?.delivery_fee) === 15, aeOrder);
+    check('cur: the merchant is notified in «د.إ»', (await lastNote(curAE)).includes('40 د.إ'), await lastNote(curAE));
+    const aeOrderId = (await admin(db, `select id from shop_orders where order_code = $1`, [aeCode]))[0]?.id;
+    check('cur: order status notices use the order\'s currency', ok(await as(db, curAE, `select public.update_shop_order_status($1, 'preparing')`, [aeOrderId])) &&
+      ok(await as(db, curBuyer, `select public.place_shop_order($1, $2::jsonb, '01000007002')`, [aeShop, JSON.stringify([{ product_id: aeProd?.id, quantity: 1 }])])) &&
+      (await lastNote(curAE)).includes('12.5 د.إ'));
+    check('cur: a shop switching currency takes its catalogue along',
+      ok(await as(db, curAE, `update shops set currency = 'USD' where id = $1`, [aeShop])) &&
+      (await admin(db, `select currency from shop_products where id = $1`, [aeProd?.id]))[0]?.currency === 'USD' &&
+      (await admin(db, `select currency from shop_orders where id = $1`, [aeOrderId]))[0]?.currency === 'AED');
+
+    // ---- limits scale with the currency
+    const egShop = (await as(db, curEG, `select public.create_my_shop('بقالة الحي', 'بقالة', 'cur-masr', '01000007001') as id`)).rows?.[0]?.id;
+    const egFee = await as(db, curEG, `select public.set_my_shop_delivery($1, 1500)`, [egShop]);
+    check('cur: an Egyptian delivery fee is still capped at 1000 ج.م', !!egFee.error && egFee.error.includes('1,000 ج.م'), egFee.error);
+    check('cur: …and 1000 is fine', ok(await as(db, curEG, `select public.set_my_shop_delivery($1, 1000)`, [egShop])));
+    check('cur: an Egyptian product over 1,000,000 ج.م is refused',
+      denied(await as(db, curEG, `insert into shop_products (shop_id, name, price) values ($1, 'x', 2000000)`, [egShop])));
+    const lbShop = (await as(db, curLB, `select public.create_my_shop('دكان بيروت', 'بقالة', 'cur-beirut', '+9613700001') as id`)).rows?.[0]?.id;
+    check('cur: a Lebanese shop is LBP', (await admin(db, `select currency from shops where id = $1`, [lbShop]))[0]?.currency === 'LBP');
+    check('cur: a Lebanese shop may charge 50,000 ل.ل delivery', ok(await as(db, curLB, `select public.set_my_shop_delivery($1, 50000)`, [lbShop])));
+    check('cur: …and sell a 2,000,000 ل.ل product', ok(await as(db, curLB, `insert into shop_products (shop_id, name, price) values ($1, 'تلفزيون', 2000000)`, [lbShop])));
+    check('cur: an Egyptian tutor over 100,000 ج.م is refused, a Lebanese one in ل.ل is not',
+      denied(await as(db, curEG, `insert into tutor_listings (owner_id, subjects, stages, modes, price, whatsapp) values ($1, '{math}', '{primary}', '{online}', 150000, '01000007001')`, [curEG])) &&
+      ok(await as(db, curLB, `insert into tutor_listings (owner_id, subjects, stages, modes, price, whatsapp) values ($1, '{math}', '{primary}', '{online}', 1500000, '+9613700001')`, [curLB])));
+    const caps = (await admin(db, `select private.money_cap(1000, 'KWD') k, private.money_cap(1000, 'LBP') l, private.money_cap(1000, 'EGP') e, private.money_min(10, 'KWD') m`))[0];
+    check('cur: caps never shrink below the EGP number', Number(caps.k) === 1000 && Number(caps.l) === 2000000 && Number(caps.e) === 1000 && Number(caps.m) === 0.065, caps);
+
+    // ---- a Kuwaiti building: dues in KWD
+    await as(db, curKW, `select public.found_building('برج السالمية', 'السالمية', 'حولي', 'حولي', '1', 'الأول')`);
+    const kwBld = (await admin(db, `select building_id from union_members where user_id = $1`, [curKW]))[0]?.building_id;
+    check('cur: a Kuwaiti founder\'s building is KWD / KW', (await admin(db, `select currency, country from buildings where id = $1`, [kwBld]))[0]?.currency === 'KWD');
+    const kwReq = (await admin(db, `select id from president_requests where user_id = $1 and status = 'pending'`, [curKW]))[0]?.id;
+    await as(db, SA, `select public.review_president_request($1, true)`, [kwReq]);
+    check('cur: the president issues a 12.5 د.ك due', ok(await as(db, curKW, `select public.create_union_due('نوفمبر', 12.5, current_date, $1)`, [kwBld])));
+    check('cur: the due notice reads «12.5 د.ك»', (await notes(curKW)).some((n) => n.includes('مستحق صيانة جديد') && n.includes('12.5 د.ك')), await notes(curKW));
+    const kwDue = (await admin(db, `select id from union_dues where building_id = $1`, [kwBld]))[0]?.id;
+    await admin(db, `update wallets set available_balance = 1000 where user_id = $1`, [curKW]);
+    const kwPay = await as(db, curKW, `select public.pay_union_due($1)`, [kwDue]);
+    check('cur: the (EGP) wallet can\'t pay a KWD due', !!kwPay.error && kwPay.error.includes('كاش'), kwPay.error);
+    check('cur: …the treasurer records it in cash', ok(await as(db, curKW, `select public.mark_due_paid_cash($1)`, [kwDue])) &&
+      Number((await admin(db, `select balance from union_funds where building_id = $1`, [kwBld]))[0]?.balance) === 12.5);
+    const kwOver = await as(db, curKW, `select public.request_fund_withdrawal($1, 50, 'دهان', '+96550700001')`, [kwBld]);
+    check('cur: the fund\'s "not enough" error is in د.ك', !!kwOver.error && kwOver.error.includes('12.5 د.ك'), kwOver.error);
+    check('cur: a KWD fund can\'t be withdrawn into the EGP wallet', denied(await as(db, curKW, `select public.request_fund_withdrawal($1, 5, 'دهان')`, [kwBld])));
+    check('cur: …but can be paid out to a Kuwaiti number', ok(await as(db, curKW, `select public.request_fund_withdrawal($1, 5, 'دهان السلم', '+96550700001')`, [kwBld])) &&
+      (await lastNote(SA)).includes('5 د.ك'));
+    check('cur: the admin list carries the building currency',
+      (await as(db, SA, `select * from public.admin_list_union_fund_withdrawals()`)).rows?.find((r) => r.building_id === kwBld)?.currency === 'KWD');
+    check('cur: an Egyptian building\'s dues still read «ج.م»',
+      (await admin(db, `select count(*)::int n from notifications where title = 'مستحق صيانة جديد' and body like '%ج.م%'`))[0].n > 0);
   }
 
   console.log(`\n${passed} passed, ${failures.length} failed`);

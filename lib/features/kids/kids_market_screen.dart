@@ -13,6 +13,7 @@ import '../shared/load_error_view.dart';
 import 'add_kids_item_screen.dart';
 import 'my_kids_listings_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import 'package:mogtama3y/core/geo/user_country.dart';
 
 /// "مستلزمات الأطفال" (`/kids`) — strollers, car seats, cribs, toys,
 /// clothes… new or used, for sale, swap or free. Guests can browse;
@@ -431,7 +432,7 @@ class _FiltersSheetState extends State<_FiltersSheet> {
                     controller: _price,
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
-                      labelText: 'أقصى سعر (ج.م)',
+                      labelText: 'أقصى سعر (${UserCountry.currencyText})',
                       isDense: true,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),

@@ -407,7 +407,7 @@ extension _TajerBackend on DemoStore {
       case 'set_my_shop_delivery':
         final fee = p['p_fee'] as num?;
         final freeOver = p['p_free_over'] as num?;
-        if (fee == null || fee < 0 || fee > 1000) throw DemoError('قيمة التوصيل لازم تكون من 0 لـ 1000 جنيه');
+        if (fee == null || fee < 0 || fee > 1000) throw DemoError('قيمة التوصيل لازم تكون من 0 لـ 1,000 ج.م');
         if (freeOver != null && freeOver <= 0) throw DemoError('حد التوصيل المجاني لازم يكون أكبر من صفر');
         final s = _myShop(p['p_shop_id'] as String?);
         s['delivery_fee'] = (fee * 100).round() / 100;
