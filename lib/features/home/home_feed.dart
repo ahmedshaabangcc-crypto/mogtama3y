@@ -11,6 +11,9 @@ import '../../core/shops/store_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/location/where.dart';
 import '../../core/places/place_images.dart';
+import '../../core/places/osm_places.dart';
+import '../../core/geo/admin_areas.dart' show arabCountryAt;
+import '../discover/osm_place_open.dart';
 import '../store/store_cart.dart';
 import 'package:mogtama3y/core/geo/money.dart';
 import 'package:mogtama3y/core/geo/user_country.dart';
@@ -261,7 +264,8 @@ class _ProductCard extends StatelessWidget {
 }
 
 /// "محلات حواليك": stores registered on مُجتمعي first, then the nearest
-/// shops from the Egypt directory (order on WhatsApp). The location is used
+/// shops from the directory (order on WhatsApp) — plus OpenStreetMap shops
+/// outside Egypt or where ours are few (0094). The location is used
 /// silently only when already allowed; otherwise a tile asks for it.
 class NewStoresRail extends StatefulWidget {
   const NewStoresRail({super.key});
@@ -320,12 +324,16 @@ class _NewStoresRailState extends State<NewStoresRail> {
       if (rows.where((r) => _shopCategories.contains(r['category'])).length < 8) {
         rows = await DirectoryService.nearby(lat: p.latitude, lng: p.longitude, km: 5, limit: 150);
       }
-      final shops = rows.where((r) => _shopCategories.contains(r['category']) && r['claimed_shop_id'] == null).toList()
-        // Shops you can order from on WhatsApp first, then by distance.
-        ..sort((a, b) {
-          final wa = (b['whatsapp'] != null ? 1 : 0) - (a['whatsapp'] != null ? 1 : 0);
-          return wa != 0 ? wa : ((a['distance_km'] as num) - (b['distance_km'] as num)).sign.toInt();
-        });
+      var shops = rows.where((r) => _shopCategories.contains(r['category']) && r['claimed_shop_id'] == null).toList();
+      if (wantsOsm(ours: shops.length, country: arabCountryAt(p.latitude, p.longitude), enough: 8)) {
+        final osm = await OsmPlaces.near(p.latitude, p.longitude);
+        shops = mergeWithOsm(shops, osm, p.latitude, p.longitude, categories: _shopCategories, maxOsm: 20);
+      }
+      // Shops you can order from on WhatsApp first, then by distance.
+      shops.sort((a, b) {
+        final wa = (b['whatsapp'] != null ? 1 : 0) - (a['whatsapp'] != null ? 1 : 0);
+        return wa != 0 ? wa : ((a['distance_km'] as num) - (b['distance_km'] as num)).sign.toInt();
+      });
       if (mounted) {
         setState(() {
           _nearby = shops.take(20).toList();
@@ -365,6 +373,7 @@ class _NewStoresRailState extends State<NewStoresRail> {
             ],
           ),
         ),
+        if (_nearby.any((p) => p['osm'] == true)) const OsmPlacesAttribution(color: Colors.white54),
       ]),
     );
   }
@@ -408,7 +417,7 @@ class _NewStoresRailState extends State<NewStoresRail> {
     final km = (p['distance_km'] as num?)?.toDouble();
     final dist = km == null ? '' : (km < 1 ? '${(km * 1000).round()} م' : '${km.toStringAsFixed(1)} كم');
     return _tile(
-      onTap: () => context.push('/d/${p['id']}'),
+      onTap: () => openDirectoryRow(context, p),
       avatar: CircleAvatar(
         radius: 30,
         backgroundColor: AppColors.nightMid,

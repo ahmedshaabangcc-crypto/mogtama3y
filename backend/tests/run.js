@@ -3593,6 +3593,114 @@ const denied = (r) => !!r.error;
     check('geo: found_building_in is for signed-in users only', denied(await fb(null, 'found_building_in', ['AE', 'x', 'x', 'x', 'x', '1', '1'])));
   }
 
+  console.log('\nPhase dir — the directory outside Egypt (0094)');
+  {
+    const dSA = await signUp(db, 'dir saudi', '+966 50 709 4001');
+    const dSA2 = await signUp(db, 'dir saudi 2', '+966 50 709 4002');
+    const dEG = await signUp(db, 'dir egypt', '01000009401');
+    const RIY = [24.7136, 46.6753];
+    const CAI = [30.0500, 31.2400];
+    const idOf = (r) => r.rows?.[0]?.id;
+
+    // An Overture row as loaded before 0094 (no country / source given).
+    await admin(db, `insert into directory_places (id, name, category, phone, whatsapp, lat, lng, confidence)
+      values ('08f3dir0000000001', 'صيدلية العزبي', 'صيدليات', '+20 2 2345 6789', null, $1, $2, 0.9)`, CAI);
+    const ov = (await admin(db, `select country, source from directory_places where id = '08f3dir0000000001'`))[0];
+    check('dir: existing (Overture) rows are EG / overture', ov?.country === 'EG' && ov.source === 'overture', ov);
+    const egNear = async () => (await as(db, null, `select id, name, category, distance_km from public.nearby_directory($1, $2, 3, null, 50)`, CAI)).rows || [];
+    const egBefore = await egNear();
+    check('dir: nearby_directory in Cairo still works for guests', egBefore.some((r) => r.id === '08f3dir0000000001'), egBefore);
+
+    // ---- OpenStreetMap import
+    const imp = (u, args) => as(db, u,
+      `select public.directory_import_osm($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) as id`,
+      [args.type ?? 'node', args.osm, args.name, args.cat ?? 'سوبر ماركت وبقالة', args.lat ?? RIY[0], args.lng ?? RIY[1],
+        args.phone ?? null, args.web ?? null, args.hours ?? null, args.kind ?? null, args.addr ?? null]);
+    const i1 = await imp(dSA, { osm: 5001, name: 'بقالة النخيل', phone: '+966 50 111 2233', web: 'https://nakheel.example', hours: 'Mo-Su 08:00-23:00', kind: 'shop=convenience' });
+    const r1 = (await admin(db, `select * from directory_places where id = $1`, [idOf(i1)]))[0];
+    check('dir: an OSM shop in Riyadh becomes ours (osm-node-5001, SA, osm)',
+      idOf(i1) === 'osm-node-5001' && r1?.country === 'SA' && r1.source === 'osm' && r1.osm_type === 'node' && Number(r1.osm_id) === 5001, { e: i1.error, r1 });
+    check('dir: …with its WhatsApp (+966…), website and hours', r1?.whatsapp === '+966501112233' && r1.website === 'https://nakheel.example' && r1.opening_hours === 'Mo-Su 08:00-23:00', r1);
+    const i1b = await imp(dSA2, { osm: 5001, name: 'بقالة النخيل' });
+    const n5001 = (await admin(db, `select count(*)::int n from directory_places where osm_id = 5001`))[0].n;
+    check('dir: importing the same OSM object again is idempotent', idOf(i1b) === 'osm-node-5001' && n5001 === 1, { i1b, n5001 });
+    // Same spot (≈ 10 m) and a similar name as the Overture pharmacy → no duplicate.
+    const i2 = await imp(dEG, { type: 'way', osm: 6001, name: 'صيدليه العزبى', cat: 'صيدليات', lat: CAI[0] + 0.00008, lng: CAI[1] + 0.00002 });
+    const ovNow = (await admin(db, `select osm_type, osm_id from directory_places where id = '08f3dir0000000001'`))[0];
+    check('dir: an OSM place ~10 m from ours with a similar name is matched, not duplicated',
+      idOf(i2) === '08f3dir0000000001' && ovNow.osm_type === 'way' && Number(ovNow.osm_id) === 6001, { i2, ovNow });
+    check('dir: …and found by its OSM id next time', idOf(await imp(dEG, { type: 'way', osm: 6001, name: 'x y', cat: 'صيدليات', lat: CAI[0], lng: CAI[1] })) === '08f3dir0000000001');
+    const i3 = await imp(dEG, { osm: 6002, name: 'مخبز الأمل', cat: 'حلويات ومخبوزات', lat: CAI[0] + 0.00008, lng: CAI[1] });
+    check('dir: a different name at the same spot is a new place (EG)', idOf(i3) === 'osm-node-6002' &&
+      (await admin(db, `select country from directory_places where id = 'osm-node-6002'`))[0]?.country === 'EG', i3.error);
+    const i4 = await imp(dSA, { osm: 5002, name: 'Abu Ali Plumbing', cat: 'whatever', kind: 'craft=plumber', lat: RIY[0] + 0.01 });
+    const r4 = (await admin(db, `select category, trade, kind from directory_places where id = $1`, [idOf(i4)]))[0];
+    check('dir: unknown category → محلات متنوعة; craft=plumber gets the سباكة trade', r4?.category === 'محلات متنوعة' && r4.trade === 'سباكة' && r4.kind === 'craft=plumber', r4);
+    check('dir: guests cannot import', denied(await imp(null, { osm: 5003, name: 'x shop' })));
+    check('dir: import outside the Arab world is refused (London)', denied(await imp(dSA, { osm: 5004, name: 'Tesco', lat: 51.5, lng: -0.12 })));
+    check('dir: a bogus OSM type / id is refused', denied(await imp(dSA, { type: 'area', osm: 5005, name: 'x shop' })) && denied(await imp(dSA, { osm: -1, name: 'x shop' })));
+    await admin(db, `insert into private.directory_contributions (user_id, place_id, kind) select $1, 'x' || g, 'osm' from generate_series(1, 60) g`, [dSA2]);
+    check('dir: OSM imports are rate-limited per user per day', denied(await imp(dSA2, { osm: 5006, name: 'محل جديد', lat: RIY[0] + 0.02 })));
+    check('dir: …but opening an already imported one still works', idOf(await imp(dSA2, { osm: 5001, name: 'بقالة النخيل' })) === 'osm-node-5001');
+
+    // ---- «ضيف محل»
+    const add = (u, a) => as(db, u, `select public.directory_add_place($1, $2, $3, $4, $5, $6, $7, $8) as id`,
+      [a.name, a.cat ?? 'مطاعم', a.lat ?? RIY[0] + 0.001, a.lng ?? RIY[1], a.phone ?? null, a.wa ?? null, a.hours ?? null, a.addr ?? null]);
+    const a1 = await add(dSA, { name: 'مطعم البيك', wa: '0501234567', hours: 'كل يوم 10 ص - 2 بالليل', addr: 'شارع العليا' });
+    const ra1 = (await admin(db, `select * from directory_places where id = $1`, [idOf(a1)]))[0];
+    check('dir: a user adds a restaurant in Riyadh (usr-…, SA, user)', /^usr-[0-9a-f]{32}$/.test(idOf(a1) || '') && ra1?.country === 'SA' && ra1.source === 'user', { e: a1.error, ra1 });
+    check('dir: …its local Saudi WhatsApp is stored as +966…, also as the phone', ra1?.whatsapp === '+966501234567' && ra1.phone === '+966501234567' && ra1.opening_hours === 'كل يوم 10 ص - 2 بالليل', ra1);
+    check('dir: the same name at the same spot returns the existing place', idOf(await add(dSA2, { name: 'مطعم  البيك' })) === idOf(a1));
+    check('dir: add_place validation (name, category, WhatsApp, phone)',
+      denied(await add(dSA, { name: 'x' })) && denied(await add(dSA, { name: 'محل حلو', cat: 'مساجد' })) &&
+      denied(await add(dSA, { name: 'محل حلو', wa: '12345' })) && denied(await add(dSA, { name: 'محل حلو', phone: 'call me' })));
+    check('dir: add_place is for the Arab world only (London, Istanbul)',
+      denied(await add(dSA, { name: 'محل لندن', lat: 51.5, lng: -0.12 })) && denied(await add(dSA, { name: 'محل اسطنبول', lat: 41.01, lng: 28.97 })));
+    check('dir: guests cannot add places', denied(await add(null, { name: 'محل ضيف' })));
+    const aEG = await add(dEG, { name: 'كشري التحرير', lat: CAI[0] + 0.002, lng: CAI[1], wa: '01012345678', phone: '0223456789' });
+    const raEG = (await admin(db, `select country, whatsapp, phone from directory_places where id = $1`, [idOf(aEG)]))[0];
+    check('dir: an Egyptian addition is EG with an 01… WhatsApp and the landline kept', raEG?.country === 'EG' && raEG.whatsapp === '01012345678' && raEG.phone === '0223456789', { e: aEG.error, raEG });
+    for (let i = 2; i <= 5; i++) await add(dSA, { name: `محل رقم ${i}`, lat: RIY[0] + 0.001 * i });
+    check('dir: 5 additions a day per user', denied(await add(dSA, { name: 'محل رقم 6', lat: RIY[0] + 0.01 })));
+    check('dir: who added what is private', denied(await as(db, dSA, `select * from private.directory_contributions`)));
+    check('dir: nobody writes directory_places directly',
+      denied(await as(db, dSA, `insert into directory_places (id, name, category, lat, lng) values ('hack-000001', 'x', 'مطاعم', 1, 1)`)) &&
+      ((await as(db, dSA, `update directory_places set name = 'hacked' where id = $1`, [idOf(a1)])).affected ?? 0) === 0);
+
+    // ---- nearby: Riyadh now has places, Egypt unchanged
+    const riyNear = (await as(db, null, `select id, category, distance_km from public.nearby_directory($1, $2, 3, null, 50)`, RIY)).rows || [];
+    check('dir: nearby_directory at a Riyadh point lists the added and imported places',
+      riyNear.some((r) => r.id === idOf(a1)) && riyNear.some((r) => r.id === 'osm-node-5001'), riyNear.map((r) => r.id));
+    check('dir: …filtered by category too', ((await as(db, null, `select id from public.nearby_directory($1, $2, 3, 'مطاعم', 50)`, RIY)).rows || []).every((r) => r.id.startsWith('usr-')));
+    check('dir: the Riyadh plumber is in the technicians market', ((await as(db, null, `select id from public.nearby_services($1, $2, 'سباكة', 10, 20)`, RIY)).rows || []).some((r) => r.id === 'osm-node-5002'));
+    const egAfter = await egNear();
+    const ovAfter = egAfter.find((r) => r.id === '08f3dir0000000001');
+    const ovBefore = egBefore.find((r) => r.id === '08f3dir0000000001');
+    check('dir: Egypt is unchanged (same Overture row, same distance)', ovAfter && ovAfter.name === ovBefore.name && ovAfter.distance_km === ovBefore.distance_km, { ovAfter, ovBefore });
+
+    // ---- merchants
+    const shop1 = idOf(await as(db, dSA, `select public.create_my_shop('سوبرماركت الواحة', 'سوبر ماركت / بقالة', 'alwaha-riyadh', '+966507094001') as id`));
+    const loc1 = await as(db, dSA, `select public.set_my_shop_location($1, $2, $3) as id`, [shop1, RIY[0] - 0.003, RIY[1]]);
+    const m1 = (await admin(db, `select * from directory_places where claimed_shop_id = $1`, [shop1]))[0];
+    check("dir: a tajer shop with a location gets its own directory place", m1?.source === 'merchant' && m1.country === 'SA' &&
+      m1.category === 'سوبر ماركت وبقالة' && m1.whatsapp === '+966507094001' && idOf(loc1) === m1.id, { e: loc1.error, m1 });
+    check('dir: …which nearby_directory lists as a store (claimed)', ((await as(db, null, `select id, claimed_shop_id from public.nearby_directory($1, $2, 3, null, 50)`, RIY)).rows || [])
+      .some((r) => r.id === m1?.id && r.claimed_shop_id === shop1));
+    const shop2 = idOf(await as(db, dSA2, `select public.create_my_shop('البيك', 'مطعم / كافيه', 'albaik-olaya', '+966507094002') as id`));
+    await as(db, dSA2, `select public.set_my_shop_location($1, $2, $3)`, [shop2, RIY[0] + 0.001, RIY[1] + 0.0001]);
+    const linked = (await admin(db, `select id from directory_places where claimed_shop_id = $1`, [shop2]));
+    check('dir: a shop at the spot of a listed place with a similar name claims it (no duplicate)', linked.length === 1 && linked[0].id === idOf(a1), linked);
+    check("dir: only the owner sets a shop's location", denied(await as(db, dSA2, `select public.set_my_shop_location($1, $2, $3)`, [shop1, RIY[0], RIY[1]])));
+    check('dir: a shop location outside the Arab world is refused', denied(await as(db, dSA, `select public.set_my_shop_location($1, 51.5, -0.12)`, [shop1])));
+    await as(db, dSA, `select public.set_my_shop_location($1, $2, $3)`, [shop1, RIY[0] - 0.004, RIY[1]]);
+    check('dir: moving the shop moves its merchant place', Math.abs((await admin(db, `select lat from directory_places where id = $1`, [m1?.id]))[0]?.lat - (RIY[0] - 0.004)) < 1e-6);
+    await admin(db, `delete from shops where id = $1`, [shop1]);
+    await admin(db, `delete from shops where id = $1`, [shop2]);
+    check('dir: deleting a shop removes its merchant place but keeps a claimed user place',
+      (await admin(db, `select count(*)::int n from directory_places where id = $1`, [m1?.id]))[0].n === 0 &&
+      (await admin(db, `select claimed_shop_id from directory_places where id = $1`, [idOf(a1)]))[0]?.claimed_shop_id === null);
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

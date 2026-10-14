@@ -25,6 +25,7 @@ import 'starter_products_screen.dart';
 import 'store_qr_card_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
 import '../../core/geo/phones.dart';
+import '../../core/location/where.dart';
 import '../shared/phone_field.dart';
 import 'package:mogtama3y/core/geo/money.dart';
 
@@ -199,6 +200,8 @@ class _RegisterShopFormState extends State<_RegisterShopForm> {
   List<String> _learned = const [];
   bool _saving = false;
   String? _error;
+  /// «محلي هنا»: pin the shop at the current position (directory listing).
+  bool _pinHere = false;
 
   bool get _isOther => _category == StoreService.otherActivity;
 
@@ -231,13 +234,20 @@ class _RegisterShopFormState extends State<_RegisterShopForm> {
       _error = null;
     });
     try {
-      await StoreService.createMyShop(
+      final shopId = await StoreService.createMyShop(
         name: _name.text.trim(),
         category: _isOther ? typed : _category,
         slug: _slug.text.trim(),
         whatsapp: _whatsapp.stored ?? _whatsapp.text.trim(),
         address: _address.text.trim(),
       );
+      if (_pinHere) {
+        // Best effort: the shop exists either way; the location can wait.
+        try {
+          final at = await Where.current();
+          await StoreService.setMyShopLocation(shopId: shopId, lat: at.latitude, lng: at.longitude);
+        } catch (_) {}
+      }
       widget.onCreated();
     } catch (e) {
       if (!mounted) return;
@@ -300,6 +310,13 @@ class _RegisterShopFormState extends State<_RegisterShopForm> {
         PhoneFormField(controller: _whatsapp, labelText: 'رقم الواتساب لاستقبال الطلبات *'),
         const SizedBox(height: 10),
         TextField(controller: _address, decoration: const InputDecoration(labelText: 'العنوان (المحافظة، الحي، الشارع)')),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _pinHere,
+          onChanged: (v) => setState(() => _pinHere = v),
+          title: const Text('أنا في المحل دلوقتي — سجّل مكانه', style: TextStyle(fontSize: 13.5)),
+          subtitle: const Text('محلك يظهر للناس اللي حواليك في «اكتشف حواليك»', style: TextStyle(fontSize: 11.5)),
+        ),
         if (_error != null) ...[
           const SizedBox(height: 12),
           Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),

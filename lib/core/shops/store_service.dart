@@ -140,6 +140,13 @@ class StoreService {
     return result as String;
   }
 
+  /// «محلي هنا» (0094): pins the shop at a point; it then shows in the
+  /// directory («اكتشف اللي حواليك») as a store. Returns its directory id.
+  static Future<String?> setMyShopLocation({required String shopId, required double lat, required double lng}) async {
+    final r = await _client.rpc('set_my_shop_location', params: {'p_shop': shopId, 'p_lat': lat, 'p_lng': lng});
+    return r as String?;
+  }
+
   /// For a claimed Google shop that has no link/WhatsApp yet.
   static Future<void> updateShopLink({required String shopId, required String slug, required String whatsapp}) async {
     await _client.from('shops').update({'slug': slug.toLowerCase().trim(), 'whatsapp': whatsapp.trim()}).eq('id', shopId);

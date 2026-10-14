@@ -1,15 +1,18 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../../core/geo/admin_areas.dart' show arabCountryAt;
 import '../../core/places/directory_service.dart';
+import '../../core/places/osm_places.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/location/where.dart';
 import '../people/nearby_people_tab.dart';
 import '../shared/load_error_view.dart';
 import '../../core/places/place_images.dart';
+import 'add_place_screen.dart';
+import 'osm_place_open.dart';
 
 // Directory categories (Arabic groups from backend/maintenance/directory/2_clean.sql).
 const _categories = <(String?, String, IconData)>[
@@ -33,10 +36,12 @@ const _categories = <(String?, String, IconData)>[
   ('محلات متنوعة', 'محلات تانية', Icons.storefront_rounded),
 ];
 
-/// "اكتشف حواليك" — businesses around the user from our own Egypt
-/// directory (~300k places, Overture Maps), nearest first, by category or
-/// by name. Each one opens as a store page you can order from on WhatsApp.
-/// Works without an account, and costs nothing per search.
+/// "اكتشف حواليك" — businesses around the user from our own directory
+/// (~300k Egyptian places from Overture Maps + places added anywhere in the
+/// Arab world), nearest first, by category or by name. Outside Egypt, or
+/// where ours are few, places from OpenStreetMap are merged in («من
+/// OpenStreetMap»; opening one adds it to ours). Each one opens as a store
+/// page you can order from on WhatsApp. Works without an account.
 class DiscoverNearbyScreen extends StatefulWidget {
   const DiscoverNearbyScreen({super.key, this.showPeople = false, this.initialQuery, this.initialCategory});
 
@@ -129,6 +134,7 @@ class _DiscoverNearbyScreenState extends State<DiscoverNearbyScreen> {
         _places = places;
         _loading = false;
       });
+      if (q.length < 2) _addOsm(p!, places);
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -136,6 +142,16 @@ class _DiscoverNearbyScreenState extends State<DiscoverNearbyScreen> {
         _loadError = true;
       });
     }
+  }
+
+  /// OpenStreetMap places merged in after ours show (never blocks the list).
+  Future<void> _addOsm(Position p, List<Map<String, dynamic>> ours) async {
+    final near = ours.where((r) => ((r['distance_km'] as num?) ?? 99) <= 3).length;
+    if (!wantsOsm(ours: near, country: arabCountryAt(p.latitude, p.longitude))) return;
+    final category = _category;
+    final osm = await OsmPlaces.near(p.latitude, p.longitude);
+    if (!mounted || osm.isEmpty || _category != category || _search.text.trim().length >= 2 || !identical(_places, ours)) return;
+    setState(() => _places = mergeWithOsm(ours, osm, p.latitude, p.longitude, categories: category == null ? null : {category}));
   }
 
   void _onSearchChanged(String _) {
@@ -149,7 +165,14 @@ class _DiscoverNearbyScreenState extends State<DiscoverNearbyScreen> {
     final side = width > 760 ? (width - 720) / 2 : 12.0;
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('اكتشف حواليك')),
+      appBar: AppBar(title: const Text('اكتشف حواليك'), actions: [
+        if (!_people)
+          IconButton(
+            tooltip: 'ضيف محل',
+            icon: const Icon(Icons.add_business_rounded),
+            onPressed: () => openAddPlace(context, category: _category),
+          ),
+      ]),
       body: Column(
         children: [
           Padding(
@@ -243,8 +266,15 @@ class _DiscoverNearbyScreenState extends State<DiscoverNearbyScreen> {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_loadError) return LoadErrorView(onRetry: _load, message: 'تعذر تحميل الأماكن');
     if (_places.isEmpty) {
-      return const Center(child: Text('مفيش نتايج — جرّب نشاط تاني أو اسم تاني', style: TextStyle(color: AppColors.inkMuted)));
+      return Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('مفيش نتايج — جرّب نشاط تاني أو اسم تاني', style: TextStyle(color: AppColors.inkMuted)),
+          const SizedBox(height: 12),
+          _addPlaceButton(),
+        ]),
+      );
     }
+    final hasOsm = _places.any((r) => r['osm'] == true);
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
@@ -253,9 +283,14 @@ class _DiscoverNearbyScreenState extends State<DiscoverNearbyScreen> {
         separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (context, i) {
           if (i == _places.length) {
-            return const Padding(
-              padding: EdgeInsets.only(top: 6),
-              child: Center(child: Text(DirectoryService.attribution, style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted))),
+            return Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Column(children: [
+                _addPlaceButton(),
+                const SizedBox(height: 8),
+                const Text(DirectoryService.attribution, style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted)),
+                if (hasOsm) const OsmPlacesAttribution(),
+              ]),
             );
           }
           final place = _places[i];
@@ -264,7 +299,7 @@ class _DiscoverNearbyScreenState extends State<DiscoverNearbyScreen> {
           return InkWell(
             borderRadius: BorderRadius.circular(14),
             // Through the router so the URL is /d/<id>: refresh and share keep the place.
-            onTap: () => context.push('/d/${place['id']}', extra: place),
+            onTap: () => openDirectoryRow(context, place),
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
@@ -286,7 +321,13 @@ class _DiscoverNearbyScreenState extends State<DiscoverNearbyScreen> {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(place['name'] as String? ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
-                    Text(place['category'] as String? ?? '', style: const TextStyle(fontSize: 11, color: AppColors.inkMuted)),
+                    Row(children: [
+                      Flexible(
+                        child: Text(place['category'] as String? ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 11, color: AppColors.inkMuted)),
+                      ),
+                      if (place['osm'] == true) ...[const SizedBox(width: 6), const OsmBadge()],
+                    ]),
                     if (km != null)
                       Text(km < 1 ? '${(km * 1000).round()} م' : '${km.toStringAsFixed(1)} كم',
                           style: const TextStyle(fontSize: 11.5, color: AppColors.inkSecondary)),
@@ -308,6 +349,12 @@ class _DiscoverNearbyScreenState extends State<DiscoverNearbyScreen> {
       ),
     );
   }
+
+  Widget _addPlaceButton() => OutlinedButton.icon(
+        onPressed: () => openAddPlace(context, category: _category),
+        icon: const Icon(Icons.add_business_rounded, size: 18),
+        label: const Text('مش لاقي محل؟ ضيفه'),
+      );
 
   static IconData _iconFor(String? category) {
     for (final (key, _, icon) in _categories) {
