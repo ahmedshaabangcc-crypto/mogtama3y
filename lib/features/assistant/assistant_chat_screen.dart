@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/geo/user_country.dart';
 import '../../core/theme/app_colors.dart';
 
 class _ChatMessage {
@@ -65,7 +66,9 @@ class _AssistantChatScreenState extends State<AssistantChatScreen> {
       final response = await Supabase.instance.client.functions.invoke(
         // Deployed under the slug 'hyper-api' (set by the dashboard editor).
         'hyper-api',
-        body: {'action': 'chat', 'message': text, 'session_id': _guestSessionId},
+        // country: guests' device guess (signed-in users: the server reads
+        // profiles.country) — picks the dialect the assistant answers in.
+        body: {'action': 'chat', 'message': text, 'session_id': _guestSessionId, 'country': UserCountry.iso.value},
       );
       final data = response.data;
       final reply = data is Map && data['reply'] is String ? data['reply'] as String : 'لم أفهم سؤالك، حاول بصياغة أخرى.';

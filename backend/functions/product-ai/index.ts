@@ -2,7 +2,9 @@
 //
 // The merchant's AI copywriter: looks at the product photos (and whatever
 // the merchant typed) and suggests a product name, a professional
-// description and short selling points, in Egyptian Arabic.
+// description and short selling points — Egyptian Arabic for Egyptian
+// shops, simple Arabic close to the local dialect elsewhere (shops.country,
+// migration 0092).
 //
 // POST body: { image_urls?: string[] (max 3, our public storage only),
 //              name?: string, category?: string, notes?: string }
@@ -56,15 +58,46 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(s);
 }
 
-const PROMPT = `إنت كاتب محتوى محترف لمتاجر أونلاين في مصر.
+// The 22 Arab states → name, and the Arabic the copy is written in.
+const COUNTRY_NAMES: Record<string, string> = {
+  EG: 'مصر', SA: 'السعودية', AE: 'الإمارات', KW: 'الكويت', QA: 'قطر', BH: 'البحرين', OM: 'عُمان',
+  YE: 'اليمن', JO: 'الأردن', PS: 'فلسطين', LB: 'لبنان', SY: 'سوريا', IQ: 'العراق', SD: 'السودان',
+  LY: 'ليبيا', TN: 'تونس', DZ: 'الجزائر', MA: 'المغرب', MR: 'موريتانيا', SO: 'الصومال', DJ: 'جيبوتي', KM: 'جزر القمر',
+};
+const GULF = new Set(['SA', 'AE', 'KW', 'QA', 'BH', 'OM', 'YE']);
+const LEVANT = new Set(['JO', 'PS', 'LB', 'SY', 'IQ']);
+
+function styleFor(iso: string): string {
+  if (iso === 'EG') return 'بالعربي المصري البسيط المحترم';
+  if (GULF.has(iso)) return 'بعربي بسيط محترم قريب من اللهجة الخليجية';
+  if (LEVANT.has(iso)) return 'بعربي بسيط محترم قريب من اللهجة الشامية';
+  return 'بعربي فصيح مبسّط ومحترم يفهمه الكل';
+}
+
+const promptFor = (iso: string) => `إنت كاتب محتوى محترف لمتاجر أونلاين في ${COUNTRY_NAMES[iso]}.
 اكتب لمنتج في متجر محل صغير على منصة "مُجتمعي". بص على صور المنتج (لو موجودة) وعلى بيانات التاجر.
 القواعد:
-- بالعربي المصري البسيط المحترم، من غير مبالغة أو ادعاءات مش ظاهرة في الصور أو البيانات.
+- ${styleFor(iso)}، من غير مبالغة أو ادعاءات مش ظاهرة في الصور أو البيانات.
 - ماتخترعش ماركة أو مقاس أو خامة أو سعر مش واضحين. لو مش متأكد سيبها عامة.
 - name: اسم قصير واضح للمنتج (2 لـ 6 كلمات).
 - description: وصف من 2 لـ 4 جمل يشجع على الشراء ويوضح الاستخدام.
 - highlights: من 3 لـ 5 مميزات قصيرة جداً (كل واحدة 2 لـ 5 كلمات).
 رجّع JSON بس بالشكل: {"name": "...", "description": "...", "highlights": ["...", "..."]}`;
+
+// The merchant's shop country (0092). The token was already accepted by
+// bump_my_ai_usage(), so its `sub` is the merchant.
+async function shopCountry(db: ReturnType<typeof createClient>, req: Request): Promise<string> {
+  try {
+    const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+    const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const uid = JSON.parse(atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4))).sub;
+    const { data } = await db.from('shops').select('country').eq('owner_id', uid).limit(1).maybeSingle();
+    const c = String((data as any)?.country ?? '').toUpperCase();
+    return COUNTRY_NAMES[c] ? c : 'EG';
+  } catch {
+    return 'EG';
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -111,7 +144,8 @@ Deno.serve(async (req) => {
     ].filter(Boolean).join('\n');
     if (parts.length === 0 && !facts) return json({ error: 'صوّر المنتج أو اكتب اسمه الأول' }, 400);
 
-    parts.push({ text: `${PROMPT}\n\n${facts || 'مفيش بيانات غير الصور.'}` });
+    const country = await shopCountry(db, req);
+    parts.push({ text: `${promptFor(country)}\n\n${facts || 'مفيش بيانات غير الصور.'}` });
 
     const body = JSON.stringify({
       contents: [{ role: 'user', parts }],

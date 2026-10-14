@@ -5,7 +5,8 @@
 //
 // POST { action: 'chat', message, session_id }        ← from the app
 //   → checks the user (guests allowed), applies a daily quota, adds the
-//     user's name / phone / building as context, forwards to the n8n
+//     user's name / phone / building / country (+ the dialect to answer
+//     in) as context, forwards to the n8n
 //     "مُجتمعي – AI Assistant" workflow, returns { reply }.
 //
 // POST { action: 'ticket', user_id, summary }         ← from n8n only
@@ -48,16 +49,40 @@ async function currentUserId(req: Request): Promise<string | null> {
   return error ? null : data.user?.id ?? null;
 }
 
+// The 22 Arab states (lib/core/geo/arab_countries.dart) → name, and how
+// the assistant should talk there. Egyptians keep Egyptian colloquial.
+const COUNTRY_NAMES: Record<string, string> = {
+  EG: 'مصر', SA: 'السعودية', AE: 'الإمارات', KW: 'الكويت', QA: 'قطر', BH: 'البحرين', OM: 'عُمان',
+  YE: 'اليمن', JO: 'الأردن', PS: 'فلسطين', LB: 'لبنان', SY: 'سوريا', IQ: 'العراق', SD: 'السودان',
+  LY: 'ليبيا', TN: 'تونس', DZ: 'الجزائر', MA: 'المغرب', MR: 'موريتانيا', SO: 'الصومال', DJ: 'جيبوتي', KM: 'جزر القمر',
+};
+const GULF = new Set(['SA', 'AE', 'KW', 'QA', 'BH', 'OM', 'YE']);
+const LEVANT = new Set(['JO', 'PS', 'LB', 'SY', 'IQ']);
+const MAGHREB = new Set(['LY', 'TN', 'DZ', 'MA', 'MR']);
+
+function dialectFor(iso: string): string {
+  if (iso === 'EG') return 'العامية المصرية';
+  if (GULF.has(iso)) return 'عربي بسيط قريب من اللهجة الخليجية';
+  if (LEVANT.has(iso)) return 'عربي بسيط قريب من اللهجة الشامية/العراقية';
+  if (MAGHREB.has(iso)) return 'عربي فصيح مبسّط (مفهوم في المغرب العربي)';
+  return 'عربي فصيح مبسّط';
+}
+
+const countryOf = (v: unknown): string | null => {
+  const c = typeof v === 'string' ? v.trim().toUpperCase() : '';
+  return COUNTRY_NAMES[c] ? c : null;
+};
+
 async function withinQuota(bucket: string, limit: number): Promise<boolean> {
   const { data, error } = await admin.rpc('bump_places_usage', { p_bucket: bucket, p_limit: limit });
   if (error) throw new Error('quota check failed');
   return data === true;
 }
 
-// Name, phone and building of a signed-in user, for the agent's context
+// Name, phone, country and building of a signed-in user, for the agent's context
 // and so a support hand-off tells the owner who to call back.
 async function userContext(userId: string) {
-  const { data: profile } = await admin.from('profiles').select('full_name, phone').eq('id', userId).maybeSingle();
+  const { data: profile } = await admin.from('profiles').select('full_name, phone, country').eq('id', userId).maybeSingle();
   const { data: member } = await admin
     .from('union_members')
     .select('status, role, building:buildings(name, district)')
@@ -69,6 +94,7 @@ async function userContext(userId: string) {
   return {
     name: profile?.full_name ?? '',
     phone: profile?.phone ?? '',
+    country: countryOf((profile as any)?.country),
     building: building ? [building.name, building.district].filter(Boolean).join(' - ') : '',
     membership: member ? `${member.status}/${member.role}` : 'none',
   };
@@ -120,6 +146,8 @@ Deno.serve(async (req) => {
     }
 
     const context = userId ? await userContext(userId) : null;
+    // The profile's country; guests: what the app guessed from the device.
+    const country = context?.country ?? countryOf(payload?.country) ?? 'EG';
     const sessionId = userId ?? `guest:${String(payload?.session_id ?? ip).slice(0, 64)}`;
 
     const res = await fetch(N8N_URL, {
@@ -134,6 +162,9 @@ Deno.serve(async (req) => {
         user_phone: context?.phone ?? '',
         user_building: context?.building ?? '',
         user_membership: context?.membership ?? 'none',
+        user_country: country,
+        user_country_name: COUNTRY_NAMES[country],
+        user_dialect: dialectFor(country),
       }),
     });
     const body = await res.json().catch(() => null);

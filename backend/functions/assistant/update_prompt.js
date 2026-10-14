@@ -1,5 +1,7 @@
 // Pushes system_prompt.md into the live n8n assistant workflow — changing
-// only the AI agent's system message (nothing else in the workflow).
+// only the AI agent's system message and the "Prepare" node's code
+// (prepare_code.js — the user context, incl. country + dialect since the
+// Arab-world phase 5). Nothing else in the workflow changes.
 //   node backend/functions/assistant/update_prompt.js
 const fs = require('fs');
 const path = require('path');
@@ -8,6 +10,7 @@ const ROOT = path.join(__dirname, '..', '..', '..');
 const KEY = fs.readFileSync(path.join(ROOT, '.n8n-api-key'), 'utf8').trim();
 const BASE = 'https://n8n.srv1967321.hstgr.cloud/api/v1';
 const WORKFLOW_NAME = 'مُجتمعي – AI Assistant';
+const PREPARE_CODE = require('./prepare_code');
 const PROMPT = fs.readFileSync(path.join(__dirname, 'system_prompt.md'), 'utf8').replace(/\r\n/g, '\n');
 
 async function api(method, p, body) {
@@ -34,6 +37,9 @@ async function api(method, p, body) {
     }
   }
   if (changed !== 1) throw new Error(`expected 1 agent node, found ${changed}`);
+  const prepare = wf.nodes.filter((n) => n.name === 'Prepare' && n.type === 'n8n-nodes-base.code');
+  if (prepare.length !== 1) throw new Error(`expected 1 Prepare node, found ${prepare.length}`);
+  prepare[0].parameters.jsCode = PREPARE_CODE;
   // The public API accepts only these fields on update.
   const body = { name: wf.name, nodes: wf.nodes, connections: wf.connections, settings: { executionOrder: wf.settings?.executionOrder || 'v1' } };
   await api('PUT', `/workflows/${found.id}`, body);

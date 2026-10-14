@@ -49,30 +49,8 @@ async function ensureSecretCredential() {
   return { id: created.id, name: created.name };
 }
 
-const PREPARE_CODE = `const req = $input.first().json;
-let b = req.body || {};
-if (typeof b === 'string') { try { b = JSON.parse(b); } catch (e) { b = {}; } }
-const clip = (v, n) => String(v == null ? '' : v).replace(/[\\u0000-\\u0009\\u000b-\\u001f]/g, ' ').trim().slice(0, n);
-const message = clip(b.message, 1000);
-const isGuest = b.is_guest !== false || !b.user_id;
-const userName = clip(b.user_name, 80);
-const userPhone = clip(b.user_phone, 20);
-const userBuilding = clip(b.user_building, 120);
-const membership = clip(b.user_membership, 40) || 'none';
-const context = isGuest
-  ? '[بيانات المستخدم] زائر غير مسجّل دخول'
-  // No name here on purpose: the agent must not guess gender from it. The
-  // name still reaches the owner in the Telegram hand-off below.
-  : '[بيانات المستخدم] مسجّل دخول | العمارة: ' + (userBuilding || 'لم ينضم لعمارة') + ' | العضوية: ' + membership;
-return [{ json: {
-  sessionId: clip(b.session_id, 100) || 'anon',
-  userId: isGuest ? '' : clip(b.user_id, 36),
-  userName: userName || (isGuest ? 'زائر' : ''),
-  userPhone: userPhone || '-',
-  userBuilding: userBuilding || '-',
-  isGuest,
-  promptText: context + '\\n[رسالة المستخدم]\\n' + message,
-} }];`;
+// The Prepare node's code (user context incl. country/dialect + message).
+const PREPARE_CODE = require('./prepare_code');
 
 function buildWorkflow(secretCred) {
   const pos = (x, y) => [x, y];
@@ -109,7 +87,7 @@ function buildWorkflow(secretCred) {
         id: 'tg', name: 'Notify Owner On Telegram', type: 'n8n-nodes-base.telegramTool', typeVersion: 1.2, position: pos(640, 240),
         parameters: {
           resource: 'message', operation: 'sendMessage', chatId: OWNER_TELEGRAM_CHAT_ID,
-          text: "=🏢 مُجتمعي — مستخدم يطلب التواصل مع الدعم\nالاسم: {{ $('Prepare').item.json.userName }}\nالموبايل: {{ $('Prepare').item.json.userPhone }}\nالعمارة: {{ $('Prepare').item.json.userBuilding }}\n\n{{ /*n8n-auto-generated-fromAI-override*/ $fromAI('summary', 'One or two sentences in Arabic summarizing what the user needs help with') }}",
+          text: "=🏢 مُجتمعي — مستخدم يطلب التواصل مع الدعم\nالاسم: {{ $('Prepare').item.json.userName }}\nالموبايل: {{ $('Prepare').item.json.userPhone }}\nالبلد: {{ $('Prepare').item.json.userCountry }}\nالعمارة: {{ $('Prepare').item.json.userBuilding }}\n\n{{ /*n8n-auto-generated-fromAI-override*/ $fromAI('summary', 'One or two sentences in Arabic summarizing what the user needs help with') }}",
           additionalFields: { appendAttribution: false },
         },
         credentials: { telegramApi: TELEGRAM },
