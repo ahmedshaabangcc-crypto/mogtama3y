@@ -8,6 +8,7 @@ import '../../core/places/directory_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/location/where.dart';
 import '../../core/places/place_images.dart';
+import '../../core/geo/phones.dart';
 
 /// Maintenance businesses near the user from the Egypt directory (migration
 /// 0064), under the registered technicians. They are not verified: contact
@@ -140,7 +141,7 @@ class _DirectoryServicesSectionState extends State<DirectoryServicesSection> {
           if (wa != null)
             IconButton(
               tooltip: 'واتساب',
-              onPressed: () => launchUrl(Uri.parse('https://wa.me/2$wa'), mode: LaunchMode.externalApplication),
+              onPressed: () => launchUrl(waLink(wa), mode: LaunchMode.externalApplication),
               icon: const Icon(Icons.chat_rounded, color: Color(0xFF1FA855)),
             ),
           if (phone != null)

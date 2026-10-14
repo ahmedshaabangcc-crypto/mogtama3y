@@ -7,6 +7,7 @@ import '../../core/e_address/e_address_service.dart';
 import '../../core/routing/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
+import '../../core/geo/phones.dart';
 
 /// mogtama3y.com/#/a/<code> — what opens when someone receives a digital
 /// address link or scans its QR. No account needed.
@@ -156,11 +157,11 @@ class _PublicEAddressScreenState extends State<PublicEAddressScreen> {
         if (phone != null) ...[
           const SizedBox(height: 10),
           Row(children: [
-            Expanded(child: _ghost(Icons.call_rounded, 'اتصل', () => launchUrl(Uri.parse('tel:$phone')))),
+            Expanded(child: _ghost(Icons.call_rounded, 'اتصل', () => launchUrl(telLink(phone)))),
             const SizedBox(width: 10),
             Expanded(
               child: _ghost(Icons.chat_rounded, 'واتساب',
-                  () => launchUrl(Uri.parse('https://wa.me/2$phone'), mode: LaunchMode.externalApplication)),
+                  () => launchUrl(waLink(phone), mode: LaunchMode.externalApplication)),
             ),
           ]),
         ],

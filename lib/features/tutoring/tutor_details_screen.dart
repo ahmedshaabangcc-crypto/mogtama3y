@@ -9,6 +9,7 @@ import '../../core/tutoring/tutoring_service.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'tutoring_market_screen.dart' show TutorPhotoPlaceholder;
+import '../../core/geo/phones.dart';
 
 /// One tutor listing (`/tutoring/<id>`, public): photos, subjects, stages,
 /// price, bio, and ways to reach the tutor — WhatsApp, a call, or an
@@ -83,10 +84,10 @@ class _TutorDetailsScreenState extends State<TutorDetailsScreen> {
   void _whatsapp(String number) {
     final t = _t!;
     final msg = 'السلام عليكم، شفت إعلانك على مُجتمعي (${tutorLabels(t['subjects'], tutorSubjects)}) وعايز أسأل عن الدروس.';
-    launchUrl(Uri.parse('https://wa.me/2$number?text=${Uri.encodeComponent(msg)}'), mode: LaunchMode.externalApplication);
+    launchUrl(waLink(number, text: msg), mode: LaunchMode.externalApplication);
   }
 
-  void _call(String number) => launchUrl(Uri.parse('tel:$number'));
+  void _call(String number) => launchUrl(telLink(number));
 
   Future<void> _share() async {
     final t = _t!;

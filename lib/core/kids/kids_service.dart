@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../geo/phones.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 
@@ -190,7 +191,7 @@ class KidsService {
     await _db.rpc('express_interest_in_kids_item', params: {'p_listing_id': id});
   }
 
-  /// wa.me link for an Egyptian mobile (01xxxxxxxxx → 201xxxxxxxxx).
+  /// wa.me link for a stored number (01… Egypt, or E.164).
   static Uri whatsappUri(String phone, String title) =>
-      Uri.parse('https://wa.me/2$phone?text=${Uri.encodeComponent('السلام عليكم، بخصوص إعلانك «$title» على مُجتمعي')}');
+      waLink(phone, text: 'السلام عليكم، بخصوص إعلانك «$title» على مُجتمعي');
 }

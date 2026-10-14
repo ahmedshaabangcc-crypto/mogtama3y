@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/e_address/e_address_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/geo/user_country.dart';
 
 /// Create or edit a digital address. Pops with the saved address (incl.
 /// its code) on success.
@@ -242,8 +243,10 @@ class _EAddressFormScreenState extends State<EAddressFormScreen> {
             value: _phoneLookup,
             onChanged: (v) => setState(() => _phoneLookup = v),
             title: const Text('افتح عنواني برقم موبايلي', style: TextStyle(fontSize: 13.5)),
-            subtitle: const Text('أي حد يكتب رقمك على مُجتمعي هيوصل للعنوان ده. عنوان واحد بس لكل رقم. '
-                'بيشتغل بعد ما تأكّد رقمك برسالة من صفحة "ملفي الشخصي".', style: TextStyle(fontSize: 11.5)),
+            subtitle: Text(
+                'أي حد يكتب رقمك على مُجتمعي هيوصل للعنوان ده. عنوان واحد بس لكل رقم. '
+                '${UserCountry.inEgypt ? 'بيشتغل بعد ما تأكّد رقمك برسالة من صفحة "ملفي الشخصي".' : 'رقمك لازم يكون متسجّل في ملفك الشخصي.'}',
+                style: const TextStyle(fontSize: 11.5)),
           ),
           const Divider(height: 24),
           SwitchListTile(

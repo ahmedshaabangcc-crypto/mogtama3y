@@ -10,6 +10,7 @@ import '../shared/load_error_view.dart';
 import 'auction_detail_screen.dart';
 import 'scrap_dealer_register_screen.dart';
 import 'scrap_widgets.dart';
+import '../../core/geo/phones.dart';
 
 String _money(num v) => '${NumberFormat('#,##0').format(v)} ج.م';
 
@@ -381,7 +382,7 @@ class _AcceptedTileState extends State<_AcceptedTile> {
       if (!mounted) return;
       setState(() {
         _contact = c;
-        _missing = c == null || normalizeEgyptMobile(c['phone'] as String?) == null;
+        _missing = c == null || canonicalPhone(c['phone'] as String?) == null;
       });
     } catch (_) {
       if (!mounted) return;
@@ -395,7 +396,7 @@ class _AcceptedTileState extends State<_AcceptedTile> {
   Widget build(BuildContext context) {
     final b = widget.bid;
     final title = b['title'] as String? ?? '';
-    final phone = normalizeEgyptMobile(_contact?['phone'] as String?);
+    final phone = canonicalPhone(_contact?['phone'] as String?);
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(

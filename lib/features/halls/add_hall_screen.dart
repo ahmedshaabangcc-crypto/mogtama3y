@@ -8,6 +8,8 @@ import '../../core/storage/multi_photo_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import '../../core/geo/phones.dart';
+import '../shared/phone_field.dart';
 
 /// List an event hall, or edit one when [existing] is given. Pops `true`
 /// once saved.
@@ -30,8 +32,8 @@ class _AddHallScreenState extends State<AddHallScreen> {
   late final _price = TextEditingController(text: (_e['price_from'] as num?)?.toStringAsFixed(0) ?? '');
   late final _area = TextEditingController(text: _e['area'] as String? ?? '');
   late final _address = TextEditingController(text: _e['address'] as String? ?? '');
-  late final _phone = TextEditingController(text: _e['phone'] as String? ?? '');
-  late final _whatsapp = TextEditingController(text: _e['whatsapp'] as String? ?? '');
+  late final _phone = PhoneController(phone: _e['phone'] as String?);
+  late final _whatsapp = PhoneController(phone: _e['whatsapp'] as String?);
   late final _description = TextEditingController(text: _e['description'] as String? ?? '');
 
   late String _hallType = _e['hall_type'] as String? ?? 'wedding';
@@ -54,8 +56,8 @@ class _AddHallScreenState extends State<AddHallScreen> {
     try {
       final phone = (await AuthService.fetchCurrentProfile())?['phone'] as String?;
       if (!mounted || phone == null || _phone.text.isNotEmpty) return;
-      _phone.text = phone;
-      if (RegExp(r'^01[0125][0-9]{8}$').hasMatch(phone) && _whatsapp.text.isEmpty) _whatsapp.text = phone;
+      _phone.setPhone(phone);
+      if (canonicalPhone(phone) != null && _whatsapp.text.isEmpty) _whatsapp.setPhone(phone);
     } catch (_) {}
   }
 
@@ -89,8 +91,9 @@ class _AddHallScreenState extends State<AddHallScreen> {
       'governorate': _governorate,
       'area': _trimOrNull(_area),
       'address': _trimOrNull(_address),
-      'phone': _phone.text.trim(),
-      'whatsapp': _trimOrNull(_whatsapp),
+      // A mobile in the stored form (01… / E.164), or an Egyptian landline as typed.
+      'phone': _phone.stored ?? _phone.text.trim(),
+      'whatsapp': _whatsapp.isEmpty ? null : _whatsapp.stored,
       'images': _images,
     };
     try {
@@ -274,24 +277,18 @@ class _AddHallScreenState extends State<AddHallScreen> {
             const SizedBox(height: 4),
             TextFormField(controller: _address, maxLength: 300, decoration: _dec('العنوان بالتفصيل', hint: 'الشارع وأقرب علامة مميزة')),
             _section('التواصل'),
-            TextFormField(
+            PhoneFormField(
               controller: _phone,
-              keyboardType: TextInputType.phone,
-              inputFormatters: digits,
-              decoration: _dec('رقم التليفون', hint: '01xxxxxxxxx'),
-              validator: (v) => RegExp(r'^0[0-9]{7,10}$').hasMatch((v ?? '').trim()) ? null : 'اكتب رقم صحيح يبدأ بـ 0',
-            ),
-            const SizedBox(height: 10),
-            TextFormField(
-              controller: _whatsapp,
-              keyboardType: TextInputType.phone,
-              inputFormatters: digits,
-              decoration: _dec('رقم الواتساب (اختياري)', hint: '01xxxxxxxxx'),
+              decoration: _dec('رقم التليفون'),
+              // Mobiles of any Arab country; Egyptian landlines (0…) too.
               validator: (v) {
                 final t = (v ?? '').trim();
-                return t.isEmpty || RegExp(r'^01[0125][0-9]{8}$').hasMatch(t) ? null : 'رقم موبايل مصري من 11 رقم';
+                if (_phone.stored != null) return null;
+                return _phone.country.value == 'EG' && RegExp(r'^0[0-9]{7,10}$').hasMatch(t) ? null : invalidPhoneMessage;
               },
             ),
+            const SizedBox(height: 10),
+            PhoneFormField(controller: _whatsapp, decoration: _dec('رقم الواتساب (اختياري)'), required: false),
             const SizedBox(height: 22),
             SizedBox(
               height: 52,

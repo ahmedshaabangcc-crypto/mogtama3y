@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/auth_service.dart';
 import '../location/where.dart';
+import '../geo/phones.dart';
+import '../geo/user_country.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 
@@ -61,22 +63,13 @@ const scrapDealerStatusLabels = <String, String>{
   'rejected': 'مرفوض',
 };
 
-/// 01xxxxxxxxx from whatever the profile holds (+20…, 0020…, spaces).
-String? normalizeEgyptMobile(String? raw) {
-  if (raw == null) return null;
-  var d = raw.replaceAll(RegExp(r'[^0-9]'), '');
-  if (d.startsWith('0020')) d = d.substring(4);
-  if (d.startsWith('20') && d.length == 12) d = '0${d.substring(2)}';
-  if (d.length == 10 && d.startsWith('1')) d = '0$d';
-  return RegExp(r'^01[0125][0-9]{8}$').hasMatch(d) ? d : null;
-}
+/// The stored form (01… in Egypt, E.164 elsewhere — 0089) of whatever the
+/// profile / field holds (+20…, 0020…, spaces, Arabic digits); local input
+/// is read in [country] (default: the user's). Null when not a mobile.
+String? normalizeContactMobile(String? raw, {String? country}) =>
+    storePhone(raw, country: country ?? UserCountry.iso.value);
 
-final scrapWhatsappPattern = RegExp(r'^01[0125][0-9]{8}$');
-
-Uri scrapWhatsappUri(String phone, String text) {
-  final number = normalizeEgyptMobile(phone) ?? phone;
-  return Uri.parse('https://wa.me/2$number?text=${Uri.encodeComponent(text)}');
-}
+Uri scrapWhatsappUri(String phone, String text) => waLink(phone, text: text);
 
 /// The user's position, asking for permission first. Throws an Arabic
 /// message when location is off or refused.

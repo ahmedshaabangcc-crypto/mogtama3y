@@ -21,6 +21,7 @@ import 'admin_mosque_chat_screen.dart';
 import 'admin_scrap_dealers_screen.dart';
 import 'admin_tutorial_videos_screen.dart';
 import 'admin_user_flags_screen.dart';
+import '../../core/geo/phones.dart';
 
 String _money(num v) => '${NumberFormat('#,##0.00').format(v)} ج.م';
 
@@ -870,12 +871,8 @@ const _feedbackKindLabels = {'suggestion': '💡 اقتراح', 'bug': '🐞 م�
 
 const _appLabels = {'mogtama3y': 'مُجتمعي', 'tajer': 'متجري', 'ittihad': 'اتحاد الملاك', 'masjid': 'مسجدي'};
 
-/// wa.me wants the number in international form: 01xxxxxxxxx → 201xxxxxxxxx.
-Uri _whatsAppUri(String phone) {
-  var digits = phone.replaceAll(RegExp(r'[^0-9]'), '');
-  if (digits.startsWith('0')) digits = '2$digits';
-  return Uri.parse('https://wa.me/$digits?text=${Uri.encodeComponent('السلام عليكم، بخصوص رسالتك لينا على التطبيق')}');
-}
+/// wa.me wants the number in international form: 01… → 201…, +966… → 966….
+Uri _whatsAppUri(String phone) => waLink(phone, text: 'السلام عليكم، بخصوص رسالتك لينا على التطبيق');
 
 class _SupportTicketCard extends StatelessWidget {
   const _SupportTicketCard({required this.ticket, required this.onReply});

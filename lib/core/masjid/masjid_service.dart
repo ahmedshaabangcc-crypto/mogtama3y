@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app_flavor.dart';
 import 'world_time.dart';
+import '../geo/phones.dart' as geo;
 
 /// «مسجدي» — backend/migrations/0080_masjid.sql. Public reads work for
 /// guests; everything that writes goes through RLS (content) or the
@@ -352,7 +353,7 @@ class MasjidService {
 }
 
 /// WhatsApp number for wa.me: «01…» (Egypt) → 201…, «+971…» → 971….
-String waDigits(String wa) => wa.startsWith('+') ? wa.substring(1) : (wa.startsWith('0') ? '2$wa' : wa);
+String waDigits(String wa) => geo.waDigits(wa) ?? wa;
 
 /// "1,000" — Arabic-friendly money without decimals.
 String masjidMoney(num? v) {

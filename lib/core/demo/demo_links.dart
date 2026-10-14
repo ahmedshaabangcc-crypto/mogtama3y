@@ -3,6 +3,7 @@ import 'package:url_launcher_platform_interface/link.dart';
 import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 
 import '../routing/app_router.dart';
+import '../geo/phones.dart';
 
 /// The demo build's url_launcher: nothing ever leaves the app. A WhatsApp
 /// link shows the exact message that would have been sent, a call shows
@@ -73,7 +74,7 @@ class DemoLinkDialog extends StatelessWidget {
 
   static String _localPhone(String raw) {
     final d = raw.replaceAll(RegExp(r'[^0-9]'), '');
-    return d.startsWith('20') && d.length == 12 ? '0${d.substring(2)}' : d;
+    return displayPhone(normalizePhone('+$d') ?? d);
   }
 
   @override

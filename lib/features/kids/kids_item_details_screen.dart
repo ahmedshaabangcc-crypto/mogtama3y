@@ -9,6 +9,7 @@ import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import 'kids_market_screen.dart' show KidsPhotoPlaceholder;
+import '../../core/geo/phones.dart';
 
 /// One kids-gear listing (`/kids/<id>`, public): photos, details, a safety
 /// note on car seats / cribs, and contact — WhatsApp, call, or "أنا مهتم"
@@ -88,7 +89,7 @@ class _KidsItemDetailsScreenState extends State<KidsItemDetailsScreen> {
     if (!await _ensureSignedIn()) return;
     final phone = _c?['phone'] as String?;
     if (phone == null) return;
-    await launchUrl(Uri.parse('tel:$phone'));
+    await launchUrl(telLink(phone));
   }
 
   Future<void> _whatsapp() async {

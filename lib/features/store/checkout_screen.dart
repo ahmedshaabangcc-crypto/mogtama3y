@@ -11,6 +11,8 @@ import '../../core/theme/app_colors.dart';
 import 'order_tracking_screen.dart';
 import 'store_cart.dart';
 import '../legal/privacy_policy_screen.dart';
+import '../../core/geo/phones.dart';
+import '../shared/phone_field.dart';
 
 /// Cart + checkout: no account needed — name, mobile, address, cash on
 /// delivery. Signed-in customers can fill the address from their digital
@@ -26,7 +28,7 @@ class CheckoutScreen extends StatefulWidget {
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
   final _name = TextEditingController(text: AuthService.currentUser?.userMetadata?['full_name'] as String? ?? '');
-  final _phone = TextEditingController(text: AuthService.currentUser?.userMetadata?['phone'] as String? ?? '');
+  final _phone = PhoneController(phone: AuthService.currentUser?.userMetadata?['phone'] as String?);
   final _address = TextEditingController();
   final _note = TextEditingController();
   List<Map<String, dynamic>> _myAddresses = const [];
@@ -70,28 +72,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     setState(() {});
   }
 
-  /// Egyptian mobile in the 01xxxxxxxxx form: Arabic-Indic digits, spaces,
-  /// dashes and a +20 / 0020 prefix are accepted and normalised. Null if
-  /// it isn't a valid mobile number.
-  static String? _normalisePhone(String raw) {
-    const arabic = '٠١٢٣٤٥٦٧٨٩';
-    var d = raw.split('').map((c) {
-      final i = arabic.indexOf(c);
-      return i >= 0 ? '$i' : c;
-    }).join().replaceAll(RegExp(r'[^0-9]'), '');
-    if (d.startsWith('0020')) d = d.substring(4);
-    if (d.startsWith('20') && d.length == 12) d = d.substring(2);
-    if (d.length == 10 && d.startsWith('1')) d = '0$d';
-    return RegExp(r'^01[0125]\d{8}$').hasMatch(d) ? d : null;
-  }
-
   Future<void> _place() async {
     if (widget.cart.isEmpty) return;
-    final phone = _normalisePhone(_phone.text);
+    // Stored form (0089): 01… in Egypt, E.164 elsewhere — the server reads both.
+    final phone = _phone.stored;
     final problem = _name.text.trim().length < 2
         ? 'اكتب اسمك'
         : phone == null
-            ? 'رقم الموبايل لازم يكون 11 رقم ويبدأ بـ 010 أو 011 أو 012 أو 015'
+            ? invalidPhoneMessage
             : _address.text.trim().length < 8
                 ? 'اكتب العنوان بالتفصيل عشان الطلب يوصلك'
                 : null;
@@ -184,7 +172,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     TextButton.icon(
                       onPressed: () => setState(() {
                         _name.text = DemoTajer.sampleCustomerName;
-                        _phone.text = DemoTajer.sampleCustomerPhone;
+                        _phone.setPhone(DemoTajer.sampleCustomerPhone);
                         _address.text = DemoTajer.sampleCustomerAddress;
                         _note.text = DemoTajer.sampleCustomerNote;
                       }),
@@ -195,12 +183,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 const SizedBox(height: 10),
                 TextField(controller: _name, decoration: const InputDecoration(labelText: 'الاسم *', prefixIcon: Icon(Icons.person_outline_rounded))),
                 const SizedBox(height: 10),
-                TextField(
-                  controller: _phone,
-                  keyboardType: TextInputType.phone,
-                  textDirection: TextDirection.ltr,
-                  decoration: const InputDecoration(labelText: 'رقم الموبايل *', hintText: '01012345678', prefixIcon: Icon(Icons.phone_outlined)),
-                ),
+                PhoneFormField(controller: _phone, labelText: 'رقم الموبايل *'),
                 const SizedBox(height: 10),
                 if (_myAddresses.isNotEmpty) ...[
                   Wrap(spacing: 8, runSpacing: 8, children: [

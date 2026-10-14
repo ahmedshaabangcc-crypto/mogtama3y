@@ -2,6 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../demo/demo_mode.dart';
+import '../geo/phones.dart';
+import '../geo/user_country.dart';
+import '../geo/world_time.dart' show deviceTimeZone;
 import 'contact_phones.dart';
 
 /// Thin wrapper around Supabase Auth for مُجتمعي: email/password sign-up
@@ -24,11 +27,20 @@ class AuthService {
     required String phone,
     required String email,
     required String password,
+    String? country,
   }) async {
+    // The phone goes in its stored form (01… in Egypt, else E.164) with the
+    // country it was typed in, so the server (0089) sets profiles.country.
+    final iso = country ?? UserCountry.iso.value;
     final res = await _client.auth.signUp(
       email: email,
       password: password,
-      data: {'full_name': fullName, 'phone': phone},
+      data: {
+        'full_name': fullName,
+        'phone': storePhone(phone, country: iso) ?? phone,
+        'country': iso,
+        'tz': _deviceTzOrNull(),
+      },
       // The confirmation link returns to the app the user signed up in
       // (مُجتمعي, the union site or the merchant app), not the Site URL.
       emailRedirectTo: kIsWeb ? '${Uri.base.origin}/' : null,
@@ -50,7 +62,27 @@ class AuthService {
     }
   }
 
-  static Future<void> signOut() => _client.auth.signOut();
+  static Future<void> signOut() async {
+    await _client.auth.signOut();
+    UserCountry.reset();
+  }
+
+  static String? _stored(String? phone) =>
+      phone == null || phone.trim().isEmpty ? phone : (storePhone(phone, country: UserCountry.iso.value) ?? phone);
+
+  static String? _deviceTzOrNull() {
+    try {
+      return deviceTimeZone;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Profile settings: the user's country (one of the 22 Arab states).
+  static Future<void> setMyCountry(String iso) async {
+    await _client.rpc('set_my_country', params: {'p_country': iso, 'p_tz': null});
+    UserCountry.iso.value = iso;
+  }
 
   /// «نسيت كلمة المرور؟»: emails a reset link that opens THIS app (its
   /// own origin — مُجتمعي, the union app or متجري). Supabase's PKCE flow
@@ -103,6 +135,9 @@ class AuthService {
   /// signUpWithEmail/signInWithEmail — ensure_my_profile is idempotent.
   static void listenAndSyncProfile() {
     _client.auth.onAuthStateChange.listen((data) async {
+      if (data.event == AuthChangeEvent.initialSession && data.session?.user != null) {
+        await loadMyCountry();
+      }
       if (data.event == AuthChangeEvent.signedIn && data.session?.user != null) {
         try {
           await _ensureProfileAndWallet();
@@ -123,10 +158,11 @@ class AuthService {
     // back through get_contact_phones instead.
     final profile = await _client
         .from('profiles')
-        .select('id, full_name, phone_hidden, avatar_url, is_verified, role, ad_token_balance, created_at, updated_at, phone_verified_at')
+        .select('id, full_name, phone_hidden, avatar_url, is_verified, role, ad_token_balance, created_at, updated_at, phone_verified_at, country, currency, tz')
         .eq('id', user.id)
         .maybeSingle();
     if (profile == null) return null;
+    UserCountry.fromProfile(profile);
     final phones = await ContactPhones.fetch([user.id]);
     return {...profile, 'phone': phones[user.id]};
   }
@@ -136,7 +172,7 @@ class AuthService {
     if (user == null) throw Exception('يجب تسجيل الدخول أولاً');
     await _client.from('profiles').update({
       'full_name': ?fullName,
-      'phone': ?phone,
+      'phone': ?_stored(phone),
       'phone_hidden': ?phoneHidden,
       'avatar_url': ?avatarUrl,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
@@ -151,5 +187,17 @@ class AuthService {
   /// existed, so calling it on every sign-in is safe.
   static Future<void> _ensureProfileAndWallet() async {
     await _client.rpc('ensure_my_profile');
+    await loadMyCountry();
+  }
+
+  /// Loads profiles.country into [UserCountry] (phone fields default to
+  /// it). Quietly keeps the device guess when the column isn't there yet.
+  static Future<void> loadMyCountry() async {
+    final user = currentUser;
+    if (user == null) return;
+    try {
+      final row = await _client.from('profiles').select('country').eq('id', user.id).maybeSingle();
+      UserCountry.fromProfile(row);
+    } catch (_) {}
   }
 }

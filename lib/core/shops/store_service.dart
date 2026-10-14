@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../demo/demo_mode.dart';
 import '../demo/demo_store.dart';
 import 'scan_flag.dart';
+import '../geo/phones.dart';
 
 /// Merchant stores ("مشروعك أونلاين") — see
 /// backend/migrations/0047_merchant_stores.sql. Every store has a public
@@ -98,9 +99,8 @@ class StoreService {
 
   /// Opens WhatsApp to the shop with a ready-made order message.
   static Future<void> openWhatsAppOrder({required String shopWhatsapp, required String message}) {
-    final international = '2${shopWhatsapp.replaceAll(RegExp(r'\s'), '')}';
     return launchUrl(
-      Uri.parse('https://wa.me/$international?text=${Uri.encodeComponent(message)}'),
+      waLink(shopWhatsapp, text: message),
       mode: LaunchMode.externalApplication,
     );
   }
