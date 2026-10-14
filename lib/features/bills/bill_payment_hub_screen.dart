@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../wallet/wallet_region_note.dart';
 import 'bill_payment_details_screen.dart';
 
 class _Service {
@@ -33,6 +34,7 @@ class BillPaymentHubScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!walletAvailableHere) return const WalletRegionScreen(title: 'دفع الفواتير والخدمات');
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(title: const Text('دفع الفواتير والخدمات')),

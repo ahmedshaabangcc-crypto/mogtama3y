@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/wallet/wallet_service.dart';
 import '../shared/load_error_view.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import 'package:mogtama3y/features/wallet/wallet_region_note.dart';
 
 /// Manual wallet top-up: transfer to the platform's mobile wallet, then
 /// file the transfer reference for admin approval (migration 0045).
@@ -96,6 +97,7 @@ class _WalletTopUpScreenState extends State<WalletTopUpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!walletAvailableHere) return const WalletRegionScreen(title: 'شحن المحفظة');
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }

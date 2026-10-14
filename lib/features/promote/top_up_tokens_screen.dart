@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/promote/ad_token_service.dart';
 import '../../core/theme/app_colors.dart';
 import 'package:mogtama3y/core/geo/money.dart';
+import 'package:mogtama3y/features/wallet/wallet_region_note.dart';
 
 const _minTokens = 5;
 
@@ -91,6 +92,7 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!walletAvailableHere) return const WalletRegionScreen(title: 'شحن رصيد التوكن');
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }

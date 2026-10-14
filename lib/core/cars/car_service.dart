@@ -57,7 +57,8 @@ const carPayments = <String, String>{
   'both': 'كاش أو تقسيط',
 };
 
-/// Brands sold in Egypt — cars first, then motorcycle / tuktuk makers.
+/// Brands sold in Egypt and the Arab world — cars first, then motorcycle /
+/// tuktuk makers.
 const carBrands = <String>[
   'تويوتا (Toyota)',
   'هيونداي (Hyundai)',
@@ -118,6 +119,15 @@ const carBrands = <String>[
   'إيسوزو (Isuzu)',
   'دايو (Daewoo)',
   'سبيرانزا (Speranza)',
+  'جي إم سي (GMC)',
+  'لينكولن (Lincoln)',
+  'جينيسيس (Genesis)',
+  'رام (RAM)',
+  'مازيراتي (Maserati)',
+  'بنتلي (Bentley)',
+  'رولز رويس (Rolls-Royce)',
+  'فيراري (Ferrari)',
+  'لامبورجيني (Lamborghini)',
   'تسلا (Tesla)',
   'بجاج (Bajaj)',
   'تي في إس (TVS)',

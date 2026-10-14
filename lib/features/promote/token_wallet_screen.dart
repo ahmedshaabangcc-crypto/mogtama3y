@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/promote/ad_token_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
+import '../wallet/wallet_region_note.dart';
 import 'top_up_tokens_screen.dart';
 import 'package:mogtama3y/core/geo/money.dart';
 
@@ -112,6 +113,10 @@ class _TokenWalletScreenState extends State<TokenWalletScreen> {
                   const SizedBox(height: 4),
                   Text('≈ ${money((_balance * _tokenPrice).round(), 'EGP')} بسعر التوكن الحالي (${money(_tokenPrice, 'EGP')})', style: const TextStyle(color: Colors.white54, fontSize: 10)),
                   const SizedBox(height: 14),
+                  // Buying tokens = a manual Egyptian transfer (Egypt only).
+                  if (!walletAvailableHere)
+                    const WalletRegionNote()
+                  else
                   SizedBox(
                     width: double.infinity,
                     height: 46,

@@ -4,6 +4,7 @@ import '../../core/promote/ad_token_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
 import 'token_wallet_screen.dart';
+import '../wallet/wallet_region_note.dart';
 import 'top_up_tokens_screen.dart';
 
 const _categoryLabels = {
@@ -210,7 +211,10 @@ class _PromoteListingScreenState extends State<PromoteListingScreen> {
               child: Row(children: [
                 const Icon(Icons.error_outline_rounded, color: AppColors.categorySos, size: 18),
                 const SizedBox(width: 8),
-                const Expanded(child: Text('رصيدك غير كافٍ لهذه المدة. اشحن رصيدك أولاً.', style: TextStyle(fontSize: 11, color: AppColors.categorySos, fontWeight: FontWeight.w600))),
+                Expanded(
+                    child: Text(walletAvailableHere ? 'رصيدك غير كافٍ لهذه المدة. اشحن رصيدك أولاً.' : 'رصيدك غير كافٍ لهذه المدة. شحن التوكن متاح في مصر بس حالياً.',
+                        style: const TextStyle(fontSize: 11, color: AppColors.categorySos, fontWeight: FontWeight.w600))),
+                if (walletAvailableHere)
                 TextButton(
                   onPressed: () async {
                     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TopUpTokensScreen()));

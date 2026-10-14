@@ -8,6 +8,7 @@ import '../../core/union/union_service.dart';
 import '../promote/promote_listing_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
 import 'package:mogtama3y/core/geo/user_country.dart';
+import 'package:mogtama3y/core/geo/country_copy.dart';
 
 /// Add a new used-item listing — matches design/screens/04_add_used_item_listing.png.
 class AddListingScreen extends StatefulWidget {
@@ -238,9 +239,9 @@ class _AddListingScreenState extends State<AddListingScreen> {
           const Text('خصوصية الإعلان الذكية', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
           const Text('حماية بياناتك وأمان تعاملاتك أولوية مجتمعي', style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted)),
           const SizedBox(height: 12),
-          const _InfoBanner(
+          _InfoBanner(
             icon: Icons.auto_awesome_rounded,
-            text: 'ظهور ذكي تلقائي: تُعرض السلع لجميع المشترين في مصر ويتم ترتيبها تلقائياً حسب الأقرب جغرافياً للمستخدم.',
+            text: 'ظهور ذكي تلقائي: تُعرض السلع لجميع المشترين ${inCountryAr(UserCountry.iso.value)} ويتم ترتيبها تلقائياً حسب الأقرب جغرافياً للمستخدم.',
           ),
           const SizedBox(height: 10),
           _ToggleRow(

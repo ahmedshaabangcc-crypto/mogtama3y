@@ -12,6 +12,7 @@ import '../auth/auth_landing_screen.dart';
 import '../profile/profile_screen.dart';
 import '../shared/made_by_apex.dart';
 import '../tutorials/tutorial_widgets.dart';
+import '../wallet/wallet_region_note.dart';
 
 /// The "المزيد" (More) menu — the bottom-nav hamburger tab. A plain
 /// list of every account/tool section, not any single feature.
@@ -165,6 +166,8 @@ class _MoreMenuScreenState extends State<MoreMenuScreen> {
             subtitle: 'وظيفة، سلعة مستعملة، خدمة صيانة، أو خردة للتدوير',
             onTap: () => context.go(AppRoutes.post),
           ),
+          // Bill payment (Fawry) is Egypt-only.
+          if (walletAvailableHere)
           _MenuTile(
             icon: Icons.receipt_long_rounded,
             iconColor: AppColors.gold,

@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/wallet/wallet_service.dart';
 import '../shared/load_error_view.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
+import 'package:mogtama3y/features/wallet/wallet_region_note.dart';
 import '../shared/phone_field.dart';
 import 'package:mogtama3y/core/geo/money.dart';
 
@@ -96,6 +97,7 @@ class _WalletWithdrawScreenState extends State<WalletWithdrawScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!walletAvailableHere) return const WalletRegionScreen(title: 'سحب من المحفظة');
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }

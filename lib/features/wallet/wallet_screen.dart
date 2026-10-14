@@ -8,6 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../shared/load_error_view.dart';
 import '../union/maintenance_payment_screen.dart';
+import 'wallet_region_note.dart';
 import 'wallet_topup_screen.dart';
 import 'wallet_withdraw_screen.dart';
 import 'package:mogtama3y/core/geo/money.dart';
@@ -228,6 +229,10 @@ class _WalletScreenState extends State<WalletScreen> {
               ),
             ),
             const SizedBox(height: 14),
+            // Top-up / withdraw / dues run on Egyptian rails (Egypt only).
+            if (!walletAvailableHere)
+              const WalletRegionNote()
+            else
             Row(
               children: [
                 Expanded(

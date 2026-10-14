@@ -52,7 +52,7 @@ const starterCatalog = <String, List<StarterProduct>>{
     StarterProduct('جبنة نستو / مثلثات', 'أجبان', 'جبنة مثلثات كريمي للسندوتشات وشنطة المدرسة.', sizes: ['8 قطع', '16 قطعة'], image: 'cheese-triangles'),
     StarterProduct('قشطة', 'ألبان', 'قشطة طازة للفطار مع العسل أو للحلويات.', sizes: ['علبة صغيرة', 'علبة كبيرة'], image: 'cream'),
     StarterProduct('زبدة بلدي', 'ألبان', 'زبدة بلدي طبيعية للطبخ والفطير.', sizes: ['¼ ك', '½ ك'], image: 'butter'),
-    StarterProduct('سمنة بلدي', 'ألبان', 'سمنة بلدي ريحتها حلوة للأكلات المصري.', sizes: ['½ ك', '1 ك'], image: 'ghee'),
+    StarterProduct('سمنة بلدي', 'ألبان', 'سمنة بلدي ريحتها حلوة للأكل البيتي.', sizes: ['½ ك', '1 ك'], image: 'ghee'),
     StarterProduct('بيض بلدي', 'بيض', 'بيض بلدي طازة.', sizes: ['10 بيضات', 'طبق 30'], image: 'brown-eggs'),
     StarterProduct('بيض أبيض', 'بيض', 'بيض أبيض طازة مقاسات متوسطة.', sizes: ['10 بيضات', 'طبق 30'], image: 'white-eggs'),
   ],
