@@ -8,6 +8,7 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+import '../masjid_tools/platform/kv_store.dart';
 import 'arab_countries.dart';
 import 'phones.dart';
 import 'world_time.dart' show countryOfTimeZone, currencyLabel, deviceTimeZone;
@@ -40,9 +41,26 @@ class UserCountry {
 
   static ArabCountry get country => arabCountry(iso.value) ?? egypt;
 
-  /// Country whose listings the feeds show (0092): the user's own unless a
-  /// screen picked another one (phase 3 adds the picker).
-  static String? feedOverride;
+  /// Another country the user chose to browse in the feeds (the flag chip,
+  /// FeedCountryButton) — null = their own. Remembered on this device.
+  static final ValueNotifier<String?> feedOverrideNotifier = ValueNotifier<String?>(null);
+  static String? get feedOverride => feedOverrideNotifier.value;
+  static set feedOverride(String? v) {
+    final c = v?.toUpperCase();
+    feedOverrideNotifier.value = (c == null || c == iso.value || !isArabCountry(c)) ? null : c;
+    kvSet(_feedKey, feedOverrideNotifier.value ?? '');
+  }
+
+  static const _feedKey = 'feed_country';
+
+  /// Restores the remembered feed country (app start).
+  static Future<void> loadFeedOverride() async {
+    final v = await kvGet(_feedKey);
+    if (v != null && isArabCountry(v) && v != iso.value) feedOverrideNotifier.value = v;
+  }
+
+  /// Country whose listings the feeds show (0092): the user's own unless
+  /// they picked another one.
   static String get feedCountry => feedOverride ?? iso.value;
 
   /// The user's currency (ISO) — the default for new listings and the

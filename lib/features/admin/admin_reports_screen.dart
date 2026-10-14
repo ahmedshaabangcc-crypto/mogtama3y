@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../core/geo/admin_areas.dart';
+import '../../core/geo/arab_countries.dart';
 import '../../core/reports/report_service.dart';
 import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
@@ -23,6 +25,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
   String? _status = 'new';
   String? _category;
   String? _governorate;
+  String? _country; // null = every country
   bool _loading = true;
   bool _error = false;
   List<Map<String, dynamic>> _reports = [];
@@ -39,7 +42,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
       _error = false;
     });
     try {
-      final list = await ReportService.adminList(status: _status, category: _category, governorate: _governorate);
+      final list = await ReportService.adminList(status: _status, category: _category, governorate: _governorate, country: _country);
       if (mounted) {
         setState(() {
           _reports = list;
@@ -76,7 +79,14 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
           child: Wrap(spacing: 8, runSpacing: 8, children: [
             _drop<String>('الحالة', _status, {null: 'الكل', for (final e in reportStatuses.entries) e.key: e.value.$1}, (v) => _status = v),
             _drop<String>('النوع', _category, {null: 'كل الأنواع', for (final c in reportCategories) c.$1: c.$1}, (v) => _category = v),
-            _drop<String>('المحافظة', _governorate, {null: 'كل المحافظات', for (final g in reportGovernorates) g: g}, (v) => _governorate = v),
+            _drop<String>('الدولة', _country, {null: 'كل الدول', for (final c in arabCountries) c.iso: '${c.flag} ${c.nameAr}'}, (v) {
+              _country = v;
+              _governorate = null;
+            }),
+            KeyedSubtree(
+              key: ValueKey(_country),
+              child: _drop<String>(adminAreaLabel(_country), _governorate, {null: 'الكل', for (final g in governoratesFor(_country ?? 'EG')) g: g}, (v) => _governorate = v),
+            ),
           ]),
         ),
         Expanded(

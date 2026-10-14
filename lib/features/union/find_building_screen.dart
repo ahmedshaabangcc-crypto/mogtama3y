@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/geo/user_country.dart';
 import '../../core/theme/app_colors.dart';
 import 'found_building_screen.dart';
 import 'join_as_tenant_screen.dart';
@@ -23,11 +24,15 @@ class FindBuildingScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('نصاب الـ 51% القانوني'),
-        content: const Text(
-          'وفقاً لقانون تنظيم اتحادات الشاغلين المصري، يلزم موافقة مالكي 51% على الأقل من وحدات العقار على الأقل لتأسيس اتحاد ملاك رسمي والبدء في انتخاب مجلس إدارته. '
-          'اجمع موافقات جيرانك أولاً، ثم أسّس الاتحاد من هذا التطبيق.',
-          style: TextStyle(height: 1.7),
+        title: Text(UserCountry.inEgypt ? 'نصاب الـ 51% القانوني' : 'موافقة أغلبية الملاك'),
+        // The Egyptian union law applies to Egyptian buildings only (0093).
+        content: Text(
+          UserCountry.inEgypt
+              ? 'وفقاً لقانون تنظيم اتحادات الشاغلين المصري، يلزم موافقة مالكي 51% على الأقل من وحدات العقار على الأقل لتأسيس اتحاد ملاك رسمي والبدء في انتخاب مجلس إدارته. '
+                  'اجمع موافقات جيرانك أولاً، ثم أسّس الاتحاد من هذا التطبيق.'
+              : 'قواعد اتحادات الملاك وجمعيات السكان بتختلف من بلد لبلد. الأفضل تجمع موافقة أغلبية ملاك الوحدات (51% مثلاً) قبل ما تأسّس الاتحاد، '
+                  'وتتأكد من القواعد الرسمية في بلدك. بعدها أسّس الاتحاد من هذا التطبيق.',
+          style: const TextStyle(height: 1.7),
         ),
         actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('تمام'))],
       ),
@@ -136,7 +141,7 @@ class FindBuildingScreen extends StatelessWidget {
             child: TextButton.icon(
               onPressed: () => _showQuorumInfo(context),
               icon: const Icon(Icons.help_outline_rounded, size: 16, color: AppColors.inkMuted),
-              label: const Text('كيف نصل لنصاب الـ 51% قانونياً؟', style: TextStyle(fontSize: 12, color: AppColors.inkMuted)),
+              label: Text(UserCountry.inEgypt ? 'كيف نصل لنصاب الـ 51% قانونياً؟' : 'إزاي نأسّس الاتحاد صح؟', style: const TextStyle(fontSize: 12, color: AppColors.inkMuted)),
             ),
           ),
         ],

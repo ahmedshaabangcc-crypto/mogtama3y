@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../geo/user_country.dart';
+
 /// Imports real nearby shops from Google Places into the `shops` table —
 /// see backend/migrations/0012_shops.sql.
 ///
@@ -11,7 +13,7 @@ class PlacesService {
   static SupabaseClient get _client => Supabase.instance.client;
 
   static Future<List<Map<String, dynamic>>> fetchImportedShops() async {
-    final rows = await _client.from('shops').select().order('created_at', ascending: false).limit(50);
+    final rows = await _client.from('shops').select().eq('country', UserCountry.feedCountry).order('created_at', ascending: false).limit(50);
     return List<Map<String, dynamic>>.from(rows as List);
   }
 
@@ -20,7 +22,8 @@ class PlacesService {
   /// as the function's own Arabic message where it has one.
   static Future<Map<String, dynamic>> _invoke(Map<String, dynamic> body) async {
     try {
-      final res = await _client.functions.invoke('places', body: body);
+      // The Places region (0093): the request's lat/lng decides; else this country.
+      final res = await _client.functions.invoke('places', body: {'country': UserCountry.feedCountry, ...body});
       return Map<String, dynamic>.from(res.data as Map);
     } on FunctionException catch (e) {
       final details = e.details;
@@ -48,8 +51,8 @@ class PlacesService {
   /// table — used to resolve a real-world place (e.g. a building) to
   /// its Google `id`/lat/lng so callers can dedupe against it. See
   /// backend/migrations/0017_buildings_registry.sql.
-  static Future<List<Map<String, dynamic>>> searchPlaces(String query) async {
-    final result = await _invoke({'action': 'search', 'query': query});
+  static Future<List<Map<String, dynamic>>> searchPlaces(String query, {String? country}) async {
+    final result = await _invoke({'action': 'search', 'query': query, 'country': ?country});
     return List<Map<String, dynamic>>.from(result['places'] as List);
   }
 

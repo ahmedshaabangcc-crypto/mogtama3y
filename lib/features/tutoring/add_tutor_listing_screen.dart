@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/auth/auth_service.dart';
-import '../../core/reports/report_service.dart' show reportGovernorates;
+import '../../core/reports/report_service.dart' show governoratesFor;
 import '../../core/storage/multi_photo_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/tutoring/tutoring_service.dart';
@@ -245,12 +245,12 @@ class _AddTutorListingScreenState extends State<AddTutorListingScreen> {
             MultiPhotoPicker(purpose: 'tutoring', maxPhotos: 6, initial: _images, onChanged: (urls) => _images = List.of(urls)),
             _section('المكان'),
             DropdownButtonFormField<String>(
-              initialValue: reportGovernorates.contains(_governorate) ? _governorate : null,
+              initialValue: governoratesFor(_e?['country'] as String?).contains(_governorate) ? _governorate : null,
               isExpanded: true,
               decoration: _dec('المحافظة'),
               items: [
                 const DropdownMenuItem<String>(value: null, child: Text('—')),
-                for (final g in reportGovernorates) DropdownMenuItem(value: g, child: Text(g)),
+                for (final g in governoratesFor(_e?['country'] as String?)) DropdownMenuItem(value: g, child: Text(g)),
               ],
               onChanged: (v) => setState(() => _governorate = v),
             ),

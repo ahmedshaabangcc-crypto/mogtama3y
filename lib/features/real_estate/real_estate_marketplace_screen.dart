@@ -10,6 +10,7 @@ import '../../core/reports/report_service.dart';
 import '../../core/support/support_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/feed_country_button.dart';
 import '../shared/load_error_view.dart';
 import 'add_real_estate_listing_screen.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
@@ -91,7 +92,12 @@ class _RealEstateMarketplaceScreenState extends State<RealEstateMarketplaceScree
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('العقارات')),
+      appBar: AppBar(title: const Text('العقارات'), actions: [
+        FeedCountryButton(onChanged: () {
+          setState(() => _governorate = null);
+          _load();
+        }),
+      ]),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(

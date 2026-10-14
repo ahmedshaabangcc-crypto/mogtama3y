@@ -10,6 +10,7 @@ import '../../core/reports/report_service.dart' show reportGovernorates;
 import '../../core/routing/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/feed_country_button.dart';
 import '../shared/load_error_view.dart';
 import 'add_hall_screen.dart';
 import 'my_halls_screen.dart';
@@ -136,6 +137,10 @@ class _HallsMarketScreenState extends State<HallsMarketScreen> {
       appBar: AppBar(
         title: const Text('قاعات المناسبات'),
         actions: [
+          FeedCountryButton(onChanged: () {
+            setState(() => _filters = const HallFilters());
+            _load();
+          }),
           IconButton(onPressed: _mine, icon: const Icon(Icons.list_alt_rounded), tooltip: 'إعلاناتي'),
         ],
       ),

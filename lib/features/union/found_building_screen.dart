@@ -1,19 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../../core/auth/auth_service.dart';
+import '../../core/geo/admin_areas.dart';
+import '../../core/geo/arab_countries.dart';
+import '../../core/geo/user_country.dart';
 import '../../core/places/places_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/country_picker.dart';
 import '../tutorials/tutorial_widgets.dart';
 import 'union_dashboard_screen.dart';
-
-const _egyptGovernorates = [
-  'القاهرة', 'الجيزة', 'الإسكندرية', 'الدقهلية', 'البحر الأحمر', 'البحيرة', 'الفيوم',
-  'الغربية', 'الإسماعيلية', 'المنوفية', 'المنيا', 'القليوبية', 'الوادي الجديد', 'السويس',
-  'أسوان', 'أسيوط', 'بني سويف', 'بورسعيد', 'دمياط', 'الشرقية', 'جنوب سيناء', 'كفر الشيخ',
-  'مطروح', 'الأقصر', 'قنا', 'شمال سيناء', 'سوهاج',
-];
 
 /// Real "found your building" flow: creates the building + the founder's
 /// own unit as a verified owner, files a president request for the
@@ -26,6 +23,12 @@ const _egyptGovernorates = [
 /// the same real building differently don't fragment it into two separate
 /// digital groups — picking the same real place a second time turns this
 /// into a join request on the existing building instead of a new one.
+/// The division that holds [iso]'s capital (Egypt: القاهرة, as before).
+String _capitalDivision(String iso) {
+  final c = arabCountry(iso) ?? egypt;
+  return divisionAt(c.lat, c.lng, country: c.iso);
+}
+
 class FoundBuildingScreen extends StatefulWidget {
   const FoundBuildingScreen({super.key});
 
@@ -38,7 +41,9 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
   final _searchCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
   final _districtCtrl = TextEditingController();
-  String _governorate = 'القاهرة';
+  // The building's country (default: the user's) and its division.
+  String _country = UserCountry.iso.value;
+  late String _governorate = _capitalDivision(_country);
   final _unitCtrl = TextEditingController();
   final _floorCtrl = TextEditingController();
   bool _asPresident = true;
@@ -72,7 +77,7 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
     });
     try {
       final results = await Future.wait([
-        PlacesService.searchPlaces(query),
+        PlacesService.searchPlaces(query, country: _country),
         UnionService.searchLocalBuildings(query),
       ]);
       if (!mounted) return;
@@ -138,6 +143,7 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
         lng: _selectedLng,
         asPresident: _asPresident,
         existingBuildingId: _selectedBuildingId,
+        country: _country,
       );
       if (!mounted) return;
       if (code == 'PENDING_EXISTING') {
@@ -385,18 +391,30 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       const _FieldLabel('الدولة'),
                       const SizedBox(height: 6),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                        decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
-                        child: const Text('مصر', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.inkMuted)),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () async {
+                          final iso = await showCountryPicker(context, selected: _country);
+                          if (iso == null || iso == _country) return;
+                          setState(() {
+                            _country = iso;
+                            _governorate = _capitalDivision(iso);
+                          });
+                        },
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                          decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
+                          child: Text('${(arabCountry(_country) ?? egypt).nameAr} ▾',
+                              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.inkMuted)),
+                        ),
                       ),
                     ]),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const _FieldLabel('المحافظة'),
+                      _FieldLabel(adminAreaLabel(_country)),
                       const SizedBox(height: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -406,7 +424,7 @@ class _FoundBuildingScreenState extends State<FoundBuildingScreen> {
                             value: _governorate,
                             isExpanded: true,
                             style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.ink),
-                            items: _egyptGovernorates.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                            items: adminAreaNames(_country).map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
                             onChanged: (v) => setState(() => _governorate = v ?? _governorate),
                           ),
                         ),

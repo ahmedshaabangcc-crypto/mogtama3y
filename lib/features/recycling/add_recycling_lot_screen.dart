@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/recycling/recycling_service.dart';
 import '../../core/recycling/scrap_dealer_service.dart';
-import '../../core/reports/report_service.dart' show governorateOf, reportGovernorates;
+import '../../core/reports/report_service.dart' show governorateOf, myGovernorates;
 import '../../core/theme/app_colors.dart';
 import 'package:mogtama3y/core/utils/numbers.dart';
 
@@ -54,7 +54,8 @@ class _AddRecyclingLotScreenState extends State<AddRecyclingLotScreen> {
       setState(() {
         _lat = p.latitude;
         _lng = p.longitude;
-        _governorate ??= governorateOf(p.latitude, p.longitude);
+        final g = governorateOf(p.latitude, p.longitude);
+        if (myGovernorates.contains(g)) _governorate ??= g;
       });
     } catch (e) {
       if (!mounted) return;
@@ -153,7 +154,7 @@ class _AddRecyclingLotScreenState extends State<AddRecyclingLotScreen> {
               fillColor: AppColors.surface,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            items: [for (final g in reportGovernorates) DropdownMenuItem(value: g, child: Text(g))],
+            items: [for (final g in myGovernorates) DropdownMenuItem(value: g, child: Text(g))],
             onChanged: (v) => setState(() => _governorate = v),
           ),
           const SizedBox(height: 8),

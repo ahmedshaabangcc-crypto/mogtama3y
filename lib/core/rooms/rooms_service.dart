@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../geo/user_country.dart';
+
 SupabaseClient get _db => Supabase.instance.client;
 
 List<Map<String, dynamic>> _rows(dynamic rows) => List<Map<String, dynamic>>.from(rows as List);
@@ -14,8 +16,11 @@ class RoomsService {
 
   /// Active rooms, most active first: [{id, name, description, kind,
   /// governorate, area, icon, online_count, recent_count, last_message_at,
-  /// near}] — near 1 = your district, 2 = your governorate, 0 = neither.
-  static Future<List<Map<String, dynamic>>> rooms() async => _rows(await _db.rpc('list_chat_rooms'));
+  /// near, country}] — near 1 = your district, 2 = your governorate, 0 =
+  /// neither. Only the rooms of the browsed country (UserCountry.feedCountry)
+  /// and the shared «الوطن العربي» ones (country null) — 0093.
+  static Future<List<Map<String, dynamic>>> rooms() async =>
+      _rows(await _db.rpc('list_chat_rooms', params: {'p_country': UserCountry.feedCountry}));
 
   /// The room plus what I may do there: {name, …, online_count, signed_in,
   /// phone_verified, nickname, public_id, can_write, blocked_reason
@@ -82,6 +87,8 @@ class RoomsService {
     String? icon,
     int sortOrder = 100,
     bool isActive = true,
+    // ISO2 of the room's country; '' = every Arab country (0093).
+    String country = 'EG',
   }) async =>
       await _db.rpc('admin_save_chat_room', params: {
         'p_id': id,
@@ -93,6 +100,7 @@ class RoomsService {
         'p_icon': icon,
         'p_sort_order': sortOrder,
         'p_is_active': isActive,
+        'p_country': country,
       }) as String;
 
   static Future<void> adminSetModerator(String roomId, String nickname, {bool on = true}) =>

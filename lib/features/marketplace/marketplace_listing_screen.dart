@@ -7,6 +7,7 @@ import '../../core/promote/ad_token_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/union/union_service.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/feed_country_button.dart';
 import '../shared/load_error_view.dart';
 import 'add_listing_screen.dart';
 import 'item_details_screen.dart';
@@ -114,8 +115,9 @@ class _MarketplaceListingScreenState extends State<MarketplaceListingScreen> {
       backgroundColor: AppColors.bg,
       appBar: AppBar(
         title: const Text('سوق المستعمل'),
-        actions: const [
-          Padding(
+        actions: [
+          FeedCountryButton(onChanged: _load),
+          const Padding(
             padding: EdgeInsets.only(left: 12),
             child: Icon(Icons.storefront_rounded),
           ),

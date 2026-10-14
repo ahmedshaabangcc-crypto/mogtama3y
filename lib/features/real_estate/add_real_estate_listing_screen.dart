@@ -134,7 +134,7 @@ class _AddRealEstateListingScreenState extends State<AddRealEstateListingScreen>
                 initialValue: _governorate,
                 isExpanded: true,
                 decoration: _decoration('المحافظة'),
-                items: [for (final g in reportGovernorates) DropdownMenuItem(value: g, child: Text(g))],
+                items: [for (final g in myGovernorates) DropdownMenuItem(value: g, child: Text(g))],
                 onChanged: (v) => setState(() => _governorate = v),
               ),
             ),

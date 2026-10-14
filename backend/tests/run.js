@@ -3464,6 +3464,135 @@ const denied = (r) => !!r.error;
       (await admin(db, `select count(*)::int n from notifications where title = 'مستحق صيانة جديد' and body like '%ج.م%'`))[0].n > 0);
   }
 
+  console.log('\nPhase geo — the 22 Arab states: geography (0093)');
+  {
+    const fs = require('fs');
+    const path = require('path');
+    let rerun = null;
+    try {
+      await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0093_arab_geography.sql'), 'utf8'));
+    } catch (e) {
+      rerun = e.message;
+    }
+    check('geo: 0093 is safe to re-run', rerun === null, rerun);
+
+    // ---- country_at (the app's countryAt twin)
+    const at = (await admin(db, `select private.country_at(24.7136, 46.6753) riy, private.country_at(25.2048, 55.2708) dxb, private.country_at(30.0444, 31.2357) cai,
+      private.country_at(31.77, 35.23) jer, private.country_at(51.5, -0.1) lon, private.country_at(26.42, 50.09) dmm_raw,
+      private.arab_country_at(26.42, 50.09) dmm, private.arab_country_at(51.5, -0.1) lon_arab, private.arab_country_at(33.57, -7.59) casa,
+      private.in_arab_world(51.5, -0.1) lon_in, private.in_arab_world(24.71, 46.68) riy_in`))[0];
+    check('geo: country_at matches the app (Riyadh SA, Dubai AE, Cairo EG, Jerusalem PS, London GB)',
+      at.riy === 'SA' && at.dxb === 'AE' && at.cai === 'EG' && at.jer === 'PS' && at.lon === 'GB', at);
+    check("geo: arab_country_at puts Dammam in Saudi Arabia (Iran's box overlaps), London nowhere, Casablanca MA",
+      at.dmm_raw === 'IR' && at.dmm === 'SA' && at.lon_arab === null && at.casa === 'MA', at);
+    check('geo: the Arab-world check', at.riy_in === true && at.lon_in === false, at);
+
+    const geoSA = await signUp(db, 'geo saudi', '+966 50 709 3001');
+    const geoAE = await signUp(db, 'geo emirati', '+971 50 709 3001');
+    const geoEG = await signUp(db, 'geo egypt', '01000009301');
+    const geoSA2 = await signUp(db, 'geo saudi dealer', '+966 50 709 3002');
+    const geoEG2 = await signUp(db, 'geo egypt dealer', '01000009302');
+
+    // ---- reports anywhere in the Arab world
+    const riy = await as(db, geoSA, `select public.submit_report('حفر ورصف', 'حفرة كبيرة في شارع العليا', '{}', 24.6911, 46.6855, 'الرياض', 'العليا') as id`);
+    check('geo: a report in Riyadh is accepted', ok(riy) && !!riy.rows?.[0]?.id, riy.error);
+    const riyRow = (await admin(db, `select country, governorate from reports where id = $1`, [riy.rows?.[0]?.id]))[0];
+    check('geo: …with country SA', riyRow?.country === 'SA' && riyRow.governorate === 'الرياض', riyRow);
+    check('geo: a report in London is refused', denied(await as(db, geoSA, `select public.submit_report('حفر ورصف', 'حفرة في شارع أكسفورد', '{}', 51.5, -0.1)`)));
+    check('geo: nonsense coordinates are refused', denied(await as(db, geoSA, `select public.submit_report('حفر ورصف', 'حفرة في مكان غريب', '{}', 95, 46)`)));
+    const alex = await as(db, geoEG, `select public.submit_report('نظافة وقمامة', 'زبالة في الشارع الرئيسي', '{}', 31.2, 29.9, 'الإسكندرية') as id`);
+    check('geo: an Egyptian report is still EG', (await admin(db, `select country from reports where id = $1`, [alex.rows?.[0]?.id]))[0]?.country === 'EG');
+    check('geo: every old report is EG', (await admin(db, `select count(*)::int n from reports where country <> 'EG' and id <> $1`, [riy.rows?.[0]?.id]))[0].n === 0);
+    const feedSA = (await as(db, null, `select public.list_reports(null, null, 5, null, null, false, 50, 'SA') as r`)).rows?.map((x) => x.r) ?? [];
+    check('geo: the Saudi feed shows only Saudi reports', feedSA.length === 1 && feedSA[0].country === 'SA', feedSA.length);
+    const feedEG = (await as(db, null, `select public.list_reports(null, null, 5, null, null, false, 50, 'EG') as r`)).rows?.map((x) => x.r) ?? [];
+    check("geo: the Egyptian feed doesn't show it", feedEG.length > 0 && feedEG.every((r) => r.country === 'EG'), feedEG.length);
+    check('geo: the old call (no country) still works — nearby Alexandria',
+      (await as(db, null, `select public.list_reports(31.2, 29.9, 3) as r`)).rows?.every((x) => x.r.country === 'EG'));
+    check('geo: «بلاغاتي» ignores the country', (await as(db, geoSA, `select public.list_reports(null, null, 5, null, null, true, 50, 'EG') as r`)).rows?.length === 1);
+    const adminSA = (await as(db, SA, `select public.admin_list_reports(null, null, null, 200, 'SA') as r`)).rows ?? [];
+    check('geo: the admin filters the queue by country', adminSA.length === 1 && adminSA[0].r.country === 'SA', adminSA.length);
+
+    // ---- digital addresses
+    const dubai = { label: 'البيت', governorate: 'دبي', city: 'مرسى دبي', building: 'برج 3', lat: 25.08, lng: 55.14 };
+    const dAddr = await as(db, geoAE, `select public.save_my_e_address(null, $1::jsonb) as code`, [JSON.stringify(dubai)]);
+    check('geo: an address pinned in Dubai is saved', ok(dAddr), dAddr.error);
+    check('geo: …with country AE', (await admin(db, `select country from e_addresses where owner_id = $1`, [geoAE]))[0]?.country === 'AE');
+    const lonAddr = await as(db, geoAE, `select public.save_my_e_address(null, $1::jsonb)`, [JSON.stringify({ ...dubai, lat: 51.5, lng: -0.1 })]);
+    check('geo: a pin in London is refused (Arab world only)', !!lonAddr.error && lonAddr.error.includes('دولة عربية'), lonAddr.error);
+    await as(db, geoEG, `select public.save_my_e_address(null, $1::jsonb)`, [JSON.stringify({ label: 'البيت', governorate: 'القاهرة', city: 'المعادي', building: '5' })]);
+    check('geo: an Egyptian address without a pin is EG', (await admin(db, `select country from e_addresses where owner_id = $1`, [geoEG]))[0]?.country === 'EG');
+    await as(db, geoEG, `select public.save_my_e_address(null, $1::jsonb)`, [JSON.stringify({ label: 'الشغل', governorate: 'الرياض', city: 'العليا', building: '9', country: 'sa' })]);
+    check('geo: the country the app sends is kept when there is no pin',
+      (await admin(db, `select country from e_addresses where owner_id = $1 and label = 'الشغل'`, [geoEG]))[0]?.country === 'SA');
+    await as(db, geoEG, `select public.save_my_e_address(null, $1::jsonb)`, [JSON.stringify({ label: 'المصيف', governorate: 'الإسكندرية', city: 'سموحة', building: '2', lat: 31.2, lng: 29.95, country: 'SA' })]);
+    check('geo: …but the pin wins over it',
+      (await admin(db, `select country from e_addresses where owner_id = $1 and label = 'المصيف'`, [geoEG]))[0]?.country === 'EG');
+
+    // ---- chat rooms per country
+    const names = async (u, c) => ((await as(db, u, c === undefined ? `select name, near, country from public.list_chat_rooms()` : `select name, near, country from public.list_chat_rooms($1)`, c === undefined ? [] : [c])).rows ?? []);
+    const guestRooms = await names(null);
+    check('geo: guests see the Egyptian rooms + «الوطن العربي», not the Saudi ones',
+      guestRooms.some((r) => r.name === 'دردشة عامة') && guestRooms.some((r) => r.name === 'القاهرة') && guestRooms.some((r) => r.name === 'الوطن العربي') &&
+      !guestRooms.some((r) => r.name === 'الرياض') && guestRooms.every((r) => r.country === 'EG' || r.country === null), guestRooms.length);
+    const saRooms = await names(geoSA);
+    check('geo: a Saudi user sees the Saudi rooms (general + capital + cities) + «الوطن العربي»',
+      ['دردشة السعودية', 'الرياض', 'جدة', 'الوطن العربي'].every((n) => saRooms.some((r) => r.name === n)) && !saRooms.some((r) => r.name === 'القاهرة'), saRooms.map((r) => r.name));
+    check('geo: every one of the 22 states has rooms',
+      (await admin(db, `select count(distinct country)::int n from chat_rooms where country is not null`))[0].n === 22);
+    check('geo: the Egyptian user can browse the Moroccan rooms', (await names(geoEG, 'MA')).some((r) => r.name === 'الدار البيضاء'));
+    await admin(db, `insert into e_addresses (owner_id, code, governorate, city, district, country) values ($1, 'GEOSA001', 'الرياض', 'الرياض', 'العليا', 'SA')`, [geoSA]);
+    const saNear = await names(geoSA);
+    check("geo: «near» matches the Saudi user's region room", saNear.find((r) => r.name === 'الرياض')?.near === 2 && saNear.find((r) => r.name === 'جدة')?.near === 0, saNear.filter((r) => r.near > 0));
+    await admin(db, `insert into e_addresses (owner_id, code, governorate, city, district, country) values ($1, 'GEOEG001', 'الرياض', 'الرياض', 'العليا', 'EG')`, [geoEG2]);
+    check('geo: …but not from an address in another country', (await names(geoEG2, 'SA')).find((r) => r.name === 'الرياض')?.near === 0);
+    const aeRoom = await as(db, SA, `select public.admin_save_chat_room(null, 'العين', 'غرفة أهل العين', 'area', 'أبوظبي', 'العين', '🌴', 20, true, 'AE') as id`);
+    check('geo: the admin creates a UAE room', ok(aeRoom) && (await names(geoAE)).some((r) => r.name === 'العين') && !(await names(geoEG)).some((r) => r.name === 'العين'), aeRoom.error);
+    check('geo: …a room for every country', ok(await as(db, SA, `select public.admin_save_chat_room(null, 'شعر وأدب', null, 'topic', null, null, '📜', 60, true, '')`)) &&
+      (await names(geoAE)).some((r) => r.name === 'شعر وأدب') && (await names(null)).some((r) => r.name === 'شعر وأدب'));
+    check('geo: …not for a non-Arab country', denied(await as(db, SA, `select public.admin_save_chat_room(null, 'لندن', null, 'topic', null, null, null, 60, true, 'GB')`)));
+
+    // ---- scrap dealers: matching inside one country
+    const reg = (uid, wa, gov) => as(db, uid, `insert into scrap_dealers (user_id, business_name, whatsapp, materials, governorate, areas) values ($1, 'خردة', $2, '{copper}', $3, '{}')`, [uid, wa, gov]);
+    const regSA = await reg(geoSA2, '+966507093002', 'الرياض');
+    check('geo: a Saudi dealer registers in الرياض', ok(regSA), regSA.error);
+    check('geo: …country SA', (await admin(db, `select country from scrap_dealers where user_id = $1`, [geoSA2]))[0]?.country === 'SA');
+    check('geo: an Egyptian dealer registers in القاهرة', ok(await reg(geoEG2, '01000009302', 'القاهرة')) &&
+      (await admin(db, `select country from scrap_dealers where user_id = $1`, [geoEG2]))[0]?.country === 'EG');
+    const scrapNotes = async (u) => (await admin(db, `select count(*)::int n from notifications where user_id = $1 and title = 'مزاد خردة جديد يناسبك'`, [u]))[0].n;
+    const lot = (u, gov) => as(db, u, `insert into recycling_listings (seller_id, category, title, auction_ends_at, material, governorate) values ($1, 'metal', 'نحاس', now() + interval '2 days', 'copper', $2)`, [u, gov]);
+    const before = [await scrapNotes(geoSA2), await scrapNotes(geoEG2)];
+    const lot1 = await lot(geoSA, 'الرياض');
+    check('geo: a Saudi lot in الرياض reaches the Saudi dealer only', ok(lot1) && (await scrapNotes(geoSA2)) === before[0] + 1 && (await scrapNotes(geoEG2)) === before[1], lot1.error);
+    await lot(geoSA, 'القاهرة');
+    check("geo: a Saudi lot that says «القاهرة» doesn't reach Cairo's dealers", (await scrapNotes(geoEG2)) === before[1]);
+    await lot(geoEG, 'القاهرة');
+    check('geo: an Egyptian lot in القاهرة still reaches the Egyptian dealer', (await scrapNotes(geoEG2)) === before[1] + 1 && (await scrapNotes(geoSA2)) === before[0] + 1);
+
+    // ---- SOS numbers per building country
+    check('geo: Egyptian SOS notices keep «الإسعاف 123 أو المطافئ 180»',
+      (await admin(db, `select count(*)::int n from notifications where title like '🚨 استغاثة%' and body like '%اتصل بالإسعاف 123 أو المطافئ 180.'`))[0].n > 0);
+    await admin(db, `update buildings set country = 'SA' where id = $1`, [bld]);
+    const sosSA = await admin(db, `insert into sos_alerts (unit_id, triggered_by, type) values ($1, $2, 'medical') returning id`, [unit2, B]);
+    const saBody = (await admin(db, `select body from notifications where title like '🚨 استغاثة%' order by created_at desc limit 1`))[0]?.body ?? '';
+    check("geo: a Saudi building's SOS notice gives the Saudi numbers", saBody.includes('997') && !saBody.includes('123'), saBody);
+    await admin(db, `update sos_alerts set status = 'false_alarm' where id = $1`, [sosSA[0]?.id]);
+    await admin(db, `update buildings set country = 'EG' where id = $1`, [bld]);
+
+    // ---- founding a building in a chosen country
+    const fb = (u, fn, args) => as(db, u, `select public.${fn}(${args.map((_, i) => '$' + (i + 1)).join(', ')}) as c`, args);
+    const fAE = await fb(geoEG, 'found_building_in', ['AE', 'برج الواحة', 'البرشاء', 'دبي', 'دبي', '1', 'الأول']);
+    const bAE = (await admin(db, `select b.country, b.currency from buildings b join union_members m on m.building_id = b.id where m.user_id = $1`, [geoEG]))[0];
+    check('geo: an Egyptian founds a building in the UAE → AE / AED', bAE?.country === 'AE' && bAE.currency === 'AED', { bAE, e: fAE.error });
+    const fSA = await fb(geoSA, 'found_building', ['عمارة النخيل', 'العليا', 'الرياض', 'الرياض', '1', 'الأول', null, 24.69, 46.68]);
+    const bSA = (await admin(db, `select b.country, b.currency from buildings b join union_members m on m.building_id = b.id where m.user_id = $1`, [geoSA]))[0];
+    check('geo: a building placed in Riyadh is SA / SAR', bSA?.country === 'SA' && bSA.currency === 'SAR', { bSA, e: fSA.error });
+    await fb(geoEG2, 'found_building', ['عمارة الزهور', 'المعادي', 'القاهرة', 'القاهرة', '1', 'الأول']);
+    const bEG = (await admin(db, `select b.country, b.currency from buildings b join union_members m on m.building_id = b.id where m.user_id = $1`, [geoEG2]))[0];
+    check('geo: an Egyptian building is unchanged (EG / EGP)', bEG?.country === 'EG' && bEG.currency === 'EGP', bEG);
+    check('geo: found_building_in is for signed-in users only', denied(await fb(null, 'found_building_in', ['AE', 'x', 'x', 'x', 'x', '1', '1'])));
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

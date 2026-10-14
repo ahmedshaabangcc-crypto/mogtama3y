@@ -6,6 +6,7 @@ import '../../core/jobs/jobs_service.dart';
 import '../../core/promote/ad_token_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/feed_country_button.dart';
 import '../shared/load_error_view.dart';
 import 'job_details_screen.dart';
 import 'post_job_form_screen.dart';
@@ -81,7 +82,7 @@ class _JobsBoardScreenState extends State<JobsBoardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('وظائف وشواغر قريبة منك')),
+      appBar: AppBar(title: const Text('وظائف وشواغر قريبة منك'), actions: [FeedCountryButton(onChanged: _load)]),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/app_flavor.dart';
+import '../../core/geo/emergency_numbers.dart';
+import '../../core/geo/user_country.dart';
 
 import '../../core/theme/app_colors.dart';
 import 'support_contact_screen.dart';
@@ -12,7 +14,8 @@ class _Faq {
   final IconData icon;
 }
 
-const _faqs = [
+// A getter: the SOS answer carries the user's country's numbers (0093).
+List<_Faq> get _faqs => [
   _Faq(
     question: 'كيف يحمي نظام الضمان (Escrow) أموالي عند طلب صيانة؟',
     answer:
@@ -42,7 +45,7 @@ const _faqs = [
   _Faq(
     question: 'ماذا أفعل في حالات الطوارئ ونداء الجيران SOS؟',
     answer:
-        'اضغط مع الاستمرار على زر الاستغاثة لمدة ثانيتين؛ سيصل إشعار داخل التطبيق لجيران عمارتك الموثقين والحراسة. الإشعار لا يغني عن الاتصال بالطوارئ: الإسعاف 123، النجدة 122، المطافئ 180، طوارئ الغاز 129.',
+        'اضغط مع الاستمرار على زر الاستغاثة لمدة ثانيتين؛ سيصل إشعار داخل التطبيق لجيران عمارتك الموثقين والحراسة. الإشعار لا يغني عن الاتصال بالطوارئ: ${emergencySentence(UserCountry.iso.value)}.',
     icon: Icons.warning_amber_rounded,
   ),
 ];

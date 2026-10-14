@@ -7,6 +7,7 @@ import 'core/app_flavor.dart';
 import 'core/auth/auth_service.dart';
 import 'core/demo/demo_boot.dart';
 import 'core/demo/demo_mode.dart';
+import 'core/geo/user_country.dart';
 import 'core/supabase/supabase_config.dart';
 import 'core/theme/app_theme.dart';
 import 'core/routing/app_router.dart';
@@ -49,6 +50,7 @@ Future<void> main() async {
     debugPrint('Supabase.initialize failed: $e');
   }
   AuthService.listenAndSyncProfile();
+  UserCountry.loadFeedOverride(); // the feeds' chosen country (flag chip)
   // Opened from a «نسيت كلمة المرور؟» email → ask for the new password.
   try {
     AuthService.listenForPasswordRecovery();

@@ -5,6 +5,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/places/places_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/location/where.dart';
+import '../shared/feed_country_button.dart';
 import '../shared/load_error_view.dart';
 import 'claim_business_hub_screen.dart';
 import 'shop_details_screen.dart';
@@ -118,7 +119,7 @@ class _NeighborhoodShopsScreenState extends State<NeighborhoodShopsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('المحلات القريبة ودليل الحي')),
+      appBar: AppBar(title: const Text('المحلات القريبة ودليل الحي'), actions: [FeedCountryButton(onChanged: _load)]),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(

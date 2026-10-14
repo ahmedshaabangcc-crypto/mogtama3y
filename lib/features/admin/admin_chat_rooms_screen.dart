@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/geo/arab_countries.dart';
 import '../../core/rooms/rooms_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../rooms/room_widgets.dart';
@@ -71,6 +72,7 @@ class _AdminChatRoomsScreenState extends State<AdminChatRoomsScreen> {
         icon: r['icon'] as String?,
         sortOrder: (r['sort_order'] as num?)?.toInt() ?? 100,
         isActive: r['is_active'] != true,
+        country: r['country'] as String? ?? '',
       );
       _load();
     } catch (e) {
@@ -138,7 +140,11 @@ class _AdminChatRoomsScreenState extends State<AdminChatRoomsScreen> {
                     itemBuilder: (context, i) {
                       final r = _rooms[i];
                       final active = r['is_active'] == true;
-                      final where = [r['governorate'], r['area']].whereType<String>().join(' · ');
+                      final where = [
+                        r['country'] == null ? '🌍 كل الدول' : (arabCountry(r['country'] as String)?.flag ?? r['country']),
+                        r['governorate'],
+                        r['area'],
+                      ].whereType<String>().join(' · ');
                       return Container(
                         decoration: BoxDecoration(
                           color: active ? AppColors.surface : AppColors.surfaceAlt,
@@ -199,6 +205,8 @@ class _RoomFormState extends State<_RoomForm> {
   late final _sort = TextEditingController(text: '${widget.room?['sort_order'] ?? 100}');
   late String _kind = widget.room?['kind'] as String? ?? 'topic';
   late bool _active = widget.room?['is_active'] as bool? ?? true;
+  // '' = every Arab country (0093); new rooms default to Egypt.
+  late String _country = widget.room == null ? 'EG' : (widget.room!['country'] as String? ?? '');
   bool _busy = false;
 
   @override
@@ -227,6 +235,7 @@ class _RoomFormState extends State<_RoomForm> {
         icon: opt(_icon),
         sortOrder: looseInt(_sort.text.trim()) ?? 100,
         isActive: _active,
+        country: _country,
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
@@ -245,6 +254,15 @@ class _RoomFormState extends State<_RoomForm> {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(controller: _name, maxLength: 40, decoration: const InputDecoration(labelText: 'اسم الغرفة')),
           TextField(controller: _desc, maxLength: 200, decoration: const InputDecoration(labelText: 'وصف قصير')),
+          DropdownButtonFormField<String>(
+            initialValue: _country,
+            decoration: const InputDecoration(labelText: 'الدولة'),
+            items: [
+              const DropdownMenuItem(value: '', child: Text('🌍 كل الدول العربية')),
+              for (final c in arabCountries) DropdownMenuItem(value: c.iso, child: Text('${c.flag} ${c.nameAr}')),
+            ],
+            onChanged: (v) => setState(() => _country = v ?? 'EG'),
+          ),
           const SizedBox(height: 8),
           SegmentedButton<String>(
             segments: const [ButtonSegment(value: 'area', label: Text('منطقة')), ButtonSegment(value: 'topic', label: Text('موضوع'))],
@@ -252,7 +270,7 @@ class _RoomFormState extends State<_RoomForm> {
             onSelectionChanged: (s) => setState(() => _kind = s.first),
           ),
           if (_kind == 'area') ...[
-            TextField(controller: _gov, decoration: const InputDecoration(labelText: 'المحافظة')),
+            TextField(controller: _gov, decoration: const InputDecoration(labelText: 'المحافظة / المنطقة (زي قائمة الدولة)')),
             TextField(
               controller: _area,
               decoration: const InputDecoration(labelText: 'الحي / المنطقة (فاضي = غرفة المحافظة كلها)'),

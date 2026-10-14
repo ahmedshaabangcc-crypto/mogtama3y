@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../geo/user_country.dart';
+
 import '../auth/contact_phones.dart';
 import 'package:mogtama3y/core/geo/money.dart';
 
@@ -78,8 +80,12 @@ class UnionService {
     double? lng,
     bool asPresident = true,
     String? existingBuildingId,
+    String? country,
   }) async {
-    final result = await _client.rpc('found_building', params: {
+    // Another country than the founder's own → found_building_in (0093).
+    final other = country != null && country != UserCountry.iso.value;
+    final result = await _client.rpc(other ? 'found_building_in' : 'found_building', params: {
+      if (other) 'p_country': country,
       'p_name': name,
       'p_district': district,
       'p_city': city,

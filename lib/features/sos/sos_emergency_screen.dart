@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/geo/emergency_numbers.dart';
+import '../../core/geo/user_country.dart';
 import '../../core/sos/sos_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../tutorials/tutorial_widgets.dart';
@@ -20,12 +22,29 @@ const _emergencyTypes = [
   _EmergencyType(icon: Icons.shield_moon_rounded, title: 'اشتباه أمني أو اقتحام', subtitle: 'متسلل، سرقة، اعتداء مشبوه', value: 'security'),
 ];
 
-const _hotlines = [
+/// Egypt's hotlines (unchanged); the other countries come from
+/// lib/core/geo/emergency_numbers.dart.
+const _egyptHotlines = [
   (number: '123', label: 'الإسعاف الطبي', icon: Icons.local_hospital_rounded),
   (number: '122', label: 'النجدة (الشرطة)', icon: Icons.local_police_rounded),
   (number: '129', label: 'طوارئ الغاز', icon: Icons.propane_tank_outlined),
   (number: '180', label: 'المطافئ والدفاع المدني', icon: Icons.fire_truck_rounded),
 ];
+
+IconData _hotlineIcon(String label) {
+  if (label.contains('إسعاف') || label.contains('الصليب')) return Icons.local_hospital_rounded;
+  if (label.contains('شرطة') || label.contains('النجدة') || label.contains('الدرك') || label.contains('الحرس')) return Icons.local_police_rounded;
+  if (label.contains('مطافئ') || label.contains('الدفاع') || label.contains('الحماية') || label.contains('الوقاية')) return Icons.fire_truck_rounded;
+  if (label.contains('غاز')) return Icons.propane_tank_outlined;
+  return Icons.sos_rounded;
+}
+
+/// The hotlines of the user's country.
+List<({String number, String label, IconData icon})> get _hotlines {
+  final iso = UserCountry.iso.value;
+  if (iso == 'EG' || !emergencyByCountry.containsKey(iso)) return _egyptHotlines;
+  return [for (final (label, number) in emergencyLines(iso)) (number: number, label: label, icon: _hotlineIcon(label))];
+}
 
 /// SOS neighbor emergency alert — matches design/screens/37_sos_emergency.png.
 class SosEmergencyScreen extends StatefulWidget {
@@ -354,6 +373,13 @@ class _SosEmergencyScreenState extends State<SosEmergencyScreen> with SingleTick
               );
             },
           ),
+          if (emergencyNumbersOf(UserCountry.iso.value).uncertain && UserCountry.iso.value != 'EG') ...[
+            const SizedBox(height: 8),
+            const Text(
+              'مقدرناش نتأكد من كل أرقام الطوارئ في بلدك من مصدر موثوق. اتأكد من الرقم المحلي، ومن الموبايل جرّب الرقم الموحّد 112.',
+              style: TextStyle(fontSize: 11, color: AppColors.inkSecondary, height: 1.7),
+            ),
+          ],
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(10),

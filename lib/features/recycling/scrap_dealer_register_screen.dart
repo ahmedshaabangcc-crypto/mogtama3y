@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
 import '../../core/auth/auth_service.dart';
 import '../../core/recycling/scrap_dealer_service.dart';
-import '../../core/reports/report_service.dart' show governorateOf, reportGovernorates;
+import '../../core/reports/report_service.dart' show governorateOf, governoratesFor;
 import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
 import 'scrap_widgets.dart';
@@ -105,7 +105,8 @@ class _ScrapDealerRegisterScreenState extends State<ScrapDealerRegisterScreen> {
       setState(() {
         _baseLat = p.latitude;
         _baseLng = p.longitude;
-        _governorate ??= governorateOf(p.latitude, p.longitude);
+        final g = governorateOf(p.latitude, p.longitude);
+        if (governoratesFor(_existing?['country'] as String?).contains(g)) _governorate ??= g;
       });
     } catch (e) {
       if (!mounted) return;
@@ -273,7 +274,7 @@ class _ScrapDealerRegisterScreenState extends State<ScrapDealerRegisterScreen> {
               decoration: _dec('المحافظة'),
               items: [
                 const DropdownMenuItem<String>(value: null, child: Text('—')),
-                for (final g in reportGovernorates) DropdownMenuItem(value: g, child: Text(g)),
+                for (final g in governoratesFor(_existing?['country'] as String?)) DropdownMenuItem(value: g, child: Text(g)),
               ],
               onChanged: (v) => setState(() => _governorate = v),
             ),

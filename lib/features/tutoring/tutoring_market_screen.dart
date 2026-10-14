@@ -9,6 +9,7 @@ import '../../core/routing/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/tutoring/tutoring_service.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/feed_country_button.dart';
 import '../shared/load_error_view.dart';
 import 'add_tutor_listing_screen.dart';
 import 'my_tutor_listings_screen.dart';
@@ -133,6 +134,10 @@ class _TutoringMarketScreenState extends State<TutoringMarketScreen> {
       appBar: AppBar(
         title: const Text('دروس خصوصية'),
         actions: [
+          FeedCountryButton(onChanged: () {
+            setState(() => _filters = const TutorFilters());
+            _load();
+          }),
           IconButton(onPressed: _mine, icon: const Icon(Icons.list_alt_rounded), tooltip: 'إعلاناتي'),
         ],
       ),

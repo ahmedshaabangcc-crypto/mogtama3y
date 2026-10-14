@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../geo/admin_areas.dart';
+
 /// "عنوانك الإلكتروني": a saved address behind a short code, shared as a
 /// link + QR at `mogtama3y.com/#/a/<code>`. All writes go through RPCs in
 /// migration 0048 (the server owns the code and the visit counter).
@@ -27,11 +29,8 @@ class EAddressService {
   /// K7P2X9QM → MG-K7P2-X9QM (how the code is printed and read aloud).
   static String display(String code) => code.length == 8 ? 'MG-${code.substring(0, 4)}-${code.substring(4)}' : code;
 
-  static const governorates = [
-    'القاهرة', 'الجيزة', 'الإسكندرية', 'القليوبية', 'الشرقية', 'الدقهلية', 'الغربية', 'المنوفية', 'البحيرة',
-    'كفر الشيخ', 'دمياط', 'بورسعيد', 'الإسماعيلية', 'السويس', 'الفيوم', 'بني سويف', 'المنيا', 'أسيوط',
-    'سوهاج', 'قنا', 'الأقصر', 'أسوان', 'البحر الأحمر', 'الوادي الجديد', 'مطروح', 'شمال سيناء', 'جنوب سيناء',
-  ];
+  /// Governorates / regions… of [country] (Egypt's 27 by default) — 0093.
+  static List<String> governoratesOf(String? country) => adminAreaNames(country);
 
   static Future<List<Map<String, dynamic>>> myAddresses() async {
     final rows = await _client.from('e_addresses').select().order('created_at');

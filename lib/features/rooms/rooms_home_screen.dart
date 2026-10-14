@@ -10,6 +10,7 @@ import '../../core/routing/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
 import '../profile/phone_verify_screen.dart';
+import '../shared/feed_country_button.dart';
 import '../shared/load_error_view.dart';
 import 'room_widgets.dart';
 
@@ -110,6 +111,7 @@ class _RoomsHomeScreenState extends State<RoomsHomeScreen> {
       appBar: AppBar(
         title: const Text('غرف الدردشة'),
         actions: [
+          FeedCountryButton(onChanged: _load),
           if (_signedIn && _me?['nickname'] != null)
             TextButton.icon(
               onPressed: _pickNickname,

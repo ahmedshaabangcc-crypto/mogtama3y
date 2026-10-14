@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/cars/car_service.dart';
-import '../../core/reports/report_service.dart' show reportGovernorates;
+import '../../core/reports/report_service.dart' show myGovernorates;
 import '../../core/storage/multi_photo_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
@@ -263,7 +263,7 @@ class _AddCarListingScreenState extends State<AddCarListingScreen> {
               decoration: _dec('التفاصيل', hint: 'الحالة، الصيانات، الرخصة، أي ملاحظات'),
             ),
             _section('المكان'),
-            _dropdown<String>('المحافظة', _governorate, {for (final g in reportGovernorates) g: g}, (v) => setState(() => _governorate = v)),
+            _dropdown<String>('المحافظة', _governorate, {for (final g in myGovernorates) g: g}, (v) => setState(() => _governorate = v)),
             const SizedBox(height: 10),
             TextFormField(controller: _area, decoration: _dec('المنطقة', hint: 'مثلاً: مدينة نصر')),
             const SizedBox(height: 22),

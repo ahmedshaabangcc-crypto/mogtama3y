@@ -9,6 +9,7 @@ import '../../core/recycling/scrap_dealer_service.dart';
 import '../../core/routing/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
+import '../shared/feed_country_button.dart';
 import '../shared/load_error_view.dart';
 import 'add_recycling_lot_screen.dart';
 import 'auction_detail_screen.dart';
@@ -89,7 +90,7 @@ class _RecyclingMarketplaceScreenState extends State<RecyclingMarketplaceScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('سوق البيكيا وتدوير المخلفات')),
+      appBar: AppBar(title: const Text('سوق البيكيا وتدوير المخلفات'), actions: [FeedCountryButton(onChanged: _load)]),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(

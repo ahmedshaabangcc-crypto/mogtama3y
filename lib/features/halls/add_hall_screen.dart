@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/halls/hall_service.dart';
-import '../../core/reports/report_service.dart' show reportGovernorates;
+import '../../core/reports/report_service.dart' show governoratesFor;
 import '../../core/storage/multi_photo_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
@@ -273,7 +273,7 @@ class _AddHallScreenState extends State<AddHallScreen> {
               initialValue: _governorate,
               isExpanded: true,
               decoration: _dec('المحافظة'),
-              items: [for (final g in reportGovernorates) DropdownMenuItem(value: g, child: Text(g))],
+              items: [for (final g in governoratesFor(_e['country'] as String?)) DropdownMenuItem(value: g, child: Text(g))],
               onChanged: (v) => setState(() => _governorate = v),
               validator: (v) => v == null ? 'اختار المحافظة' : null,
             ),

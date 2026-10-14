@@ -20,10 +20,66 @@
 // Every call counts against a daily quota per user (or per IP for
 // guests) — see bump_places_usage() in migration 0041.
 //
+// Region (0093, the Arab world): Google's regionCode — the bias for names,
+// addresses and text search — is the country of the request's lat/lng
+// (Egypt by its polygon, else the smallest of the 22 states' boxes), else
+// the `country` the app sends (ISO2, the user's / feed country), else EG.
+// New shops imported from Google get that country too (see 0093).
+//
 // Deploy with JWT verification OFF (the app's publishable key is not a
 // JWT); the function checks the user itself. See ../README.md.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
+
+// ------------------------------------------------------------ region
+// Egypt (same polygon as private.in_egypt / the app's egyptPolygon).
+const EGYPT: [number, number][] = [[22.0, 25.0], [30.0, 25.0], [31.6, 25.15], [31.8, 25.2], [31.8, 32.5], [31.36, 34.2], [29.49, 34.9],
+  [29.0, 34.75], [28.5, 34.62], [27.95, 34.47], [27.2, 34.8], [26.0, 35.3], [24.0, 36.4], [22.0, 37.3]];
+// [iso, latMin, latMax, lngMin, lngMax] — the 22 states' boxes of the app's countryBoxes.
+const ARAB_BOXES: [string, number, number, number, number][] = [
+  ['SA', 16.3, 32.2, 34.5, 55.7], ['AE', 22.6, 26.1, 51.5, 56.4], ['OM', 16.6, 26.4, 52.0, 59.9], ['QA', 24.4, 26.2, 50.7, 51.7],
+  ['BH', 25.5, 26.4, 50.3, 50.8], ['KW', 28.5, 30.1, 46.5, 48.5], ['IQ', 29.0, 37.4, 38.8, 48.6], ['JO', 29.2, 33.4, 34.9, 39.3],
+  ['SY', 32.3, 37.3, 35.7, 42.4], ['LB', 33.0, 34.7, 35.1, 36.6], ['PS', 31.2, 31.6, 34.2, 34.6], ['PS', 31.3, 32.6, 34.9, 35.6],
+  ['YE', 12.1, 19.0, 42.5, 54.6], ['LY', 19.5, 33.2, 9.3, 25.2], ['TN', 30.2, 37.6, 7.5, 11.6], ['DZ', 18.9, 37.1, -8.7, 12.0],
+  ['MA', 27.6, 35.9, -13.2, -1.0], ['MA', 20.7, 27.7, -17.1, -8.7], ['MR', 14.7, 27.3, -17.1, -4.8], ['SD', 8.6, 22.3, 21.8, 38.6],
+  ['SO', -1.7, 12.0, 40.9, 51.4], ['DJ', 10.9, 12.7, 41.7, 43.4], ['KM', -12.5, -11.3, 43.2, 44.6],
+];
+const ARAB = new Set(['EG', ...ARAB_BOXES.map((b) => b[0])]);
+
+function inEgypt(lat: number, lng: number): boolean {
+  let inside = false;
+  for (let i = 0, j = EGYPT.length - 1; i < EGYPT.length; j = i++) {
+    const [yi, xi] = EGYPT[i];
+    const [yj, xj] = EGYPT[j];
+    if ((yi > lat) !== (yj > lat) && lng < (xj - xi) * (lat - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function arabCountryAt(lat: number, lng: number): string | null {
+  if (inEgypt(lat, lng)) return 'EG';
+  let best: string | null = null;
+  let bestArea = Infinity;
+  for (const [iso, a, b, c, d] of ARAB_BOXES) {
+    if (lat >= a && lat <= b && lng >= c && lng <= d && (b - a) * (d - c) < bestArea) {
+      bestArea = (b - a) * (d - c);
+      best = iso;
+    }
+  }
+  return best;
+}
+
+// The request's region: its coordinates' country, else `country`, else EG.
+function regionOf(payload: any): string {
+  const lat = Number(payload?.lat);
+  const lng = Number(payload?.lng);
+  if (payload?.lat != null && payload?.lng != null && Number.isFinite(lat) && Number.isFinite(lng)) {
+    const at = arabCountryAt(lat, lng);
+    if (at) return at;
+  }
+  const c = String(payload?.country ?? '').toUpperCase();
+  return ARAB.has(c) ? c : 'EG';
+}
 
 const GOOGLE_KEY = Deno.env.get('GOOGLE_MAPS_API_KEY') ?? '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
@@ -57,7 +113,7 @@ const NEARBY_TYPES: Record<string, string[]> = {
 const NEARBY_FIELDS = 'places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.currentOpeningHours.openNow,places.primaryTypeDisplayName,places.websiteUri';
 const DETAIL_FIELDS = 'id,displayName,formattedAddress,location,rating,userRatingCount,types,primaryTypeDisplayName,nationalPhoneNumber,websiteUri,googleMapsUri,regularOpeningHours.weekdayDescriptions,currentOpeningHours.openNow,photos';
 
-async function nearby(lat: number, lng: number, types: string[]) {
+async function nearby(lat: number, lng: number, types: string[], regionCode: string) {
   const res = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': GOOGLE_KEY, 'X-Goog-FieldMask': NEARBY_FIELDS },
@@ -66,7 +122,7 @@ async function nearby(lat: number, lng: number, types: string[]) {
       maxResultCount: 20,
       rankPreference: 'DISTANCE',
       languageCode: 'ar',
-      regionCode: 'EG',
+      regionCode,
       locationRestriction: { circle: { center: { latitude: lat, longitude: lng }, radius: 3000 } },
     }),
   });
@@ -75,8 +131,8 @@ async function nearby(lat: number, lng: number, types: string[]) {
   return (body.places ?? []) as any[];
 }
 
-async function placeDetails(placeId: string) {
-  const res = await fetch(`https://places.googleapis.com/v1/places/${placeId}?languageCode=ar&regionCode=EG`, {
+async function placeDetails(placeId: string, regionCode = 'EG') {
+  const res = await fetch(`https://places.googleapis.com/v1/places/${placeId}?languageCode=ar&regionCode=${regionCode}`, {
     headers: { 'X-Goog-Api-Key': GOOGLE_KEY, 'X-Goog-FieldMask': DETAIL_FIELDS },
   });
   const body = await res.json();
@@ -206,7 +262,7 @@ Deno.serve(async (req) => {
       const types = NEARBY_TYPES[String(payload.category ?? '')];
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return json({ error: 'invalid coordinates' }, 400);
       if (!types) return json({ error: 'unknown category' }, 400);
-      const places = await nearby(lat, lng, types);
+      const places = await nearby(lat, lng, types, regionOf(payload));
       // Our own stores for these places (claimed shops with a /#/s/ link).
       const ids = places.map((p) => p.id);
       const { data: ours } = ids.length
@@ -237,7 +293,7 @@ Deno.serve(async (req) => {
       if (action === 'ensure_shop') {
         const { data: existing } = await admin.from('shops').select('*').eq('google_place_id', placeId).maybeSingle();
         if (existing) return json({ shop: existing });
-        const p = await placeDetails(placeId);
+        const p = await placeDetails(placeId, regionOf(payload));
         const photoName = p.photos?.[0]?.name as string | undefined;
         const { data: shop, error } = await admin.from('shops').insert({
           source: 'google_imported',
@@ -250,12 +306,13 @@ Deno.serve(async (req) => {
           rating: p.rating,
           rating_count: p.userRatingCount ?? 0,
           cover_image_url: photoName ? await photoUri(photoName) : null,
+          country: (p.location ? arabCountryAt(p.location.latitude, p.location.longitude) : null) ?? regionOf(payload),
         }).select('*').single();
         if (error) throw new Error(error.message);
         return json({ shop });
       }
 
-      const p = await placeDetails(placeId);
+      const p = await placeDetails(placeId, regionOf(payload));
       const photos: string[] = [];
       for (const ph of (p.photos ?? []).slice(0, 3)) {
         const uri = await photoUri(ph.name);
@@ -288,7 +345,7 @@ Deno.serve(async (req) => {
     if (!query) return json({ error: 'اكتب ما تبحث عنه' }, 400);
 
     if (action === 'search') {
-      const places = await searchText(query, 'places.id,places.displayName,places.formattedAddress,places.location', 'EG');
+      const places = await searchText(query, 'places.id,places.displayName,places.formattedAddress,places.location', regionOf(payload));
       return json({
         places: places.map((p) => ({
           place_id: p.id,
@@ -304,6 +361,8 @@ Deno.serve(async (req) => {
       const places = await searchText(
         query,
         'places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.types,places.photos',
+        // No bias for Egypt (as before); the country's elsewhere.
+        regionOf(payload) === 'EG' ? undefined : regionOf(payload),
       );
       const rows = [];
       for (const p of places) {
@@ -319,6 +378,7 @@ Deno.serve(async (req) => {
           rating: p.rating,
           rating_count: p.userRatingCount ?? 0,
           cover_image_url: photoName ? await photoUri(photoName) : null,
+          country: (p.location ? arabCountryAt(p.location.latitude, p.location.longitude) : null) ?? regionOf(payload),
         });
       }
       if (rows.length) {

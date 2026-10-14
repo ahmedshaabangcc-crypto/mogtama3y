@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/pets/pet_service.dart';
-import '../../core/reports/report_service.dart' show reportGovernorates;
+import '../../core/reports/report_service.dart' show governoratesFor;
 import '../../core/storage/multi_photo_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../auth/auth_landing_screen.dart';
@@ -306,7 +306,7 @@ class _AddPetListingScreenState extends State<AddPetListingScreen> {
               decoration: _dec('التفاصيل', hint: _lostFound ? 'علامات مميزة، لون الطوق، طباعه…' : 'الصحة، الأكل، الطباع، أي ملاحظات'),
             ),
             _section('المكان والتواصل'),
-            _dropdown<String>('المحافظة', _governorate, {for (final g in reportGovernorates) g: g}, (v) => setState(() => _governorate = v)),
+            _dropdown<String>('المحافظة', _governorate, {for (final g in governoratesFor(_i?['country'] as String?)) g: g}, (v) => setState(() => _governorate = v)),
             const SizedBox(height: 10),
             TextFormField(controller: _area, maxLength: 80, decoration: _dec('المنطقة', hint: 'مثلاً: مدينة نصر')),
             PhoneFormField(controller: _phone, decoration: _dec('رقم الموبايل')),

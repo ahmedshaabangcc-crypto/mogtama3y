@@ -5,6 +5,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/geo/admin_areas.dart' show adminAreaLabel;
+import '../shared/country_picker.dart';
 import '../../core/e_address/e_address_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/geo/user_country.dart';
@@ -28,6 +30,7 @@ class _EAddressFormScreenState extends State<EAddressFormScreen> {
   };
   late String _label = widget.existing?['label'] as String? ?? 'البيت';
   late String? _governorate = widget.existing?['governorate'] as String?;
+  late String _country = (widget.existing?['country'] as String?) ?? UserCountry.iso.value;
   late double? _lat = (widget.existing?['lat'] as num?)?.toDouble();
   late double? _lng = (widget.existing?['lng'] as num?)?.toDouble();
   late bool _showName = widget.existing?['show_name'] as bool? ?? true;
@@ -133,6 +136,7 @@ class _EAddressFormScreenState extends State<EAddressFormScreen> {
     final fields = {
       'label': _label,
       'governorate': _governorate,
+      'country': _country,
       for (final f in _fields) f: _c[f]!.text.trim(),
       'lat': _lat,
       'lng': _lng,
@@ -176,10 +180,20 @@ class _EAddressFormScreenState extends State<EAddressFormScreen> {
               ChoiceChip(label: Text(l), selected: _label == l, onSelected: (_) => setState(() => _label = l)),
           ]),
           const SizedBox(height: 18),
+          // Outside Egypt the address can be in any Arab country (0093).
+          if (!UserCountry.inEgypt || _country != 'EG')
+            CountryPickerTile(
+              value: _country,
+              onChanged: (iso) => setState(() {
+                _country = iso;
+                _governorate = null;
+              }),
+            ),
           DropdownButtonFormField<String>(
-            initialValue: _governorate,
-            decoration: const InputDecoration(labelText: 'المحافظة *'),
-            items: [for (final g in EAddressService.governorates) DropdownMenuItem(value: g, child: Text(g))],
+            key: ValueKey(_country),
+            initialValue: EAddressService.governoratesOf(_country).contains(_governorate) ? _governorate : null,
+            decoration: InputDecoration(labelText: '${adminAreaLabel(_country)} *'),
+            items: [for (final g in EAddressService.governoratesOf(_country)) DropdownMenuItem(value: g, child: Text(g))],
             onChanged: (v) => setState(() => _governorate = v),
           ),
           const SizedBox(height: 12),

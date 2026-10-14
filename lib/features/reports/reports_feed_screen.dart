@@ -6,6 +6,8 @@ import '../../core/auth/auth_service.dart';
 import '../../core/reports/report_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/location/where.dart';
+import '../../core/geo/user_country.dart';
+import '../shared/feed_country_button.dart';
 import '../shared/load_error_view.dart';
 import 'report_widgets.dart';
 
@@ -50,7 +52,8 @@ class _ReportsFeedScreenState extends State<ReportsFeedScreen> {
       _error = false;
     });
     try {
-      final p = _position;
+      // Browsing another country (the flag chip) → that country's reports, not «near me».
+      final p = UserCountry.feedOverride == null ? _position : null;
       final list = await ReportService.list(lat: p?.latitude, lng: p?.longitude, km: 5, category: _category, status: _status, mine: _mine);
       if (mounted) {
         setState(() {
@@ -74,7 +77,10 @@ class _ReportsFeedScreenState extends State<ReportsFeedScreen> {
     final side = width > 760 ? (width - 720) / 2 : 12.0;
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: Text(_mine ? 'بلاغاتي' : (_position != null ? 'بلاغات حيّك' : 'بلاغات الناس'))),
+      appBar: AppBar(
+        title: Text(_mine ? 'بلاغاتي' : (_position != null && UserCountry.feedOverride == null ? 'بلاغات حيّك' : 'بلاغات الناس')),
+        actions: [FeedCountryButton(onChanged: _load)],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/report').then((_) => _load()),
         icon: const Icon(Icons.campaign_rounded),

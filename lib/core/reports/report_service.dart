@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../geo/admin_areas.dart';
+import '../geo/user_country.dart';
+
 SupabaseClient get _db => Supabase.instance.client;
 
 /// Report categories — must match the check in migration 0060.
@@ -34,35 +37,21 @@ const reportStatuses = <String, (String, Color)>{
   'rejected': ('مرفوض / مكرر', Color(0xFFC62828)),
 };
 
-/// Governorate capitals — the nearest one names the governorate of a
-/// report (good enough to sort the admin queue; the district comes from
-/// Google's geocoder).
-const _governorates = <(String, double, double)>[
-  ('القاهرة', 30.0444, 31.2357), ('الجيزة', 30.0131, 31.2089), ('الإسكندرية', 31.2001, 29.9187),
-  ('القليوبية', 30.4659, 31.1848), ('الشرقية', 30.5877, 31.502), ('الدقهلية', 31.0409, 31.3785),
-  ('الغربية', 30.7865, 31.0004), ('المنوفية', 30.5536, 31.0094), ('البحيرة', 31.0341, 30.4682),
-  ('كفر الشيخ', 31.1107, 30.9388), ('دمياط', 31.4165, 31.8133), ('بورسعيد', 31.2653, 32.3019),
-  ('الإسماعيلية', 30.5965, 32.2715), ('السويس', 29.9668, 32.5498), ('الفيوم', 29.3084, 30.8428),
-  ('بني سويف', 29.0661, 31.0994), ('المنيا', 28.1099, 30.7503), ('أسيوط', 27.1809, 31.1837),
-  ('سوهاج', 26.5591, 31.6957), ('قنا', 26.1551, 32.716), ('الأقصر', 25.6872, 32.6396),
-  ('أسوان', 24.0889, 32.8998), ('البحر الأحمر', 27.2579, 33.8116), ('جنوب سيناء', 27.9158, 34.33),
-  ('شمال سيناء', 31.1316, 33.7984), ('مطروح', 31.3543, 27.2373), ('الوادي الجديد', 25.4390, 30.5586),
-];
+/// The division (governorate / region / emirate…) of a point — the
+/// nearest division capital inside the point's country (Egypt's 27
+/// governorates unchanged). Good enough to sort the admin queue; the
+/// district comes from Google's geocoder.
+String governorateOf(double lat, double lng) => divisionAt(lat, lng);
 
-String governorateOf(double lat, double lng) {
-  var best = _governorates.first.$1;
-  var bestD = double.infinity;
-  for (final (name, la, ln) in _governorates) {
-    final d = (lat - la) * (lat - la) + (lng - ln) * (lng - ln);
-    if (d < bestD) {
-      best = name;
-      bestD = d;
-    }
-  }
-  return best;
-}
+/// Divisions of the country the feeds show (filters): Egypt's governorates
+/// for Egyptian users, Saudi regions, UAE emirates…
+List<String> get reportGovernorates => adminAreaNames(UserCountry.feedCountry);
 
-List<String> get reportGovernorates => [for (final g in _governorates) g.$1];
+/// Divisions of the user's own country (pickers of new listings / forms).
+List<String> get myGovernorates => adminAreaNames(UserCountry.iso.value);
+
+/// Divisions for an entity of [country] (editing an existing row).
+List<String> governoratesFor(String? country) => adminAreaNames(country ?? UserCountry.iso.value);
 
 /// Community reports — migration 0060.
 class ReportService {
@@ -104,8 +93,11 @@ class ReportService {
     return id as String;
   }
 
-  static Future<List<Map<String, dynamic>>> list({double? lat, double? lng, double km = 5, String? category, String? status, bool mine = false}) async {
+  /// Without a location (or [country] given) the feed is one country's
+  /// reports: [country], else the feed country (0093).
+  static Future<List<Map<String, dynamic>>> list({double? lat, double? lng, double km = 5, String? category, String? status, bool mine = false, String? country}) async {
     final rows = await _db.rpc('list_reports', params: {
+      'p_country': mine ? null : (country ?? (lat == null ? UserCountry.feedCountry : null)),
       'p_lat': lat,
       'p_lng': lng,
       'p_km': km,
@@ -124,8 +116,8 @@ class ReportService {
 
   static Future<bool> toggleVote(String id) async => await _db.rpc('toggle_report_vote', params: {'p_id': id}) as bool;
 
-  static Future<List<Map<String, dynamic>>> adminList({String? status, String? category, String? governorate}) async {
-    final rows = await _db.rpc('admin_list_reports', params: {'p_status': status, 'p_category': category, 'p_governorate': governorate});
+  static Future<List<Map<String, dynamic>>> adminList({String? status, String? category, String? governorate, String? country}) async {
+    final rows = await _db.rpc('admin_list_reports', params: {'p_status': status, 'p_category': category, 'p_governorate': governorate, 'p_country': country});
     return [for (final r in rows as List) Map<String, dynamic>.from(r as Map)];
   }
 
