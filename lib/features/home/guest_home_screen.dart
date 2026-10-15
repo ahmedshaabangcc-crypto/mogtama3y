@@ -198,7 +198,7 @@ class _Header extends StatelessWidget {
                 style: Theme.of(context).textTheme.headlineLarge?.copyWith(color: Colors.white, fontSize: 34, shadows: const [Shadow(color: Colors.black54, blurRadius: 16)])),
           ]),
           const SizedBox(height: 8),
-          const Text('كل حيّك في تطبيق واحد',
+          const Text(mogtamayLogoSlogan,
               style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700, shadows: [Shadow(color: Colors.black54, blurRadius: 12)])),
           const SizedBox(height: 4),
           const Text('السوق، المحلات، الصيانة والجيران… أسهل وأذكى',

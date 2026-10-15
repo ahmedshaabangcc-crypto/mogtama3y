@@ -1,0 +1,67 @@
+<!doctype html>
+<!--
+  مُجتمعي brand mark (option «٢-ج»): the Arabic letter م with a network of
+  neighbours on two rings around it. Single source for the home-screen icons,
+  favicon, og image and the 1024 logo — rendered by tool/make_mogtama3y_icons.sh
+  with headless Chrome. lib/core/theme/app_logo.dart paints the same mark.
+
+  ?size=512            tile size in px
+  &mode=tile|maskable|og|logo
+-->
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; background: transparent; overflow: hidden; }
+  body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; color: #fff; }
+  .tile { display: flex; align-items: center; justify-content: center;
+          background: linear-gradient(135deg, #243F7A, #0B1530); }
+  .og { width: 1200px; height: 630px; display: flex; align-items: center; justify-content: center; gap: 70px;
+        background: radial-gradient(900px 500px at 85% -10%, #2a4a8a 0%, rgba(42,74,138,0) 60%), linear-gradient(160deg, #1e3366 0%, #0b1530 70%); }
+  .og .t { display: flex; flex-direction: column; }
+  .og b { font-size: 120px; line-height: 1.1; }
+  .og span { font-size: 46px; color: #f8cb7e; font-weight: 700; margin-top: 10px; }
+  .og small { font-size: 30px; color: #d6def0; margin-top: 22px; direction: ltr; text-align: right; }
+  .logo { width: 1024px; height: 1024px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+          background: linear-gradient(160deg, #1e3366 0%, #0b1530 75%); }
+  .logo b { font-size: 150px; line-height: 1.1; margin-top: 50px; }
+  .logo span { font-size: 54px; color: #f8cb7e; font-weight: 700; margin-top: 14px; }
+</style>
+</head>
+<body>
+<script>
+const MARK = `
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs><linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f8cb7e"/><stop offset="1" stop-color="#e8a245"/></linearGradient></defs>
+  <circle cx="100" cy="100" r="84" fill="none" stroke="#f8cb7e" stroke-width="2.5" opacity=".35"/>
+  <circle cx="100" cy="100" r="62" fill="none" stroke="#f8cb7e" stroke-width="2" opacity=".25" stroke-dasharray="3 7"/>
+  <g stroke="#f8cb7e" stroke-width="2" opacity=".45">
+    <line x1="100" y1="16" x2="144" y2="56"/><line x1="184" y1="100" x2="144" y2="56"/><line x1="184" y1="100" x2="144" y2="144"/>
+    <line x1="100" y1="184" x2="144" y2="144"/><line x1="100" y1="184" x2="56" y2="144"/><line x1="16" y1="100" x2="56" y2="144"/>
+    <line x1="16" y1="100" x2="56" y2="56"/><line x1="100" y1="16" x2="56" y2="56"/>
+  </g>
+  <path d="M118 92 C140 92 150 76 146 62 C142 46 124 42 112 50 C100 58 100 78 112 86 C96 98 80 112 74 140 C70 160 74 172 80 180" fill="none" stroke="url(#gold)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="#fff4dc"><circle cx="100" cy="16" r="8"/><circle cx="184" cy="100" r="8"/><circle cx="100" cy="184" r="8"/><circle cx="16" cy="100" r="8"/></g>
+  <g fill="#f8cb7e"><circle cx="144" cy="56" r="6"/><circle cx="144" cy="144" r="6"/><circle cx="56" cy="144" r="6"/><circle cx="56" cy="56" r="6"/></g>
+</svg>`;
+const q = new URLSearchParams(location.search);
+const size = Number(q.get('size') || 512), mode = q.get('mode') || 'tile';
+const SLOGAN = 'لإنشاء مجتمع عربي متقدم';
+let html;
+if (mode === 'og') {
+  html = `<div class="og"><div style="width:380px;height:380px;border-radius:90px" class="tile"><div style="width:300px;height:300px">${MARK}</div></div>
+    <div class="t"><b>مُجتمعي</b><span>${SLOGAN}</span><small>mogtama3y.com</small></div></div>`;
+} else if (mode === 'logo') {
+  html = `<div class="logo"><div style="width:520px;height:520px;border-radius:120px" class="tile"><div style="width:420px;height:420px">${MARK}</div></div>
+    <b>مُجتمعي</b><span>${SLOGAN}</span></div>`;
+} else {
+  // tile: rounded corners (transparent outside); maskable: full bleed, mark in the 80% safe zone.
+  const radius = mode === 'maskable' ? 0 : size * 0.22;
+  const inner = size * (mode === 'maskable' ? 0.62 : 0.80);
+  html = `<div class="tile" style="width:${size}px;height:${size}px;border-radius:${radius}px"><div style="width:${inner}px;height:${inner}px">${MARK}</div></div>`;
+}
+document.body.innerHTML = html;
+document.querySelectorAll('svg').forEach((s) => { s.setAttribute('width', '100%'); s.setAttribute('height', '100%'); });
+</script>
+</body>
+</html>

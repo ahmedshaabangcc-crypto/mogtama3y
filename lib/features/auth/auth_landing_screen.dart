@@ -45,6 +45,11 @@ class AuthLandingScreen extends StatelessWidget {
                         appBrandName,
                         style: TextStyle(color: AppColors.ink, fontSize: 26, fontWeight: FontWeight.w700),
                       ),
+                      if (!isTajerApp && !isUnionApp && !isMasjidApp) ...[
+                        const SizedBox(height: 4),
+                        const Text(mogtamayLogoSlogan,
+                            style: TextStyle(color: AppColors.gold, fontSize: 14, fontWeight: FontWeight.w700)),
+                      ],
                       const SizedBox(height: 6),
                       const Text(
                         appSignInTagline,
