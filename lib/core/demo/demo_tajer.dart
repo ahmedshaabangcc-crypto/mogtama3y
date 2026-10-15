@@ -61,11 +61,13 @@ class DemoTajer {
   static Map<String, List<DemoRow>> seed(DateTime now) {
     // Same-day items never slip into yesterday (e.g. a recording right after
     // midnight), so «النهارده» always has orders.
-    final startOfDay = DateTime(now.year, now.month, now.day);
+    // Within the first 3 h of the day, same-day offsets are scaled down
+    // (order kept: further back stays earlier).
+    final sinceMidnight = now.difference(DateTime(now.year, now.month, now.day)).inSeconds;
     String ago({int days = 0, int hours = 0, int minutes = 0}) {
-      var t = now.subtract(Duration(days: days, hours: hours, minutes: minutes));
-      if (days == 0 && t.isBefore(startOfDay)) t = startOfDay.add(Duration(seconds: (hours * 60 + minutes) % 60));
-      return t.toUtc().toIso8601String();
+      var back = Duration(days: days, hours: hours, minutes: minutes);
+      if (days == 0 && sinceMidnight < 3 * 3600) back = Duration(seconds: back.inSeconds * sinceMidnight ~/ (3 * 3600));
+      return now.subtract(back).toUtc().toIso8601String();
     }
     var seq = 0;
     String id(String kind) => DemoStore.fixedId(kind, ++seq);
