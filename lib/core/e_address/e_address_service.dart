@@ -15,7 +15,7 @@ class EAddressService {
 
   /// The link to share: the easy name when set, else the random code.
   /// (QR codes always use the code link, so a printed QR survives a name change.)
-  static String shareLinkFor(Map<String, dynamic> a) => linkFor((a['handle'] as String?) ?? a['code'] as String);
+  static String shareLinkFor(Map<String, dynamic> a) => linkFor(a['code'] as String);
 
   /// Easy names: English letters/digits, at least two words joined by -.
   /// Single-word names are premium and reserved by the platform.

@@ -74,17 +74,6 @@ class EAddressCard extends StatelessWidget {
                     style: const TextStyle(color: AppColors.gold, fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: 2),
                   ),
                 ),
-                if (address['handle'] != null) ...[
-                  const SizedBox(height: 4),
-                  Directionality(
-                    textDirection: TextDirection.ltr,
-                    child: Text(
-                      'mogtama3y.com/#/a/${address['handle']}',
-                      textAlign: showQr ? TextAlign.center : TextAlign.right,
-                      style: const TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ],
                 if (address['phone_lookup'] == true) ...[
                   const SizedBox(height: 4),
                   Text('بيتفتح كمان برقم موبايلك',

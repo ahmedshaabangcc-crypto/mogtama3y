@@ -24,10 +24,6 @@ class _AdminGovernanceScreenState extends State<AdminGovernanceScreen> {
   List<Map<String, dynamic>> _presidents = [];
   List<Map<String, dynamic>> _joins = [];
 
-  final _addrQuery = TextEditingController();
-  final _premium = TextEditingController();
-  List<Map<String, dynamic>>? _addrResults;
-  String? _selectedAddressId;
 
   @override
   void initState() {
@@ -37,8 +33,6 @@ class _AdminGovernanceScreenState extends State<AdminGovernanceScreen> {
 
   @override
   void dispose() {
-    _addrQuery.dispose();
-    _premium.dispose();
     super.dispose();
   }
 
@@ -81,38 +75,10 @@ class _AdminGovernanceScreenState extends State<AdminGovernanceScreen> {
     }
   }
 
-  Future<void> _searchAddresses() async {
-    final q = _addrQuery.text.trim();
-    if (q.isEmpty) return;
-    try {
-      final rows = await _db.rpc('admin_find_e_addresses', params: {'p_query': q});
-      setState(() {
-        _addrResults = List<Map<String, dynamic>>.from(rows as List);
-        _selectedAddressId = _addrResults!.length == 1 ? _addrResults!.first['id'] as String : null;
-      });
-    } catch (e) {
-      _toast(_err(e));
-    }
-  }
-
-  Future<void> _assignPremium() async {
-    final name = _premium.text.trim().toLowerCase();
-    if (_selectedAddressId == null || name.isEmpty) {
-      _toast('اختار العنوان واكتب الاسم المميز');
-      return;
-    }
-    await _run(
-      () => _db.rpc('admin_assign_e_address_handle', params: {'p_address_id': _selectedAddressId, 'p_handle': name}),
-      'الاسم «$name» اتسجّل للعنوان',
-    );
-    _premium.clear();
-    _searchAddresses();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('الرئاسات والأسماء المميزة')),
+      appBar: AppBar(title: const Text('طلبات الرئاسة والانضمام')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error
@@ -144,47 +110,6 @@ class _AdminGovernanceScreenState extends State<AdminGovernanceScreen> {
                           onApprove: () => _run(() => _db.rpc('review_union_member', params: {'p_member_id': j['member_id'], 'p_approve': true}), 'اتقبل'),
                           onReject: () => _run(() => _db.rpc('review_union_member', params: {'p_member_id': j['member_id'], 'p_approve': false}), 'اترفض'),
                         ),
-                      const SizedBox(height: 20),
-                      _title('بيع اسم مميز لعنوان إلكتروني', null),
-                      const Text('الأسماء اللي من كلمة واحدة (زي ahmed أو mona) محجوزة للمنصة. دوّر على العنوان بموبايل صاحبه أو الكود أو الاسم الحالي، وسجّله له.',
-                          style: TextStyle(color: AppColors.inkMuted, fontSize: 12, height: 1.6)),
-                      const SizedBox(height: 10),
-                      Row(children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _addrQuery,
-                            textDirection: TextDirection.ltr,
-                            onSubmitted: (_) => _searchAddresses(),
-                            decoration: const InputDecoration(hintText: '010… أو MG-… أو ahmed-maadi', isDense: true),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton.filled(onPressed: _searchAddresses, icon: const Icon(Icons.search_rounded)),
-                      ]),
-                      if (_addrResults != null) ...[
-                        const SizedBox(height: 8),
-                        if (_addrResults!.isEmpty) _empty('مالقيناش عناوين'),
-                        for (final a in _addrResults!)
-                          ListTile(
-                            onTap: () => setState(() => _selectedAddressId = a['id'] as String),
-                            leading: Icon(
-                              _selectedAddressId == a['id'] ? Icons.check_circle_rounded : Icons.circle_outlined,
-                              color: _selectedAddressId == a['id'] ? AppColors.crystal : AppColors.inkMuted,
-                            ),
-                            title: Text('${a['owner_name']} — ${a['label']} (${a['city']})'),
-                            subtitle: Text('الكود: ${a['code']}${a['handle'] != null ? ' • الاسم: ${a['handle']}' : ''}', textDirection: TextDirection.ltr),
-                          ),
-                        if (_addrResults!.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _premium,
-                            textDirection: TextDirection.ltr,
-                            decoration: const InputDecoration(labelText: 'الاسم المميز', prefixText: 'mogtama3y.com/#/a/', hintText: 'ahmed'),
-                          ),
-                          const SizedBox(height: 10),
-                          ElevatedButton.icon(onPressed: _assignPremium, icon: const Icon(Icons.workspace_premium_rounded), label: const Text('سجّل الاسم للعنوان')),
-                        ],
-                      ],
                     ],
                   ),
                 ),
