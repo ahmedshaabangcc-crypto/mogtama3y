@@ -17,14 +17,14 @@ n=A.dT(C.c.a7(r,q+1,p),null)
 if(o==null||n==null||o<1||o>114||n<1||n>m[o-1].length)continue
 m[o-1][n-1]=C.c.ca(r,p+1)}x=v.a
 return new B.oG(m,C.c.Lo(x.charCodeAt(0)==0?x:x))},
-Mz(d,e,f){var x,w,v
-if(d===1||d===9||e!==1)return new A.Lt(null,f)
+MA(d,e,f){var x,w,v
+if(d===1||d===9||e!==1)return new A.Lu(null,f)
 x=A.a(f.split(" "),y.x)
 if(x.length>4){w=y.w
 v=A.fu(x,0,A.ih(4,"count",y.C),w).aB(0," ")
-if(B.c3k(v)===$.coU())return new A.Lt(v,A.fu(x,4,null,w).aB(0," "))}return new A.Lt(null,f)},
+if(B.c3k(v)===$.coU())return new A.Lu(v,A.fu(x,4,null,w).aB(0," "))}return new A.Lu(null,f)},
 c3k(d){var x,w,v,u=new A.dI("")
-for(x=new A.Ix(d);x.v();){w=x.d
+for(x=new A.Iy(d);x.v();){w=x.d
 v=!0
 if(!(w>=1611&&w<=1631))if(w!==1648)v=w>=1750&&w<=1773||w===1600
 if(v)continue
@@ -46,13 +46,13 @@ for(v=1;v<=114;++v)w.push(v)
 u=r.a
 if(u.length===0)return w
 t=A.dT(u,null)
-if(t!=null)return t>=1&&t<=114?A.a([t],x):C.rn
+if(t!=null)return t>=1&&t<=114?A.a([t],x):C.ro
 x=r.a
 u=A.aD("[\\s'\\-]",!0,!1,!1)
 s=y.a
 x=A.aa(new A.ak(w,new B.c4l(r,A.bD(x,u,"")),s),s.i("a_.E"))
 return x},
-cFm(d){return A.uR(d,A.aD("[\u0660-\u0669]",!0,!1,!1),new B.c1o(),null)},
+cFm(d){return A.uS(d,A.aD("[\u0660-\u0669]",!0,!1,!1),new B.c1o(),null)},
 oG:function oG(d,e){this.a=d
 this.b=e},
 aUK:function aUK(){},
@@ -78,7 +78,7 @@ $0(){var x=0,w=A.j(y.u),v,u=2,t=[],s,r,q,p,o
 var $async$$0=A.e(function(d,e){if(d===1){t.push(e)
 x=u}for(;;)switch(x){case 0:u=4
 x=7
-return A.c($.uX().iy("assets/quran/quran-uthmani.txt.gz"),$async$$0)
+return A.c($.uY().iy("assets/quran/quran-uthmani.txt.gz"),$async$$0)
 case 7:s=e
 x=8
 return A.c(F.azE(J.fA(J.c5K(s),s.byteOffset,s.byteLength)),$async$$0)
@@ -119,7 +119,7 @@ $0(){var x=0,w=A.j(y.e),v,u=2,t=[],s,r,q,p
 var $async$$0=A.e(function(d,e){if(d===1){t.push(e)
 x=u}for(;;)switch(x){case 0:u=4
 r=new A.a9Q("AmiriQuranMT",A.a([],y.p))
-r.anH($.uX().iy("assets/quran/AmiriQuran-Regular.ttf"))
+r.anH($.uY().iy("assets/quran/AmiriQuran-Regular.ttf"))
 s=r
 x=7
 return A.c(s.vH(),$async$$0)
@@ -146,8 +146,8 @@ $S:187};(function inheritance(){var x=a.inherit,w=a.inheritMany
 x(B.oG,A.a4)
 w(A.lb,[B.aUK,B.aUG])
 w(A.iE,[B.c4l,B.c1o])})()
-var y={p:A.ae("H<ai<kQ>>"),x:A.ae("H<o>"),r:A.ae("H<x>"),B:A.ae("a7<o>"),u:A.ae("oG"),w:A.ae("o"),a:A.ae("ak<x>"),e:A.ae("N"),C:A.ae("x")};(function constants(){E.B6=new A.eL(" ",null,null,C.br,null,null,null,null,null,null,null)})();(function staticFields(){$.c7F=null
+var y={p:A.ae("H<ai<kQ>>"),x:A.ae("H<o>"),r:A.ae("H<x>"),B:A.ae("a7<o>"),u:A.ae("oG"),w:A.ae("o"),a:A.ae("ak<x>"),e:A.ae("N"),C:A.ae("x")};(function constants(){E.B8=new A.eL(" ",null,null,C.br,null,null,null,null,null,null,null)})();(function staticFields(){$.c7F=null
 $.cfT=null
 $.cfU=!1})();(function lazyInitializers(){var x=a.lazyFinal
 x($,"cOk","coU",()=>B.c3k("\u0628\u0650\u0633\u0652\u0645\u0650 \u0671\u0644\u0644\u0651\u064e\u0647\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0652\u0645\u064e\u0640\u0670\u0646\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0650\u064a\u0645\u0650"))})()};
-(a=>{a["9yr/M/oLTnkRZJ/JN9WqAFIubgg="]=a.current})($__dart_deferred_initializers__);
+(a=>{a["G4FZkjDGRuajGDDSC6SUYHbVLM0="]=a.current})($__dart_deferred_initializers__);
