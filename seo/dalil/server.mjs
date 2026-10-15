@@ -210,7 +210,7 @@ async function homePage() {
 }
 
 async function placePage(id) {
-  const rows = await rest(`directory_places?id=eq.${encodeURIComponent(id)}&select=*`);
+  const rows = await rest(`directory_places?id=eq.${encodeURIComponent(id)}&hidden=is.false&select=*`);
   const p = rows[0];
   if (!p) return null;
   if (p.claimed_shop_id) {
@@ -253,6 +253,7 @@ ${p.opening_hours ? `<p>🕒 ${esc(p.opening_hours)}</p>` : ''}
 <a class="btn line" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}" rel="nofollow">الاتجاهات</a>
 </p>
 <p class="muted" style="font-size:13px">ده محلك؟ <a href="${TAJER}">افتح متجرك واستقبل الطلبات أونلاين ببلاش</a>.</p>
+<p class="muted" style="font-size:12px">فيه غلط؟ <a href="${order}?report=1" rel="nofollow">بلّغنا</a></p>
 </div>
 ${others.length ? `<div class="card"><h2>${esc(p.category)} قريبة</h2><ul class="list">${others.map((x) => placeItem(x, country.iso)).join('')}</ul></div>` : ''}`,
   });
@@ -304,7 +305,7 @@ async function searchPage(q) {
 // first (partial index on country), so empty countries cost one request.
 async function countryStats(c) {
   return cached('cstats:' + c.iso, 6 * 3600e3, async () => {
-    const any = await rest(`directory_places?country=eq.${c.iso}&select=id&limit=1`);
+    const any = await rest(`directory_places?country=eq.${c.iso}&hidden=is.false&select=id&limit=1`);
     if (!any.length) return [];
     const out = [];
     for (const [city, lat, lng] of c.cities) {
@@ -599,7 +600,7 @@ async function placeBounds() {
       let last = '';
       let n = 0;
       for (;;) {
-        const page = await rest(`directory_places?select=id&order=id.asc&limit=${PAGE}${last ? `&id=gt.${encodeURIComponent(last)}` : ''}`);
+        const page = await rest(`directory_places?hidden=is.false&select=id&order=id.asc&limit=${PAGE}${last ? `&id=gt.${encodeURIComponent(last)}` : ''}`);
         for (const r of page) {
           if (n % PER_SITEMAP === 0) list.push(r.id);
           n++;
@@ -664,11 +665,14 @@ async function sitemapPart(n) {
   const list = await placeBounds();
   const first = list[n - 1];
   if (!first) return null;
-  const chunks = [`<url><loc>${esc(`${SITE}/p/${encodeURIComponent(first)}`)}</loc></url>`];
+  // From the part's first id inclusive (gte: it may have been hidden since).
+  const chunks = [];
   let last = first;
-  let got = 1;
+  let op = 'gte';
+  let got = 0;
   while (got < PER_SITEMAP) {
-    const page = await rest(`directory_places?select=id&order=id.asc&limit=${Math.min(PAGE, PER_SITEMAP - got)}&id=gt.${encodeURIComponent(last)}`);
+    const page = await rest(`directory_places?hidden=is.false&select=id&order=id.asc&limit=${Math.min(PAGE, PER_SITEMAP - got)}&id=${op}.${encodeURIComponent(last)}`);
+    op = 'gt';
     if (!page.length) break;
     for (const r of page) chunks.push(`<url><loc>${esc(`${SITE}/p/${encodeURIComponent(r.id)}`)}</loc></url>`);
     got += page.length;

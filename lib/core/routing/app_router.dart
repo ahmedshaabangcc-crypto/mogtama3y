@@ -355,7 +355,7 @@ final appRouter = GoRouter(
             ],
           ),
           GoRoute(path: 'o/:code', builder: (_, state) => OrderTrackingScreen(code: state.pathParameters['code']!)),
-          GoRoute(path: 'd/:id', builder: (_, state) => DirectoryPlaceScreen(placeId: state.pathParameters['id']!, place: state.extra as Map<String, dynamic>?)),
+          GoRoute(path: 'd/:id', builder: (_, state) => DirectoryPlaceScreen(placeId: state.pathParameters['id']!, place: state.extra as Map<String, dynamic>?, openReport: state.uri.queryParameters['report'] == '1')),
           GoRoute(path: 'r/:id', builder: (_, state) => ReportDetailsScreen(reportId: state.pathParameters['id']!)),
           GoRoute(path: 'cars/:id', builder: (_, state) => CarDetailsScreen(listingId: state.pathParameters['id']!, initial: state.extra as Map<String, dynamic>?)),
           GoRoute(path: 'tutoring/:id', builder: (_, state) => TutorDetailsScreen(listingId: state.pathParameters['id']!, initial: state.extra as Map<String, dynamic>?)),

@@ -9,6 +9,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/places/place_images.dart';
 import '../shared/load_error_view.dart';
 import 'osm_place_open.dart' show OsmPlacesAttribution;
+import 'report_place_sheet.dart';
 
 /// A business from the directory (not on مُجتمعي yet) as a store page:
 /// details, call, directions, and "اطلب دلوقتي" — the customer writes the
@@ -16,8 +17,11 @@ import 'osm_place_open.dart' show OsmPlacesAttribution;
 /// shop to open its free store. Once the owner claims it, this opens the
 /// real store instead.
 class DirectoryPlaceScreen extends StatefulWidget {
-  const DirectoryPlaceScreen({super.key, required this.placeId, this.place});
+  const DirectoryPlaceScreen({super.key, required this.placeId, this.place, this.openReport = false});
   final String placeId;
+
+  /// Opens «بلّغ عن غلط» right away (dalil's «فيه غلط؟ بلّغنا» link: `/d/<id>?report=1`).
+  final bool openReport;
 
   /// Row from a list, when we already have it (skips the fetch).
   final Map<String, dynamic>? place;
@@ -32,6 +36,7 @@ class _DirectoryPlaceScreenState extends State<DirectoryPlaceScreen> {
   bool _error = false;
   final _request = TextEditingController();
   final _address = TextEditingController();
+  bool _reportOpened = false;
 
   @override
   void initState() {
@@ -68,6 +73,12 @@ class _DirectoryPlaceScreenState extends State<DirectoryPlaceScreen> {
         _place = p;
         _loading = false;
       });
+      if (p != null && widget.openReport && !_reportOpened) {
+        _reportOpened = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) openReportPlace(context, {...p, 'id': p['id'] ?? widget.placeId});
+        });
+      }
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -240,6 +251,17 @@ class _DirectoryPlaceScreenState extends State<DirectoryPlaceScreen> {
             label: const Text('ده محلك؟ افتح متجرك واستقبل الطلبات ببلاش'),
           ),
         ),
+        // Only rows that are ours (an OSM row a guest opened has no id here yet).
+        if (p['osm'] != true)
+          Center(
+            child: TextButton.icon(
+              key: const ValueKey('report-place'),
+              onPressed: () => openReportPlace(context, {...p, 'id': id}),
+              style: TextButton.styleFrom(foregroundColor: AppColors.inkMuted),
+              icon: const Icon(Icons.flag_outlined, size: 17),
+              label: const Text('فيه غلط في المحل ده؟ بلّغنا', style: TextStyle(fontSize: 12.5)),
+            ),
+          ),
         const SizedBox(height: 6),
         if (id.startsWith('osm-') || p['osm'] == true || p['source'] == 'osm')
           const OsmPlacesAttribution()

@@ -3701,6 +3701,143 @@ const denied = (r) => !!r.error;
       (await admin(db, `select claimed_shop_id from directory_places where id = $1`, [idOf(a1)]))[0]?.claimed_shop_id === null);
   }
 
+  // ------------------------------------------------------------------
+  console.log('\nPhase prep — «بلّغ عن محل غلط»: place reports + auto-hide (0095)');
+  {
+    const P = [24.8, 46.7]; // north Riyadh, away from the 0094 rows
+    const mk = async (name, ph) => {
+      const u = await signUp(db, name, ph);
+      await admin(db, `update profiles set phone_verified_at = now() where id = $1`, [u]);
+      return u;
+    };
+    const r1 = await mk('prep one', '+966 50 709 5001');
+    const r2 = await mk('prep two', '+966 50 709 5002');
+    const r3 = await mk('prep three', '+966 50 709 5003');
+    const r4 = await signUp(db, 'prep old', '+966 50 709 5004');
+    await admin(db, `update profiles set created_at = now() - interval '10 days' where id = $1`, [r4]);
+    const fresh = await signUp(db, 'prep fresh', '+966 50 709 5005'); // new, unverified: not eligible
+    const boss = await signUp(db, 'prep boss', '+966 50 709 5009');
+    await admin(db, `update profiles set role = 'super_admin' where id = $1`, [boss]);
+    const idOf = (r) => r.rows?.[0]?.id;
+    const report = (u, place, reason, note = null, sugg = null) =>
+      as(db, u, `select public.report_directory_place($1, $2, $3, $4) as id`, [place, reason, note, sugg ? JSON.stringify(sugg) : null]);
+    const visible = async (id) => {
+      const near = (await as(db, null, `select id from public.nearby_directory($1, $2, 5, null, 200)`, P)).rows || [];
+      return near.some((r) => r.id === id);
+    };
+
+    const usr = idOf(await as(db, r1, `select public.directory_add_place('بقالة البلاغ', 'سوبر ماركت وبقالة', $1, $2, null, '0501119988') as id`, P));
+    const osm = idOf(await as(db, r1, `select public.directory_import_osm('node', 95001, 'سباك البلاغ', 'صيانة وخدمات منزلية', $1, $2, null, null, null, 'craft=plumber') as id`, [P[0] + 0.002, P[1]]));
+    await admin(db, `insert into directory_places (id, name, category, lat, lng, country, source) values ('08f3prep000000001', 'صيدلية أوفرتشر', 'صيدليات', $1, $2, 'SA', 'overture')`, [P[0] + 0.001, P[1]]);
+    const ovt = '08f3prep000000001';
+    check('prep: setup — a user place, an OSM plumber and an Overture place, all visible',
+      !!usr && osm === 'osm-node-95001' && (await visible(usr)) && (await visible(osm)) && (await visible(ovt)), { usr, osm });
+
+    // ---- reporting
+    check('prep: guests cannot report', denied(await report(null, usr, 'closed')));
+    check('prep: an unknown reason is refused', denied(await report(r1, usr, 'boring')));
+    check('prep: an unknown place is refused', denied(await report(r1, 'nope-123', 'closed')));
+    check("prep: «حاجة تانية» needs a note", denied(await report(r1, usr, 'other')));
+    check('prep: a note over 500 characters is refused', denied(await report(r1, usr, 'closed', 'x'.repeat(501))));
+    const w1 = await report(r1, ovt, 'wrong_info', '  الرقم اتغير  ', { name: 'صيدلية النهدي', phone: '050 222 3344', category: 'صيدليات', junk: 'x' });
+    const w1row = (await admin(db, `select * from directory_place_reports where id = $1`, [idOf(w1)]))[0];
+    check('prep: wrong_info stores a cleaned note and suggestion (+966 phone, junk dropped)',
+      w1row?.note === 'الرقم اتغير' && w1row.suggestion?.name === 'صيدلية النهدي' && w1row.suggestion.phone === '+966502223344' &&
+      w1row.suggestion.category === 'صيدليات' && !('junk' in w1row.suggestion) && w1row.status === 'open', { e: w1.error, w1row });
+    check('prep: a bad suggested phone / category is refused',
+      denied(await report(r2, ovt, 'wrong_info', null, { phone: 'call me' })) && denied(await report(r2, ovt, 'wrong_info', null, { category: 'مساجد' })));
+    const w1again = await report(r1, ovt, 'closed');
+    check('prep: one open report per user per place (reporting again returns it)', idOf(w1again) === idOf(w1) &&
+      (await admin(db, `select count(*)::int n from directory_place_reports where place_id = $1 and reporter_id = $2`, [ovt, r1]))[0].n === 1, w1again);
+    check('prep: nobody reads or writes the reports table directly',
+      denied(await as(db, r1, `select * from directory_place_reports`)) &&
+      denied(await as(db, r1, `insert into directory_place_reports (place_id, reporter_id, reason) values ($1, $2, 'closed')`, [usr, r1])));
+
+    // ---- notifying the admins (once an hour)
+    const bossNotes = async (title) => (await admin(db, `select count(*)::int n from notifications where user_id = $1 and title = $2`, [boss, title]))[0].n;
+    await report(r2, ovt, 'closed');
+    check('prep: super admins hear about new reports, at most once an hour', (await bossNotes('📍 بلاغ عن مكان في الدليل')) === 1);
+
+    // ---- auto-hide
+    await report(r2, usr, 'closed');
+    await report(fresh, usr, 'fake');
+    await report(r3, usr, 'wrong_location');
+    check('prep: 1 eligible closed report + an ineligible one + another reason → still visible',
+      (await visible(usr)) && (await admin(db, `select hidden from directory_places where id = $1`, [usr]))[0].hidden === false);
+    await report(r1, usr, 'duplicate');
+    check('prep: …2 eligible → still visible', await visible(usr));
+    await report(r4, usr, 'closed');
+    const hu = (await admin(db, `select hidden, hidden_by from directory_places where id = $1`, [usr]))[0];
+    check('prep: 3 eligible people (verified phone / 10-day-old account) → a user place is hidden automatically', hu.hidden === true && hu.hidden_by === 'auto', hu);
+    check('prep: …and the admins are told', (await bossNotes('🙈 مكان اتخفى من الدليل تلقائياً')) === 1);
+    check('prep: a hidden place is out of nearby_directory', !(await visible(usr)));
+    check('prep: …out of search_directory', !((await as(db, null, `select id from public.search_directory('بقالة البلاغ')`)).rows || []).some((r) => r.id === usr));
+    check('prep: …and unreadable directly (guest REST / app place page)',
+      ((await as(db, null, `select id from directory_places where id = $1`, [usr])).rows || []).length === 0 &&
+      ((await as(db, r1, `select id from directory_places where id = $1`, [usr])).rows || []).length === 0);
+    check('prep: a hidden place cannot be reported', denied(await report(r3, usr, 'closed')));
+    check('prep: «ضيف محل» at a hidden spot makes a new place (never returns the hidden one)',
+      ((x) => x && x !== usr)(idOf(await as(db, r3, `select public.directory_add_place('بقالة البلاغ', 'سوبر ماركت وبقالة', $1, $2) as id`, P))));
+
+    for (const u of [r1, r2, r3]) await report(u, osm, 'closed');
+    check('prep: an OSM place is auto-hidden too (and leaves the technicians market)',
+      (await admin(db, `select hidden from directory_places where id = $1`, [osm]))[0].hidden === true &&
+      !((await as(db, null, `select id from public.nearby_services($1, $2, 'سباكة', 10, 50)`, P)).rows || []).some((r) => r.id === osm));
+    await report(r3, ovt, 'fake');
+    await report(r4, ovt, 'closed');
+    check('prep: an Overture place is never auto-hidden (4 eligible reports)',
+      (await admin(db, `select hidden from directory_places where id = $1`, [ovt]))[0].hidden === false && (await visible(ovt)));
+
+    // ---- daily limit
+    await admin(db, `insert into directory_places (id, name, category, lat, lng, country, source)
+      select 'prep-lim-' || g, 'محل ' || g, 'مطاعم', $1, $2, 'SA', 'overture' from generate_series(1, 11) g`, [P[0] + 0.05, P[1]]);
+    await admin(db, `insert into directory_place_reports (place_id, reporter_id, reason) select 'prep-lim-' || g, $1, 'closed' from generate_series(1, 10) g`, [fresh]);
+    check('prep: 10 reports a day per user', denied(await report(fresh, 'prep-lim-11', 'closed')));
+
+    // ---- super admin
+    const adm = (u, sql, params) => as(db, u, sql, params);
+    check('prep: non-admins cannot use the admin RPCs',
+      denied(await adm(r1, `select * from public.admin_list_place_reports('open')`)) &&
+      denied(await adm(r1, `select public.admin_resolve_place_report($1)`, [ovt])) &&
+      denied(await adm(r1, `select public.admin_update_directory_place($1, 'x y z')`, [ovt])) &&
+      denied(await adm(r1, `select public.admin_set_place_hidden($1, true)`, [ovt])) &&
+      denied(await adm(r1, `select public.admin_delete_directory_place($1)`, [ovt])) &&
+      denied(await adm(null, `select * from public.admin_list_place_reports('open')`)));
+    const list = (await adm(boss, `select * from public.admin_list_place_reports('open')`)).rows || [];
+    const lo = list.find((r) => r.place_id === ovt);
+    check('prep: the admin list groups reports by place (reporters, reasons, suggestion, source)',
+      lo && lo.reporters === 4 && lo.source === 'overture' && lo.reasons.closed === 2 && lo.reasons.wrong_info === 1 && lo.reasons.fake === 1 &&
+      lo.reports.some((x) => x.suggestion?.name === 'صيدلية النهدي') && list.some((r) => r.place_id === usr && r.hidden === true), lo);
+    const hid = (await adm(boss, `select * from public.admin_list_place_reports('hidden')`)).rows || [];
+    check("prep: …and a «hidden» list", hid.some((r) => r.place_id === usr && r.hidden_by === 'auto') && hid.some((r) => r.place_id === osm) && !hid.some((r) => r.place_id === ovt));
+
+    check('prep: an Overture place cannot be deleted (only hidden)', denied(await adm(boss, `select public.admin_delete_directory_place($1)`, [ovt])));
+    const upd = await adm(boss, `select public.admin_update_directory_place($1, 'صيدلية النهدي', '050 222 3344', 'صيدليات')`, [ovt]);
+    const ovNow = (await admin(db, `select name, phone, whatsapp from directory_places where id = $1`, [ovt]))[0];
+    check('prep: «تعديل البيانات» applies the suggestion (the WhatsApp follows the phone)',
+      ok(upd) && ovNow.name === 'صيدلية النهدي' && ovNow.phone === '+966502223344' && ovNow.whatsapp === '+966502223344', { e: upd.error, ovNow });
+    check('prep: …resolves its open reports and thanks the reporters',
+      (await admin(db, `select count(*)::int n from directory_place_reports where place_id = $1 and status = 'open'`, [ovt]))[0].n === 0 &&
+      (await admin(db, `select count(*)::int n from notifications where user_id = $1 and title = 'شكراً على بلاغك 🙏'`, [r4]))[0].n === 1);
+    check('prep: bad admin edits are refused', denied(await adm(boss, `select public.admin_update_directory_place($1, null, 'call me')`, [ovt])) &&
+      denied(await adm(boss, `select public.admin_update_directory_place($1, null, null, 'مساجد')`, [ovt])));
+
+    check('prep: «إخفاء المكان» hides an Overture place', ok(await adm(boss, `select public.admin_set_place_hidden($1, true)`, [ovt])) && !(await visible(ovt)));
+    check('prep: «إظهار تاني» shows the auto-hidden OSM place again and dismisses its reports',
+      ok(await adm(boss, `select public.admin_set_place_hidden($1, false)`, [osm])) &&
+      (await admin(db, `select hidden, hidden_by from directory_places where id = $1`, [osm]))[0].hidden === false &&
+      (await admin(db, `select count(*)::int n from directory_place_reports where place_id = $1 and status = 'dismissed'`, [osm]))[0].n === 3);
+    await report(r4, osm, 'closed');
+    check('prep: …so one new report does not hide it again', (await admin(db, `select hidden from directory_places where id = $1`, [osm]))[0].hidden === false);
+    check('prep: «تجاهل البلاغ» dismisses the open reports of a place',
+      (await adm(boss, `select public.admin_resolve_place_report($1) as n`, [osm])).rows?.[0]?.n === 1 &&
+      (await admin(db, `select count(*)::int n from directory_place_reports where place_id = $1 and status = 'open'`, [osm]))[0].n === 0);
+    check('prep: «مسح المكان» deletes a user place (and its reports)',
+      ok(await adm(boss, `select public.admin_delete_directory_place($1)`, [usr])) &&
+      (await admin(db, `select count(*)::int n from directory_places where id = $1`, [usr]))[0].n === 0 &&
+      (await admin(db, `select count(*)::int n from directory_place_reports where place_id = $1`, [usr]))[0].n === 0);
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

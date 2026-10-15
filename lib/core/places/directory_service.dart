@@ -82,6 +82,48 @@ class DirectoryService {
     return r as String;
   }
 
+  /// «بلّغ عن محل غلط» (0095): reason keys → the labels the sheet shows.
+  static const reportReasons = <String, String>{
+    'closed': 'المحل مقفول نهائياً',
+    'wrong_location': 'المكان غلط على الخريطة',
+    'wrong_info': 'الاسم أو الرقم غلط',
+    'duplicate': 'مكرر',
+    'fake': 'مش محل / إعلان مزيف أو مسيء',
+    'other': 'حاجة تانية',
+  };
+
+  /// Signed-in only, 10 a day; reporting the same place again returns the
+  /// open report. [suggestion]: name / phone / category (wrong_info).
+  static Future<String> reportPlace(String placeId, String reason, {String? note, Map<String, String>? suggestion}) async {
+    final r = await _db.rpc('report_directory_place', params: {
+      'p_place_id': placeId,
+      'p_reason': reason,
+      'p_note': note,
+      'p_suggestion': (suggestion == null || suggestion.isEmpty) ? null : suggestion,
+    });
+    return r as String;
+  }
+
+  // ---- super admin («بلاغات الأماكن»)
+
+  /// Places with open reports ('open') or hidden places ('hidden').
+  static Future<List<Map<String, dynamic>>> adminPlaceReports({String filter = 'open'}) async {
+    final rows = await _db.rpc('admin_list_place_reports', params: {'p_filter': filter});
+    return List<Map<String, dynamic>>.from(rows as List);
+  }
+
+  static Future<void> adminResolveReports(String placeId, {String status = 'dismissed'}) =>
+      _db.rpc('admin_resolve_place_report', params: {'p_place_id': placeId, 'p_status': status});
+
+  /// null = keep; an empty [phone] removes it.
+  static Future<void> adminUpdatePlace(String placeId, {String? name, String? phone, String? category}) =>
+      _db.rpc('admin_update_directory_place', params: {'p_place_id': placeId, 'p_name': name, 'p_phone': phone, 'p_category': category});
+
+  static Future<void> adminSetHidden(String placeId, bool hidden) =>
+      _db.rpc('admin_set_place_hidden', params: {'p_place_id': placeId, 'p_hidden': hidden});
+
+  static Future<void> adminDeletePlace(String placeId) => _db.rpc('admin_delete_directory_place', params: {'p_place_id': placeId});
+
   /// wa.me link (stored number: 01… Egypt, or E.164) with a
   /// customer's message to a shop that isn't on مُجتمعي yet: their request,
   /// plus an invitation to open a free store and answer it.

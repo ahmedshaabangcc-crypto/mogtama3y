@@ -16,6 +16,7 @@ import 'admin_governance_screen.dart';
 import 'admin_room_moderation_screen.dart';
 import 'admin_reports_screen.dart';
 import 'admin_mosque_claims_screen.dart';
+import 'admin_place_reports_screen.dart';
 import 'admin_mosque_chat_screen.dart';
 import 'admin_scrap_dealers_screen.dart';
 import 'admin_tutorial_videos_screen.dart';
@@ -328,6 +329,15 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
                 subtitle: const Text('بلاغات الناس عن مستخدمين في "ناس حواليك" والشات'),
                 trailing: const Icon(Icons.chevron_left_rounded),
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminUserFlagsScreen())),
+              ),
+            ),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.wrong_location_rounded, color: AppColors.crystal),
+                title: const Text('بلاغات الأماكن', style: TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: const Text('محلات في الدليل الناس بلّغت إنها غلط: عدّل أو اخفي أو امسح أو تجاهل'),
+                trailing: const Icon(Icons.chevron_left_rounded),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminPlaceReportsScreen())),
               ),
             ),
             Card(
