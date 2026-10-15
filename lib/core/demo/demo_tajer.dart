@@ -59,7 +59,14 @@ class DemoTajer {
       'العنوان على الخريطة: https://mogtama3y.com/#/a/$monaAddress';
 
   static Map<String, List<DemoRow>> seed(DateTime now) {
-    String ago({int days = 0, int hours = 0, int minutes = 0}) => now.subtract(Duration(days: days, hours: hours, minutes: minutes)).toUtc().toIso8601String();
+    // Same-day items never slip into yesterday (e.g. a recording right after
+    // midnight), so «النهارده» always has orders.
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    String ago({int days = 0, int hours = 0, int minutes = 0}) {
+      var t = now.subtract(Duration(days: days, hours: hours, minutes: minutes));
+      if (days == 0 && t.isBefore(startOfDay)) t = startOfDay.add(Duration(seconds: (hours * 60 + minutes) % 60));
+      return t.toUtc().toIso8601String();
+    }
     var seq = 0;
     String id(String kind) => DemoStore.fixedId(kind, ++seq);
 
