@@ -117,7 +117,7 @@ class StoreService {
     if (userId == null) return [];
     final rows = await _client
         .from('shops')
-        .select('id, name, category, description, address, slug, whatsapp, scan_count, cover_image_url, logo_url, delivery_fee, free_delivery_over, currency, country')
+        .select('id, name, category, description, address, slug, whatsapp, scan_count, cover_image_url, logo_url, delivery_fee, free_delivery_over, currency, country, first_shared_at')
         .eq('owner_id', userId)
         .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(rows as List);
@@ -164,7 +164,8 @@ class StoreService {
     String? category,
     int? stock,
     List<Map<String, dynamic>> options = const [],
-    required bool isAvailable,
+    /// 'active' | 'draft' | 'archived' (0096); only 'active' is visible.
+    required String status,
   }) async {
     final data = {
       'category': category,
@@ -179,7 +180,8 @@ class StoreService {
       'image_url': images.isEmpty ? null : images.first,
       'old_price': oldPrice,
       'highlights': highlights,
-      'is_available': isAvailable,
+      'status': status,
+      'is_available': status == 'active',
     };
     if (productId == null) {
       await _client.from('shop_products').insert(data);
@@ -307,22 +309,83 @@ class StoreService {
     return list;
   }
 
-  static Future<void> deleteProduct(String productId) async {
-    await _client.from('shop_products').delete().eq('id', productId);
+  static Future<Map<String, dynamic>?> fetchProduct(String productId) async {
+    final row = await _client.from('shop_products').select().eq('id', productId).maybeSingle();
+    return row == null ? null : Map<String, dynamic>.from(row);
   }
 
-  static Future<List<Map<String, dynamic>>> fetchShopOrders(String shopId) async {
-    final rows = await _client
-        .from('shop_orders')
-        .select('*, items:shop_order_items(quantity, unit_price, chosen_options, product:shop_products(name))')
-        .eq('shop_id', shopId)
-        .neq('status', 'cart')
-        .order('created_at', ascending: false)
-        .limit(100);
-    return List<Map<String, dynamic>>.from(rows as List);
+  /// Deletes a product nobody ordered (0096). Returns false — and deletes
+  /// nothing — when it has orders: archive it instead.
+  static Future<bool> deleteProduct(String productId) async {
+    final res = Map<String, dynamic>.from(await _client.rpc('merchant_delete_product', params: {'p_product': productId}) as Map);
+    return res['deleted'] == true;
+  }
+
+  static Future<void> setProductStatus(String productId, String status) async {
+    await _client.from('shop_products').update({'status': status, 'is_available': status == 'active'}).eq('id', productId);
+  }
+
+  /// One page of the merchant's orders (0096 merchant_orders): newest
+  /// first; pass the last row of the previous page as [after].
+  static Future<MerchantOrdersPage> merchantOrders({
+    required String shopId,
+    String? status,
+    String? search,
+    DateTime? from,
+    DateTime? to,
+    int limit = 50,
+    Map<String, dynamic>? after,
+  }) async {
+    final q = search?.trim() ?? '';
+    final res = Map<String, dynamic>.from(await _client.rpc('merchant_orders', params: {
+      'p_shop': shopId,
+      'p_status': status,
+      'p_search': q.isEmpty ? null : q,
+      'p_from': from?.toUtc().toIso8601String(),
+      'p_to': to?.toUtc().toIso8601String(),
+      'p_limit': limit,
+      'p_before': after?['created_at'],
+      'p_before_id': after?['id'],
+    }) as Map);
+    return MerchantOrdersPage(
+      orders: [for (final o in res['orders'] as List? ?? const []) Map<String, dynamic>.from(o as Map)],
+      counts: {for (final e in Map<String, dynamic>.from(res['counts'] as Map? ?? const {}).entries) e.key: (e.value as num).toInt()},
+      hasMore: res['has_more'] == true,
+    );
+  }
+
+  /// One order with its lines and timeline (0096 merchant_order).
+  static Future<Map<String, dynamic>> merchantOrder(String orderId) async {
+    return Map<String, dynamic>.from(await _client.rpc('merchant_order', params: {'p_order': orderId}) as Map);
+  }
+
+  static Future<void> setOrderNote(String orderId, String note) async {
+    await _client.rpc('merchant_set_order_note', params: {'p_order': orderId, 'p_note': note});
+  }
+
+  static Future<void> cancelOrder(String orderId, String reason) async {
+    await _client.rpc('merchant_cancel_order', params: {'p_order': orderId, 'p_reason': reason});
+  }
+
+  /// «شارك متجرك» on the onboarding checklist (best effort).
+  static Future<void> markShared(String shopId) async {
+    try {
+      await _client.rpc('merchant_mark_shared', params: {'p_shop': shopId});
+    } catch (_) {}
   }
 
   static Future<void> updateOrderStatus({required String orderId, required String status}) async {
     await _client.rpc('update_shop_order_status', params: {'p_order_id': orderId, 'p_status': status});
   }
 }
+
+/// A page of [StoreService.merchantOrders].
+class MerchantOrdersPage {
+  const MerchantOrdersPage({required this.orders, required this.counts, required this.hasMore});
+  final List<Map<String, dynamic>> orders;
+
+  /// Per status (and 'all'), with the search / dates applied.
+  final Map<String, int> counts;
+  final bool hasMore;
+}
+

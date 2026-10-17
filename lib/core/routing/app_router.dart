@@ -52,6 +52,8 @@ import '../../features/shell/app_shell.dart';
 import '../../features/shell/masjid_shell.dart';
 import '../../features/shell/open_tajer_app.dart';
 import '../../features/shell/tajer_shell.dart';
+import '../../features/merchant/admin/admin_shell.dart' show isTajerAdminPath;
+import '../../features/merchant/admin/tajer_routes.dart';
 import '../../features/shell/union_shell.dart';
 import '../../features/shops/neighborhood_shops_screen.dart';
 import '../../features/sos/sos_emergency_screen.dart';
@@ -333,10 +335,9 @@ final appRouter = GoRouter(
           ? const UnionShell()
           : isMasjidApp
           ? const MasjidShell()
-          : (isTajerApp
-                // Demo build only: `/?tab=1&add=1` opens a panel tab directly.
-                ? (kDemo ? TajerShell(demoTab: int.tryParse(state.uri.queryParameters['tab'] ?? ''), demoAdd: state.uri.queryParameters['add'] == '1') : const TajerShell())
-                : const AppShell()),
+          // متجري: the campaign page while signed out; signed in, `/`
+          // redirects to the admin (tajerRedirect).
+          : (isTajerApp ? const TajerShell() : const AppShell()),
       routes: [
         for (final e in _sections.entries) _section(e.key, e.value),
         if (isUnionApp) GoRoute(path: 'pass/:code', builder: (_, state) => VisitorPassLinkScreen(code: state.pathParameters['code']!)),
@@ -371,10 +372,19 @@ final appRouter = GoRouter(
         if (kDemo && isTajerApp) ...demoTajerRoutes,
       ],
     ),
+    // متجري's admin: /dashboard, /orders/…, /products/…, /settings …
+    if (isTajerApp) tajerAdminRoutes(),
   ],
+  refreshListenable: isTajerApp ? TajerAuthRefresh() : null,
   // Unknown or stale links (and OAuth callbacks carrying ?code=...) go home.
   // That includes the other app's sections (e.g. /union on مُجتمعي).
-  redirect: (_, state) => isInAppPath(state.uri.path) ? null : '/',
+  redirect: (_, state) {
+    if (isTajerApp) {
+      final to = tajerRedirect(state);
+      if (to != null) return to;
+    }
+    return isInAppPath(state.uri.path) ? null : '/';
+  },
 );
 
 /// Whether [path] opens a screen in this app (flavour). Anything else —
@@ -383,6 +393,7 @@ final appRouter = GoRouter(
 bool isInAppPath(String path) {
   if (path == '/' || path.isEmpty) return true;
   if (_sections.containsKey(path)) return true;
+  if (isTajerApp && isTajerAdminPath(path)) return true;
   if (kDemo && isTajerApp && demoTajerPaths.contains(path)) return true;
   if (_hasMosques && _mosquePath.hasMatch(path)) return true;
   if (_neighbourhoodLinks && _hallPath.hasMatch(path)) return true;

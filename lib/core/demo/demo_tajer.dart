@@ -137,6 +137,7 @@ class DemoTajer {
             if (sizes.isNotEmpty) {'name': 'الحجم', 'values': sizes},
           ],
           'is_available': true,
+          'status': 'active',
           'created_at': ago(days: 50, minutes: n),
         };
 
@@ -153,16 +154,46 @@ class DemoTajer {
           oldPrice: 28, highlights: ['سمنة بلدي', 'قشطة طازة']),
     ];
     final priceOf = {for (final p in products) p['id']: p['price'] as num};
+    final productOf = {for (final p in products) p['id']: p};
 
     final orders = <DemoRow>[];
     final items = <DemoRow>[];
-    void order(String code, String status, String name, String phone, String address, List<(int, int, String?)> lines, String createdAt, {String? note}) {
+    final events = <DemoRow>[];
+    // The status path an order took (0096 timeline), a few minutes apart.
+    const path = ['placed', 'preparing', 'delivering', 'delivered'];
+    void order(String code, String status, String name, String phone, String address, List<(int, int, String?)> lines, String createdAt,
+        {String? note, String? internalNote, String? cancelReason}) {
       final orderId = id('8');
       num subtotal = 0;
       for (final (n, qty, opts) in lines) {
         final pid = productId(n);
-        items.add({'id': id('9'), 'order_id': orderId, 'product_id': pid, 'quantity': qty, 'unit_price': priceOf[pid], 'chosen_options': opts, 'created_at': createdAt});
+        final p = productOf[pid]!;
+        items.add({
+          'id': id('9'),
+          'order_id': orderId,
+          'product_id': pid,
+          'quantity': qty,
+          'unit_price': priceOf[pid],
+          'chosen_options': opts,
+          // 0096 line snapshot.
+          'product_name': p['name'],
+          'variant_label': opts,
+          'image_url': p['image_url'],
+          'created_at': createdAt,
+        });
         subtotal += priceOf[pid]! * qty;
+      }
+      final at = DateTime.parse(createdAt);
+      String later(int minutes) => at.add(Duration(minutes: minutes)).toIso8601String();
+      events.add({'id': id('e'), 'order_id': orderId, 'shop_id': shopId, 'kind': 'created', 'to_status': 'placed', 'actor_role': 'customer', 'actor_id': null, 'body': null, 'created_at': createdAt});
+      for (var i = 1; i <= path.indexOf(status); i++) {
+        events.add({'id': id('e'), 'order_id': orderId, 'shop_id': shopId, 'kind': 'status', 'from_status': path[i - 1], 'to_status': path[i], 'actor_role': 'merchant', 'actor_id': uMerchant, 'body': null, 'created_at': later(4 * i)});
+      }
+      if (internalNote != null) {
+        events.add({'id': id('e'), 'order_id': orderId, 'shop_id': shopId, 'kind': 'note', 'actor_role': 'merchant', 'actor_id': uMerchant, 'body': internalNote, 'created_at': later(2)});
+      }
+      if (status == 'cancelled') {
+        events.add({'id': id('e'), 'order_id': orderId, 'shop_id': shopId, 'kind': 'cancel', 'from_status': 'placed', 'to_status': 'cancelled', 'actor_role': 'merchant', 'actor_id': uMerchant, 'body': cancelReason, 'created_at': later(9)});
       }
       final delivery = subtotal >= 200 ? 0 : 15;
       orders.add({
@@ -176,6 +207,9 @@ class DemoTajer {
         'customer_phone': phone,
         'delivery_address': address,
         'note': note,
+        'internal_note': internalNote,
+        'cancel_reason': cancelReason,
+        'currency': 'EGP',
         'order_code': code,
         'created_at': createdAt,
       });
@@ -186,9 +220,10 @@ class DemoTajer {
     order(orderPlaced2, 'placed', 'شريف حمدي', '01100000302', 'عمارة 5، الدور 2، شارع 233، المعادي، القاهرة', [(2, 2, 'الحجم: مظبوط'), (5, 3, null)], ago(minutes: 35));
     order(orderPreparing, 'preparing', 'دينا مجدي', '01200000303', 'فيلا 8، شارع 77، المعادي الجديدة، القاهرة', [(4, 2, null), (3, 1, 'الحجم: كبير')], ago(hours: 1, minutes: 10));
     order(orderDelivering, 'delivering', 'عمر طارق', '01500000304', 'مكتب 4، برج النيل، كورنيش المعادي، القاهرة — شركة تجريبية', [(3, 4, 'الحجم: وسط'), (6, 6, null)],
-        ago(hours: 2, minutes: 5), note: 'اجتماع الساعة 1، ياريت قبلها');
+        ago(hours: 2, minutes: 5), note: 'اجتماع الساعة 1، ياريت قبلها', internalNote: 'الطيار أحمد — كلّم الأمن تحت البرج');
     order(orderDelivered, 'delivered', 'هبة سامي', '01000000305', 'عمارة 30، شارع النصر، المعادي، القاهرة', [(1, 4, null), (5, 2, null)], ago(days: 1, hours: 3));
-    order(orderCancelled, 'cancelled', 'كريم فؤاد', '01100000306', 'عمارة 2، شارع 100، المعادي، القاهرة', [(2, 1, 'الحجم: سادة')], ago(days: 2, hours: 5));
+    order(orderCancelled, 'cancelled', 'كريم فؤاد', '01100000306', 'عمارة 2، شارع 100، المعادي، القاهرة', [(2, 1, 'الحجم: سادة')], ago(days: 2, hours: 5),
+        cancelReason: 'الزبون طلب الإلغاء');
     order('T4P7S2GN', 'delivered', 'منى عادل', '01000000301', _monaAddressText, [(1, 3, null), (6, 3, null), (5, 2, null)], ago(days: 4, hours: 2));
     order('T6R3C8WB', 'delivered', 'ياسمين علي', '01200000308', 'عمارة 9، شارع 250، دجلة، المعادي، القاهرة', [(4, 3, null), (2, 2, 'الحجم: زيادة')], ago(days: 9, hours: 6));
 
@@ -214,6 +249,7 @@ class DemoTajer {
       'shop_products': products,
       'shop_orders': orders,
       'shop_order_items': items,
+      'shop_order_events': events,
       'e_addresses': [
         eAddress(uMona, 'K7P2X9QM', monaAddress, {
           'governorate': 'القاهرة',
@@ -340,6 +376,53 @@ extension _TajerBackend on DemoStore {
 
   static String _money(num v) => v == v.roundToDouble() ? '${v.toInt()}' : v.toStringAsFixed(2);
 
+  /// An order of a shop the signed-in merchant owns (0096 merchant RPCs).
+  DemoRow _myOrder(String? id) {
+    final o = _firstWhere('shop_orders', (x) => x['id'] == id && x['status'] != 'cart');
+    final shop = o == null ? null : _firstWhere('shops', (s) => s['id'] == o['shop_id']);
+    if (o == null || shop == null || shop['owner_id'] != _uid) throw DemoError('الطلب غير موجود');
+    return o;
+  }
+
+  /// The order's lines as snapshots (falling back to the product today).
+  List<DemoRow> _lines(String orderId) => [
+        for (final i in t('shop_order_items').where((i) => i['order_id'] == orderId))
+          () {
+            final p = _firstWhere('shop_products', (x) => x['id'] == i['product_id']);
+            return <String, dynamic>{
+              'product_id': i['product_id'],
+              'product_name': i['product_name'] ?? p?['name'],
+              'variant_label': i['variant_label'] ?? i['chosen_options'],
+              'quantity': i['quantity'],
+              'unit_price': i['unit_price'],
+              'image_url': i['image_url'],
+            };
+          }(),
+      ];
+
+  DemoRow _orderJson(DemoRow o) => {
+        for (final k in const ['id', 'order_code', 'created_at', 'status', 'customer_name', 'customer_phone', 'delivery_address', 'note', 'internal_note', 'cancel_reason', 'total_amount', 'delivery_fee'])
+          k: o[k],
+        'currency': o['currency'] ?? 'EGP',
+        'payment': 'cash',
+        'items': _lines(o['id'] as String),
+      };
+
+  void _orderEvent(String orderId, String shopId, String kind, {String? from, String? to, String? body, required String role}) {
+    t('shop_order_events').add({
+      'id': newId(),
+      'order_id': orderId,
+      'shop_id': shopId,
+      'kind': kind,
+      'from_status': from,
+      'to_status': to,
+      'body': body,
+      'actor_id': role == 'merchant' ? _uid : null,
+      'actor_role': role,
+      'created_at': DemoStore.nowIso(),
+    });
+  }
+
   Object? _tajerRpc(String fn, Map<String, dynamic> p) {
     switch (fn) {
       case 'ensure_my_profile':
@@ -435,7 +518,8 @@ extension _TajerBackend on DemoStore {
         final recentIds = recent.map((o) => o['id']).toSet();
         final sold = <String, int>{};
         for (final it in t('shop_order_items').where((i) => recentIds.contains(i['order_id']))) {
-          final name = _firstWhere('shop_products', (x) => x['id'] == it['product_id'])?['name'] as String?;
+          // 0096: the line's snapshot name.
+          final name = (it['product_name'] ?? _firstWhere('shop_products', (x) => x['id'] == it['product_id'])?['name']) as String?;
           if (name != null) sold[name] = (sold[name] ?? 0) + (it['quantity'] as num).toInt();
         }
         final top = sold.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
@@ -447,6 +531,7 @@ extension _TajerBackend on DemoStore {
           'sales_today': sum(live.where((o) => !at(o).isBefore(today))),
           'sales_30d': sum(recent),
           'orders_30d': recent.length,
+          'orders_all': orders.length,
           'products': t('shop_products').where((x) => x['shop_id'] == s['id']).length,
           'top_products': [
             for (final e in top.take(5)) {'name': e.key, 'sold': e.value},
@@ -495,6 +580,9 @@ extension _TajerBackend on DemoStore {
             'quantity': qty,
             'unit_price': product['price'],
             'chosen_options': opts,
+            'product_name': product['name'],
+            'variant_label': opts,
+            'image_url': (product['images'] as List?)?.firstOrNull ?? product['image_url'],
             'created_at': DemoStore.nowIso(),
           });
           subtotal += (product['price'] as num) * qty;
@@ -514,9 +602,13 @@ extension _TajerBackend on DemoStore {
           'customer_phone': phone,
           'delivery_address': address,
           'note': note.isEmpty ? null : note,
+          'internal_note': null,
+          'cancel_reason': null,
+          'currency': shop['currency'] ?? 'EGP',
           'order_code': code,
           'created_at': DemoStore.nowIso(),
         });
+        _orderEvent(orderId, shop['id'] as String, 'created', to: 'placed', role: 'customer');
         _notify(
           [shop['owner_id'] as String],
           '🛒 طلب جديد $code — ${shop['name']}',
@@ -541,13 +633,8 @@ extension _TajerBackend on DemoStore {
           'shop_slug': shop['slug'],
           'shop_whatsapp': shop['whatsapp'],
           'items': [
-            for (final i in t('shop_order_items').where((i) => i['order_id'] == o['id']))
-              {
-                'name': _firstWhere('shop_products', (x) => x['id'] == i['product_id'])?['name'],
-                'quantity': i['quantity'],
-                'price': i['unit_price'],
-                'options': i['chosen_options'],
-              },
+            for (final i in _lines(o['id'] as String))
+              {'name': i['product_name'], 'quantity': i['quantity'], 'price': i['unit_price'], 'options': i['variant_label'], 'image_url': i['image_url']},
           ],
         };
 
@@ -570,6 +657,88 @@ extension _TajerBackend on DemoStore {
           throw DemoError('غير مصرح لك');
         }
         o['status'] = status;
+        _orderEvent(o['id'] as String, shop['id'] as String, status == 'cancelled' ? 'cancel' : 'status',
+            from: from as String?, to: status, body: status == 'cancelled' ? o['cancel_reason'] as String? : null, role: shop['owner_id'] == _uid ? 'merchant' : 'customer');
+        return null;
+
+      // ---- 0096: the merchant admin ----
+      case 'merchant_orders':
+        _myShop(p['p_shop'] as String?);
+        final status = p['p_status'] as String?;
+        if (status != null && !const ['placed', 'preparing', 'delivering', 'delivered', 'cancelled'].contains(status)) throw DemoError('حالة غير معروفة');
+        final q = latinDigits((p['p_search'] as String? ?? '').trim());
+        final digits = q.replaceAll(RegExp(r'\D'), '');
+        final from = DateTime.tryParse(p['p_from'] as String? ?? '');
+        final to = DateTime.tryParse(p['p_to'] as String? ?? '');
+        DateTime at(DemoRow o) => DateTime.parse(o['created_at'] as String);
+        final filtered = t('shop_orders').where((o) {
+          if (o['shop_id'] != p['p_shop'] || o['status'] == 'cart') return false;
+          if (from != null && at(o).isBefore(from)) return false;
+          if (to != null && !at(o).isBefore(to)) return false;
+          if (q.isEmpty) return true;
+          return (o['order_code'] as String? ?? '').toUpperCase().contains(q.toUpperCase()) ||
+              (o['customer_name'] as String? ?? '').contains(q) ||
+              (digits.length >= 3 && (o['customer_phone'] as String? ?? '').replaceAll(RegExp(r'\D'), '').contains(digits));
+        }).toList()
+          ..sort((a, b) {
+            final c = at(b).compareTo(at(a));
+            return c != 0 ? c : (b['id'] as String).compareTo(a['id'] as String);
+          });
+        final before = DateTime.tryParse(p['p_before'] as String? ?? '');
+        final beforeId = p['p_before_id'] as String? ?? '00000000-0000-0000-0000-000000000000';
+        final limit = ((p['p_limit'] as num?) ?? 50).toInt().clamp(1, 200);
+        final page = filtered.where((o) {
+          if (status != null && o['status'] != status) return false;
+          if (before == null) return true;
+          final c = at(o).compareTo(before);
+          return c < 0 || (c == 0 && (o['id'] as String).compareTo(beforeId) < 0);
+        }).toList();
+        int count(String? s) => filtered.where((o) => s == null || o['status'] == s).length;
+        return {
+          'orders': [for (final o in page.take(limit)) _orderJson(o)],
+          'counts': {'all': count(null), for (final s in const ['placed', 'preparing', 'delivering', 'delivered', 'cancelled']) s: count(s)},
+          'has_more': page.length > limit,
+        };
+
+      case 'merchant_order':
+        final o = _myOrder(p['p_order'] as String?);
+        return {
+          ..._orderJson(o),
+          'events': [
+            for (final e in t('shop_order_events').where((e) => e['order_id'] == o['id']).toList()
+              ..sort((a, b) => (a['created_at'] as String).compareTo(b['created_at'] as String)))
+              {...e, 'actor_name': profileOf(e['actor_id'] as String?)?['full_name']},
+          ],
+        };
+
+      case 'merchant_set_order_note':
+        final o = _myOrder(p['p_order'] as String?);
+        var note = (p['p_note'] as String? ?? '').trim();
+        if (note.length > 1000) note = note.substring(0, 1000);
+        final value = note.isEmpty ? null : note;
+        if (value == o['internal_note']) return null;
+        o['internal_note'] = value;
+        _orderEvent(o['id'] as String, o['shop_id'] as String, 'note', body: value ?? '(اتمسحت الملاحظة)', role: 'merchant');
+        return null;
+
+      case 'merchant_cancel_order':
+        final o = _myOrder(p['p_order'] as String?);
+        if (!const ['placed', 'preparing', 'delivering'].contains(o['status'])) throw DemoError('مينفعش تغيّر حالة الطلب بالشكل ده');
+        var reason = (p['p_reason'] as String? ?? '').trim();
+        if (reason.length > 300) reason = reason.substring(0, 300);
+        o['cancel_reason'] = reason.isEmpty ? null : reason;
+        return _tajerRpc('update_shop_order_status', {'p_order_id': o['id'], 'p_status': 'cancelled'});
+
+      case 'merchant_delete_product':
+        final product = _firstWhere('shop_products', (x) => x['id'] == p['p_product']) ?? (throw DemoError('المنتج ده مش بتاعك'));
+        _myShop(product['shop_id'] as String?);
+        if (t('shop_order_items').any((i) => i['product_id'] == product['id'])) return {'deleted': false, 'has_orders': true};
+        t('shop_products').remove(product);
+        return {'deleted': true, 'has_orders': false};
+
+      case 'merchant_mark_shared':
+        final s = _firstWhere('shops', (s) => s['id'] == p['p_shop'] && s['owner_id'] == _uid);
+        if (s != null) s['first_shared_at'] ??= DemoStore.nowIso();
         return null;
 
       // ---- 0048 / 0049 / 0052 / 0074: digital addresses ----

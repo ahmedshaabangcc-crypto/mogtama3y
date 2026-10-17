@@ -9,18 +9,16 @@ import 'starter_products_screen.dart';
 import 'store_qr_card_screen.dart';
 
 /// Demo build only (added to the router behind `kDemo && isTajerApp`):
-/// direct links to merchant-app screens that are otherwise tabs or pushed
-/// pages, so each one can be opened straight away for a recording.
+/// direct links to merchant-app screens that are otherwise pushed pages,
+/// so each one can be opened straight away for a recording.
 ///
-///   /#/dashboard, /#/products, /#/add-product, /#/orders, /#/my-store
-///   (the panel's tabs — they redirect to `/?tab=…`), /#/qr-card,
-///   /#/starter, /#/pricing, /#/checkout (the demo store's cart, filled).
+///   /#/add-product, /#/my-store (old names of /products/new and
+///   /settings), /#/qr-card, /#/starter, /#/pricing, /#/checkout (the demo
+///   store's cart, filled). The admin pages themselves (/dashboard,
+///   /orders, /orders/:id, /products …) are real routes now.
 final demoTajerRoutes = <GoRoute>[
-  GoRoute(path: 'dashboard', redirect: (_, _) => '/?tab=0'),
-  GoRoute(path: 'products', redirect: (_, _) => '/?tab=1'),
-  GoRoute(path: 'add-product', redirect: (_, _) => '/?tab=1&add=1'),
-  GoRoute(path: 'orders', redirect: (_, _) => '/?tab=2'),
-  GoRoute(path: 'my-store', redirect: (_, _) => '/?tab=3'),
+  GoRoute(path: 'add-product', redirect: (_, _) => '/products/new'),
+  GoRoute(path: 'my-store', redirect: (_, _) => '/settings'),
   GoRoute(
     path: 'qr-card',
     builder: (_, _) => _MyShop(

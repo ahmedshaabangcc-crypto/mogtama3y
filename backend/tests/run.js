@@ -2416,6 +2416,8 @@ const denied = (r) => !!r.error;
     await db.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'migrations', '0089_arab_world_foundation.sql'), 'utf8'));
     // …and 0092 (shop orders / fund withdrawal redefined with the currency).
     await db.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'migrations', '0092_arab_currency.sql'), 'utf8'));
+    // …and 0096 (store orders with line snapshots, tracking / stats reading them).
+    await db.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
 
     const mascM = (await admin(db, `insert into mosques (name, lat, lng, verified) values ('مسجد النور', 30.4, 31.6, true) returning id`))[0].id;
     const mascN1 = await signUp(db, 'masc realname one', null);
@@ -2584,6 +2586,7 @@ const denied = (r) => !!r.error;
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0087_masjid_worldwide.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0089_arab_world_foundation.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0092_arab_currency.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
 
     const M = (await admin(db, `insert into mosques (name, lat, lng, verified) values ('مسجد الرحمن', 30.05, 31.25, true) returning id`))[0].id;
     const U = (await admin(db, `insert into mosques (name, lat, lng) values ('مسجد مش موثق', 30.06, 31.26) returning id`))[0].id;
@@ -2873,6 +2876,7 @@ const denied = (r) => !!r.error;
     check('mww: 0087 is safe to re-run', rerun === null, rerun);
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0089_arab_world_foundation.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0092_arab_currency.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
     const has = (r, text) => !!r.error && r.error.includes(text);
 
     // ---- places: country / zone / currency
@@ -3190,6 +3194,7 @@ const denied = (r) => !!r.error;
     }
     check('arab: 0089 is safe to re-run', rerun === null, rerun);
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0092_arab_currency.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
     const norm = async (p, c) => (await admin(db, `select private.norm_phone($1, $2) as n`, [p, c ?? null]))[0].n;
     const store = async (p, c) => (await admin(db, `select private.phone_store($1, $2) as n`, [p, c ?? null]))[0].n;
 
@@ -3360,6 +3365,8 @@ const denied = (r) => !!r.error;
       rerun = e.message;
     }
     check('cur: 0092 is safe to re-run', rerun === null, rerun);
+    // 0096 redefines 0092's store orders (line snapshots) — put it back.
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
     const notes = async (u) => (await admin(db, `select title, body from notifications where user_id = $1 order by created_at`, [u])).map((n) => n.title + ' | ' + n.body);
     const lastNote = async (u) => (await notes(u)).pop() ?? '';
 
@@ -3838,6 +3845,172 @@ const denied = (r) => !!r.error;
       (await admin(db, `select count(*)::int n from directory_place_reports where place_id = $1`, [usr]))[0].n === 0);
   }
 
+  // ------------------------------------------------------------------
+  console.log('\nPhase tpro — متجري admin: orders list, timeline, snapshots, archive (0096)');
+  {
+    const fs = require('fs');
+    const path = require('path');
+    let rerun = null;
+    try {
+      await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
+    } catch (e) {
+      rerun = e.message;
+    }
+    check('tpro: 0096 is safe to re-run', rerun === null, rerun);
+    const idOf = (r) => r.rows?.[0] && Object.values(r.rows[0])[0];
+    const tM = await signUp(db, 'tpro merchant', '01000096001');
+    const tM2 = await signUp(db, 'tpro other merchant', '01000096002');
+    const tBuyer = await signUp(db, 'tpro buyer', '01000096003');
+    const tShop = idOf(await as(db, tM, `select public.create_my_shop('محل البرو', 'بقالة', 'tpro-shop', '01000096001') as id`));
+    const tShop2 = idOf(await as(db, tM2, `select public.create_my_shop('محل تاني', 'بقالة', 'tpro-other', '01000096002') as id`));
+    check('tpro: two merchants register', !!tShop && !!tShop2);
+    await as(db, tM, `select public.set_my_shop_delivery($1, 10)`, [tShop]);
+    const prod = async (name, price) => idOf(await as(db, tM,
+      `insert into shop_products (shop_id, name, price, images, options)
+       values ($1, $2, $3, array['https://x.test/p.jpg'], '[{"name":"المقاس","values":["S","M"]}]'::jsonb) returning id`, [tShop, name, price]));
+    const pA = await prod('تيشيرت أبيض', 100);
+    const pB = await prod('بنطلون', 250);
+    const pC = await prod('شنطة', 80);
+    check('tpro: products start active and visible', (await admin(db, `select count(*)::int n from shop_products where shop_id = $1 and status = 'active' and is_available`, [tShop]))[0].n === 3);
+
+    // ---- snapshots on new orders
+    const place = (name, phone, lines) => as(db, null, `select public.place_store_order($1, $2::jsonb, $3, $4, 'شارع 9، المعادي، عمارة 4 شقة 2') as code`,
+      [tShop, JSON.stringify(lines), name, phone]);
+    const o1 = idOf(await place('منى عادل', '01000096101', [{ product_id: pA, quantity: 2, options: 'المقاس: M' }, { product_id: pB, quantity: 1 }]));
+    check('tpro: a guest order is placed', /^T[0-9A-Z]{7}$/.test(o1 || ''), o1);
+    const lines1 = await admin(db, `select i.product_name, i.variant_label, i.unit_price::float up, i.image_url from shop_order_items i join shop_orders o on o.id = i.order_id
+      where o.order_code = $1 order by i.product_name`, [o1]);
+    check('tpro: the order lines keep a snapshot (name, variant, price, image)',
+      lines1.length === 2 && lines1.some((l) => l.product_name === 'تيشيرت أبيض' && l.variant_label === 'المقاس: M' && l.up === 100 && l.image_url.endsWith('.jpg')) &&
+      lines1.some((l) => l.product_name === 'بنطلون' && l.variant_label === null), lines1);
+    const inApp = await as(db, tBuyer, `select public.place_shop_order($1, $2::jsonb, '01000096003') as id`, [tShop, JSON.stringify([{ product_id: pC, quantity: 1 }])]);
+    check('tpro: an in-app order snapshots its lines too', ok(inApp) &&
+      (await admin(db, `select product_name from shop_order_items where order_id = $1`, [idOf(inApp)]))[0]?.product_name === 'شنطة', inApp);
+    await as(db, tM, `update shop_products set name = 'تيشيرت أبيض جديد', price = 120 where id = $1`, [pA]);
+    const track = (await as(db, null, `select public.get_store_order($1) as o`, [o1])).rows?.[0]?.o;
+    check('tpro: renaming / re-pricing a product does not rewrite the order (tracking reads the snapshot)',
+      track?.items?.some((i) => i.name === 'تيشيرت أبيض' && Number(i.price) === 100 && i.options === 'المقاس: M'), track);
+
+    // ---- backfill of older rows
+    const legacyOrder = idOf(await place('قديم', '01000096102', [{ product_id: pC, quantity: 1 }]));
+    await admin(db, `update shop_order_items set product_name = null, image_url = null, variant_label = null
+      where order_id = (select id from shop_orders where order_code = $1)`, [legacyOrder]);
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
+    const back = (await admin(db, `select product_name, image_url from shop_order_items where order_id = (select id from shop_orders where order_code = $1)`, [legacyOrder]))[0];
+    check('tpro: lines without a snapshot are backfilled from the product', back?.product_name === 'شنطة' && back.image_url?.includes('.jpg'), back);
+
+    // ---- more orders for search / pagination (spread one minute apart)
+    for (let i = 0; i < 6; i++) await place('زبون رقم ' + i, '0100009620' + i, [{ product_id: pB, quantity: 1 }]);
+    await admin(db, `update shop_orders o set created_at = now() - (r.n * interval '1 minute')
+      from (select id, row_number() over (order by created_at desc, id desc) as n from shop_orders where shop_id = $1) r where r.id = o.id`, [tShop]);
+    const list = async (u, args = {}) => {
+      const r = await as(db, u, `select public.merchant_orders($1, $2, $3, $4, $5, $6, $7, $8) as r`,
+        [args.shop ?? tShop, args.status ?? null, args.search ?? null, args.from ?? null, args.to ?? null, args.limit ?? 50, args.before ?? null, args.beforeId ?? null]);
+      return r.error ? r : r.rows[0].r;
+    };
+    const all = await list(tM);
+    check('tpro: merchant_orders lists every order of the shop, newest first, with counts',
+      all.orders?.length === 9 && all.counts.all === 9 && all.counts.placed === 9 && all.has_more === false &&
+      all.orders.every((o, i, a) => i === 0 || o.created_at <= a[i - 1].created_at), { n: all.orders?.length, c: all.counts, e: all.error });
+    check('tpro: …each row carries its snapshot lines and cash payment',
+      all.orders?.find((o) => o.order_code === o1)?.items?.some((i) => i.product_name === 'تيشيرت أبيض' && i.variant_label === 'المقاس: M') &&
+      all.orders.every((o) => o.payment === 'cash'));
+    const page1 = await list(tM, { limit: 4 });
+    const last = page1.orders?.[3];
+    const page2 = await list(tM, { limit: 4, before: last?.created_at, beforeId: last?.id });
+    const last2 = page2.orders?.[3];
+    const page3 = await list(tM, { limit: 4, before: last2?.created_at, beforeId: last2?.id });
+    const seen = [...(page1.orders || []), ...(page2.orders || []), ...(page3.orders || [])].map((o) => o.id);
+    check('tpro: keyset pagination walks every order once (4 + 4 + 1)',
+      page1.has_more && page2.has_more && !page3.has_more && page3.orders.length === 1 && new Set(seen).size === 9,
+      { p1: page1.orders?.length, p2: page2.orders?.length, p3: page3.orders?.length, e: page2.error });
+    check('tpro: search by code', (await list(tM, { search: o1.toLowerCase() })).orders?.map((o) => o.order_code).join() === o1);
+    check('tpro: search by customer name', (await list(tM, { search: 'زبون رقم 3' })).orders?.length === 1 && (await list(tM, { search: 'زبون' })).counts?.all === 6);
+    check('tpro: search by phone (any format, Arabic digits too)',
+      (await list(tM, { search: '0100009620٤' })).orders?.[0]?.customer_name === 'زبون رقم 4' && (await list(tM, { search: '96205' })).orders?.length === 1);
+    check('tpro: a LIKE wildcard in the search is literal', (await list(tM, { search: '%' })).orders?.length === 0);
+    const future = await list(tM, { from: new Date(Date.now() + 3600e3).toISOString() });
+    const span = await list(tM, { from: new Date(Date.now() - 86400e3).toISOString(), to: new Date(Date.now() + 60e3).toISOString() });
+    check('tpro: date range filter', future.orders?.length === 0 && span.orders?.length === 9, { f: future.orders?.length, w: span.orders?.length });
+
+    // ---- auth
+    check('tpro: another merchant cannot list the orders', denied(await list(tM2)));
+    check('tpro: a customer / guest cannot list the orders', denied(await list(tBuyer)) && denied(await list(null)));
+    const oid1 = all.orders?.find((o) => o.order_code === o1)?.id;
+    check('tpro: another merchant cannot open an order', denied(await as(db, tM2, `select public.merchant_order($1)`, [oid1])));
+    check('tpro: another merchant cannot note / cancel it',
+      denied(await as(db, tM2, `select public.merchant_set_order_note($1, 'x')`, [oid1])) && denied(await as(db, tM2, `select public.merchant_cancel_order($1, 'x')`, [oid1])));
+    check('tpro: another merchant reads no events', ((await as(db, tM2, `select * from shop_order_events where order_id = $1`, [oid1])).rows || []).length === 0);
+    check('tpro: the owner reads the events', ((await as(db, tM, `select * from shop_order_events where order_id = $1`, [oid1])).rows || []).length === 1);
+    check('tpro: nobody writes events directly', denied(await as(db, tM, `insert into shop_order_events (order_id, shop_id, kind) values ($1, $2, 'note')`, [oid1, tShop])));
+    check('tpro: bad status filter is refused', denied(await list(tM, { status: 'cart' })));
+
+    // ---- events
+    check('tpro: status change', ok(await as(db, tM, `select public.update_shop_order_status($1, 'preparing')`, [oid1])));
+    check('tpro: internal note', ok(await as(db, tM, `select public.merchant_set_order_note($1, 'الزبون عايزها قبل الضهر')`, [oid1])));
+    check('tpro: the same note again adds no event', ok(await as(db, tM, `select public.merchant_set_order_note($1, 'الزبون عايزها قبل الضهر')`, [oid1])));
+    check('tpro: cancel with a reason', ok(await as(db, tM, `select public.merchant_cancel_order($1, 'الزبون مبيردش')`, [oid1])));
+    const det = (await as(db, tM, `select public.merchant_order($1) as o`, [oid1])).rows?.[0]?.o;
+    const kinds = det?.events?.map((e) => e.kind + ':' + (e.to_status ?? '') + ':' + e.actor_role);
+    check('tpro: the timeline has created → preparing → note → cancel (with who did it)',
+      JSON.stringify(kinds) === JSON.stringify(['created:placed:customer', 'status:preparing:merchant', 'note::merchant', 'cancel:cancelled:merchant']), kinds);
+    check('tpro: …the cancel reason and the note are on the order and the events',
+      det?.cancel_reason === 'الزبون مبيردش' && det.internal_note === 'الزبون عايزها قبل الضهر' &&
+      det.events[3].body === 'الزبون مبيردش' && det.events[3].from_status === 'preparing' && det.events[2].body === 'الزبون عايزها قبل الضهر' &&
+      det.events[1].actor_name === 'tpro merchant', det?.events);
+    check('tpro: the detail has the snapshot lines and totals', det?.items?.length === 2 && Number(det.total_amount) === 460 && Number(det.delivery_fee) === 10, det);
+    const firstId = all.orders?.[0]?.id;
+    check('tpro: a delivered order cannot be cancelled (and keeps no reason)',
+      ok(await as(db, tM, `select public.update_shop_order_status($1, 'preparing')`, [firstId])) &&
+      ok(await as(db, tM, `select public.update_shop_order_status($1, 'delivered')`, [firstId])) &&
+      denied(await as(db, tM, `select public.merchant_cancel_order($1, 'x')`, [firstId])) &&
+      (await admin(db, `select cancel_reason from shop_orders where id = $1`, [firstId]))[0].cancel_reason === null);
+    const buyerOrder = idOf(inApp);
+    check('tpro: a customer cancelling shows as «customer» on the timeline',
+      ok(await as(db, tBuyer, `select public.update_shop_order_status($1, 'cancelled')`, [buyerOrder])) &&
+      (await admin(db, `select actor_role from shop_order_events where order_id = $1 and kind = 'cancel'`, [buyerOrder]))[0]?.actor_role === 'customer');
+    const counts = (await list(tM)).counts;
+    check('tpro: chip counts follow the statuses', counts?.cancelled === 2 && counts.delivered === 1 && counts.placed === 6 && counts.all === 9, counts);
+    check('tpro: status filter', (await list(tM, { status: 'cancelled' })).orders?.length === 2);
+
+    // ---- archive instead of delete
+    const pD = await prod('منتج من غير طلبات', 50);
+    check('tpro: a product nobody ordered is deleted', (await as(db, tM, `select public.merchant_delete_product($1) as r`, [pD])).rows?.[0]?.r?.deleted === true &&
+      (await admin(db, `select count(*)::int n from shop_products where id = $1`, [pD]))[0].n === 0);
+    const del = (await as(db, tM, `select public.merchant_delete_product($1) as r`, [pB])).rows?.[0]?.r;
+    check('tpro: a product with orders is not deleted — the app is told to archive it', del?.deleted === false && del.has_orders === true &&
+      (await admin(db, `select count(*)::int n from shop_products where id = $1`, [pB]))[0].n === 1, del);
+    check('tpro: another merchant cannot delete it', denied(await as(db, tM2, `select public.merchant_delete_product($1)`, [pB])));
+    check('tpro: archive', ok(await as(db, tM, `update shop_products set status = 'archived' where id = $1`, [pB])) &&
+      (await admin(db, `select is_available from shop_products where id = $1`, [pB]))[0].is_available === false);
+    check('tpro: an archived product is hidden from guests and cannot be ordered',
+      ((await as(db, null, `select id from shop_products where id = $1`, [pB])).rows || []).length === 0 &&
+      denied(await place('منى', '01000096301', [{ product_id: pB, quantity: 1 }])));
+    check('tpro: the owner still sees it (status filter in the app)', (await as(db, tM, `select status from shop_products where id = $1`, [pB])).rows?.[0]?.status === 'archived');
+    check('tpro: its old orders still show the snapshot', (await list(tM, { search: 'زبون رقم 2' })).orders?.[0]?.items?.[0]?.product_name === 'بنطلون');
+    check('tpro: hiding (old clients) makes a draft; showing makes it active again',
+      ok(await as(db, tM, `update shop_products set is_available = false where id = $1`, [pC])) &&
+      (await admin(db, `select status from shop_products where id = $1`, [pC]))[0].status === 'draft' &&
+      ok(await as(db, tM, `update shop_products set is_available = true where id = $1`, [pC])) &&
+      (await admin(db, `select status from shop_products where id = $1`, [pC]))[0].status === 'active');
+    check('tpro: a draft product is hidden', ok(await as(db, tM, `update shop_products set status = 'draft' where id = $1`, [pC])) &&
+      ((await as(db, null, `select id from shop_products where id = $1`, [pC])).rows || []).length === 0);
+    check('tpro: inserting a hidden product makes a draft',
+      (await as(db, tM, `insert into shop_products (shop_id, name, price, is_available) values ($1, 'مخفي', 5, false) returning status`, [tShop])).rows?.[0]?.status === 'draft');
+    check('tpro: unarchive shows it again', ok(await as(db, tM, `update shop_products set status = 'active' where id = $1`, [pB])) &&
+      (await admin(db, `select is_available from shop_products where id = $1`, [pB]))[0].is_available === true);
+    check('tpro: a bad status is refused', denied(await as(db, tM, `update shop_products set status = 'gone' where id = $1`, [pB])));
+
+    // ---- onboarding share + stats
+    check('tpro: «شارك متجرك» is recorded once (owner only)',
+      ok(await as(db, tM2, `select public.merchant_mark_shared($1)`, [tShop])) &&
+      (await admin(db, `select first_shared_at from shops where id = $1`, [tShop]))[0].first_shared_at === null &&
+      ok(await as(db, tM, `select public.merchant_mark_shared($1)`, [tShop])) &&
+      (await admin(db, `select first_shared_at from shops where id = $1`, [tShop]))[0].first_shared_at !== null);
+    const stats = (await as(db, tM, `select public.my_shop_stats($1) as s`, [tShop])).rows?.[0]?.s;
+    check('tpro: stats best sellers read the snapshot name; orders_all counts every order',
+      stats?.orders_all === 9 && stats.top_products.some((t) => t.name === 'بنطلون'), stats);
+  }
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

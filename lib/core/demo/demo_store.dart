@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import '../geo/phones.dart';
+import '../utils/numbers.dart';
 import 'demo_mode.dart';
 import 'demo_platform.dart';
 
@@ -42,7 +43,7 @@ class DemoStore {
   static DemoStore get instance => _instance!;
 
   static const _storageKey = 'mogtama3y-demo-store-v1';
-  static const _tajerStorageKey = 'mogtama3y-demo-tajer-v1';
+  static const _tajerStorageKey = 'mogtama3y-demo-tajer-v2'; // v2: 0096 snapshots, events, product status
   // Each `?elections=` mode keeps its own saved data in the tab.
   static String _keyFor(String elections) => elections == 'open' ? _storageKey : '$_storageKey-$elections';
 
@@ -924,7 +925,16 @@ class DemoStore {
   List<DemoRow> update(String table, Map<String, String> query, Map<String, dynamic> values, {String? select}) {
     final rows = t(table).where((r) => _matches(r, query)).toList();
     for (final r in rows) {
+      final before = r['status'];
       r.addAll(values);
+      // 0096: status ⇄ is_available, like the shop_product_status_sync trigger.
+      if (table == 'shop_products') {
+        if (values.containsKey('status')) {
+          r['is_available'] = r['status'] == 'active';
+        } else if (values.containsKey('is_available')) {
+          r['status'] = r['is_available'] == true ? 'active' : (before == 'archived' ? 'archived' : 'draft');
+        }
+      }
     }
     save();
     final sel = parseSelect(select ?? '*');
@@ -952,6 +962,8 @@ class DemoStore {
     switch (table) {
       case 'shop_products':
         row['is_available'] ??= true;
+        row['status'] ??= row['is_available'] == true ? 'active' : 'draft';
+        row['is_available'] = row['status'] == 'active';
         row['options'] ??= <Object>[];
         row['highlights'] ??= <String>[];
         row['images'] ??= <String>[];

@@ -146,6 +146,55 @@ void main() {
     expect(() => c.from('shop_products').delete().eq('id', DemoTajer.productId(1)), throwsA(isA<PostgrestException>()));
   });
 
+  test('0096: paginated orders, search, timeline, note, cancel reason, archive', () async {
+    final store = boot('merchant');
+    final c = clientOf(store);
+    Future<Map<String, dynamic>> list(Map<String, dynamic> p) async =>
+        Map<String, dynamic>.from(await c.rpc('merchant_orders', params: {'p_shop': shopId, ...p}) as Map);
+
+    final all = await list({});
+    expect((all['orders'] as List).length, 8);
+    expect(all['counts'], containsPair('placed', 2));
+    expect((all['orders'] as List).first['order_code'], DemoTajer.orderPlaced);
+    expect(((all['orders'] as List).first['items'] as List).first['product_name'], 'شاي بالنعناع');
+
+    final p1 = await list({'p_limit': 3});
+    final last = (p1['orders'] as List).last as Map;
+    final p2 = await list({'p_limit': 3, 'p_before': last['created_at'], 'p_before_id': last['id']});
+    expect(p1['has_more'], isTrue);
+    expect((p2['orders'] as List).first['id'], isNot(last['id']));
+    expect((await list({'p_search': 'كريم'}))['orders'], hasLength(1));
+    expect((await list({'p_search': '٠١٥٠٠٠٠٠٣٠٤'}))['orders'], hasLength(1)); // Arabic digits
+    expect((await list({'p_status': 'cancelled'}))['orders'], hasLength(1));
+    expect(() => clientOf(store.asRole('new')).rpc('merchant_orders', params: {'p_shop': shopId}), throwsA(isA<PostgrestException>()));
+
+    final id = (all['orders'] as List).first['id'] as String;
+    await c.rpc('merchant_set_order_note', params: {'p_order': id, 'p_note': 'اتصل قبلها'});
+    await c.rpc('update_shop_order_status', params: {'p_order_id': id, 'p_status': 'preparing'});
+    await c.rpc('merchant_cancel_order', params: {'p_order': id, 'p_reason': 'الزبون مبيردش'});
+    final detail = Map<String, dynamic>.from(await c.rpc('merchant_order', params: {'p_order': id}) as Map);
+    expect(detail['internal_note'], 'اتصل قبلها');
+    expect(detail['cancel_reason'], 'الزبون مبيردش');
+    expect([for (final e in detail['events'] as List) e['kind']], ['created', 'note', 'status', 'cancel']);
+    expect((detail['events'] as List).last['body'], 'الزبون مبيردش');
+
+    // A renamed product keeps the old name on the order.
+    await c.from('shop_products').update({'name': 'شاي جديد'}).eq('id', DemoTajer.productId(1));
+    final again = Map<String, dynamic>.from(await c.rpc('merchant_order', params: {'p_order': id}) as Map);
+    expect((again['items'] as List).first['product_name'], 'شاي بالنعناع');
+
+    // Delete → archive.
+    expect((await c.rpc('merchant_delete_product', params: {'p_product': DemoTajer.productId(1)}) as Map)['has_orders'], isTrue);
+    // (StoreService.setProductStatus sends status + is_available.)
+    await c.from('shop_products').update({'status': 'archived', 'is_available': false}).eq('id', DemoTajer.productId(1));
+    final guest = clientOf(store.asRole('customer'));
+    final visible = await guest.from('shop_products').select('id').eq('shop_id', shopId).eq('is_available', true);
+    expect((visible as List).map((p) => p['id']), isNot(contains(DemoTajer.productId(1))));
+    final fresh = (await c.from('shop_products').insert({'shop_id': shopId, 'name': 'جديد', 'price': 5}).select() as List).single;
+    expect(fresh['status'], 'active');
+    expect((await c.rpc('merchant_delete_product', params: {'p_product': fresh['id']}) as Map)['deleted'], isTrue);
+  });
+
   test('the merchant opens a customer digital address by name, mobile or code', () async {
     final c = clientOf(boot('merchant'));
     final byName = Map<String, dynamic>.from(await c.rpc('get_e_address', params: {'p_code': DemoTajer.monaAddress}) as Map);
