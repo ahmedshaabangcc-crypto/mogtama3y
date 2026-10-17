@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/shops/shop_pixels.dart';
 import '../../core/shops/store_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
@@ -34,6 +35,9 @@ class _StorePageScreenState extends State<StorePageScreen> {
   List<Map<String, dynamic>> _products = [];
   String? _category;
 
+  /// The merchant's pixel IDs (0097); non-empty → the «أدوات قياس» note.
+  Map<String, dynamic> _tracking = const {};
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +50,7 @@ class _StorePageScreenState extends State<StorePageScreen> {
 
   @override
   void dispose() {
+    ShopPixels.close();
     _cart.removeListener(_onCart);
     _search.dispose();
     super.dispose();
@@ -65,6 +70,7 @@ class _StorePageScreenState extends State<StorePageScreen> {
         _products = products;
         _loading = false;
       });
+      if (shop != null) _startPixels(shop['id'] as String);
       final pid = widget.productId;
       if (pid != null) {
         final p = products.where((x) => x['id'] == pid).firstOrNull;
@@ -100,7 +106,16 @@ class _StorePageScreenState extends State<StorePageScreen> {
     }).toList();
   }
 
+  Future<void> _startPixels(String shopId) async {
+    final t = await ShopPixels.open(shopId);
+    if (!mounted) return;
+    ShopPixels.pageView('s/${widget.slug}');
+    if (t.isNotEmpty) setState(() => _tracking = t);
+  }
+
   void _openProduct(Map<String, dynamic> p) {
+    ShopPixels.pageView('s/${widget.slug}/p/${p['id']}');
+    ShopPixels.viewContent(p);
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => ProductScreen(shop: _shop!, product: p, cart: _cart, canOrder: _acceptsOrders),
     ));
@@ -232,6 +247,7 @@ class _StorePageScreenState extends State<StorePageScreen> {
                 ),
               ),
             ),
+          if (_tracking.isNotEmpty) const SliverToBoxAdapter(child: _TrackingNote()),
         ],
       ),
       bottomNavigationBar: _cart.isEmpty
@@ -257,6 +273,41 @@ class _StorePageScreenState extends State<StorePageScreen> {
                 ),
               ),
             ),
+    );
+  }
+}
+
+/// «المتجر ده بيستخدم أدوات قياس» under a store with merchant pixels (0097).
+class _TrackingNote extends StatelessWidget {
+  const _TrackingNote();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 110),
+      child: Center(
+        child: TextButton.icon(
+          icon: const Icon(Icons.insights_rounded, size: 16, color: AppColors.inkMuted),
+          label: const Text('المتجر ده بيستخدم أدوات قياس', style: TextStyle(fontSize: 12, color: AppColors.inkMuted, decoration: TextDecoration.underline)),
+          onPressed: () => showModalBottomSheet<void>(
+            context: context,
+            builder: (_) => const Padding(
+              padding: EdgeInsets.fromLTRB(20, 20, 20, 28),
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('أدوات القياس في المتجر ده', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                SizedBox(height: 8),
+                Text(
+                  'صاحب المتجر بيستخدم أدوات قياس الإعلانات والزيارات (زي Meta وTikTok وSnapchat وGoogle) عشان يعرف إعلاناته جابت كام زيارة وطلب: '
+                  'بتعرف إنك فتحت صفحة أو منتج، أو ضفت للسلة، أو طلبت (بالمبلغ ورقم الطلب).\n\n'
+                  'الأدوات دي بتشتغل على صفحات المتجر ده بس، ومش بيوصلها اسمك ولا رقمك ولا عنوانك. '
+                  'سياسة خصوصية المتجر نفسه: اسأل صاحب المتجر (صفحة خاصة بيها قريباً).',
+                  style: TextStyle(height: 1.7, color: AppColors.inkSecondary),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

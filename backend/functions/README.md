@@ -138,3 +138,46 @@ it with the VAPID keys and drops devices the push service says are gone.
   `reason`: `no_subscriptions` (device not registered), `no_notification`,
   `db_error` (+`error`: e.g. permission denied → run 0090), `all_failed`
   (+`failures[].status/body`: 403 = VAPID key pair mismatch, 410 = device gone).
+
+## متجري «الربط والتكاملات» — `payments-connect`, `payments-webhook`, `domains-verify` (migration 0097)
+
+Owner decision (Shopify model): every merchant connects THEIR OWN payment
+gateway; the money goes straight to the merchant, the platform never holds
+funds. Secrets are write-only: `set_shop_gateway()` stores them in
+`private.shop_gateway_secrets` (no client role can read the private
+schema); the app only ever gets `has_secret` + «…abcd». Only these
+functions read them, with the service role, through `gateway_credentials()`.
+No new secrets to set — they use the Supabase-provided `SUPABASE_URL`,
+`SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
+
+Deploy (dashboard, each the same way): run `0097_tajer_integrations.sql`
+first, then **Edge Functions → Deploy a new function → Via editor**, name
+it as below, paste the file, deploy, and turn **Enforce JWT verification
+OFF** (the first two check the user's session themselves; the webhook is
+called by the gateways and checks only their signature). Check the slug
+the dashboard gave each one (`…/functions/v1/<slug>`); if it differs,
+change `IntegrationSlugs` in
+`lib/features/merchant/integrations/integrations_service.dart` and redeploy
+the merchant app.
+
+| name | file | what |
+| --- | --- | --- |
+| `payments-connect` | `payments-connect/index.ts` | «اختبر الاتصال»: owner check + 20 tests/hour (`integration_rate_hit`), one harmless call — Paymob `POST <region>/api/auth/tokens`, Tap `POST /v2/charges/list {limit:1}`, Moyasar `GET /v1/payments?limit=1`; **Kashier: format check only** (no read-only endpoint confirmed in its docs — the first test payment in Phase 4 is the real check); then `gateway_record_check` (مربوط / فيه مشكلة). |
+| `payments-webhook` | `payments-webhook/index.ts` | **Stub for Phase 4.** Verifies the gateway's signature (Paymob HMAC-SHA512 `?hmac=`, Kashier `x-kashier-signature`, Tap `hashstring`, Moyasar `secret_token` = our `webhook_token`) and stores the event in `shop_payment_events`. Does not change orders yet. |
+| `domains-verify` | `domains-verify/index.ts` | «تحقق دلوقتي»: owner check + 12/hour, `Deno.resolveDns` (1.1.1.1) for `TXT _mogtama3y-verify.<host>` and (subdomains) `CNAME <host> → stores.mogtama3y.com`, then `domain_record_check` → `verified`. Serving the store on the domain is Phase 5 (Cloudflare for SaaS) → `active`. |
+
+The webhook URL each merchant pastes in their gateway dashboard (the app
+shows it, with a copy button, on the gateway's card):
+
+```
+https://pxiabifybakbsqlycffc.supabase.co/functions/v1/payments-webhook?shop=<shop id>&provider=<paymob|kashier|tap|moyasar>
+```
+
+The pure blocks (`gw`, `sig`, `dns` markers) run in Node in
+`backend/tests/run.js`, phase «tint», with a fake fetch and known HMACs.
+
+Phase 5 (domains), owner side: a `stores.mogtama3y.com` hostname as the
+CNAME target, Cloudflare for SaaS custom hostnames for `verified` domains,
+then `shop_domains.status = 'active'`, and the
+`facebook-domain-verification` meta tag from
+`shops.tracking->>'fb_domain_verification'` on that domain.

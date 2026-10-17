@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -95,6 +96,18 @@ class _SettingsBodyState extends State<_SettingsBody> {
       padding: const EdgeInsets.only(top: 4, bottom: 32),
       children: [
         StoreProfileCard(shop: widget.shop, onSaved: widget.onChanged),
+        const SizedBox(height: 14),
+        // «الربط والتكاملات» (0097): payments, domain, pixels.
+        AdminCard(
+          padding: EdgeInsets.zero,
+          child: ListTile(
+            leading: const Icon(Icons.hub_rounded, color: AppColors.crystal),
+            title: const Text('الربط والتكاملات', style: TextStyle(fontWeight: FontWeight.w800)),
+            subtitle: const Text('طرق الدفع، الدومين، البكسل والتاجز'),
+            trailing: const Icon(Icons.chevron_left_rounded),
+            onTap: () => GoRouter.of(context).go('/settings/integrations'),
+          ),
+        ),
         const SizedBox(height: 14),
         DeliveryCard(shop: widget.shop, onSaved: widget.onChanged),
         const SizedBox(height: 14),

@@ -4011,6 +4011,286 @@ const denied = (r) => !!r.error;
     check('tpro: stats best sellers read the snapshot name; orders_all counts every order',
       stats?.orders_all === 9 && stats.top_products.some((t) => t.name === 'بنطلون'), stats);
   }
+  // ------------------------------------------------------------------
+  console.log('\nPhase tint — متجري «الربط والتكاملات»: payments, domain, pixels (0097)');
+  {
+    const fs = require('fs');
+    const path = require('path');
+    const nodeCrypto = require('crypto');
+    const tO = await signUp(db, 'tint owner', '+20 100 970 0001');
+    const tS = await signUp(db, 'tint saudi', '+966 50 970 0002');
+    const tX = await signUp(db, 'tint other', '+20 100 970 0003');
+    const mkShop = async (owner, slug, country, currency) => (await admin(db,
+      `insert into shops (owner_id, source, name, slug, is_claimed, claimed_at, country, currency)
+       values ($1, 'claimed', $2, $2, true, now(), $3, $4) returning id`, [owner, slug, country, currency]))[0].id;
+    const shopE = await mkShop(tO, 'tint-eg', 'EG', 'EGP');
+    const shopA = await mkShop(tS, 'tint-sa', 'SA', 'SAR');
+    const shopX = await mkShop(tX, 'tint-x', 'EG', 'EGP');
+    const integ = async (u, s) => as(db, u, `select public.get_shop_integrations($1) as j`, [s]);
+    const J = (r) => r.rows?.[0]?.j ?? r.rows?.[0]?.[Object.keys(r.rows?.[0] || {})[0]];
+    const gw = (u, s, p, pub, sec, mode = 'test') =>
+      as(db, u, `select public.set_shop_gateway($1, $2, $3, $4, $5) as j`, [s, p, JSON.stringify(pub), sec == null ? null : JSON.stringify(sec), mode]);
+
+    // ---- payments: access
+    const i0 = J(await integ(tO, shopE));
+    check('tint: the owner reads the integrations (COD on by default, EG gateways: paymob/kashier/tap)',
+      i0?.payments?.cod_enabled === true && JSON.stringify(i0.payments.available) === '["paymob","kashier","tap"]', i0);
+    check('tint: a Saudi shop gets paymob/tap/moyasar', JSON.stringify(J(await integ(tS, shopA))?.payments?.available) === '["paymob","tap","moyasar"]');
+    check('tint: another merchant / a guest cannot read them',
+      denied(await integ(tX, shopE)) && denied(await integ(null, shopE)));
+
+    // ---- payments: gateways (secrets write-only)
+    const PM_KEY = 'ZXlKaGJHY2lPaUpJVXpVeE1pSXNJblI1Y0NJNklrcFhWQ0o5LmV5SmpiR0Z6Y3lJNklrMWxjbU5vWVc1MElpd2ljSEp2Wm1sc1pWOXdheUk2TVRBd2ZRLnNlY3JldFRBSUw5OTk5';
+    const PM_HMAC = 'ABCDEF0123456789ABCDEF0123456789';
+    const setPm = await gw(tO, shopE, 'paymob', { card_integration_id: '4567890', wallet_integration_id: '4567891', iframe_id: '812345' }, { api_key: PM_KEY, hmac_secret: PM_HMAC });
+    const pmView = J(setPm)?.payments?.gateways?.find((g) => g.provider === 'paymob');
+    check('tint: Paymob connects (pending until tested) and returns has_secret + last 4 only',
+      ok(setPm) && pmView?.status === 'pending' && pmView.has_secret === true && pmView.secret_hint.api_key === '…' + PM_KEY.slice(-4) &&
+      pmView.secret_hint.hmac_secret === '…6789' && pmView.public.card_integration_id === '4567890', { e: setPm.error, pmView });
+    check('tint: SECRETS never come back to the client (RPC result)', ok(setPm) && !JSON.stringify(J(setPm)).includes(PM_KEY) && !JSON.stringify(J(setPm)).includes(PM_HMAC));
+    const rowsO = await as(db, tO, `select * from shop_payment_gateways where shop_id = $1`, [shopE]);
+    check('tint: …nor from the table (owner reads the row, without secrets)', ok(rowsO) && rowsO.rows.length === 1 && !JSON.stringify(rowsO.rows).includes(PM_KEY), rowsO);
+    check('tint: the private secrets table is unreachable for owners and guests',
+      denied(await as(db, tO, `select * from private.shop_gateway_secrets`)) && denied(await as(db, null, `select * from private.shop_gateway_secrets`)));
+    check('tint: another merchant sees none of it', ((await as(db, tX, `select * from shop_payment_gateways`)).rows || []).length === 0 &&
+      ((await as(db, tX, `select * from shop_payment_settings`)).rows || []).length === 0);
+    check('tint: EXPLOIT blocked: the owner marks a gateway «connected» directly',
+      denied(await as(db, tO, `update shop_payment_gateways set status = 'connected' where shop_id = $1`, [shopE])) &&
+      denied(await as(db, tO, `insert into shop_payment_gateways (shop_id, provider, status) values ($1, 'tap', 'connected')`, [shopE])));
+    check('tint: EXPLOIT blocked: another merchant connects a gateway on my shop',
+      denied(await gw(tX, shopE, 'tap', { publishable_key: 'pk_test_abcdefghijklmnop' }, { secret_key: 'sk_test_abcdefghijklmnop' })));
+    check('tint: gateway_credentials is for the Edge Functions only',
+      denied(await as(db, tO, `select public.gateway_credentials($1, 'paymob')`, [shopE])) && denied(await as(db, null, `select public.gateway_credentials($1, 'paymob')`, [shopE])));
+    check('tint: gateway_record_check / record_shop_payment_event / domain_record_check are service-only',
+      denied(await as(db, tO, `select public.gateway_record_check($1, 'paymob', true)`, [shopE])) &&
+      denied(await as(db, tO, `select public.record_shop_payment_event($1, 'paymob', 'x', 'y', true, '{}')`, [shopE])) &&
+      denied(await as(db, tO, `select public.domain_record_check($1, true, true)`, [shopE])));
+    const has = (r, s) => !!r.error && r.error.includes(s);
+    check('tint: a gateway outside the shop country is refused (Moyasar in Egypt, Kashier in KSA)',
+      has(await gw(tO, shopE, 'moyasar', { publishable_key: 'pk_test_' + 'a'.repeat(30) }, { secret_key: 'sk_test_' + 'a'.repeat(30) }), 'مش متاحة') &&
+      has(await gw(tS, shopA, 'kashier', { merchant_id: 'MID-123-456' }, { api_key: 'a'.repeat(20), secret_key: 'b'.repeat(20) }), 'مش متاحة'));
+    check('tint: bad formats / missing fields / unknown fields are refused',
+      has(await gw(tO, shopE, 'tap', { publishable_key: 'pk_abc' }, { secret_key: 'sk_test_abcdefghijklmnop' }), 'publishable_key') &&
+      has(await gw(tO, shopE, 'tap', { publishable_key: 'pk_test_abcdefghijklmnop' }, {}), 'secret_key') &&
+      has(await gw(tO, shopE, 'tap', { publishable_key: 'pk_test_abcdefghijklmnop', evil: 'x' }, { secret_key: 'sk_test_abcdefghijklmnop' }), 'غير معروف'));
+    check('tint: a test key in live mode is refused', has(await gw(tO, shopE, 'tap', { publishable_key: 'pk_live_abcdefghijklmnop' }, { secret_key: 'sk_test_abcdefghijklmnop' }, 'live'), 'مش متوافق'));
+    const upd = await gw(tO, shopE, 'paymob', { card_integration_id: '4567899' }, {});
+    const credsNow = (await admin(db, `select public.gateway_credentials($1, 'paymob') as c`, [shopE]))[0].c;
+    check('tint: editing public fields keeps the saved secrets (no re-typing)', ok(upd) && credsNow.secret.api_key === PM_KEY &&
+      credsNow.secret.hmac_secret === PM_HMAC && credsNow.public.card_integration_id === '4567899' && credsNow.country === 'EG', { e: upd.error, credsNow });
+    await admin(db, `select public.gateway_record_check($1, 'paymob', true)`, [shopE]);
+    check('tint: «اختبر الاتصال» result → «مربوط»', J(await integ(tO, shopE)).payments.gateways[0].status === 'connected');
+    await admin(db, `select public.gateway_record_check($1, 'paymob', false, 'البوابة رفضت المفاتيح')`, [shopE]);
+    const errG = J(await integ(tO, shopE)).payments.gateways[0];
+    check('tint: …or «فيه مشكلة» with the reason', errG.status === 'error' && errG.last_error === 'البوابة رفضت المفاتيح', errG);
+    await admin(db, `select public.gateway_record_check($1, 'paymob', true)`, [shopE]);
+    const sau = await gw(tS, shopA, 'moyasar', { publishable_key: 'pk_test_' + 'Q'.repeat(30) }, { secret_key: 'sk_test_' + 'W'.repeat(30) });
+    check('tint: Moyasar connects for a Saudi shop (with a webhook token for its dashboard)', ok(sau) && /^[0-9a-f]{32}$/.test(J(sau).payments.gateways[0].webhook_token), sau.error);
+
+    // ---- payments: COD + manual methods
+    const pay = (u, s, cod, manual) => as(db, u, `select public.set_shop_payment_settings($1, $2, $3) as j`, [s, cod, JSON.stringify(manual)]);
+    check('tint: a wrong IBAN is refused', has(await pay(tO, shopE, true, { bank: { enabled: true, bank_name: 'CIB', account_name: 'محل', iban: 'EG380019000500000000263180003' } }), 'IBAN'));
+    const goodPay = await pay(tO, shopE, false, {
+      instapay: { enabled: true, handle: ' Ahmed.Shop ' },
+      wallet: { enabled: true, number: '010 1234 5678', label: 'فودافون كاش' },
+      bank: { enabled: true, bank_name: 'CIB', account_name: 'محل التجربة', iban: 'EG38 0019 0005 0000 0000 2631 8000 2' },
+    });
+    const man = J(goodPay)?.payments?.manual;
+    check('tint: InstaPay / wallet / bank saved and normalized (IBAN checksum ok)', ok(goodPay) && man.instapay.handle === 'ahmed.shop@instapay' &&
+      man.wallet.number === '01012345678' && man.bank.iban === 'EG380019000500000000263180002' && J(goodPay).payments.cod_enabled === false, { e: goodPay.error, man });
+    check('tint: a bad InstaPay address / wallet number is refused',
+      has(await pay(tO, shopE, true, { instapay: { enabled: true, handle: 'x y@instapay' } }), 'InstaPay') &&
+      has(await pay(tO, shopE, true, { wallet: { enabled: true, number: '12' } }), 'المحفظة'));
+    check('tint: switching everything off is refused (one way to pay at least)',
+      has(await pay(tX, shopX, false, {}), 'طريقة دفع'));
+    check('tint: EXPLOIT blocked: another merchant changes my payment methods', denied(await pay(tX, shopE, true, {})) &&
+      denied(await as(db, tO, `update shop_payment_settings set cod_enabled = true where shop_id = $1`, [shopE])));
+    const co = (await as(db, null, `select public.shop_checkout_methods($1) as j`, [shopE])).rows?.[0]?.j;
+    check('tint: (Phase 4) checkout methods for customers: manual details + connected gateways, never secrets',
+      co && co.cod === false && co.instapay === 'ahmed.shop@instapay' && co.bank.iban === 'EG380019000500000000263180002' &&
+      co.online.length === 1 && co.online[0].provider === 'paymob' && co.online[0].mode === 'test' && !JSON.stringify(co).includes(PM_KEY) && !JSON.stringify(co).includes(PM_HMAC), co);
+    const disc = await as(db, tO, `select public.disconnect_shop_gateway($1, 'paymob') as j`, [shopE]);
+    check('tint: «افصل» deletes the secrets too', ok(disc) && J(disc).payments.gateways.length === 0 &&
+      (await admin(db, `select count(*)::int n from private.shop_gateway_secrets where shop_id = $1`, [shopE]))[0].n === 0);
+
+    // ---- payment events (webhook stub)
+    await gw(tO, shopE, 'paymob', { card_integration_id: '4567890' }, { api_key: PM_KEY, hmac_secret: PM_HMAC });
+    const ev1 = (await admin(db, `select public.record_shop_payment_event($1, 'paymob', 'TRANSACTION:success', '991', true, '{"a":1}') as id`, [shopE]))[0].id;
+    const ev2 = (await admin(db, `select public.record_shop_payment_event($1, 'paymob', 'TRANSACTION:success', '991', true, '{"a":1}') as id`, [shopE]))[0].id;
+    check('tint: webhook events are stored once (duplicates ignored)', !!ev1 && ev2 === null);
+    check('tint: the owner reads their events, others do not',
+      ((await as(db, tO, `select * from shop_payment_events`)).rows || []).length === 1 && ((await as(db, tX, `select * from shop_payment_events`)).rows || []).length === 0);
+    check('tint: an event for a shop without that gateway is dropped',
+      (await admin(db, `select public.record_shop_payment_event($1, 'tap', 'x', '1', true, '{}') as id`, [shopX]))[0].id === null);
+
+    // ---- rate limit / ownership for the Edge Functions
+    check('tint: integration_rate_hit refuses non-owners', denied(await as(db, tX, `select public.integration_rate_hit($1, 'gateway_test')`, [shopE])));
+    let hits = 0;
+    for (let i = 0; i < 20; i++) if (ok(await as(db, tO, `select public.integration_rate_hit($1, 'gateway_test')`, [shopE]))) hits++;
+    check('tint: 20 connection tests an hour, then refused', hits === 20 && has(await as(db, tO, `select public.integration_rate_hit($1, 'gateway_test')`, [shopE]), 'استنى'));
+
+    // ---- domains
+    const dom = (u, s, h) => as(db, u, `select public.add_shop_domain($1, $2) as j`, [s, h]);
+    const d1 = await dom(tO, shopE, 'https://Shop.Example.com/products?x=1');
+    const d1v = J(d1)?.domain;
+    check('tint: a domain is added normalized, with a TXT token (subdomain)', ok(d1) && d1v.hostname === 'shop.example.com' && d1v.is_apex === false &&
+      d1v.status === 'pending' && /^mogtama3y-verify=[0-9a-f]{32}$/.test(d1v.verify_token), { e: d1.error, d1v });
+    check('tint: one domain per shop for now', has(await dom(tO, shopE, 'www.other.com'), 'امسحه'));
+    check('tint: a hostname belongs to one shop', has(await dom(tX, shopX, 'SHOP.example.com.'), 'متجر تاني'));
+    const bads = ['1.2.3.4', 'mogtama3y.com', 'x.mogtama3y.com', 'localhost', 'متجر.com', 'a..b.com', 'shop.example.com:8080', 'shop.local', '-a.com', 'com'];
+    const badRes = [];
+    for (const b of bads) badRes.push(denied(await dom(tX, shopX, b)));
+    check('tint: invalid hostnames are refused (IP, mogtama3y.com, localhost, non-ASCII, ports, …)', badRes.every(Boolean), bads.filter((_, i) => !badRes[i]));
+    const idn = await dom(tS, shopA, 'xn--mgbh0fb.xn--mgberp4a5d4ar');
+    check('tint: an Arabic (punycode) domain is accepted as a root domain', ok(idn) && J(idn).domain.is_apex === true, idn.error);
+    const eg = await dom(tX, shopX, 'mystore.com.eg');
+    check('tint: mystore.com.eg is a root domain', ok(eg) && J(eg).domain.is_apex === true, eg.error);
+    check('tint: EXPLOIT blocked: domains are written only through the RPC / read by the owner only',
+      denied(await as(db, tO, `insert into shop_domains (shop_id, hostname) values ($1, 'evil.com')`, [shopX])) &&
+      denied(await as(db, tO, `update shop_domains set status = 'active' where shop_id = $1`, [shopE])) &&
+      ((await as(db, tX, `select * from shop_domains where shop_id = $1`, [shopE])).rows || []).length === 0 &&
+      denied(await dom(tX, shopE, 'evil.example.com')));
+    const c1 = (await admin(db, `select public.domain_record_check($1, true, false, 'الـ TXT تمام ✓ فاضل سجل الـ CNAME') as j`, [shopE]))[0].j;
+    check('tint: TXT without the CNAME → still pending, with the reason', c1.status === 'pending' && c1.last_error.includes('CNAME'), c1);
+    const c2 = (await admin(db, `select public.domain_record_check($1, true, true) as j`, [shopE]))[0].j;
+    check('tint: TXT + CNAME → verified (serving is Phase 5)', c2.status === 'verified' && !!c2.verified_at && c2.check_count === 2, c2);
+    const c3 = (await admin(db, `select public.domain_record_check($1, true, false) as j`, [shopA]))[0].j;
+    check('tint: a root domain verifies with the TXT alone', c3.status === 'verified', c3);
+    let dh = 0;
+    for (let i = 0; i < 13; i++) if (ok(await as(db, tO, `select public.integration_rate_hit($1, 'domain_verify')`, [shopE]))) dh++;
+    check('tint: «تحقق دلوقتي» is limited to 12 an hour', dh === 12, dh);
+    const rm = await as(db, tO, `select public.remove_shop_domain($1) as j`, [shopE]);
+    check('tint: removing the domain frees it', ok(rm) && J(rm).domain === null &&
+      (await admin(db, `select count(*)::int n from shop_domains where hostname = 'shop.example.com'`))[0].n === 0 && ok(await dom(tO, shopE, 'shop.example.com')));
+
+    // ---- tracking
+    const trk = (u, s, t) => as(db, u, `select public.set_shop_tracking($1, $2) as j`, [s, JSON.stringify(t)]);
+    const t1 = await trk(tO, shopE, {
+      meta_pixel: ' 123456789012345 ', tiktok_pixel: 'c4abcdefghij1234567k', snap_pixel: 'A1B2C3D4-0000-4000-8000-1234567890AB',
+      ga4: 'g-abc1234xyz', gtm: 'gtm-ab12cd3', google_ads: 'aw-1234567890/AbC_dEf12', fb_domain_verification: 'ABCDEFGHIJ0123456789abcdefghij',
+    });
+    const tv = J(t1)?.tracking;
+    check('tint: pixels saved and normalized', ok(t1) && tv.meta_pixel === '123456789012345' && tv.tiktok_pixel === 'C4ABCDEFGHIJ1234567K' &&
+      tv.snap_pixel === 'a1b2c3d4-0000-4000-8000-1234567890ab' && tv.ga4 === 'G-ABC1234XYZ' && tv.gtm === 'GTM-AB12CD3' &&
+      tv.google_ads === 'AW-1234567890/AbC_dEf12' && tv.fb_domain_verification === 'abcdefghij0123456789abcdefghij', { e: t1.error, tv });
+    check('tint: wrong formats are refused (Meta letters, UA-, GTM, unknown key)',
+      has(await trk(tO, shopE, { meta_pixel: 'abc' }), 'Meta') && has(await trk(tO, shopE, { ga4: 'UA-12345-1' }), 'Google Analytics') &&
+      has(await trk(tO, shopE, { gtm: 'GTM-1' }), 'Tag Manager') && has(await trk(tO, shopE, { evil: '<script>' }), 'غير معروف'));
+    check('tint: EXPLOIT blocked: another merchant sets pixels on my shop', denied(await trk(tX, shopE, { meta_pixel: '123456789012345' })));
+    check('tint: EXPLOIT blocked: a direct table update with a script is refused by the constraint',
+      denied(await as(db, tO, `update shops set tracking = '{"ga4":"G-1\\"><script>"}' where id = $1`, [shopE])));
+    const anonT = await as(db, null, `select tracking from shops where id = $1`, [shopE]);
+    check('tint: guests (the storefront) read the pixel IDs', ok(anonT) && anonT.rows[0].tracking.meta_pixel === '123456789012345', anonT);
+    const t2 = await trk(tO, shopE, { meta_pixel: '', ga4: 'G-ABC1234XYZ' });
+    check('tint: an emptied field is removed', ok(t2) && JSON.stringify(J(t2).tracking) === '{"ga4":"G-ABC1234XYZ"}', J(t2)?.tracking);
+
+    // ---- Edge Function blocks, run in Node
+    const block = (fn, tag) => {
+      const src = fs.readFileSync(path.join(__dirname, '..', 'functions', fn, 'index.ts'), 'utf8');
+      const s0 = src.indexOf('\n', src.indexOf(tag + ':begin')) + 1;
+      return src.slice(s0, src.lastIndexOf('\n', src.indexOf(tag + ':end')));
+    };
+    let gwb = null, sigb = null, dnsb = null;
+    try {
+      gwb = new Function('btoa', block('payments-connect', 'gw') + '\nreturn { testGateway, paymobBase };')(globalThis.btoa);
+      sigb = new Function('crypto', block('payments-webhook', 'sig') + '\nreturn { verifyWebhook, paymobString, kashierString, tapString };')(nodeCrypto.webcrypto);
+      dnsb = new Function(block('domains-verify', 'dns') + '\nreturn { evaluateDns };')();
+    } catch (e) {
+      gwb = { error: e.message };
+    }
+    check('tint: the Edge Function blocks run in Node as plain JavaScript', gwb && !gwb.error && sigb && dnsb, gwb);
+    if (gwb && !gwb.error) {
+      const seen = [];
+      const fake = (status, body) => async (url, opts) => { seen.push({ url, opts }); return { status, json: async () => body }; };
+      const pmOk = await gwb.testGateway({ provider: 'paymob', country: 'SA', public: {}, secret: { api_key: 'k' } }, fake(201, { token: 't' }));
+      check('tint: Paymob test hits the region host /api/auth/tokens with the api_key', pmOk.ok && seen[0].url === 'https://ksa.paymob.com/api/auth/tokens' &&
+        JSON.parse(seen[0].opts.body).api_key === 'k', { pmOk, seen });
+      const pmBad = await gwb.testGateway({ provider: 'paymob', country: 'EG', public: {}, secret: { api_key: 'k' } }, fake(401, {}));
+      check('tint: a 401 → «فيه مشكلة»', !pmBad.ok && pmBad.message.includes('رفضت'));
+      seen.length = 0;
+      const my = await gwb.testGateway({ provider: 'moyasar', public: {}, secret: { secret_key: 'sk_test_x' } }, fake(200, {}));
+      check('tint: Moyasar test = GET /v1/payments?limit=1 with Basic auth', my.ok && seen[0].url === 'https://api.moyasar.com/v1/payments?limit=1' &&
+        seen[0].opts.headers.Authorization === 'Basic ' + Buffer.from('sk_test_x:').toString('base64'));
+      const ks = await gwb.testGateway({ provider: 'kashier', public: { merchant_id: 'MID-12-34' }, secret: { api_key: 'a', secret_key: 'b' } }, fake(500, {}));
+      check('tint: Kashier is a format check, clearly marked', ks.ok && ks.checked === 'format');
+      const net = await gwb.testGateway({ provider: 'tap', public: {}, secret: { secret_key: 'sk' } }, async () => { throw new Error('down'); });
+      check('tint: a network failure is reported, not thrown', net.ok === false && net.message.includes('مقدرناش'));
+    }
+    if (sigb) {
+      const obj = { id: 991, amount_cents: 15000, created_at: '2026-10-18T10:00:00', currency: 'EGP', error_occured: false, has_parent_transaction: false,
+        integration_id: 4567890, is_3d_secure: true, is_auth: false, is_capture: false, is_refunded: false, is_standalone_payment: true, is_voided: false,
+        order: { id: 5555 }, owner: 77, pending: false, source_data: { pan: '2346', sub_type: 'MasterCard', type: 'card' }, success: true };
+      const str = sigb.paymobString(obj);
+      const pmH = nodeCrypto.createHmac('sha512', PM_HMAC).update(str).digest('hex');
+      const creds = { secret: { hmac_secret: PM_HMAC } };
+      check('tint: Paymob HMAC-SHA512 string is built in the documented order',
+        str === '150002026-10-18T10:00:00EGPfalsefalse9914567890truefalsefalsefalsetruefalse555577false2346MasterCardcardtrue', str);
+      const vOk = await sigb.verifyWebhook('paymob', creds, { type: 'TRANSACTION', obj }, {}, { hmac: pmH });
+      const vBad = await sigb.verifyWebhook('paymob', creds, { type: 'TRANSACTION', obj: { ...obj, amount_cents: 1 } }, {}, { hmac: pmH });
+      check('tint: Paymob signature: valid passes, tampered amount fails', vOk.ok && vOk.external_id === '991' && vOk.event_type === 'TRANSACTION:success' && !vBad.ok, { vOk, vBad });
+      const kd = { merchantOrderId: 'T1234567', amount: '150.00', currency: 'EGP', status: 'SUCCESS', transactionId: 'TX 1', signatureKeys: ['transactionId', 'amount', 'currency', 'merchantOrderId', 'status'] };
+      const kStr = 'amount=150.00&currency=EGP&merchantOrderId=T1234567&status=SUCCESS&transactionId=TX%201';
+      const kH = nodeCrypto.createHmac('sha256', 'kashier-api-key-1234').update(kStr).digest('hex');
+      const kv = await sigb.verifyWebhook('kashier', { secret: { api_key: 'kashier-api-key-1234' } }, { event: 'pay', data: kd }, { 'x-kashier-signature': kH }, {});
+      check('tint: Kashier signature (sorted signatureKeys, encoded values, HMAC-SHA256)', sigb.kashierString(kd) === kStr && kv.ok && kv.external_id === 'TX 1', { s: sigb.kashierString(kd), kv });
+      const tc = { id: 'chg_1', object: 'charge', amount: 10.5, currency: 'KWD', status: 'CAPTURED', reference: { gateway: 'g1', payment: 'p1' }, transaction: { created: '1700000000000' } };
+      const tH = nodeCrypto.createHmac('sha256', 'sk_test_tap').update('x_idchg_1x_amount10.500x_currencyKWDx_gateway_referenceg1x_payment_referencep1x_statusCAPTUREDx_created1700000000000').digest('hex');
+      const tv2 = await sigb.verifyWebhook('tap', { secret: { secret_key: 'sk_test_tap' } }, tc, { hashstring: tH }, {});
+      check('tint: Tap hashstring (3-decimal KWD amount)', tv2.ok && tv2.event_type === 'charge:CAPTURED', tv2);
+      const mv = await sigb.verifyWebhook('moyasar', { secret: {}, webhook_token: 'tok123' }, { id: 'ev1', type: 'payment_paid', secret_token: 'tok123' }, {}, {});
+      const mv2 = await sigb.verifyWebhook('moyasar', { secret: {}, webhook_token: 'tok123' }, { id: 'ev1', type: 'payment_paid', secret_token: 'tok124' }, {}, {});
+      const none = await sigb.verifyWebhook('paymob', creds, { obj }, {}, {});
+      check('tint: Moyasar secret_token compared; a missing signature fails', mv.ok && !mv2.ok && !none.ok);
+    }
+    if (dnsb) {
+      const dm = { hostname: 'shop.example.com', is_apex: false, verify_token: 'mogtama3y-verify=abc' };
+      const a = dnsb.evaluateDns(dm, [['mogtama3y-verify=', 'abc']], ['stores.mogtama3y.com.']);
+      const b = dnsb.evaluateDns(dm, [['other']], null);
+      const c = dnsb.evaluateDns(dm, [['mogtama3y-verify=abc']], ['shops.myshopify.com']);
+      const e = dnsb.evaluateDns({ ...dm, is_apex: true }, [['mogtama3y-verify=abc']], null);
+      check('tint: DNS evaluation (chunked TXT, trailing-dot CNAME, wrong CNAME, root domain)',
+        a.txtOk && a.cnameOk && a.message.includes('قريباً') && !b.txtOk && !b.cnameOk && c.txtOk && !c.cnameOk && c.message.includes('shops.myshopify.com') && e.txtOk && e.message.includes('✓'), { a, b, c, e });
+    }
+
+    // ---- web/shop-pixels.js event mapping
+    let px = null;
+    try {
+      px = require(path.join(__dirname, '..', '..', 'web', 'shop-pixels.js'));
+    } catch (e2) {
+      px = { error: e2.message };
+    }
+    check('tint: shop-pixels.js loads in Node (pure mapping)', px && typeof px.buildCalls === 'function', px);
+    if (px && px.buildCalls) {
+      const ids = { meta_pixel: '123456789012345', tiktok_pixel: 'C4ABCDEFGHIJ1234567K', snap_pixel: 'a1b2c3d4-0000-4000-8000-1234567890ab', ga4: 'G-ABC1234XYZ', gtm: 'GTM-AB12CD3', google_ads: 'AW-1234567890/AbC_dEf12' };
+      const purchase = px.buildCalls('Purchase', { currency: 'EGP', value: 250, order_id: 'T1234567', contents: [{ id: 'p1', name: 'تيشيرت', price: 100, quantity: 2 }, { id: 'p2', name: 'شنطة', price: 50, quantity: 1 }] }, ids);
+      const fb = purchase.find((c) => c[0] === 'fbq');
+      const tt = purchase.find((c) => c[0] === 'ttq');
+      const sc = purchase.find((c) => c[0] === 'snaptr');
+      const ga = purchase.find((c) => c[0] === 'gtag' && c[2] === 'purchase');
+      const aw = purchase.find((c) => c[0] === 'gtag' && c[2] === 'conversion');
+      const dl = purchase.filter((c) => c[0] === 'dl');
+      check('tint: Purchase → Meta trackSingle with value/currency/contents and the order as eventID',
+        fb && fb[1] === 'trackSingle' && fb[2] === ids.meta_pixel && fb[3] === 'Purchase' && fb[4].value === 250 && fb[4].currency === 'EGP' &&
+        fb[4].num_items === 3 && JSON.stringify(fb[4].content_ids) === '["p1","p2"]' && fb[5].eventID === 'order-T1234567', fb);
+      check('tint: …TikTok CompletePayment with event_id, Snapchat PURCHASE with transaction_id',
+        tt && tt[1] === ids.tiktok_pixel && tt[3] === 'CompletePayment' && tt[5].event_id === 'order-T1234567' && tt[4].contents[0].content_id === 'p1' &&
+        sc && sc[2] === 'PURCHASE' && sc[3].transaction_id === 'T1234567' && sc[3].number_items === 3, { tt, sc });
+      check('tint: …GA4 purchase to the merchant IDs only + Google Ads conversion + GTM ecommerce (cleared first)',
+        ga && JSON.stringify(ga[3].send_to) === '["G-ABC1234XYZ","AW-1234567890"]' && ga[3].transaction_id === 'T1234567' && ga[3].items.length === 2 &&
+        aw && aw[3].send_to === 'AW-1234567890/AbC_dEf12' && aw[3].value === 250 &&
+        dl.length === 2 && dl[0][1].ecommerce === null && dl[1][1].event === 'purchase' && dl[1][1].ecommerce.transaction_id === 'T1234567', { ga, aw, dl });
+      const view = px.buildCalls('ViewContent', { currency: 'SAR', contents: [{ id: 'p9', name: 'عطر', price: 80.5, quantity: 1 }] }, { meta_pixel: ids.meta_pixel });
+      check('tint: ViewContent computes the value and names the product; only configured pixels fire',
+        view.length === 1 && view[0][3] === 'ViewContent' && view[0][4].value === 80.5 && view[0][4].currency === 'SAR' && view[0][4].content_name === 'عطر' && view[0].length === 5, view);
+      const page = px.buildCalls('PageView', {}, { ga4: 'G-ABC1234XYZ', snap_pixel: ids.snap_pixel }, { location: 'https://mogtama3y.com/#/s/x', title: 'x' });
+      check('tint: PageView → GA4 page_view (send_to merchant) + Snap PAGE_VIEW',
+        page.length === 2 && page.some((c) => c[0] === 'snaptr' && c[2] === 'PAGE_VIEW') && page.some((c) => c[0] === 'gtag' && c[2] === 'page_view' && c[3].page_location.includes('/s/x')), page);
+      check('tint: malformed IDs never reach a vendor (no script injection through an ID)',
+        px.buildCalls('PageView', {}, { meta_pixel: '123"><script>', ga4: 'G-1' }).length === 0 && px.buildCalls('Bogus', {}, ids).length === 0 &&
+        JSON.stringify(px.cleanIds({ gtm: 'GTM-AB12CD3', x: 'y' })) === '{"gtm":"GTM-AB12CD3"}');
+    }
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

@@ -11,6 +11,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../shared/load_error_view.dart';
 import '../merchant_landing_screen.dart';
 import '../register_shop_form.dart';
+import '../integrations/integrations_routes.dart';
 import 'account_menu.dart';
 import 'admin_common.dart';
 import 'merchant_session.dart';
@@ -38,7 +39,8 @@ const adminDestinations = [
 const _mobilePaths = ['/dashboard', '/products', '/orders', '/settings'];
 
 /// The admin paths of the tajer router (for redirects / deep links).
-bool isTajerAdminPath(String path) => RegExp(r'^/(dashboard|orders(/[0-9a-f-]{36})?|products(/new|/[0-9a-f-]{36})?|customers|discounts|settings)$').hasMatch(path);
+bool isTajerAdminPath(String path) =>
+    RegExp(r'^/(dashboard|orders(/[0-9a-f-]{36})?|products(/new|/[0-9a-f-]{36})?|customers|discounts|settings)$').hasMatch(path) || integrationsPath.hasMatch(path);
 
 /// The merchant admin around every page (APP_FLAVOR=tajer): bottom bar on
 /// phones, a NavigationRail on tablets, a Shopify-like sidebar (shop

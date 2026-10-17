@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:mogtama3y/core/geo/money.dart';
+import 'package:mogtama3y/core/shops/shop_pixels.dart';
 
 /// One line in the storefront cart: a product + its chosen options.
 class CartLine {
@@ -35,6 +36,7 @@ class StoreCart extends ChangeNotifier {
     } else {
       _lines[line.key] = line;
     }
+    ShopPixels.addToCart(product, quantity); // merchant pixels (0097); no-op when none
     notifyListeners();
   }
 
@@ -51,6 +53,11 @@ class StoreCart extends ChangeNotifier {
     _lines.clear();
     notifyListeners();
   }
+
+  /// The lines as pixel event items (no options / customer data).
+  List<PixelItem> toPixelItems() => [
+        for (final l in _lines.values) PixelItem.fromProduct(l.product, l.quantity),
+      ];
 
   List<Map<String, dynamic>> toOrderLines() => [
         for (final l in _lines.values) {'product_id': l.product['id'], 'quantity': l.quantity, 'options': l.options},

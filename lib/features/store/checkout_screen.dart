@@ -6,6 +6,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/demo/demo_mode.dart';
 import '../../core/demo/demo_store.dart';
 import '../../core/e_address/e_address_service.dart';
+import '../../core/shops/shop_pixels.dart';
 import '../../core/shops/store_service.dart';
 import '../../core/theme/app_colors.dart';
 import 'order_tracking_screen.dart';
@@ -40,6 +41,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   void initState() {
     super.initState();
     widget.cart.addListener(_refresh);
+    if (!widget.cart.isEmpty) {
+      ShopPixels.pageView('s/${widget.shop['slug']}/checkout');
+      ShopPixels.initiateCheckout(widget.cart.toPixelItems(), value: widget.cart.total, currency: currencyOf(widget.shop));
+    }
     if (AuthService.isSignedIn) {
       EAddressService.myAddresses().then((a) {
         if (mounted) setState(() => _myAddresses = a);
@@ -105,6 +110,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         for (final l in widget.cart.lines) '• ${l.product['name']}${l.options.isEmpty ? '' : ' (${l.options})'} × ${l.quantity}',
       ].join('\n');
       final total = _grandTotal;
+      // Merchant pixels (0097): the order code is the dedup event id.
+      ShopPixels.pageView('s/${widget.shop['slug']}/success');
+      ShopPixels.purchase(code, widget.cart.toPixelItems(), value: total, currency: currencyOf(widget.shop));
       widget.cart.clear();
       if (!mounted) return;
       Navigator.of(context).pushReplacement(MaterialPageRoute(

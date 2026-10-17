@@ -10,6 +10,7 @@ import '../orders_page.dart';
 import '../product_editor_page.dart';
 import '../products_page.dart';
 import '../settings_page.dart';
+import '../integrations/integrations_routes.dart';
 import 'admin_common.dart';
 import 'admin_shell.dart';
 
@@ -51,6 +52,7 @@ RouteBase tajerAdminRoutes() => ShellRoute(
           ),
         ),
         GoRoute(path: '/settings', pageBuilder: (_, _) => _page('settings', const SettingsPage())),
+        ...integrationsRoutes(),
       ],
     );
 
