@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/shops/store_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/numbers.dart';
 import '../shared/load_error_view.dart';
 import '../shared/push_opt_in.dart';
 import 'admin/admin_common.dart';
@@ -32,6 +33,10 @@ class _HomeView extends StatefulWidget {
 class _HomeViewState extends State<_HomeView> {
   Map<String, dynamic>? _stats;
   List<Map<String, dynamic>>? _products;
+
+  /// «منتجات قربت تخلص» (0098): {threshold, items}; null until loaded or
+  /// on a backend without it.
+  Map<String, dynamic>? _lowStock;
   bool _error = false;
   bool _sharedNow = false;
 
@@ -51,9 +56,74 @@ class _HomeViewState extends State<_HomeView> {
         _stats = r[0] as Map<String, dynamic>;
         _products = r[1] as List<Map<String, dynamic>>;
       });
+      _loadLowStock();
     } catch (_) {
       if (mounted) setState(() => _error = true);
     }
+  }
+
+  Future<void> _loadLowStock() async {
+    try {
+      final l = await StoreService.lowStock(widget.shop['id'] as String);
+      if (mounted) setState(() => _lowStock = l);
+    } catch (_) {
+      // Optional card.
+    }
+  }
+
+  Future<void> _editThreshold() async {
+    final v = await askAdminText(context,
+        title: 'امتى أعرف إن المنتج قرب يخلص؟',
+        initial: '${_lowStock?['threshold'] ?? 3}',
+        label: 'لما الكمية توصل لـ',
+        helper: '0 = متبعتليش تنبيهات',
+        number: true,
+        okLabel: 'حفظ');
+    final n = int.tryParse(latinDigits(v ?? ''));
+    if (n == null) return;
+    try {
+      await StoreService.setLowStockThreshold(widget.shop['id'] as String, n);
+      _loadLowStock();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(adminErrorText(e, 'تعذر الحفظ'))));
+    }
+  }
+
+  Widget? _lowStockCard() {
+    final l = _lowStock;
+    if (l == null) return null;
+    final items = List<Map<String, dynamic>>.from(l['items'] as List? ?? const []);
+    if (items.isEmpty) return null;
+    return AdminCard(
+      key: const ValueKey('low-stock'),
+      title: 'منتجات قربت تخلص (${items.length})',
+      trailing: TextButton.icon(
+        onPressed: _editThreshold,
+        icon: const Icon(Icons.tune_rounded, size: 16),
+        label: Text('الحد: ${l['threshold']}'),
+      ),
+      child: Column(children: [
+        for (final i in items.take(6))
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            onTap: () => context.go('/products/${i['product_id']}'),
+            leading: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: i['image_url'] is String
+                  ? Image.network(i['image_url'] as String, width: 36, height: 36, cacheWidth: 100, fit: BoxFit.cover, errorBuilder: (_, _, _) => const SizedBox(width: 36, height: 36))
+                  : Container(width: 36, height: 36, color: AppColors.surfaceAlt, child: const Icon(Icons.inventory_2_outlined, size: 18)),
+            ),
+            title: Text(i['name'] as String? ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
+            subtitle: i['variant_label'] == null ? null : Text(i['variant_label'] as String, maxLines: 1, overflow: TextOverflow.ellipsis),
+            trailing: Pill((i['stock'] as num? ?? 0) <= 0 ? 'خلص' : 'باقي ${i['stock']}',
+                (i['stock'] as num? ?? 0) <= 0 ? AppColors.categorySos.withValues(alpha: 0.12) : AppColors.gold.withValues(alpha: 0.22),
+                (i['stock'] as num? ?? 0) <= 0 ? const Color(0xFFB91C1C) : const Color(0xFF8A5A12)),
+          ),
+        if (items.length > 6)
+          Align(alignment: AlignmentDirectional.centerStart, child: TextButton(onPressed: () => context.go('/products'), child: Text('و${items.length - 6} تانيين'))),
+      ]),
+    );
   }
 
   Widget _stat(String label, String value, IconData icon, {VoidCallback? onTap, bool highlight = false}) => Expanded(
@@ -157,6 +227,7 @@ class _HomeViewState extends State<_HomeView> {
                 ),
             ]),
           );
+    final low = _lowStockCard();
     final checklist = OnboardingChecklist(
       shop: widget.shop,
       products: _products ?? const [],
@@ -174,7 +245,13 @@ class _HomeViewState extends State<_HomeView> {
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [sales, const SizedBox(height: 12), stats])),
             const SizedBox(width: 16),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [actions, if (best != null) ...[const SizedBox(height: 16), best]])),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                actions,
+                if (low != null) ...[const SizedBox(height: 16), low],
+                if (best != null) ...[const SizedBox(height: 16), best],
+              ]),
+            ),
           ])
         else ...[
           sales,
@@ -182,6 +259,7 @@ class _HomeViewState extends State<_HomeView> {
           stats,
           const SizedBox(height: 16),
           actions,
+          if (low != null) ...[const SizedBox(height: 18), low],
           if (best != null) ...[const SizedBox(height: 18), best],
         ],
       ]),

@@ -76,24 +76,30 @@ class ShopPixels {
 
 /// One product line of a pixel event.
 class PixelItem {
-  const PixelItem({required this.id, required this.name, required this.price, required this.quantity});
+  const PixelItem({required this.id, required this.name, required this.price, required this.quantity, this.variantId});
   final String id;
   final String name;
   final double price;
   final int quantity;
 
+  /// The chosen variant (0098), when the product has variants.
+  final String? variantId;
+
+  /// [p] may be a product as one variant shows it (productWithVariant):
+  /// its price and `variant_id` are the variant's.
   factory PixelItem.fromProduct(Map<String, dynamic> p, int quantity) => PixelItem(
         id: '${p['id']}',
         name: (p['name'] as String?) ?? '',
         price: (p['price'] as num?)?.toDouble() ?? 0,
         quantity: quantity < 1 ? 1 : quantity,
+        variantId: p['variant_id'] as String?,
       );
 
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'price': price, 'quantity': quantity};
+  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'price': price, 'quantity': quantity, 'variant_id': ?variantId};
 }
 
 /// The event payload shop-pixels.js maps to every vendor:
-/// {currency, value, contents:[{id,name,price,quantity}], order_id?}.
+/// {currency, value, contents:[{id,name,price,quantity,variant_id?}], order_id?}.
 /// No customer data (name / phone / address) ever goes in here.
 Map<String, dynamic> pixelPayload(List<PixelItem> items, {String? currency, double? value, String? orderId}) {
   final cur = currency != null && RegExp(r'^[A-Z]{3}$').hasMatch(currency) ? currency : 'EGP';

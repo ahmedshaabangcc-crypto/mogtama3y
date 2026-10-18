@@ -2,17 +2,24 @@ import 'package:flutter/foundation.dart';
 import 'package:mogtama3y/core/geo/money.dart';
 import 'package:mogtama3y/core/shops/shop_pixels.dart';
 
-/// One line in the storefront cart: a product + its chosen options.
+/// One line in the storefront cart: a product (as its chosen variant
+/// shows it — price, stock, photo; see productWithVariant) + its options.
 class CartLine {
-  CartLine({required this.product, required this.options, required this.quantity});
+  CartLine({required this.product, required this.options, required this.quantity, this.variantId});
   final Map<String, dynamic> product;
-  final String options; // e.g. "المقاس: L • اللون: أسود" ('' when none)
+  final String options; // e.g. "المقاس: L • اللون: أسود" ('' when none) — the variant label
   int quantity;
 
-  String get key => '${product['id']}|$options';
+  /// The chosen variant (0098); null for a product without variants.
+  final String? variantId;
+
+  /// The variant label shown with the line ('' when none).
+  String get variantLabel => options;
+
+  String get key => '${product['id']}|${variantId ?? ''}|$options';
   double get unitPrice => (product['price'] as num?)?.toDouble() ?? 0;
   double get total => unitPrice * quantity;
-  int? get stock => product['stock'] as int?;
+  int? get stock => (product['stock'] as num?)?.toInt();
 }
 
 /// Cart of one store visit (kept in memory while browsing the store).
@@ -28,8 +35,22 @@ class StoreCart extends ChangeNotifier {
   int quantityOf(String productId) =>
       _lines.values.where((l) => l.product['id'] == productId).fold(0, (s, l) => s + l.quantity);
 
+  /// Units of what [line] counts stock against: its variant, or (no
+  /// variants) the product.
+  int stockUnitsOf(CartLine line) => line.variantId != null
+      ? _lines.values.where((l) => l.variantId == line.variantId).fold(0, (s, l) => s + l.quantity)
+      : quantityOf(line.product['id'] as String);
+
+  /// Units of a variant already in the cart.
+  int quantityOfVariant(String variantId) => _lines.values.where((l) => l.variantId == variantId).fold(0, (s, l) => s + l.quantity);
+
+  /// Whether one more of [line] fits its stock.
+  bool canIncrease(CartLine line) => line.stock == null || stockUnitsOf(line) < line.stock!;
+
+  /// [product]: as the variant shows it (productWithVariant) when one is
+  /// chosen — its `variant_id` becomes the line's [CartLine.variantId].
   void add(Map<String, dynamic> product, {String options = '', int quantity = 1}) {
-    final line = CartLine(product: product, options: options, quantity: quantity);
+    final line = CartLine(product: product, options: options, quantity: quantity, variantId: product['variant_id'] as String?);
     final existing = _lines[line.key];
     if (existing != null) {
       existing.quantity = (existing.quantity + quantity).clamp(1, 99);
@@ -59,8 +80,10 @@ class StoreCart extends ChangeNotifier {
         for (final l in _lines.values) PixelItem.fromProduct(l.product, l.quantity),
       ];
 
+  /// place_store_order lines: {product_id, variant_id?, quantity, options}.
   List<Map<String, dynamic>> toOrderLines() => [
-        for (final l in _lines.values) {'product_id': l.product['id'], 'quantity': l.quantity, 'options': l.options},
+        for (final l in _lines.values)
+          {'product_id': l.product['id'], 'variant_id': ?l.variantId, 'quantity': l.quantity, 'options': l.options},
       ];
 }
 

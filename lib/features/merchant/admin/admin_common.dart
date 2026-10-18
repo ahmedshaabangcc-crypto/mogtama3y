@@ -267,6 +267,64 @@ class AdminSearchField extends StatelessWidget {
   }
 }
 
+/// A small «type a value» dialog (prices, quantities, names). Returns the
+/// trimmed text, null when cancelled. The dialog owns its controller.
+Future<String?> askAdminText(
+  BuildContext context, {
+  required String title,
+  String initial = '',
+  String? hint,
+  String? label,
+  String? helper,
+  bool number = false,
+  String okLabel = 'طبّق',
+}) =>
+    showDialog<String>(
+      context: context,
+      builder: (_) => _AskTextDialog(title: title, initial: initial, hint: hint, label: label, helper: helper, number: number, okLabel: okLabel),
+    );
+
+class _AskTextDialog extends StatefulWidget {
+  const _AskTextDialog({required this.title, required this.initial, this.hint, this.label, this.helper, required this.number, required this.okLabel});
+  final String title;
+  final String initial;
+  final String? hint;
+  final String? label;
+  final String? helper;
+  final bool number;
+  final String okLabel;
+
+  @override
+  State<_AskTextDialog> createState() => _AskTextDialogState();
+}
+
+class _AskTextDialogState extends State<_AskTextDialog> {
+  late final _c = TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text(widget.title),
+        content: TextField(
+          key: const ValueKey('ask-value'),
+          controller: _c,
+          autofocus: true,
+          keyboardType: widget.number ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+          decoration: InputDecoration(hintText: widget.hint, labelText: widget.label, helperText: widget.helper),
+          onSubmitted: (v) => Navigator.pop(context, v.trim()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('تراجع')),
+          ElevatedButton(key: const ValueKey('ask-ok'), onPressed: () => Navigator.pop(context, _c.text.trim()), child: Text(widget.okLabel)),
+        ],
+      );
+}
+
 /// «قريباً» pages of the roadmap (customers, discounts).
 class ComingSoonPage extends StatelessWidget {
   const ComingSoonPage({super.key, required this.title, required this.icon, required this.text});

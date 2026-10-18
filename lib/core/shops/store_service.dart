@@ -377,6 +377,137 @@ class StoreService {
   static Future<void> updateOrderStatus({required String orderId, required String status}) async {
     await _client.rpc('update_shop_order_status', params: {'p_order_id': orderId, 'p_status': status});
   }
+
+  // ---- catalogue (migration 0098) ----
+
+  /// The storefront: visible products (with their available `variants`)
+  /// in the merchant's order, and the visible collections
+  /// ({id, name, slug, description, image_url, product_ids}).
+  static Future<StoreCatalog> storeCatalog(String shopId) async {
+    final res = Map<String, dynamic>.from(await _client.rpc('store_catalog', params: {'p_shop': shopId}) as Map);
+    return StoreCatalog(
+      products: [for (final p in res['products'] as List? ?? const []) Map<String, dynamic>.from(p as Map)],
+      collections: [for (final c in res['collections'] as List? ?? const []) Map<String, dynamic>.from(c as Map)],
+    );
+  }
+
+  /// The admin's whole catalogue: every product (any status) with its
+  /// variants and `collection_ids`, every collection with its products.
+  static Future<MerchantCatalog> merchantCatalog(String shopId) async {
+    final res = Map<String, dynamic>.from(await _client.rpc('merchant_catalog', params: {'p_shop': shopId}) as Map);
+    final collections = [for (final c in res['collections'] as List? ?? const []) Map<String, dynamic>.from(c as Map)];
+    final byProduct = <String, List<String>>{};
+    for (final c in collections) {
+      if (c['rules'] != null) continue;
+      for (final id in c['product_ids'] as List? ?? const []) {
+        (byProduct['$id'] ??= []).add(c['id'] as String);
+      }
+    }
+    return MerchantCatalog(
+      products: [
+        for (final p in res['products'] as List? ?? const [])
+          {...Map<String, dynamic>.from(p as Map), 'collection_ids': byProduct['${(p)['id']}'] ?? const <String>[]},
+      ],
+      collections: collections,
+      lowStockThreshold: (res['low_stock_threshold'] as num?)?.toInt() ?? 3,
+    );
+  }
+
+  /// One product for the editor (variants + collection_ids), null when
+  /// it isn't the merchant's.
+  static Future<Map<String, dynamic>?> merchantProduct(String productId) async {
+    final res = await _client.rpc('merchant_product', params: {'p_product': productId});
+    return res == null ? null : Map<String, dynamic>.from(res as Map);
+  }
+
+  /// The editor's save: product fields, the variants ([] without
+  /// options) and its manual collections. Returns the product id.
+  static Future<String> saveCatalogProduct({
+    required String shopId,
+    required Map<String, dynamic> product,
+    List<Map<String, dynamic>> variants = const [],
+    List<String>? collectionIds,
+  }) async {
+    final id = await _client.rpc('merchant_save_product', params: {
+      'p_shop': shopId,
+      'p_product': product,
+      'p_variants': variants,
+      'p_collections': collectionIds,
+    });
+    return id as String;
+  }
+
+  static Future<String> duplicateProduct(String productId) async =>
+      await _client.rpc('merchant_duplicate_product', params: {'p_product': productId}) as String;
+
+  static Future<void> reorderProducts(String shopId, List<String> ids) async {
+    await _client.rpc('merchant_reorder_products', params: {'p_shop': shopId, 'p_ids': ids});
+  }
+
+  /// [action]: status | add_collection | remove_collection | price | stock | delete.
+  static Future<Map<String, dynamic>> bulkProducts(String shopId, List<String> ids, String action, [Object? value]) async {
+    return Map<String, dynamic>.from(await _client.rpc('merchant_bulk_products', params: {
+      'p_shop': shopId,
+      'p_ids': ids,
+      'p_action': action,
+      'p_value': value,
+    }) as Map);
+  }
+
+  /// The shop's collections (owner: hidden ones too), in order.
+  static Future<List<Map<String, dynamic>>> fetchCollections(String shopId) async {
+    final rows = await _client.from('shop_collections').select().eq('shop_id', shopId).order('position', ascending: true);
+    return List<Map<String, dynamic>>.from(rows as List);
+  }
+
+  static Future<String> saveCollection(String shopId, Map<String, dynamic> collection) async =>
+      await _client.rpc('merchant_save_collection', params: {'p_shop': shopId, 'p_collection': collection}) as String;
+
+  static Future<void> deleteCollection(String collectionId) async {
+    await _client.rpc('merchant_delete_collection', params: {'p_collection': collectionId});
+  }
+
+  static Future<void> setCollectionProducts(String collectionId, List<String> productIds) async {
+    await _client.rpc('merchant_set_collection_products', params: {'p_collection': collectionId, 'p_product_ids': productIds});
+  }
+
+  static Future<void> reorderCollections(String shopId, List<String> ids) async {
+    await _client.rpc('merchant_reorder_collections', params: {'p_shop': shopId, 'p_ids': ids});
+  }
+
+  /// «منتجات قربت تخلص»: {threshold, items: [{product_id, variant_id,
+  /// name, variant_label, sku, stock, image_url}]}.
+  static Future<Map<String, dynamic>> lowStock(String shopId) async =>
+      Map<String, dynamic>.from(await _client.rpc('merchant_low_stock', params: {'p_shop': shopId}) as Map);
+
+  static Future<void> setLowStockThreshold(String shopId, int threshold) async {
+    await _client.rpc('merchant_set_low_stock_threshold', params: {'p_shop': shopId, 'p_threshold': threshold});
+  }
+
+  /// One batch of CSV rows (≤ 500). [dryRun]: validate / preview only.
+  /// {created, updated, failed, errors: [{row, handle, message}], items}.
+  static Future<Map<String, dynamic>> importProducts(String shopId, List<Map<String, String>> rows, {required bool dryRun}) async {
+    return Map<String, dynamic>.from(await _client.rpc('merchant_import_products', params: {
+      'p_shop': shopId,
+      'p_rows': rows,
+      'p_dry_run': dryRun,
+    }) as Map);
+  }
+}
+
+/// [StoreService.storeCatalog].
+class StoreCatalog {
+  const StoreCatalog({required this.products, required this.collections});
+  final List<Map<String, dynamic>> products;
+  final List<Map<String, dynamic>> collections;
+}
+
+/// [StoreService.merchantCatalog].
+class MerchantCatalog {
+  const MerchantCatalog({required this.products, required this.collections, required this.lowStockThreshold});
+  final List<Map<String, dynamic>> products;
+  final List<Map<String, dynamic>> collections;
+  final int lowStockThreshold;
 }
 
 /// A page of [StoreService.merchantOrders].

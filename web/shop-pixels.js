@@ -53,11 +53,14 @@
     return isFinite(n) ? Math.round(n * 1000) / 1000 : 0;
   }
 
-  // data: {currency, value?, contents:[{id, name, price, quantity}], order_id?}
+  // data: {currency, value?, contents:[{id, name, price, quantity, variant_id?}], order_id?}
   function norm(data) {
     data = data || {};
     var contents = (data.contents || []).filter(function (c) { return c && c.id != null; }).map(function (c) {
-      return { id: String(c.id), name: c.name ? String(c.name).slice(0, 100) : '', price: num(c.price), quantity: Math.max(1, parseInt(c.quantity, 10) || 1) };
+      var o = { id: String(c.id), name: c.name ? String(c.name).slice(0, 100) : '', price: num(c.price), quantity: Math.max(1, parseInt(c.quantity, 10) || 1) };
+      // 0098: the chosen variant (GA4 item_variant).
+      if (c.variant_id != null && /^[0-9a-f-]{36}$/i.test(String(c.variant_id))) o.variant = String(c.variant_id);
+      return o;
     });
     var value = data.value != null ? num(data.value)
       : num(contents.reduce(function (s, c) { return s + c.price * c.quantity; }, 0));
@@ -122,7 +125,11 @@
     }
 
     var gaTargets = [ids.ga4, ids.google_ads ? ids.google_ads.split('/')[0] : null].filter(Boolean);
-    var gaItems = d.contents.map(function (c) { return { item_id: c.id, item_name: c.name, price: c.price, quantity: c.quantity }; });
+    var gaItems = d.contents.map(function (c) {
+      var it = { item_id: c.id, item_name: c.name, price: c.price, quantity: c.quantity };
+      if (c.variant) it.item_variant = c.variant;
+      return it;
+    });
     if (gaTargets.length) {
       if (isPage) {
         calls.push(['gtag', 'event', 'page_view', { send_to: gaTargets, page_location: page.location, page_title: page.title }]);

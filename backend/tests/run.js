@@ -2418,6 +2418,8 @@ const denied = (r) => !!r.error;
     await db.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'migrations', '0092_arab_currency.sql'), 'utf8'));
     // …and 0096 (store orders with line snapshots, tracking / stats reading them).
     await db.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
+    // …and 0098 (store orders with variants, restock per variant).
+    await db.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'migrations', '0098_tajer_catalog.sql'), 'utf8'));
 
     const mascM = (await admin(db, `insert into mosques (name, lat, lng, verified) values ('مسجد النور', 30.4, 31.6, true) returning id`))[0].id;
     const mascN1 = await signUp(db, 'masc realname one', null);
@@ -2587,6 +2589,8 @@ const denied = (r) => !!r.error;
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0089_arab_world_foundation.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0092_arab_currency.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
+    // …and 0098 (store orders with variants, restock per variant).
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0098_tajer_catalog.sql'), 'utf8'));
 
     const M = (await admin(db, `insert into mosques (name, lat, lng, verified) values ('مسجد الرحمن', 30.05, 31.25, true) returning id`))[0].id;
     const U = (await admin(db, `insert into mosques (name, lat, lng) values ('مسجد مش موثق', 30.06, 31.26) returning id`))[0].id;
@@ -2877,6 +2881,8 @@ const denied = (r) => !!r.error;
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0089_arab_world_foundation.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0092_arab_currency.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
+    // …and 0098 (store orders with variants, restock per variant).
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0098_tajer_catalog.sql'), 'utf8'));
     const has = (r, text) => !!r.error && r.error.includes(text);
 
     // ---- places: country / zone / currency
@@ -3195,6 +3201,8 @@ const denied = (r) => !!r.error;
     check('arab: 0089 is safe to re-run', rerun === null, rerun);
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0092_arab_currency.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
+    // …and 0098 (store orders with variants, restock per variant).
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0098_tajer_catalog.sql'), 'utf8'));
     const norm = async (p, c) => (await admin(db, `select private.norm_phone($1, $2) as n`, [p, c ?? null]))[0].n;
     const store = async (p, c) => (await admin(db, `select private.phone_store($1, $2) as n`, [p, c ?? null]))[0].n;
 
@@ -3367,6 +3375,8 @@ const denied = (r) => !!r.error;
     check('cur: 0092 is safe to re-run', rerun === null, rerun);
     // 0096 redefines 0092's store orders (line snapshots) — put it back.
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
+    // …and 0098 (store orders with variants, restock per variant).
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0098_tajer_catalog.sql'), 'utf8'));
     const notes = async (u) => (await admin(db, `select title, body from notifications where user_id = $1 order by created_at`, [u])).map((n) => n.title + ' | ' + n.body);
     const lastNote = async (u) => (await notes(u)).pop() ?? '';
 
@@ -3853,6 +3863,8 @@ const denied = (r) => !!r.error;
     let rerun = null;
     try {
       await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
+      // …and 0098 (store orders with variants, restock per variant).
+      await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0098_tajer_catalog.sql'), 'utf8'));
     } catch (e) {
       rerun = e.message;
     }
@@ -3896,6 +3908,8 @@ const denied = (r) => !!r.error;
     await admin(db, `update shop_order_items set product_name = null, image_url = null, variant_label = null
       where order_id = (select id from shop_orders where order_code = $1)`, [legacyOrder]);
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
+    // …and 0098 (store orders with variants, restock per variant).
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0098_tajer_catalog.sql'), 'utf8'));
     const back = (await admin(db, `select product_name, image_url from shop_order_items where order_id = (select id from shop_orders where order_code = $1)`, [legacyOrder]))[0];
     check('tpro: lines without a snapshot are backfilled from the product', back?.product_name === 'شنطة' && back.image_url?.includes('.jpg'), back);
 
@@ -4289,6 +4303,335 @@ const denied = (r) => !!r.error;
         px.buildCalls('PageView', {}, { meta_pixel: '123"><script>', ga4: 'G-1' }).length === 0 && px.buildCalls('Bogus', {}, ids).length === 0 &&
         JSON.stringify(px.cleanIds({ gtm: 'GTM-AB12CD3', x: 'y' })) === '{"gtm":"GTM-AB12CD3"}');
     }
+  }
+
+  // ------------------------------------------------------------------
+  console.log('\nPhase tcat — متجري catalog pro: variants, collections, CSV import, low stock (0098)');
+  {
+    const fs = require('fs');
+    const path = require('path');
+    const MIG98 = path.join(__dirname, '..', 'migrations', '0098_tajer_catalog.sql');
+    let rerun = null;
+    try {
+      await db.exec(fs.readFileSync(MIG98, 'utf8'));
+    } catch (e) {
+      rerun = e.message;
+    }
+    check('tcat: 0098 is safe to re-run', rerun === null, rerun);
+    const idOf = (r) => r.rows?.[0] && Object.values(r.rows[0])[0];
+    const cM = await signUp(db, 'tcat merchant', '01000098001');
+    const cM2 = await signUp(db, 'tcat other merchant', '01000098002');
+    const cBuyer = await signUp(db, 'tcat buyer', '01000098003');
+    const cShop = idOf(await as(db, cM, `select public.create_my_shop('محل الكتالوج', 'ملابس وأحذية', 'tcat-shop', '01000098001') as id`));
+    const cShop2 = idOf(await as(db, cM2, `select public.create_my_shop('محل تاني', 'ملابس وأحذية', 'tcat-other', '01000098002') as id`));
+    check('tcat: two merchants register', !!cShop && !!cShop2);
+    const IMG = ['https://x.test/a.jpg', 'https://x.test/b.jpg'];
+    const save = (u, shop, product, variants = [], colls = null) =>
+      as(db, u, `select public.merchant_save_product($1, $2::jsonb, $3::jsonb, $4::uuid[]) as id`, [shop, JSON.stringify(product), JSON.stringify(variants), colls]);
+    const OPTS = [{ name: 'المقاس', values: ['S', 'M'] }, { name: 'اللون', values: ['أسود', 'أبيض'] }];
+    const MATRIX = [
+      { option_values: ['S', 'أسود'], price: 100, stock: 5, sku: 'TS-S-BLK', image_url: IMG[0] },
+      { option_values: ['S', 'أبيض'], price: 110, stock: 2, sku: 'TS-S-WHT' },
+      { option_values: ['M', 'أسود'], price: 120, stock: 10 },
+      { option_values: ['M', 'أبيض'], price: 90, compare_at_price: 130, stock: 0, image_url: IMG[1] },
+    ];
+    const tee = { name: 'تيشيرت قطن', status: 'active', images: IMG, options: OPTS, tags: ['قطن', 'صيفي'], video_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', seo_title: 'تيشيرت قطن مصري', seo_description: 'أحسن تيشيرت' };
+
+    // ---- variants: auth + CRUD
+    check('tcat: EXPLOIT blocked: another merchant saves a product into my shop', denied(await save(cM2, cShop, tee, MATRIX)));
+    check('tcat: EXPLOIT blocked: a guest saves a product', denied(await save(null, cShop, tee, MATRIX)));
+    const teeId = idOf(await save(cM, cShop, tee, MATRIX));
+    check('tcat: the owner saves a product with a 2×2 variant matrix', !!teeId && (await admin(db, `select count(*)::int n from shop_product_variants where product_id = $1`, [teeId]))[0].n === 4);
+    const teeRow = (await admin(db, `select price::float, old_price::float, stock, slug, tags, video_url from shop_products where id = $1`, [teeId]))[0];
+    check('tcat: product row = rollup (cheapest available variant + its compare-at, stock summed)',
+      teeRow.price === 90 && teeRow.old_price === 130 && teeRow.stock === 17 && teeRow.slug === 'تيشيرت-قطن' && teeRow.tags.length === 2, teeRow);
+    check('tcat: EXPLOIT blocked: variants are never written directly',
+      denied(await as(db, cM, `insert into shop_product_variants (product_id, shop_id, option_values, price) values ($1, $2, '["X"]', 1)`, [teeId, cShop])) &&
+      denied(await as(db, cM, `update shop_product_variants set price = 1 where product_id = $1`, [teeId])) &&
+      (await admin(db, `select min(price)::float m from shop_product_variants where product_id = $1`, [teeId]))[0].m === 90);
+    const vIds = await admin(db, `select id, option_values, stock, sku from shop_product_variants where product_id = $1 order by position`, [teeId]);
+    const resave = await save(cM, cShop, { ...tee, id: teeId }, MATRIX.map((v, i) => (i === 2 ? { ...v, price: 125, stock: 8 } : v)));
+    const vIds2 = await admin(db, `select id from shop_product_variants where product_id = $1 order by position`, [teeId]);
+    check('tcat: re-saving keeps variant ids (a variant is its combination) and updates in place',
+      ok(resave) && JSON.stringify(vIds.map((v) => v.id)) === JSON.stringify(vIds2.map((v) => v.id)) &&
+      (await admin(db, `select price::float p, stock from shop_product_variants where id = $1`, [vIds[2].id]))[0].p === 125, resave);
+    const shrink = await save(cM, cShop, { ...tee, id: teeId, options: [{ name: 'المقاس', values: ['S', 'M'] }, { name: 'اللون', values: ['أسود'] }] },
+      [MATRIX[0], { ...MATRIX[2], price: 125, stock: 8 }]);
+    check('tcat: removing a value deletes its variants, keeps the others',
+      ok(shrink) && (await admin(db, `select count(*)::int n from shop_product_variants where product_id = $1`, [teeId]))[0].n === 2 &&
+      (await admin(db, `select count(*)::int n from shop_product_variants where id = $1`, [vIds[0].id]))[0].n === 1, shrink);
+    await save(cM, cShop, { ...tee, id: teeId }, MATRIX);
+    const vNow = await admin(db, `select id from shop_product_variants where product_id = $1 order by position`, [teeId]);
+
+    // ---- matrix limits / validation
+    const many = (n) => Array.from({ length: n }, (_, i) => 'v' + i);
+    check('tcat: more than 3 options refused', denied(await save(cM, cShop, { ...tee, name: 'x4', options: [...OPTS, { name: 'الخامة', values: ['قطن'] }, { name: 'الموديل', values: ['1'] }] },
+      [{ option_values: ['S', 'أسود', 'قطن', '1'], price: 1 }])));
+    const big = [{ name: 'أ', values: many(11) }, { name: 'ب', values: many(10) }];
+    const bigMatrix = [];
+    for (const a of many(11)) for (const b of many(10)) bigMatrix.push({ option_values: [a, b], price: 5 });
+    check('tcat: more than 100 variants refused', denied(await save(cM, cShop, { ...tee, name: 'كبير', options: big }, bigMatrix)));
+    check('tcat: more than 30 values for one option refused', denied(await save(cM, cShop, { ...tee, name: 'قيم', options: [{ name: 'أ', values: many(31) }] }, [{ option_values: ['v0'], price: 1 }])));
+    check('tcat: duplicate combination refused', denied(await save(cM, cShop, { ...tee, name: 'مكرر' }, [MATRIX[0], { ...MATRIX[0], sku: null }])));
+    check('tcat: a value not in the options refused', denied(await save(cM, cShop, { ...tee, name: 'غلط' }, [{ option_values: ['XL', 'أسود'], price: 1 }])));
+    check('tcat: options without variants / variants without options refused',
+      denied(await save(cM, cShop, { ...tee, name: 'فاضي' }, [])) && denied(await save(cM, cShop, { name: 'بدون', price: 5, status: 'active' }, [{ option_values: ['S'], price: 1 }])));
+    check('tcat: a SKU already used in the shop is refused (case-insensitive)',
+      denied(await save(cM, cShop, { name: 'تاني', price: 5, status: 'active', sku: 'ts-s-blk' })));
+    check('tcat: a variant image must be one of the product photos', denied(await save(cM, cShop, { ...tee, name: 'صورة' }, [{ ...MATRIX[0], sku: null, image_url: 'https://evil.test/x.jpg' }])));
+    check('tcat: compare-at must be above the price; video must be YouTube',
+      denied(await save(cM, cShop, { ...tee, name: 'خصم' }, [{ ...MATRIX[0], sku: null, compare_at_price: 50 }])) &&
+      denied(await save(cM, cShop, { name: 'فيديو', price: 5, status: 'active', video_url: 'https://vimeo.com/123' })));
+    const plainId = idOf(await save(cM, cShop, { name: 'شنطة جلد', price: 200, old_price: 250, stock: 4, sku: 'BAG-1', barcode: '6221234567890', status: 'active' }));
+    check('tcat: a product without options keeps price / stock / sku on the product row (no variants)',
+      !!plainId && (await admin(db, `select count(*)::int n from shop_product_variants where product_id = $1`, [plainId]))[0].n === 0 &&
+      (await admin(db, `select stock, sku, barcode from shop_products where id = $1`, [plainId]))[0].sku === 'BAG-1');
+    const twin = idOf(await save(cM, cShop, { name: 'شنطة جلد', price: 150, status: 'active' }));
+    check('tcat: same name → a unique handle (-2)', (await admin(db, `select slug from shop_products where id = $1`, [twin]))[0].slug === 'شنطة-جلد-2');
+
+    // ---- public reads (RLS)
+    const draftId = idOf(await save(cM, cShop, { ...tee, name: 'مسودة', status: 'draft' }, MATRIX.map((v) => ({ ...v, sku: null }))));
+    await admin(db, `update shop_product_variants set is_available = false where product_id = $1 and option_values = '["S","أبيض"]'`, [teeId]);
+    const pubV = await as(db, null, `select product_id, option_values from shop_product_variants where shop_id = $1`, [cShop]);
+    check('tcat: guests read only available variants of visible products',
+      ok(pubV) && pubV.rows.length === 3 && pubV.rows.every((v) => v.product_id === teeId), pubV);
+    check('tcat: the owner reads every variant (draft + hidden)', (await as(db, cM, `select count(*)::int n from shop_product_variants where shop_id = $1`, [cShop])).rows[0].n === 8);
+    await admin(db, `update shop_product_variants set is_available = true where product_id = $1`, [teeId]);
+
+    // ---- ordering with variants
+    const place = (lines, phone = '01000098101') => as(db, null, `select public.place_store_order($1, $2::jsonb, 'منى عادل', $3, 'شارع 9، المعادي، عمارة 4 شقة 2') as code`,
+      [cShop, JSON.stringify(lines), phone]);
+    const vSB = vNow[0].id, vSW = vNow[1].id, vMB = vNow[2].id, vMW = vNow[3].id;
+    const stockOf = async (id) => (await admin(db, `select stock from shop_product_variants where id = $1`, [id]))[0].stock;
+    const c1 = idOf(await place([{ product_id: teeId, variant_id: vSB, quantity: 3 }, { product_id: plainId, quantity: 1 }]));
+    check('tcat: an order with a variant_id is placed', /^T[0-9A-Z]{7}$/.test(c1 || ''), c1);
+    check('tcat: …it takes the variant\'s stock only (others untouched), the product rollup follows',
+      (await stockOf(vSB)) === 2 && (await stockOf(vSW)) === 2 && (await stockOf(vMB)) === 10 &&
+      (await admin(db, `select stock from shop_products where id = $1`, [teeId]))[0].stock === 14 &&
+      (await admin(db, `select stock from shop_products where id = $1`, [plainId]))[0].stock === 3);
+    const l1 = await admin(db, `select i.variant_id, i.variant_label, i.sku, i.unit_price::float up, i.image_url from shop_order_items i join shop_orders o on o.id = i.order_id where o.order_code = $1 order by i.unit_price`, [c1]);
+    check('tcat: …the line snapshots variant_id, variant_label, sku, the variant\'s price and image',
+      l1.some((l) => l.variant_id === vSB && l.variant_label === 'المقاس: S • اللون: أسود' && l.sku === 'TS-S-BLK' && l.up === 100 && l.image_url === IMG[0]) &&
+      l1.some((l) => l.variant_id === null && l.sku === 'BAG-1' && l.up === 200), l1);
+    check('tcat: more than a variant\'s stock is refused (with its name)',
+      /المقاس: S/.test((await place([{ product_id: teeId, variant_id: vSB, quantity: 3 }])).error || ''));
+    check('tcat: a sold-out variant is refused even if others have stock', denied(await place([{ product_id: teeId, variant_id: vMW, quantity: 1 }])));
+    check('tcat: EXPLOIT blocked: a variant of another product is refused', denied(await place([{ product_id: plainId, variant_id: vMB, quantity: 1 }])));
+    const legacy = idOf(await place([{ product_id: teeId, qty: 1, options: 'المقاس: M • اللون: أسود' }], '01000098102'));
+    check('tcat: old clients — options text matches a variant (qty alias too) and takes its stock',
+      !!legacy && (await stockOf(vMB)) === 9, legacy);
+    check('tcat: old clients — no variant and no matching text is refused for a product with variants',
+      denied(await place([{ product_id: teeId, quantity: 1, options: 'المقاس: XXL' }], '01000098103')));
+    const ordId = (await admin(db, `select id from shop_orders where order_code = $1`, [c1]))[0].id;
+    check('tcat: cancelling restocks the variant (and the plain product) once',
+      ok(await as(db, cM, `select public.merchant_cancel_order($1, 'نفد')`, [ordId])) && (await stockOf(vSB)) === 5 &&
+      (await admin(db, `select stock from shop_products where id = $1`, [plainId]))[0].stock === 4);
+    const inApp = await as(db, cBuyer, `select public.place_shop_order($1, $2::jsonb, '01000098003') as id`, [cShop, JSON.stringify([{ product_id: teeId, variant_id: vSW, quantity: 1 }])]);
+    check('tcat: the in-app order prices and snapshots the variant',
+      ok(inApp) && (await admin(db, `select unit_price::float up, variant_label from shop_order_items where order_id = $1`, [idOf(inApp)]))[0].up === 110, inApp);
+    const lines = (await as(db, cM, `select public.merchant_order($1) as o`, [ordId])).rows?.[0]?.o?.items;
+    check('tcat: the merchant order lines carry sku + variant_id', lines?.some((l) => l.sku === 'TS-S-BLK' && l.variant_id === vSB), lines);
+    const track = (await as(db, null, `select public.get_store_order($1) as o`, [c1])).rows?.[0]?.o;
+    check('tcat: tracking shows the variant label', track?.items?.some((i) => i.options === 'المقاس: S • اللون: أسود'), track);
+
+    // ---- old signature still works (product without variants)
+    const oldP = idOf(await as(db, cM, `insert into shop_products (shop_id, name, price, stock, options) values ($1, 'منتج قديم', 50, 3, '[{"name":"الحجم","values":["كبير"]}]'::jsonb) returning id`, [cShop]));
+    const oldC = idOf(await place([{ product_id: oldP, quantity: 2, options: 'الحجم: كبير' }], '01000098104'));
+    check('tcat: an old-style insert + order (no variants) works as in 0096',
+      !!oldC && (await admin(db, `select stock, slug, position from shop_products where id = $1`, [oldP]))[0].stock === 1 &&
+      (await admin(db, `select variant_label from shop_order_items i join shop_orders o on o.id = i.order_id where o.order_code = $1`, [oldC]))[0].variant_label === 'الحجم: كبير');
+    check('tcat: an old-style insert gets a handle and goes first in the manual order',
+      (await admin(db, `select slug, position = (select min(position) from shop_products where shop_id = $1) as first from shop_products where id = $2`, [cShop, oldP]))[0].first === true);
+
+    // ---- low stock: crossing, merchant edits silent, 24 h per variant, 5 per shop per hour
+    const lowN = async () => (await admin(db, `select count(*)::int n from notifications where user_id = $1 and title like '📦%'`, [cM]))[0].n;
+    await admin(db, `delete from notifications where user_id = $1`, [cM]);
+    await admin(db, `delete from private.low_stock_alerts where shop_id = $1`, [cShop]);
+    await save(cM, cShop, { ...tee, id: teeId }, MATRIX.map((v) => ({ ...v, stock: 10 })));
+    check('tcat: the merchant\'s own stock edit never alerts', (await lowN()) === 0);
+    await place([{ product_id: teeId, variant_id: vMB, quantity: 8 }], '01000098105');
+    check('tcat: an order that drops a variant to the threshold (3) alerts the owner once', (await lowN()) === 1,
+      await admin(db, `select title, body from notifications where user_id = $1`, [cM]));
+    const lsRpc = (await as(db, cM, `select public.merchant_low_stock($1) as r`, [cShop])).rows?.[0]?.r;
+    check('tcat: «منتجات قربت تخلص» lists it (merchant only)',
+      lsRpc?.threshold === 3 && lsRpc.items.some((i) => i.variant_id === vMB && i.stock === 2 && i.variant_label === 'المقاس: M • اللون: أسود') &&
+      denied(await as(db, cM2, `select public.merchant_low_stock($1)`, [cShop])), lsRpc);
+    await as(db, cM, `select public.update_shop_order_status(id, 'cancelled') from shop_orders where shop_id = $1 and status = 'placed' and customer_phone like '%098105'`, [cShop]);
+    await place([{ product_id: teeId, variant_id: vMB, quantity: 8 }], '01000098106');
+    check('tcat: the same variant crossing again within 24 h does not alert again', (await lowN()) === 1);
+    for (let i = 0; i < 6; i++) {
+      const pid = idOf(await save(cM, cShop, { name: 'منتج قليل ' + i, price: 10, stock: 5, status: 'active' }));
+      await place([{ product_id: pid, quantity: 3 }], '0100009820' + i);
+    }
+    check('tcat: at most 5 low-stock alerts per shop per hour', (await lowN()) === 5, await lowN());
+    check('tcat: the threshold is the owner\'s to set (0–1000)',
+      ok(await as(db, cM, `select public.merchant_set_low_stock_threshold($1, 5)`, [cShop])) &&
+      denied(await as(db, cM, `select public.merchant_set_low_stock_threshold($1, -1)`, [cShop])) &&
+      denied(await as(db, cM2, `select public.merchant_set_low_stock_threshold($1, 1)`, [cShop])));
+
+    // ---- collections
+    const saveColl = (u, shop, c) => as(db, u, `select public.merchant_save_collection($1, $2::jsonb) as id`, [shop, JSON.stringify(c)]);
+    const colA = idOf(await saveColl(cM, cShop, { name: 'تيشيرتات', description: 'كل التيشيرتات' }));
+    const colHidden = idOf(await saveColl(cM, cShop, { name: 'مخفي', is_visible: false }));
+    check('tcat: EXPLOIT blocked: another merchant creates / edits / deletes my collections',
+      denied(await saveColl(cM2, cShop, { name: 'x' })) && denied(await saveColl(cM2, cShop, { id: colA, name: 'x' })) &&
+      denied(await as(db, cM2, `select public.merchant_delete_collection($1)`, [colA])) &&
+      denied(await as(db, cM2, `select public.merchant_set_collection_products($1, $2::uuid[])`, [colA, [teeId]])));
+    check('tcat: EXPLOIT blocked: collections are never written directly',
+      denied(await as(db, cM, `insert into shop_collections (shop_id, name, slug) values ($1, 'x', 'x')`, [cShop])) &&
+      denied(await as(db, cM, `insert into shop_collection_products (collection_id, product_id) values ($1, $2)`, [colA, plainId])));
+    check('tcat: the owner fills a collection in order and reorders it',
+      ok(await as(db, cM, `select public.merchant_set_collection_products($1, $2::uuid[])`, [colA, [plainId, teeId, draftId]])) &&
+      ok(await as(db, cM, `select public.merchant_set_collection_products($1, $2::uuid[])`, [colA, [teeId, plainId, draftId]])) &&
+      JSON.stringify((await admin(db, `select product_id from shop_collection_products where collection_id = $1 order by position`, [colA])).map((r) => r.product_id)) === JSON.stringify([teeId, plainId, draftId]));
+    await as(db, cM, `select public.merchant_set_collection_products($1, $2::uuid[])`, [colHidden, [plainId]]);
+    const pubC = await as(db, null, `select name from shop_collections where shop_id = $1`, [cShop]);
+    const pubCP = await as(db, null, `select product_id from shop_collection_products where collection_id = $1`, [colA]);
+    check('tcat: guests read visible collections only, and only their visible products',
+      ok(pubC) && pubC.rows.length === 1 && pubC.rows[0].name === 'تيشيرتات' &&
+      ok(pubCP) && pubCP.rows.length === 2 && !pubCP.rows.some((r) => r.product_id === draftId) &&
+      (await as(db, null, `select count(*)::int n from shop_collection_products where collection_id = $1`, [colHidden])).rows[0].n === 0, { pubC, pubCP });
+    const smart = idOf(await saveColl(cM, cShop, { name: 'قطن', rules: { tag: 'قطن' } }));
+    check('tcat: a smart collection (by tag) — and bad rules are refused',
+      !!smart && denied(await saveColl(cM, cShop, { name: 'غلط', rules: { color: 'x' } })) && denied(await saveColl(cM, cShop, { name: 'فاضي', rules: {} })) &&
+      denied(await as(db, cM, `select public.merchant_set_collection_products($1, $2::uuid[])`, [smart, [plainId]])));
+    const sc = (await as(db, null, `select public.store_catalog($1) as c`, [cShop])).rows?.[0]?.c;
+    const scA = sc?.collections?.find((c) => c.id === colA);
+    const scS = sc?.collections?.find((c) => c.id === smart);
+    check('tcat: store_catalog: visible products with available variants, visible collections with their visible products',
+      sc && !sc.products.some((p) => p.id === draftId) && sc.products.find((p) => p.id === teeId)?.variants?.length === 4 &&
+      JSON.stringify(scA?.product_ids) === JSON.stringify([teeId, plainId]) && JSON.stringify(scS?.product_ids) === JSON.stringify([teeId]) &&
+      !sc.collections.some((c) => c.id === colHidden), sc?.collections);
+    const editColl = idOf(await save(cM, cShop, { name: 'جاكيت', price: 500, status: 'active' }, [], [colA, colHidden]));
+    check('tcat: the editor sets a product\'s manual collections (appended last)',
+      (await admin(db, `select position from shop_collection_products where collection_id = $1 and product_id = $2`, [colA, editColl]))[0]?.position === 3);
+    check('tcat: reordering collections / products (owner only)',
+      ok(await as(db, cM, `select public.merchant_reorder_collections($1, $2::uuid[])`, [cShop, [smart, colA, colHidden]])) &&
+      (await admin(db, `select position from shop_collections where id = $1`, [smart]))[0].position === 0 &&
+      ok(await as(db, cM, `select public.merchant_reorder_products($1, $2::uuid[])`, [cShop, [plainId, teeId]])) &&
+      (() => true)() &&
+      ((ps) => ps.indexOf(plainId) < ps.indexOf(teeId))((await as(db, null, `select public.store_catalog($1) as c`, [cShop])).rows[0].c.products.map((p) => p.id)) &&
+      denied(await as(db, cM2, `select public.merchant_reorder_products($1, $2::uuid[])`, [cShop, [teeId]])));
+
+    // ---- duplicate
+    const dupId = idOf(await as(db, cM, `select public.merchant_duplicate_product($1) as id`, [teeId]));
+    const dup = (await admin(db, `select name, status, slug, is_available from shop_products where id = $1`, [dupId]))[0];
+    check('tcat: duplicate → a draft copy with its variants (no SKUs) and collections',
+      dup?.name === 'تيشيرت قطن (نسخة)' && dup.status === 'draft' && dup.is_available === false && dup.slug !== 'تيشيرت-قطن' &&
+      (await admin(db, `select count(*)::int n, count(sku)::int s from shop_product_variants where product_id = $1`, [dupId]))[0].n === 4 &&
+      (await admin(db, `select count(*)::int n, count(sku)::int s from shop_product_variants where product_id = $1`, [dupId]))[0].s === 0 &&
+      (await admin(db, `select count(*)::int n from shop_collection_products where product_id = $1`, [dupId]))[0].n === 1 &&
+      denied(await as(db, cM2, `select public.merchant_duplicate_product($1)`, [teeId])), dup);
+
+    // ---- bulk actions
+    const bulk = (u, ids, action, value) => as(db, u, `select public.merchant_bulk_products($1, $2::uuid[], $3, $4::jsonb) as r`, [cShop, ids, action, JSON.stringify(value)]);
+    const b1 = (await bulk(cM, [dupId, twin], 'status', 'archived')).rows?.[0]?.r;
+    check('tcat: bulk status', b1?.updated === 2 && (await admin(db, `select count(*)::int n from shop_products where id = any($1) and status = 'archived'`, [[dupId, twin]]))[0].n === 2, b1);
+    const b2 = (await bulk(cM, [teeId, plainId, twin], 'price', 175)).rows?.[0]?.r;
+    check('tcat: bulk price changes single-variant products only (multi-variant skipped)',
+      b2?.updated === 2 && b2.skipped === 1 && (await admin(db, `select price::float p from shop_products where id = $1`, [plainId]))[0].p === 175 &&
+      (await admin(db, `select price::float p from shop_products where id = $1`, [teeId]))[0].p !== 175, b2);
+    const b3 = (await bulk(cM, [twin, plainId], 'add_collection', smart));
+    const b4 = (await bulk(cM, [twin, editColl], 'add_collection', colA)).rows?.[0]?.r;
+    check('tcat: bulk add to a manual collection (smart refused)', denied(b3) && b4?.updated === 1, b4);
+    const b5 = (await bulk(cM, [plainId, twin], 'delete')).rows?.[0]?.r;
+    check('tcat: bulk delete deletes unordered products and archives ordered ones',
+      b5?.deleted === 1 && b5.archived === 1 && (await admin(db, `select status from shop_products where id = $1`, [plainId]))[0].status === 'archived', b5);
+    check('tcat: EXPLOIT blocked: bulk on another shop / its products',
+      denied(await bulk(cM2, [teeId], 'status', 'draft')) &&
+      ((await as(db, cM2, `select public.merchant_bulk_products($1, $2::uuid[], 'status', '"draft"') as r`, [cShop2, [teeId]])).rows?.[0]?.r?.skipped === 1) &&
+      (await admin(db, `select status from shop_products where id = $1`, [teeId]))[0].status === 'active');
+
+    // ---- CSV import
+    const imp = (u, rows, dry) => as(db, u, `select public.merchant_import_products($1, $2::jsonb, $3) as r`, [cShop, JSON.stringify(rows), dry]);
+    const CSV = [
+      { _row: 2, handle: 'hoodie', title: 'هودي شتوي', description: '<p>هودي <b>تقيل</b></p>', option1_name: 'المقاس', option1_value: 'L', option2_name: 'اللون', option2_value: 'رمادي',
+        sku: 'HD-L-GR', price: '350', compare_at: '400', stock: '6', status: 'active', collection: 'شتوي, تيشيرتات', tags: 'شتا، قطن', image_src: 'https://x.test/h1.jpg' },
+      { _row: 3, handle: 'hoodie', option1_value: 'XL', option2_value: 'رمادي', sku: 'HD-XL-GR', price: '370', stock: '', image_src: 'https://x.test/h2.jpg', variant_image: 'https://x.test/h2.jpg' },
+      { _row: 4, handle: 'cap', title: 'كاب', price: '80', stock: '12', sku: 'CAP-1', barcode: '123456', option1_name: 'Title', option1_value: 'Default Title' },
+      { _row: 5, title: 'منتج غلط', price: 'غالي' },
+      { _row: 6, handle: 'no-price', title: 'من غير سعر' },
+      { _row: 7, handle: 'bad-status', title: 'حالة', price: '5', status: 'sold' },
+    ];
+    const before = (await admin(db, `select count(*)::int n from shop_products where shop_id = $1`, [cShop]))[0].n;
+    const dry = (await imp(cM, CSV, true)).rows?.[0]?.r;
+    check('tcat: CSV dry run — preview counts + an error report with file rows, nothing written',
+      dry?.dry_run === true && dry.created === 2 && dry.failed === 3 && dry.errors.map((e) => e.row).join(',') === '5,6,7' &&
+      dry.errors.every((e) => /سطر \d/.test(e.message)) &&
+      (await admin(db, `select count(*)::int n from shop_products where shop_id = $1`, [cShop]))[0].n === before &&
+      (await admin(db, `select count(*)::int n from shop_collections where shop_id = $1 and name = 'شتوي'`, [cShop]))[0].n === 0, dry);
+    const real = (await imp(cM, CSV, false)).rows?.[0]?.r;
+    const hoodie = (await admin(db, `select id, name, description, price::float p, old_price::float o, stock, tags, images, status from shop_products where shop_id = $1 and slug = 'hoodie'`, [cShop]))[0];
+    const hv = hoodie ? await admin(db, `select option_values, sku, price::float p, compare_at_price::float c, stock, image_url from shop_product_variants where product_id = $1 order by position`, [hoodie.id]) : [];
+    check('tcat: CSV import creates products with variants, tags, photos, collections (created on the fly)',
+      real?.created === 2 && real.failed === 3 && hoodie?.name === 'هودي شتوي' && hoodie.description === 'هودي تقيل' && hoodie.tags.join('|') === 'شتا|قطن' &&
+      hoodie.images.length === 2 && hv.length === 2 && hv[0].sku === 'HD-L-GR' && hv[0].c === 400 && hv[0].stock === 6 && hv[1].stock === null && hv[1].image_url === 'https://x.test/h2.jpg' &&
+      (await admin(db, `select count(*)::int n from shop_collection_products cp join shop_collections c on c.id = cp.collection_id where cp.product_id = $1 and c.name in ('شتوي', 'تيشيرتات')`, [hoodie.id]))[0].n === 2,
+      { real, hoodie, hv });
+    const cap = (await admin(db, `select id, sku, barcode, stock, price::float p from shop_products where shop_id = $1 and slug = 'cap'`, [cShop]))[0];
+    check('tcat: Shopify\'s "Default Title" row is a product without variants', cap?.sku === 'CAP-1' && cap.stock === 12 &&
+      (await admin(db, `select count(*)::int n from shop_product_variants where product_id = $1`, [cap.id]))[0].n === 0, cap);
+    const again = (await imp(cM, CSV, false)).rows?.[0]?.r;
+    const hv2 = await admin(db, `select id from shop_product_variants where product_id = $1 order by position`, [hoodie.id]);
+    check('tcat: importing the same file again is idempotent (updates, same variant ids, no duplicate collections)',
+      again?.created === 0 && again.updated === 2 && (await admin(db, `select count(*)::int n from shop_products where shop_id = $1`, [cShop]))[0].n === before + 2 &&
+      hv2.length === 2 && (await admin(db, `select count(*)::int n from shop_collections where shop_id = $1 and name = 'شتوي'`, [cShop]))[0].n === 1, again);
+    const bySku = (await imp(cM, [{ _row: 2, sku: 'CAP-1', price: '85' }], false)).rows?.[0]?.r;
+    check('tcat: a row with only a SKU updates the product that has it', bySku?.updated === 1 &&
+      (await admin(db, `select price::float p from shop_products where id = $1`, [cap.id]))[0].p === 85, bySku);
+    check('tcat: import limits: > 500 rows per batch refused; another merchant refused',
+      denied(await imp(cM, Array.from({ length: 501 }, (_, i) => ({ title: 'x' + i, price: '1' })), true)) && denied(await imp(cM2, CSV, true)));
+
+    // ---- one-time data migration (old options → variants, categories → collections)
+    const legacyP = idOf(await as(db, cM, `insert into shop_products (shop_id, name, price, old_price, stock, category, options)
+      values ($1, 'بنطلون قديم', 300, 350, 7, 'بناطيل', '[{"name":"المقاس","values":["30","32","34"]}]'::jsonb) returning id`, [cShop]));
+    const legacyUnl = idOf(await as(db, cM, `insert into shop_products (shop_id, name, price, category, options)
+      values ($1, 'شراب', 20, 'بناطيل', '[{"name":"اللون","values":["أسود","أبيض"]}]'::jsonb) returning id`, [cShop]));
+    check('tcat: before the data migration, legacy products have no variants',
+      (await admin(db, `select count(*)::int n from shop_product_variants where product_id = any($1)`, [[legacyP, legacyUnl]]))[0].n === 0);
+    await db.exec(fs.readFileSync(MIG98, 'utf8'));
+    check('tcat: a plain re-run never repeats the data migration (marked)',
+      (await admin(db, `select count(*)::int n from shop_product_variants where product_id = $1`, [legacyP]))[0].n === 0);
+    await admin(db, `delete from private.migration_marks where name = '0098_catalog'`);
+    await db.exec(fs.readFileSync(MIG98, 'utf8'));
+    const lv = await admin(db, `select option_values, stock, price::float p, compare_at_price::float c from shop_product_variants where product_id = $1 order by position`, [legacyP]);
+    check('tcat: data migration: old option lists → variants; stock split evenly so the total is unchanged',
+      lv.length === 3 && lv.map((v) => v.stock).join(',') === '3,2,2' && lv.every((v) => v.p === 300 && v.c === 350) &&
+      (await admin(db, `select stock, price::float p from shop_products where id = $1`, [legacyP]))[0].stock === 7, lv);
+    check('tcat: data migration: unlimited stock stays unlimited on every variant',
+      (await admin(db, `select count(*)::int n, count(stock)::int s from shop_product_variants where product_id = $1`, [legacyUnl]))[0].s === 0);
+    const bColl = (await admin(db, `select c.id, (select array_agg(product_id) from shop_collection_products where collection_id = c.id) ids from shop_collections c where c.shop_id = $1 and c.name = 'بناطيل'`, [cShop]))[0];
+    check('tcat: data migration: free-text categories → a manual collection with its products',
+      bColl && bColl.ids.length === 2 && bColl.ids.includes(legacyP) && bColl.ids.includes(legacyUnl), bColl);
+    const migOrder = idOf(await place([{ product_id: legacyP, quantity: 1, options: 'المقاس: 32' }], '01000098110'));
+    check('tcat: an old client\'s order on a migrated product takes that variant\'s stock',
+      !!migOrder && (await admin(db, `select stock from shop_product_variants where product_id = $1 and option_values = '["32"]'`, [legacyP]))[0].stock === 1);
+
+    // ---- currencies: 3-decimal prices for KWD-like stores only; CSV in the store's currency
+    await admin(db, `update shops set currency = 'KWD' where id = $1`, [cShop2]);
+    const kw = await save(cM2, cShop2, { name: 'عطر', status: 'active', options: [{ name: 'الحجم', values: ['50ml'] }] }, [{ option_values: ['50ml'], price: 12.375 }]);
+    check('tcat: a KWD store keeps 3-decimal variant prices (rollup too)',
+      ok(kw) && (await admin(db, `select price::text p from shop_products where id = $1`, [idOf(kw)]))[0].p === '12.375', kw);
+    check('tcat: a 2-decimal currency refuses a third decimal',
+      denied(await save(cM, cShop, { name: 'كسر', price: 10.555, status: 'active' })) &&
+      denied(await save(cM, cShop, { ...tee, name: 'كسر2' }, [{ ...MATRIX[0], sku: null, price: 10.555 }])));
+    const kwOrder = idOf(await as(db, null, `select public.place_store_order($1, $2::jsonb, 'سارة', '+96550012345', 'شارع الخليج، الكويت، بيت 4') as code`,
+      [cShop2, JSON.stringify([{ product_id: idOf(kw), quantity: 2 }])]));
+    check('tcat: a KWD order total keeps 3 decimals',
+      !kwOrder || (await admin(db, `select total_amount::text t from shop_orders where order_code = $1`, [kwOrder]))[0].t.startsWith('24.75'), kwOrder);
+    const badCur = (await imp(cM, [{ _row: 2, handle: 'cur', title: 'عملة', price: '5', currency: 'USD' }], true)).rows?.[0]?.r;
+    check('tcat: CSV rows in another currency are refused (Currency column = the store\'s)',
+      badCur?.failed === 1 && /العملة/.test(badCur.errors[0].message) &&
+      (await imp(cM, [{ _row: 2, handle: 'cur', title: 'عملة', price: '5', currency: 'egp' }], true)).rows?.[0]?.r?.created === 1, badCur);
+
+    // ---- merchant_catalog / merchant_product
+    const mc =(await as(db, cM, `select public.merchant_catalog($1) as c`, [cShop])).rows?.[0]?.c;
+    check('tcat: merchant_catalog has every product (archived too), variants, collections; owner only',
+      mc?.products?.some((p) => p.id === dupId) && mc.products.find((p) => p.id === teeId)?.variants?.length === 4 && mc.collections.length >= 4 &&
+      denied(await as(db, cM2, `select public.merchant_catalog($1)`, [cShop])));
+    const mp = (await as(db, cM, `select public.merchant_product($1) as p`, [teeId])).rows?.[0]?.p;
+    check('tcat: merchant_product returns variants + collection ids; another merchant gets nothing',
+      mp?.variants?.length === 4 && mp.collection_ids.includes(colA) && (await as(db, cM2, `select public.merchant_product($1) as p`, [teeId])).rows?.[0]?.p === null, mp?.collection_ids);
   }
 
   console.log(`\n${passed} passed, ${failures.length} failed`);

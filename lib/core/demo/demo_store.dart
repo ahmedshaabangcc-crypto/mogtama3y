@@ -8,6 +8,7 @@ import 'demo_mode.dart';
 import 'demo_platform.dart';
 
 part 'demo_tajer.dart';
+part 'demo_tajer_catalog.dart';
 
 /// An error the fake backend returns as a PostgREST error (the screens
 /// show `PostgrestException.message`, like with the real server).
@@ -948,6 +949,12 @@ class DemoStore {
       throw DemoError('تعذر الحذف — المنتج ده عليه طلبات، اخفيه بدل الحذف', 409);
     }
     t(table).removeWhere(rows.contains);
+    if (table == 'shop_products') {
+      // on delete cascade (0098): its variants and collection places.
+      final ids = rows.map((r) => r['id']).toSet();
+      t('shop_product_variants').removeWhere((v) => ids.contains(v['product_id']));
+      t('shop_collection_products').removeWhere((m) => ids.contains(m['product_id']));
+    }
     save();
     return rows;
   }
@@ -967,6 +974,17 @@ class DemoStore {
         row['options'] ??= <Object>[];
         row['highlights'] ??= <String>[];
         row['images'] ??= <String>[];
+        // 0098's insert trigger: a handle, first in the manual order.
+        row['tags'] ??= <String>[];
+        final mine = t('shop_products').where((p) => p['shop_id'] == row['shop_id'] && p['position'] is num);
+        row['position'] ??= mine.isEmpty ? 0 : mine.map((p) => p['position'] as num).reduce((a, b) => a < b ? a : b) - 1;
+        final base = DemoTajerCatalog.catalogSlug('${row['slug'] ?? row['name'] ?? ''}');
+        var slug = base;
+        var n = 1;
+        while (t('shop_products').any((p) => p['shop_id'] == row['shop_id'] && p['slug'] == slug)) {
+          slug = '$base-${++n}';
+        }
+        row['slug'] = slug;
       case 'visitor_passes':
         row['qr_code'] = _code('PASS');
         row['status'] = 'active';

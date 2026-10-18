@@ -168,7 +168,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       IconButton(onPressed: () => cart.setQuantity(l, l.quantity - 1), icon: const Icon(Icons.remove_circle_outline_rounded)),
                       Text('${l.quantity}', style: const TextStyle(fontWeight: FontWeight.w800)),
                       IconButton(
-                        onPressed: l.stock != null && cart.quantityOf(l.product['id'] as String) >= l.stock! ? null : () => cart.setQuantity(l, l.quantity + 1),
+                        onPressed: !cart.canIncrease(l) ? null : () => cart.setQuantity(l, l.quantity + 1),
                         icon: const Icon(Icons.add_circle_rounded, color: AppColors.crystal),
                       ),
                     ]),

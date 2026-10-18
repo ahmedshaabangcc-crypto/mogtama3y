@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_service.dart';
 import '../../../core/demo/demo_mode.dart';
+import '../collections_page.dart';
+import '../csv_import_page.dart';
 import '../home_page.dart';
 import '../orders_page.dart';
 import '../product_editor_page.dart';
@@ -18,7 +20,8 @@ import 'admin_shell.dart';
 /// [TajerAdminShell]:
 ///
 ///   /dashboard, /orders, /orders/:id, /products, /products/new,
-///   /products/:id, /customers, /discounts, /settings
+///   /products/:id, /products/import, /collections, /collections/new,
+///   /collections/:id, /customers, /discounts, /settings
 ///
 /// `/orders` and `/orders/:id` share one page key, so opening an order
 /// keeps the list (master–detail) instead of building a new page.
@@ -30,6 +33,13 @@ RouteBase tajerAdminRoutes() => ShellRoute(
         GoRoute(path: '/orders/:id', pageBuilder: (_, s) => _page('orders', OrdersPage(selectedId: s.pathParameters['id']))),
         GoRoute(path: '/products', pageBuilder: (_, _) => _page('products', const ProductsPage())),
         GoRoute(path: '/products/new', pageBuilder: (_, _) => _page('product-new', const ProductEditorPage())),
+        GoRoute(path: '/products/import', pageBuilder: (_, _) => _page('products-import', const CsvImportPage())),
+        GoRoute(path: '/collections', pageBuilder: (_, _) => _page('collections', const CollectionsPage())),
+        GoRoute(path: '/collections/new', pageBuilder: (_, _) => _page('collection-new', const CollectionEditorPage())),
+        GoRoute(
+          path: '/collections/:id',
+          pageBuilder: (_, s) => _page('collection-${s.pathParameters['id']}', CollectionEditorPage(collectionId: s.pathParameters['id'])),
+        ),
         GoRoute(
           path: '/products/:id',
           pageBuilder: (_, s) => _page(

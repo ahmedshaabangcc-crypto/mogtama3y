@@ -15,6 +15,20 @@ external JSBoolean? _printHtml(JSString html, JSString title);
 @JS('mogtama3yChime')
 external JSBoolean? _chime();
 
+@JS('mogtama3yPickTextFile')
+external JSPromise<JSString> _pickTextFile(JSString accept);
+
+/// Lets the user pick a text file (a CSV): its text, '' when cancelled,
+/// null when the browser can't (old cached index.html, too big, unreadable).
+Future<String?> pickTextFile({String accept = '.csv,text/csv'}) async {
+  try {
+    final v = (await _pickTextFile(accept.toJS).toDart).toDart;
+    return v.startsWith('ERR:') ? null : v;
+  } catch (_) {
+    return null;
+  }
+}
+
 /// Saves a `data:image/png;base64,…` URL as [filename].
 bool downloadImage(String dataUrl, String filename) {
   try {

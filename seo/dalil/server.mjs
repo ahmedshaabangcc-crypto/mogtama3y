@@ -451,7 +451,14 @@ async function storeData(slugName) {
   const shops = await rest(`shops?slug=eq.${encodeURIComponent(slugName.toLowerCase())}&select=${SHOP_COLS}`);
   const shop = shops[0];
   if (!shop) return null;
-  const products = await rest(`shop_products?shop_id=eq.${shop.id}&is_available=eq.true&price=gt.0&select=${PRODUCT_COLS}&order=created_at.desc&limit=500`);
+  // 0098: the merchant's order + SEO title / description; a database
+  // without them falls back to the old columns.
+  let products;
+  try {
+    products = await rest(`shop_products?shop_id=eq.${shop.id}&is_available=eq.true&price=gt.0&select=${PRODUCT_COLS},seo_title,seo_description&order=position.asc.nullslast,created_at.desc&limit=500`);
+  } catch {
+    products = await rest(`shop_products?shop_id=eq.${shop.id}&is_available=eq.true&price=gt.0&select=${PRODUCT_COLS}&order=created_at.desc&limit=500`);
+  }
   return { shop, products };
 }
 
@@ -542,8 +549,9 @@ async function productPage(slugName, productId) {
   return page({
     country: country.iso,
     image: imgs[0],
-    title: `${p.name} بسعر ${money(p.price, curOf(p))} — ${shop.name}${city ? ' ' + city : ''} | مُجتمعي`,
-    description: `${p.name} بـ ${money(p.price, curOf(p))} من ${shop.name}${city ? ' في ' + city : ''}. ${p.description ? p.description.slice(0, 120) + ' ' : ''}اطلب أونلاين والدفع عند الاستلام.`,
+    // 0098: the merchant's own SEO title / description when set.
+    title: p.seo_title ? `${p.seo_title} — ${shop.name} | مُجتمعي` : `${p.name} بسعر ${money(p.price, curOf(p))} — ${shop.name}${city ? ' ' + city : ''} | مُجتمعي`,
+    description: p.seo_description || `${p.name} بـ ${money(p.price, curOf(p))} من ${shop.name}${city ? ' في ' + city : ''}. ${p.description ? p.description.slice(0, 120) + ' ' : ''}اطلب أونلاين والدفع عند الاستلام.`,
     canonical,
     jsonLd,
     body: `<p class="muted"><a href="${SITE}/">الدليل</a> › <a href="${SITE}/s/${esc(shop.slug)}">${esc(shop.name)}</a></p>

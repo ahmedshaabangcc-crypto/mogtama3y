@@ -30,6 +30,7 @@ const adminDestinations = [
   AdminDestination('/dashboard', 'الرئيسية', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded),
   AdminDestination('/orders', 'الطلبات', Icons.receipt_long_outlined, Icons.receipt_long_rounded),
   AdminDestination('/products', 'المنتجات', Icons.inventory_2_outlined, Icons.inventory_2_rounded),
+  AdminDestination('/collections', 'الأقسام', Icons.category_outlined, Icons.category_rounded),
   AdminDestination('/customers', 'العملاء', Icons.people_outline_rounded, Icons.people_rounded, soon: true),
   AdminDestination('/discounts', 'الخصومات', Icons.local_offer_outlined, Icons.local_offer_rounded, soon: true),
   AdminDestination('/settings', 'متجري', Icons.storefront_outlined, Icons.storefront_rounded),
@@ -40,7 +41,8 @@ const _mobilePaths = ['/dashboard', '/products', '/orders', '/settings'];
 
 /// The admin paths of the tajer router (for redirects / deep links).
 bool isTajerAdminPath(String path) =>
-    RegExp(r'^/(dashboard|orders(/[0-9a-f-]{36})?|products(/new|/[0-9a-f-]{36})?|customers|discounts|settings)$').hasMatch(path) || integrationsPath.hasMatch(path);
+    RegExp(r'^/(dashboard|orders(/[0-9a-f-]{36})?|products(/new|/import|/[0-9a-f-]{36})?|collections(/new|/[0-9a-f-]{36})?|customers|discounts|settings)$').hasMatch(path) ||
+    integrationsPath.hasMatch(path);
 
 /// The merchant admin around every page (APP_FLAVOR=tajer): bottom bar on
 /// phones, a NavigationRail on tablets, a Shopify-like sidebar (shop
@@ -169,7 +171,8 @@ class _TajerAdminShellState extends State<TajerAdminShell> {
 
   Widget _mobileLayout(BuildContext context) {
     final current = adminDestinations[_selected].path;
-    final idx = _mobilePaths.indexOf(current);
+    // «الأقسام» lives under the products tab on phones.
+    final idx = _mobilePaths.indexOf(current == '/collections' ? '/products' : current);
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: _appBar(),

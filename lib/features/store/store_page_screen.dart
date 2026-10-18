@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/shops/catalog.dart';
 import '../../core/shops/shop_pixels.dart';
 import '../../core/shops/store_service.dart';
 import '../../core/theme/app_colors.dart';
@@ -35,6 +36,11 @@ class _StorePageScreenState extends State<StorePageScreen> {
   List<Map<String, dynamic>> _products = [];
   String? _category;
 
+  /// The merchant's visible collections (0098); empty → the old
+  /// free-text categories make the chips.
+  List<Map<String, dynamic>> _collections = [];
+  String? _collectionId;
+
   /// The merchant's pixel IDs (0097); non-empty → the «أدوات قياس» note.
   Map<String, dynamic> _tracking = const {};
 
@@ -63,11 +69,23 @@ class _StorePageScreenState extends State<StorePageScreen> {
     });
     try {
       final shop = await StoreService.fetchStoreBySlug(widget.slug);
-      final products = shop == null ? <Map<String, dynamic>>[] : await StoreService.fetchProducts(shop['id'] as String);
+      var products = <Map<String, dynamic>>[];
+      var collections = <Map<String, dynamic>>[];
+      if (shop != null) {
+        try {
+          final catalog = await StoreService.storeCatalog(shop['id'] as String);
+          products = catalog.products;
+          collections = catalog.collections;
+        } catch (_) {
+          // A backend without 0098: the plain product list.
+          products = await StoreService.fetchProducts(shop['id'] as String);
+        }
+      }
       if (!mounted) return;
       setState(() {
         _shop = shop;
         _products = products;
+        _collections = collections;
         _loading = false;
       });
       if (shop != null) _startPixels(shop['id'] as String);
@@ -99,11 +117,18 @@ class _StorePageScreenState extends State<StorePageScreen> {
 
   List<Map<String, dynamic>> get _visible {
     final q = _search.text.trim().toLowerCase();
-    return _products.where((p) {
+    final inCollection = _collectionId == null
+        ? null
+        : [for (final id in (_collections.firstWhere((c) => c['id'] == _collectionId, orElse: () => const {})['product_ids'] as List? ?? const [])) '$id'];
+    final list = _products.where((p) {
+      if (inCollection != null && !inCollection.contains(p['id'])) return false;
       if (_category != null && p['category'] != _category) return false;
       if (q.isEmpty) return true;
-      return '${p['name']} ${p['description'] ?? ''}'.toLowerCase().contains(q);
+      return '${p['name']} ${p['description'] ?? ''} ${(p['tags'] as List? ?? const []).join(' ')}'.toLowerCase().contains(q);
     }).toList();
+    // A collection keeps its own order.
+    if (inCollection != null) list.sort((a, b) => inCollection.indexOf(a['id'] as String).compareTo(inCollection.indexOf(b['id'] as String)));
+    return list;
   }
 
   Future<void> _startPixels(String shopId) async {
@@ -149,7 +174,7 @@ class _StorePageScreenState extends State<StorePageScreen> {
     }
 
     final visible = _visible;
-    final cats = _categories;
+    final cats = _collections.isEmpty ? _categories : const <String>[];
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: CustomScrollView(
@@ -187,6 +212,32 @@ class _StorePageScreenState extends State<StorePageScreen> {
               ),
             ),
           ),
+          if (_collections.isNotEmpty)
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 48,
+                child: ListView(
+                  key: const ValueKey('collection-chips'),
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsetsDirectional.only(end: 8),
+                      child: ChoiceChip(label: const Text('الكل'), selected: _collectionId == null, onSelected: (_) => setState(() => _collectionId = null)),
+                    ),
+                    for (final c in _collections)
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(end: 8),
+                        child: ChoiceChip(
+                          label: Text(c['name'] as String? ?? ''),
+                          selected: _collectionId == c['id'],
+                          onSelected: (_) => setState(() => _collectionId = c['id'] as String),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
           if (cats.isNotEmpty)
             SliverToBoxAdapter(
               child: SizedBox(
@@ -237,8 +288,15 @@ class _StorePageScreenState extends State<StorePageScreen> {
                     onOpen: () => _openProduct(visible[i]),
                     onQuickAdd: () {
                       final p = visible[i];
-                      if (StoreService.optionsOf(p).isNotEmpty) return _openProduct(p);
-                      _cart.add(p);
+                      final variants = variantsOf(p);
+                      if (variants.length > 1 || (variants.isEmpty && StoreService.optionsOf(p).isNotEmpty)) return _openProduct(p);
+                      final shown = variants.isEmpty ? p : productWithVariant(p, variants.first);
+                      final stock = (shown['stock'] as num?)?.toInt();
+                      if (stock != null && (variants.isEmpty ? _cart.quantityOf(p['id'] as String) : _cart.quantityOfVariant(variants.first['id'] as String)) >= stock) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('المتاح من المنتج ده $stock بس')));
+                        return;
+                      }
+                      _cart.add(shown, options: variants.isEmpty ? '' : variantLabelOf(p, variants.first));
                       ScaffoldMessenger.of(context).hideCurrentSnackBar();
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('اتضاف «${p['name']}» للسلة'), duration: const Duration(seconds: 1)));
                     },
@@ -375,8 +433,10 @@ class _ProductCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final images = StoreService.imagesOf(product);
     final discount = discountLabel(product);
-    final soldOut = isSoldOut(product);
+    final soldOut = variantsOf(product).isNotEmpty ? allSoldOut(product) : isSoldOut(product);
     final old = product['old_price'] as num?;
+    final range = priceRange(product);
+    final from = range.min != range.max;
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(18),
@@ -406,7 +466,8 @@ class _ProductCard extends StatelessWidget {
             child: Row(children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(shopMoney((product['price'] as num?) ?? 0, currencyOf(product)), style: const TextStyle(color: AppColors.crystal, fontWeight: FontWeight.w800, fontSize: 14)),
+                  Text(from ? 'من ${shopMoney(range.min, currencyOf(product))}' : shopMoney((product['price'] as num?) ?? 0, currencyOf(product)),
+                      style: const TextStyle(color: AppColors.crystal, fontWeight: FontWeight.w800, fontSize: 14)),
                   if (old != null && discount != null)
                     Text(shopMoney(old, currencyOf(product)), style: const TextStyle(color: AppColors.inkMuted, fontSize: 11, decoration: TextDecoration.lineThrough)),
                 ]),

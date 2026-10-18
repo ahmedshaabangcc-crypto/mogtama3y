@@ -8,3 +8,6 @@ bool downloadText(String text, String filename, {String mime = 'text/plain;chars
 bool printHtml(String html, String title) => false;
 
 bool playChime() => false;
+
+/// No file picker off the web (the import page offers paste instead).
+Future<String?> pickTextFile({String accept = '.csv,text/csv'}) async => null;

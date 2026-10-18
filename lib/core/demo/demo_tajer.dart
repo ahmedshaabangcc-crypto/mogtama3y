@@ -243,7 +243,7 @@ class DemoTajer {
           ...fields,
         };
 
-    return {
+    final tables = {
       'profiles': profiles,
       'shops': shops,
       'shop_products': products,
@@ -290,6 +290,9 @@ class DemoTajer {
         },
       ],
     };
+    // 0098: variants, handles, collections.
+    DemoTajerCatalog.seed(tables, shopId, productId);
+    return tables;
   }
 }
 
@@ -393,6 +396,8 @@ extension _TajerBackend on DemoStore {
               'product_id': i['product_id'],
               'product_name': i['product_name'] ?? p?['name'],
               'variant_label': i['variant_label'] ?? i['chosen_options'],
+              'variant_id': i['variant_id'],
+              'sku': i['sku'],
               'quantity': i['quantity'],
               'unit_price': i['unit_price'],
               'image_url': i['image_url'],
@@ -554,38 +559,59 @@ extension _TajerBackend on DemoStore {
         if (lines.length > 50) throw DemoError('الطلب فيه منتجات كتير، قسّمه على أكتر من طلب');
         // (The real server also rate-limits by phone — left out so the
         // same sample customer can be recorded again and again.)
-        final pending = <(DemoRow, int, String?)>[];
+        // 0098: a line may name a variant; old clients' options text
+        // matches one by its label (or the only variant).
+        final pending = <(DemoRow, int, String?, DemoRow?)>[];
         for (final raw in lines) {
           final line = Map<String, dynamic>.from(raw as Map);
-          final qty = (line['quantity'] as num?)?.toInt() ?? 0;
+          final qty = ((line['quantity'] ?? line['qty']) as num?)?.toInt() ?? 0;
           if (qty < 1 || qty > 99) throw DemoError('الكمية غير صحيحة');
           final product = _firstWhere('shop_products', (x) => x['id'] == line['product_id'] && x['shop_id'] == shop['id'] && x['is_available'] == true);
           if (product == null) throw DemoError('فيه منتج في السلة مبقاش متاح، حدّث الصفحة');
-          final already = pending.where((e) => e.$1 == product).fold<int>(0, (a, e) => a + e.$2);
-          final stock = product['stock'] as num?;
-          if (stock != null && stock < already + qty) throw DemoError('الكمية المتاحة من «${product['name']}» هي ${stock.toInt()} بس');
           final opts = (line['options'] as String? ?? '').trim();
-          pending.add((product, qty, opts.isEmpty ? null : opts));
+          final variants = _variantsOf(product['id'] as String).where((v) => v['is_available'] != false).toList();
+          DemoRow? variant;
+          if (line['variant_id'] != null) {
+            variant = variants.where((v) => v['id'] == line['variant_id']).firstOrNull ?? (throw DemoError('فيه نوع في السلة مبقاش متاح، حدّث الصفحة'));
+          } else if (_variantsOf(product['id'] as String).isNotEmpty) {
+            variant = variants.where((v) => _label(product, v['option_values'] as List) == opts).firstOrNull ?? (variants.length == 1 ? variants.single : null);
+            if (variant == null) throw DemoError('اختار النوع (المقاس/اللون…) لـ «${product['name']}» من صفحة المنتج');
+          }
+          final holder = variant ?? product;
+          final already = pending.where((e) => (e.$4 ?? e.$1) == holder).fold<int>(0, (a, e) => a + e.$2);
+          final stock = holder['stock'] as num?;
+          final label = variant == null ? null : _label(product, variant['option_values'] as List);
+          if (stock != null && stock < already + qty) {
+            throw DemoError('الكمية المتاحة من «${product['name']}${label == null ? '' : ' — $label'}» هي ${stock.toInt()} بس');
+          }
+          pending.add((product, qty, label ?? (opts.isEmpty ? null : opts), variant));
         }
         final orderId = newId();
         final code = _orderCode();
         num subtotal = 0;
         var count = 0;
-        for (final (product, qty, opts) in pending) {
-          if (product['stock'] != null) product['stock'] = (product['stock'] as num).toInt() - qty;
+        for (final (product, qty, opts, variant) in pending) {
+          final holder = variant ?? product;
+          final before = (holder['stock'] as num?)?.toInt();
+          if (before != null) holder['stock'] = before - qty;
+          if (variant != null) _rollup(product['id'] as String);
+          if (before != null) _lowStockAlert(shop, product, variant, before, before - qty);
+          final price = holder['price'] as num;
           t('shop_order_items').add({
             'id': newId(),
             'order_id': orderId,
             'product_id': product['id'],
+            'variant_id': variant?['id'],
             'quantity': qty,
-            'unit_price': product['price'],
+            'unit_price': price,
             'chosen_options': opts,
             'product_name': product['name'],
             'variant_label': opts,
-            'image_url': (product['images'] as List?)?.firstOrNull ?? product['image_url'],
+            'sku': holder['sku'],
+            'image_url': variant?['image_url'] ?? (product['images'] as List?)?.firstOrNull ?? product['image_url'],
             'created_at': DemoStore.nowIso(),
           });
-          subtotal += (product['price'] as num) * qty;
+          subtotal += price * qty;
           count += qty;
         }
         final freeOver = shop['free_delivery_over'] as num?;
@@ -657,6 +683,15 @@ extension _TajerBackend on DemoStore {
           throw DemoError('غير مصرح لك');
         }
         o['status'] = status;
+        if (status == 'cancelled') {
+          // 0068 / 0098: the stock comes back (per variant).
+          for (final i in t('shop_order_items').where((i) => i['order_id'] == o['id'])) {
+            final v = i['variant_id'] == null ? null : _firstWhere('shop_product_variants', (x) => x['id'] == i['variant_id']);
+            final holder = v ?? (i['variant_id'] == null ? _firstWhere('shop_products', (x) => x['id'] == i['product_id']) : null);
+            if (holder != null && holder['stock'] != null) holder['stock'] = (holder['stock'] as num).toInt() + (i['quantity'] as num).toInt();
+            if (v != null) _rollup(v['product_id'] as String);
+          }
+        }
         _orderEvent(o['id'] as String, shop['id'] as String, status == 'cancelled' ? 'cancel' : 'status',
             from: from as String?, to: status, body: status == 'cancelled' ? o['cancel_reason'] as String? : null, role: shop['owner_id'] == _uid ? 'merchant' : 'customer');
         return null;
@@ -771,6 +806,8 @@ extension _TajerBackend on DemoStore {
           'owner_phone': a['show_phone'] == true ? (owner?['phone']) : null,
         };
     }
+    final catalog = _catalogRpc(fn, p);
+    if (!identical(catalog, _notCatalog)) return catalog;
     throw DemoError('الخاصية دي مش متاحة في النسخة التجريبية', 404);
   }
 }

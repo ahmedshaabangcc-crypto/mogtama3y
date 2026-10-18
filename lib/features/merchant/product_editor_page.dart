@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/demo/demo_mode.dart';
 import '../../core/demo/demo_store.dart';
 import '../../core/geo/money.dart';
+import '../../core/shops/catalog.dart';
 import '../../core/shops/store_service.dart';
 import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
@@ -13,9 +14,11 @@ import '../../core/utils/numbers.dart';
 import '../shared/load_error_view.dart';
 import 'admin/admin_common.dart';
 import 'admin/merchant_session.dart';
+import 'variants_editor.dart';
 
 /// `/products/new` and `/products/:id`: the product editor as a page
-/// (photos, AI copy, price, options; status نشط / مسودة / مؤرشف).
+/// (photos, AI copy, price, options → variants, SKU / barcode, collections,
+/// tags, video, SEO; status نشط / مسودة / مؤرشف).
 class ProductEditorPage extends StatefulWidget {
   const ProductEditorPage({super.key, this.productId, this.initial});
 
@@ -38,16 +41,24 @@ class _ProductEditorPageState extends State<ProductEditorPage> {
   void initState() {
     super.initState();
     _product = widget.initial;
-    if (widget.productId != null && (_product == null || _product!['id'] != widget.productId)) _load();
+    // The list row may lack collection ids / predate 0098: fetch the full product.
+    if (widget.productId != null &&
+        (_product == null || _product!['id'] != widget.productId || _product!['variants'] == null || _product!['collection_ids'] == null)) {
+      _product = null;
+      _loading = true;
+      _load();
+    }
   }
 
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _missing = false;
-    });
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _missing = false;
+      });
+    }
     try {
-      final p = await StoreService.fetchProduct(widget.productId!);
+      final p = await StoreService.merchantProduct(widget.productId!);
       if (!mounted) return;
       setState(() {
         _product = p;
@@ -117,17 +128,23 @@ class _ProductEditorFormState extends State<ProductEditorForm> {
   late final _highlights = TextEditingController(
       text: List<String>.from(widget.product?['highlights'] as List? ?? const []).join('\n'));
   late final List<String> _images = widget.product == null ? [] : StoreService.imagesOf(widget.product!);
-  late final _category = TextEditingController(text: widget.product?['category'] as String? ?? '');
-  late final _stock = TextEditingController(text: (widget.product?['stock'] as int?)?.toString() ?? '');
-  late final _sizes = TextEditingController(text: _optionValues('المقاس'));
-  late final _colors = TextEditingController(text: _optionValues('اللون'));
+  late final _stock = TextEditingController(text: (widget.product?['stock'] as num?)?.toString() ?? '');
+  late final _sku = TextEditingController(text: widget.product?['sku'] as String? ?? '');
+  late final _barcode = TextEditingController(text: widget.product?['barcode'] as String? ?? '');
+  late final _video = TextEditingController(text: widget.product?['video_url'] as String? ?? '');
+  late final _slug = TextEditingController(text: widget.product?['slug'] as String? ?? '');
+  late final _seoTitle = TextEditingController(text: widget.product?['seo_title'] as String? ?? '');
+  late final _seoDesc = TextEditingController(text: widget.product?['seo_description'] as String? ?? '');
+  late final _tagInput = TextEditingController();
+  late final List<String> _tags = List<String>.from(widget.product?['tags'] as List? ?? const []);
+  late final VariantsModel _variants = VariantsModel(
+    options: widget.product == null ? const [] : productOptions(widget.product!),
+    variants: widget.product == null ? const [] : variantsOf(widget.product!),
+  );
 
-  String _optionValues(String name) {
-    if (widget.product == null) return '';
-    return StoreService.optionsOf(widget.product!).where((o) => o.name == name).map((o) => o.values.join('، ')).firstOrNull ?? '';
-  }
-
-  List<String> _split(String s) => s.split(RegExp(r'[,،\n]')).map((v) => v.trim()).where((v) => v.isNotEmpty).take(20).toList();
+  /// The shop's manual collections (0098) and the ones this product is in.
+  List<Map<String, dynamic>> _collections = const [];
+  late final Set<String> _inCollections = {for (final id in (widget.product?['collection_ids'] as List? ?? const [])) '$id'};
   late String _status = widget.product == null ? 'active' : productStatusOf(widget.product!);
   bool _uploading = false;
   bool _thinking = false;
@@ -135,16 +152,67 @@ class _ProductEditorFormState extends State<ProductEditorForm> {
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    void defaults() {
+      _variants
+        ..defaultPrice = _price.text.trim()
+        ..defaultCompareAt = _oldPrice.text.trim()
+        ..defaultStock = _stock.text.trim();
+    }
+    defaults();
+    _price.addListener(defaults);
+    _oldPrice.addListener(defaults);
+    _stock.addListener(defaults);
+    _hadOptions = _variants.hasOptions;
+    _variants.addListener(_onVariants);
+    _loadCollections();
+  }
+
+  bool _hadOptions = false;
+  void _onVariants() {
+    // Options appear / disappear → the product's own price fields hide / show.
+    if (_variants.hasOptions != _hadOptions) setState(() => _hadOptions = _variants.hasOptions);
+  }
+
+  Future<void> _loadCollections() async {
+    try {
+      final list = await StoreService.fetchCollections(widget.shopId);
+      if (mounted) setState(() => _collections = list.where((c) => c['rules'] == null).toList());
+    } catch (_) {
+      // Collections are optional here.
+    }
+  }
+
+  Future<void> _newCollection() async {
+    final name = await askAdminText(context, title: 'قسم جديد', hint: 'مثلاً: تيشيرتات', okLabel: 'ضيف');
+    if (name == null || name.isEmpty) return;
+    try {
+      final id = await StoreService.saveCollection(widget.shopId, {'name': name});
+      await _loadCollections();
+      if (mounted) setState(() => _inCollections.add(id));
+    } catch (e) {
+      if (mounted) setState(() => _error = adminErrorText(e, 'تعذر إضافة القسم'));
+    }
+  }
+
+  @override
   void dispose() {
+    _variants.removeListener(_onVariants);
+    _variants.dispose();
     _name.dispose();
     _price.dispose();
     _oldPrice.dispose();
     _desc.dispose();
     _highlights.dispose();
-    _category.dispose();
     _stock.dispose();
-    _sizes.dispose();
-    _colors.dispose();
+    _sku.dispose();
+    _barcode.dispose();
+    _video.dispose();
+    _slug.dispose();
+    _seoTitle.dispose();
+    _seoDesc.dispose();
+    _tagInput.dispose();
     super.dispose();
   }
 
@@ -204,38 +272,61 @@ class _ProductEditorFormState extends State<ProductEditorForm> {
     }
   }
 
-  Future<void> _save() async {
+  /// The first problem with the form (Arabic), or null.
+  String? _problem() {
+    if (_name.text.trim().isEmpty) return 'اكتب اسم المنتج';
+    final v = _video.text.trim();
+    if (v.isNotEmpty && youtubeId(v) == null) return 'لينك الفيديو لازم يكون من يوتيوب';
+    if (_variants.options.isNotEmpty) return _variants.validate(currency: StoreService.merchantCurrency);
     final price = looseDouble(_price.text.trim());
     final oldPrice = _oldPrice.text.trim().isEmpty ? null : looseDouble(_oldPrice.text.trim());
-    if (_name.text.trim().isEmpty || price == null || price < 0) {
-      setState(() => _error = 'اكتب اسم المنتج وسعر صحيح');
-      return;
-    }
-    if (oldPrice != null && oldPrice <= price) {
-      setState(() => _error = 'السعر قبل الخصم لازم يكون أكبر من السعر الحالي');
+    if (price == null || price < 0) return 'اكتب اسم المنتج وسعر صحيح';
+    if (!priceFitsCurrency(price, StoreService.merchantCurrency)) return 'السعر فيه أرقام بعد العلامة أكتر من اللازم';
+    if (oldPrice != null && oldPrice <= price) return 'السعر قبل الخصم لازم يكون أكبر من السعر الحالي';
+    if (_stock.text.trim().isNotEmpty && looseInt(_stock.text.trim()) == null) return 'الكمية لازم تكون رقم';
+    return null;
+  }
+
+  Future<void> _save() async {
+    final problem = _problem();
+    if (problem != null) {
+      setState(() => _error = problem);
       return;
     }
     setState(() {
       _saving = true;
       _error = null;
     });
+    String? blank(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
+    _variants.keepImages(_images);
+    final hasOptions = _variants.hasOptions;
+    final chosen = [for (final c in _collections) if (_inCollections.contains(c['id'])) c];
     try {
-      await StoreService.saveProduct(
-        productId: widget.product?['id'] as String?,
+      await StoreService.saveCatalogProduct(
         shopId: widget.shopId,
-        name: _name.text.trim(),
-        price: price,
-        oldPrice: oldPrice,
-        description: _desc.text.trim().isEmpty ? null : _desc.text.trim(),
-        images: _images,
-        highlights: _highlights.text.split('\n').map((s) => s.trim()).where((s) => s.isNotEmpty).take(6).toList(),
-        category: _category.text.trim().isEmpty ? null : _category.text.trim(),
-        stock: looseInt(_stock.text.trim()),
-        options: [
-          if (_split(_sizes.text).isNotEmpty) {'name': 'المقاس', 'values': _split(_sizes.text)},
-          if (_split(_colors.text).isNotEmpty) {'name': 'اللون', 'values': _split(_colors.text)},
-        ],
-        status: _status,
+        product: {
+          'id': widget.product?['id'],
+          'name': _name.text.trim(),
+          'description': blank(_desc),
+          'images': _images,
+          'highlights': _highlights.text.split('\n').map((s) => s.trim()).where((s) => s.isNotEmpty).take(6).toList(),
+          // Old builds / store-lite / dalil still read the free-text category.
+          'category': chosen.isNotEmpty ? chosen.first['name'] : (_collections.isEmpty ? (widget.product?['category']) : null),
+          'options': [for (final o in _variants.cleanOptions) {'name': o.name, 'values': o.values}],
+          'status': _status,
+          'price': hasOptions ? null : looseDouble(_price.text.trim()),
+          'old_price': hasOptions || _oldPrice.text.trim().isEmpty ? null : looseDouble(_oldPrice.text.trim()),
+          'stock': hasOptions || _stock.text.trim().isEmpty ? null : looseInt(_stock.text.trim()),
+          'sku': hasOptions ? null : blank(_sku),
+          'barcode': hasOptions ? null : blank(_barcode),
+          'tags': _tags,
+          'slug': blank(_slug),
+          'seo_title': blank(_seoTitle),
+          'seo_description': blank(_seoDesc),
+          'video_url': blank(_video),
+        },
+        variants: hasOptions ? _variants.toJson() : const [],
+        collectionIds: _collections.isEmpty && _inCollections.isEmpty ? null : _inCollections.toList(),
       );
       if (mounted) widget.onSaved();
     } catch (e) {
@@ -386,18 +477,123 @@ class _ProductEditorFormState extends State<ProductEditorForm> {
         ]),
       );
 
+  void _addTags(String text) {
+    setState(() {
+      for (final raw in text.split(RegExp(r'[,،\n]'))) {
+        final t = raw.trim();
+        if (t.isEmpty || _tags.contains(t) || _tags.length >= 20) continue;
+        _tags.add(t.length > 40 ? t.substring(0, 40) : t);
+      }
+      _tagInput.clear();
+    });
+  }
+
   Widget _organizeBox() => AdminCard(
-        title: 'التنظيم والمخزون',
+        title: 'التنظيم',
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          TextField(controller: _category, decoration: const InputDecoration(labelText: 'القسم', hintText: 'مثلاً: تيشيرتات')),
-          const SizedBox(height: 10),
+          const Text('الأقسام', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+          const SizedBox(height: 6),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final c in _collections)
+              FilterChip(
+                label: Text(c['name'] as String? ?? ''),
+                labelStyle: chipLabelStyle(_inCollections.contains(c['id'])),
+                checkmarkColor: Colors.white,
+                selected: _inCollections.contains(c['id']),
+                onSelected: (on) => setState(() => on ? _inCollections.add(c['id'] as String) : _inCollections.remove(c['id'])),
+              ),
+            ActionChip(avatar: const Icon(Icons.add_rounded, size: 16), label: const Text('قسم جديد'), onPressed: _newCollection),
+          ]),
+          const SizedBox(height: 12),
+          const Text('الوسوم (Tags)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+          const SizedBox(height: 6),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final t in _tags) InputChip(label: Text(t), onDeleted: () => setState(() => _tags.remove(t))),
+          ]),
           TextField(
+            key: const ValueKey('tag-input'),
+            controller: _tagInput,
+            decoration: const InputDecoration(hintText: 'ضيف وسم ودوس Enter (قطن، صيفي…)', isDense: true),
+            onSubmitted: _addTags,
+          ),
+        ]),
+      );
+
+  /// Stock and codes of a product without options.
+  Widget _inventoryBox() => AdminCard(
+        title: 'المخزون والكود',
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          TextField(
+            key: const ValueKey('product-stock'),
             controller: _stock,
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(labelText: 'الكمية المتاحة', hintText: 'فاضية = مفتوحة'),
           ),
+          const SizedBox(height: 10),
+          TextField(controller: _sku, decoration: const InputDecoration(labelText: 'SKU (كود المنتج)', hintText: 'اختياري')),
+          const SizedBox(height: 10),
+          TextField(controller: _barcode, decoration: const InputDecoration(labelText: 'الباركود', hintText: 'EAN / UPC — اختياري')),
         ]),
       );
+
+  Widget _variantsBox() => AdminCard(
+        title: 'الأنواع (مقاسات، ألوان…)',
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (!_variants.hasOptions)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 4),
+              child: Text('لو المنتج ليه مقاسات أو ألوان، ضيفها هنا — وكل نوع يبقى ليه سعره وكميته وصورته.',
+                  style: TextStyle(color: AppColors.inkMuted, fontSize: 11.5, height: 1.5)),
+            ),
+          VariantsEditor(model: _variants, images: _images, currencyLabel: currencyLabel(StoreService.merchantCurrency)),
+        ]),
+      );
+
+  Widget _seoBox() {
+    final slug = _slug.text.trim().isEmpty ? catalogSlugify(_name.text) : catalogSlugify(_slug.text);
+    return AdminCard(
+      title: 'الفيديو ومحركات البحث',
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        TextField(
+          controller: _video,
+          keyboardType: TextInputType.url,
+          decoration: const InputDecoration(labelText: 'فيديو يوتيوب (اختياري)', hintText: 'https://youtu.be/…', prefixIcon: Icon(Icons.smart_display_outlined)),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _slug,
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(labelText: 'رابط المنتج (handle)', hintText: slug, helperText: 'بيتعمل لوحده من الاسم لو سبته فاضي'),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _seoTitle,
+          maxLength: 70,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(labelText: 'عنوان جوجل (SEO)', hintText: 'فاضي = اسم المنتج'),
+        ),
+        TextField(
+          controller: _seoDesc,
+          maxLength: 320,
+          maxLines: 3,
+          minLines: 2,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(labelText: 'وصف جوجل (SEO)', hintText: 'فاضي = أول الوصف', alignLabelWithHint: true),
+        ),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(12)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(_seoTitle.text.trim().isEmpty ? (_name.text.trim().isEmpty ? 'اسم المنتج' : _name.text.trim()) : _seoTitle.text.trim(),
+                maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF1A0DAB), fontSize: 15)),
+            Text('dalil.mogtama3y.com › … › $slug', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.success, fontSize: 11.5)),
+            Text(_seoDesc.text.trim().isEmpty ? (_desc.text.trim().isEmpty ? '—' : _desc.text.trim()) : _seoDesc.text.trim(),
+                maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12)),
+          ]),
+        ),
+      ]),
+    );
+  }
 
   Widget _saveButton() => SizedBox(
         height: 50,
@@ -418,11 +614,18 @@ class _ProductEditorFormState extends State<ProductEditorForm> {
         const SizedBox(height: 12),
         _aiBox(),
         const SizedBox(height: 12),
-        TextField(controller: _name, decoration: const InputDecoration(labelText: 'اسم المنتج *')),
+        TextField(key: const ValueKey('product-name'), controller: _name, decoration: const InputDecoration(labelText: 'اسم المنتج *')),
         const SizedBox(height: 10),
+        if (_variants.hasOptions)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 4),
+            child: Text('السعر والكمية بيتحددوا لكل نوع تحت في «الأنواع».', style: TextStyle(color: AppColors.inkMuted, fontSize: 12)),
+          )
+        else
         Row(children: [
           Expanded(
             child: TextField(
+              key: const ValueKey('product-price'),
               controller: _price,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(labelText: 'السعر (${currencyLabel(StoreService.merchantCurrency)}) *'),
@@ -445,10 +648,6 @@ class _ProductEditorFormState extends State<ProductEditorForm> {
           maxLength: 2000,
           decoration: const InputDecoration(labelText: 'وصف المنتج', hintText: 'اكتب ملاحظاتك هنا، أو دوس «اكتبلي»', alignLabelWithHint: true),
         ),
-        TextField(controller: _sizes, decoration: const InputDecoration(labelText: 'المقاسات (اختياري)', hintText: 'S، M، L، XL')),
-        const SizedBox(height: 10),
-        TextField(controller: _colors, decoration: const InputDecoration(labelText: 'الألوان (اختياري)', hintText: 'أسود، أبيض، كحلي')),
-        const SizedBox(height: 10),
         TextField(
           controller: _highlights,
           maxLines: 4,
@@ -462,9 +661,17 @@ class _ProductEditorFormState extends State<ProductEditorForm> {
       child: Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
     );
     return LayoutBuilder(builder: (context, c) {
+      final left = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        main,
+        const SizedBox(height: 12),
+        _variantsBox(),
+        if (!_variants.hasOptions) ...[const SizedBox(height: 12), _inventoryBox()],
+        const SizedBox(height: 12),
+        _seoBox(),
+      ]);
       if (c.maxWidth >= 860) {
         return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(child: main),
+          Expanded(child: left),
           const SizedBox(width: 16),
           SizedBox(
             width: 300,
@@ -480,7 +687,7 @@ class _ProductEditorFormState extends State<ProductEditorForm> {
         ]);
       }
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        main,
+        left,
         const SizedBox(height: 12),
         _statusBox(),
         const SizedBox(height: 12),
