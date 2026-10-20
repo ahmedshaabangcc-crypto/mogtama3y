@@ -57,12 +57,14 @@ class ShopPixels {
   static void addToCart(Map<String, dynamic> product, int quantity) =>
       _event('AddToCart', pixelPayload([PixelItem.fromProduct(product, quantity)], currency: product['currency'] as String?));
 
-  static void initiateCheckout(List<PixelItem> items, {required double value, String? currency}) =>
-      _event('InitiateCheckout', pixelPayload(items, currency: currency, value: value));
+  /// [value]: what the customer pays (after discounts, with shipping).
+  static void initiateCheckout(List<PixelItem> items, {required double value, String? currency, double? shipping, double? discount, String? coupon}) =>
+      _event('InitiateCheckout', pixelPayload(items, currency: currency, value: value, shipping: shipping, discount: discount, coupon: coupon));
 
   /// [orderCode] is the event id the vendors dedupe on.
-  static void purchase(String orderCode, List<PixelItem> items, {required double value, String? currency}) =>
-      _event('Purchase', pixelPayload(items, currency: currency, value: value, orderId: orderCode));
+  static void purchase(String orderCode, List<PixelItem> items,
+          {required double value, String? currency, double? shipping, double? discount, String? coupon}) =>
+      _event('Purchase', pixelPayload(items, currency: currency, value: value, orderId: orderCode, shipping: shipping, discount: discount, coupon: coupon));
 
   /// Left the store for the rest of the app.
   static void close() {
@@ -99,15 +101,22 @@ class PixelItem {
 }
 
 /// The event payload shop-pixels.js maps to every vendor:
-/// {currency, value, contents:[{id,name,price,quantity,variant_id?}], order_id?}.
+/// {currency, value, contents:[{id,name,price,quantity,variant_id?}], order_id?,
+/// shipping?, discount?, coupon?} (0099: the checkout's shipping, amount
+/// off and the discount code).
 /// No customer data (name / phone / address) ever goes in here.
-Map<String, dynamic> pixelPayload(List<PixelItem> items, {String? currency, double? value, String? orderId}) {
+Map<String, dynamic> pixelPayload(List<PixelItem> items,
+    {String? currency, double? value, String? orderId, double? shipping, double? discount, String? coupon}) {
   final cur = currency != null && RegExp(r'^[A-Z]{3}$').hasMatch(currency) ? currency : 'EGP';
   final total = value ?? items.fold<double>(0, (s, i) => s + i.price * i.quantity);
+  double r(double v) => (v * 1000).round() / 1000;
   return {
     'currency': cur,
-    'value': (total * 1000).round() / 1000,
+    'value': r(total),
     'contents': [for (final i in items) i.toJson()],
     'order_id': ?orderId,
+    if (shipping != null) 'shipping': r(shipping),
+    if (discount != null && discount > 0) 'discount': r(discount),
+    if (coupon != null && coupon.isNotEmpty) 'coupon': coupon,
   };
 }

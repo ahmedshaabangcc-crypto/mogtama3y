@@ -2,12 +2,14 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
+import '../geo/money.dart' show storeCurrencies;
 import '../geo/phones.dart';
 import '../utils/numbers.dart';
 import 'demo_mode.dart';
 import 'demo_platform.dart';
 
 part 'demo_tajer.dart';
+part 'demo_tajer_checkout.dart';
 part 'demo_tajer_catalog.dart';
 
 /// An error the fake backend returns as a PostgREST error (the screens
@@ -44,7 +46,7 @@ class DemoStore {
   static DemoStore get instance => _instance!;
 
   static const _storageKey = 'mogtama3y-demo-store-v1';
-  static const _tajerStorageKey = 'mogtama3y-demo-tajer-v2'; // v2: 0096 snapshots, events, product status
+  static const _tajerStorageKey = 'mogtama3y-demo-tajer-v3'; // v2: 0096 snapshots, events, product status; v3: 0099 zones, discounts, carts
   // Each `?elections=` mode keeps its own saved data in the tab.
   static String _keyFor(String elections) => elections == 'open' ? _storageKey : '$_storageKey-$elections';
 

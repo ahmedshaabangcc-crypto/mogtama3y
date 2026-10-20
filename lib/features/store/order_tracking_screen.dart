@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/shops/checkout_service.dart';
 import '../../core/shops/store_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
@@ -49,6 +51,15 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     }
   }
 
+  /// «إلغاء الطلب» (0099): while the order is «placed», with the last 4
+  /// digits of the order's phone.
+  Future<void> _cancel() async {
+    final done = await showDialog<Map<String, dynamic>>(context: context, builder: (_) => _GuestCancelDialog(code: widget.code));
+    if (done == null || !mounted) return;
+    setState(() => _order = done);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اتلغى طلبك، والمحل وصله إشعار')));
+  }
+
   @override
   Widget build(BuildContext context) {
     final o = _order;
@@ -66,7 +77,11 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                         Text('طلب ${o['code']} من ${o['shop_name']}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
                         const SizedBox(height: 16),
                         if (o['status'] == 'cancelled')
-                          const ListTile(leading: Icon(Icons.cancel_rounded, color: Colors.redAccent), title: Text('الطلب ده اتلغى'))
+                          ListTile(
+                            leading: const Icon(Icons.cancel_rounded, color: Colors.redAccent),
+                            title: const Text('الطلب ده اتلغى'),
+                            subtitle: (o['cancel_reason'] as String?)?.isNotEmpty ?? false ? Text(o['cancel_reason'] as String) : null,
+                          )
                         else
                           for (var i = 0; i < _steps.length; i++)
                             _Step(
@@ -84,11 +99,26 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                             subtitle: (it['options'] as String?)?.isNotEmpty ?? false ? Text(it['options'] as String) : null,
                             trailing: Text(moneyOf(o, ((it['price'] as num?) ?? 0) * ((it['quantity'] as num?) ?? 1))),
                           ),
-                        if (((o['delivery_fee'] as num?) ?? 0) > 0)
+                        if (((o['discount_amount'] as num?) ?? 0) > 0)
                           ListTile(
                             dense: true,
                             contentPadding: EdgeInsets.zero,
-                            title: const Text('التوصيل'),
+                            title: Text('الخصم${o['discount_code'] != null ? ' (${o['discount_code']})' : ''}'),
+                            trailing: Text('−${moneyOf(o, o['discount_amount'] as num)}', style: const TextStyle(color: AppColors.success)),
+                          ),
+                        if (o['fulfillment'] == 'pickup')
+                          ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.storefront_rounded),
+                            title: const Text('استلام من المحل'),
+                            subtitle: o['pickup_address'] != null ? Text(o['pickup_address'] as String) : null,
+                          )
+                        else if (((o['delivery_fee'] as num?) ?? 0) > 0)
+                          ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text('التوصيل${o['shipping_zone'] != null ? ' (${o['shipping_zone']})' : ''}'),
                             trailing: Text(moneyOf(o, o['delivery_fee'] as num)),
                           ),
                         const Divider(),
@@ -105,6 +135,17 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                             icon: const Icon(Icons.chat_rounded),
                             label: const Text('كلّم المحل على واتساب'),
                           ),
+                        ],
+                        if (o['can_cancel'] == true) ...[
+                          const SizedBox(height: 8),
+                          TextButton.icon(
+                            key: const ValueKey('guest-cancel'),
+                            onPressed: _cancel,
+                            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+                            icon: const Icon(Icons.cancel_outlined),
+                            label: const Text('إلغاء الطلب'),
+                          ),
+                          const Text('تقدر تلغي طلبك لحد ما المحل يبدأ يجهّزه.', textAlign: TextAlign.center, style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted)),
                         ],
                       ]),
                     ),
@@ -134,6 +175,74 @@ class _Step extends StatelessWidget {
           child: Text(label, style: TextStyle(fontWeight: done ? FontWeight.w800 : FontWeight.w400, color: done ? AppColors.ink : AppColors.inkMuted)),
         ),
       ]),
+    );
+  }
+}
+
+class _GuestCancelDialog extends StatefulWidget {
+  const _GuestCancelDialog({required this.code});
+  final String code;
+
+  @override
+  State<_GuestCancelDialog> createState() => _GuestCancelDialogState();
+}
+
+class _GuestCancelDialogState extends State<_GuestCancelDialog> {
+  final _last4 = TextEditingController();
+  final _reason = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _last4.dispose();
+    _reason.dispose();
+    super.dispose();
+  }
+
+  Future<void> _go() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final o = await CheckoutService.guestCancel(code: widget.code, last4: _last4.text.trim(), reason: _reason.text.trim());
+      if (mounted) Navigator.of(context).pop(o);
+    } on CheckoutProblem catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (e) {
+      if (mounted) setState(() => _error = e is PostgrestException ? e.message : 'تعذر إلغاء الطلب، حاول تاني');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('إلغاء الطلب'),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const Text('للتأكد إنك صاحب الطلب، اكتب آخر 4 أرقام من الموبايل اللي طلبت بيه.', style: TextStyle(fontSize: 13, color: AppColors.inkSecondary)),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _last4,
+          keyboardType: TextInputType.number,
+          maxLength: 4,
+          textDirection: TextDirection.ltr,
+          decoration: const InputDecoration(labelText: 'آخر 4 أرقام', counterText: ''),
+        ),
+        const SizedBox(height: 8),
+        TextField(controller: _reason, decoration: const InputDecoration(labelText: 'السبب (اختياري)', hintText: 'غيّرت رأيي، طلبت غلط…')),
+        if (_error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_error!, style: const TextStyle(color: Colors.redAccent))),
+      ]),
+      actions: [
+        TextButton(onPressed: _busy ? null : () => Navigator.of(context).pop(), child: const Text('رجوع')),
+        FilledButton(
+          onPressed: _busy ? null : _go,
+          style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+          child: const Text('إلغاء الطلب'),
+        ),
+      ],
     );
   }
 }

@@ -13,6 +13,7 @@ import '../product_editor_page.dart';
 import '../products_page.dart';
 import '../settings_page.dart';
 import '../integrations/integrations_routes.dart';
+import '../checkout/checkout_routes.dart';
 import 'admin_common.dart';
 import 'admin_shell.dart';
 
@@ -21,13 +22,15 @@ import 'admin_shell.dart';
 ///
 ///   /dashboard, /orders, /orders/:id, /products, /products/new,
 ///   /products/:id, /products/import, /collections, /collections/new,
-///   /collections/:id, /customers, /discounts, /settings
+///   /collections/:id, /customers, /discounts(/new|/:id), /orders/abandoned,
+///   /settings, /settings/shipping (+ «الربط والتكاملات»)
 ///
 /// `/orders` and `/orders/:id` share one page key, so opening an order
 /// keeps the list (master–detail) instead of building a new page.
 RouteBase tajerAdminRoutes() => ShellRoute(
       builder: (_, state, child) => TajerAdminShell(location: state.uri.path, child: child),
       routes: [
+        ...checkoutRoutes(), // first: /orders/abandoned before /orders/:id
         GoRoute(path: '/dashboard', pageBuilder: (_, _) => _page('home', const HomePage())),
         GoRoute(path: '/orders', pageBuilder: (_, _) => _page('orders', const OrdersPage())),
         GoRoute(path: '/orders/:id', pageBuilder: (_, s) => _page('orders', OrdersPage(selectedId: s.pathParameters['id']))),
@@ -52,13 +55,6 @@ RouteBase tajerAdminRoutes() => ShellRoute(
           pageBuilder: (_, _) => _page(
             'customers',
             const ComingSoonPage(title: 'العملاء', icon: Icons.people_rounded, text: 'هنا هتلاقي زباينك: مين طلب كام مرة، وصرف قد إيه، وتتواصل معاهم بسهولة.'),
-          ),
-        ),
-        GoRoute(
-          path: '/discounts',
-          pageBuilder: (_, _) => _page(
-            'discounts',
-            const ComingSoonPage(title: 'الخصومات', icon: Icons.local_offer_rounded, text: 'كوبونات خصم وعروض لفترة محدودة تشجّع زباينك يطلبوا تاني.'),
           ),
         ),
         GoRoute(path: '/settings', pageBuilder: (_, _) => _page('settings', const SettingsPage())),

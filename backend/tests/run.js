@@ -2420,6 +2420,7 @@ const denied = (r) => !!r.error;
     await db.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
     // …and 0098 (store orders with variants, restock per variant).
     await db.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'migrations', '0098_tajer_catalog.sql'), 'utf8'));
+    await db.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'migrations', '0099_tajer_checkout.sql'), 'utf8')); // …and 0099 re-prices them (zones, discounts)
 
     const mascM = (await admin(db, `insert into mosques (name, lat, lng, verified) values ('مسجد النور', 30.4, 31.6, true) returning id`))[0].id;
     const mascN1 = await signUp(db, 'masc realname one', null);
@@ -2591,6 +2592,7 @@ const denied = (r) => !!r.error;
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
     // …and 0098 (store orders with variants, restock per variant).
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0098_tajer_catalog.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0099_tajer_checkout.sql'), 'utf8')); // …and 0099 re-prices them (zones, discounts)
 
     const M = (await admin(db, `insert into mosques (name, lat, lng, verified) values ('مسجد الرحمن', 30.05, 31.25, true) returning id`))[0].id;
     const U = (await admin(db, `insert into mosques (name, lat, lng) values ('مسجد مش موثق', 30.06, 31.26) returning id`))[0].id;
@@ -2883,6 +2885,7 @@ const denied = (r) => !!r.error;
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
     // …and 0098 (store orders with variants, restock per variant).
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0098_tajer_catalog.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0099_tajer_checkout.sql'), 'utf8')); // …and 0099 re-prices them (zones, discounts)
     const has = (r, text) => !!r.error && r.error.includes(text);
 
     // ---- places: country / zone / currency
@@ -3203,6 +3206,7 @@ const denied = (r) => !!r.error;
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
     // …and 0098 (store orders with variants, restock per variant).
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0098_tajer_catalog.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0099_tajer_checkout.sql'), 'utf8')); // …and 0099 re-prices them (zones, discounts)
     const norm = async (p, c) => (await admin(db, `select private.norm_phone($1, $2) as n`, [p, c ?? null]))[0].n;
     const store = async (p, c) => (await admin(db, `select private.phone_store($1, $2) as n`, [p, c ?? null]))[0].n;
 
@@ -3377,6 +3381,7 @@ const denied = (r) => !!r.error;
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
     // …and 0098 (store orders with variants, restock per variant).
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0098_tajer_catalog.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0099_tajer_checkout.sql'), 'utf8')); // …and 0099 re-prices them (zones, discounts)
     const notes = async (u) => (await admin(db, `select title, body from notifications where user_id = $1 order by created_at`, [u])).map((n) => n.title + ' | ' + n.body);
     const lastNote = async (u) => (await notes(u)).pop() ?? '';
 
@@ -3865,6 +3870,7 @@ const denied = (r) => !!r.error;
       await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
       // …and 0098 (store orders with variants, restock per variant).
       await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0098_tajer_catalog.sql'), 'utf8'));
+      await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0099_tajer_checkout.sql'), 'utf8')); // …and 0099 re-prices them (zones, discounts)
     } catch (e) {
       rerun = e.message;
     }
@@ -3910,6 +3916,7 @@ const denied = (r) => !!r.error;
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0096_tajer_pro_admin.sql'), 'utf8'));
     // …and 0098 (store orders with variants, restock per variant).
     await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0098_tajer_catalog.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0099_tajer_checkout.sql'), 'utf8')); // …and 0099 re-prices them (zones, discounts)
     const back = (await admin(db, `select product_name, image_url from shop_order_items where order_id = (select id from shop_orders where order_code = $1)`, [legacyOrder]))[0];
     check('tpro: lines without a snapshot are backfilled from the product', back?.product_name === 'شنطة' && back.image_url?.includes('.jpg'), back);
 
@@ -4306,14 +4313,437 @@ const denied = (r) => !!r.error;
   }
 
   // ------------------------------------------------------------------
+  console.log('\nPhase tchk — متجري checkout: shipping zones, discounts, carts, confirm, guest cancel (0099)');
+  {
+    const fs = require('fs');
+    const path = require('path');
+    let rerun = null;
+    try {
+      await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0099_tajer_checkout.sql'), 'utf8'));
+    } catch (e) {
+      rerun = e.message;
+    }
+    check('tchk: 0099 is safe to re-run', rerun === null, rerun);
+    const one = (r) => r.rows?.[0] && Object.values(r.rows[0])[0];
+    const cM = await signUp(db, 'tchk merchant', '01000099001');
+    const cM2 = await signUp(db, 'tchk other merchant', '01000099002');
+    const cBuyer = await signUp(db, 'tchk buyer', '01000099003');
+    const cShop = one(await as(db, cM, `select public.create_my_shop('محل الشيك أوت', 'ملابس', 'tchk-shop', '01000099001') as id`));
+    const cShop2 = one(await as(db, cM2, `select public.create_my_shop('محل تاني', 'ملابس', 'tchk-other', '01000099002') as id`));
+    const prod = async (name, price, stock = null) => one(await as(db, cM,
+      `insert into shop_products (shop_id, name, price, stock, images) values ($1, $2, $3, $4, array['https://x.test/p.jpg']) returning id`, [cShop, name, price, stock]));
+    const pA = await prod('قميص', 100);
+    const pB = await prod('شنطة', 50);
+    const pC = await prod('جاكيت', 200, 50);
+    let ph = 100;
+    const phone = () => '01000099' + String(ph++).padStart(3, '0');
+    const quote = async (lines, o = {}) => {
+      const r = await as(db, o.as ?? null, `select public.quote_store_checkout($1, $2::jsonb, $3, $4, $5, $6) as q`,
+        [o.shop ?? cShop, JSON.stringify(lines), o.area ?? null, o.ful ?? 'delivery', o.code ?? null, o.phone ?? null]);
+      return r.error ? { error: r.error } : r.rows[0].q;
+    };
+    const place = (lines, o = {}) => as(db, o.as ?? null,
+      `select public.place_store_order($1, $2::jsonb, $3, $4, $5, $6, $7, $8, $9, $10, $11) as code`,
+      [o.shop ?? cShop, JSON.stringify(lines), o.name ?? 'زبون تجريبي', o.phone ?? phone(), o.address ?? 'شارع 9، المعادي، عمارة 4 شقة 2', o.note ?? null,
+        o.area ?? null, o.ful ?? 'delivery', o.code ?? null, o.cart ?? null, o.expected ?? null]);
+    const orderOf = async (code) => (await admin(db, `select * from shop_orders where order_code = $1`, [code]))[0];
+    const ship = (p, u = cM) => as(db, u, `select public.set_shop_shipping($1, $2::jsonb) as s`, [cShop, JSON.stringify(p)]);
+    const errMsg = (r) => r.error || '';
+    const L = (pid, q = 1, extra = {}) => ({ product_id: pid, quantity: q, ...extra });
+
+    // ---- the old flat fee is the default rate
+    await as(db, cM, `select public.set_my_shop_delivery($1, 20, 400)`, [cShop]);
+    const q0 = await quote([L(pA)]);
+    check('tchk: no zones → the flat fee (set_my_shop_delivery) is the default rate', Number(q0.shipping_fee) === 20 && q0.shipping_zone === null && Number(q0.total) === 120 && q0.can_order, q0);
+    const legacy = await as(db, null, `select public.place_store_order($1, $2::jsonb, 'عميل قديم', $3, 'شارع 9، المعادي، عمارة 4') as code`, [cShop, JSON.stringify([L(pA, 4)]), phone()]);
+    const legacyO = legacy.error ? null : await orderOf(one(legacy));
+    check('tchk: an old client (5 arguments) still orders; free over 400 applies',
+      legacyO && Number(legacyO.delivery_fee) === 0 && Number(legacyO.total_amount) === 400 && Number(legacyO.subtotal) === 400 && legacyO.fulfillment === 'delivery', legacy.error || legacyO);
+    check('tchk: every existing shop got a settings row (migration of the flat fee)',
+      (await admin(db, `select count(*)::int n from shops s where s.owner_id is not null and s.created_at < now() - interval '0 sec'
+        and not exists (select 1 from shop_shipping_settings ss where ss.shop_id = s.id) and s.id <> all($1::uuid[])`, [[cShop, cShop2]]))[0].n === 0);
+
+    // ---- zones
+    const zones = {
+      default_mode: 'none', default_fee: 20, default_free_over: 400,
+      zones: [
+        { name: 'القاهرة الكبرى', areas: ['القاهرة', 'الجيزة'], fee: 30, free_over: 500, eta: 'خلال يوم' },
+        { name: 'الإسكندرية', areas: ['الإسكندرية'], fee: 50 },
+      ],
+    };
+    check('tchk: another merchant / a guest cannot change the shipping', denied(await ship(zones, cM2)) && denied(await ship(zones, null)));
+    check('tchk: an area in two zones is refused',
+      errMsg(await ship({ ...zones, zones: [...zones.zones, { name: 'تاني', areas: ['الجيزه'], fee: 10 }] })).includes('أكتر من منطقة'));
+    check('tchk: a negative fee / a zone without areas is refused',
+      denied(await ship({ ...zones, zones: [{ name: 'x', areas: ['القاهرة'], fee: -1 }] })) && denied(await ship({ ...zones, zones: [{ name: 'x', areas: [], fee: 1 }] })));
+    const saved = await ship(zones);
+    check('tchk: the owner saves zones', ok(saved) && one(saved).zones.length === 2 && one(saved).default_mode === 'none', saved.error);
+    check('tchk: other merchants read no zones / settings (RLS)',
+      ((await as(db, cM2, `select * from shop_shipping_zones where shop_id = $1`, [cShop])).rows || []).length === 0 &&
+      ((await as(db, cM2, `select * from shop_shipping_settings where shop_id = $1`, [cShop])).rows || []).length === 0 &&
+      denied(await as(db, null, `select * from shop_shipping_zones`)));
+    const qCai = await quote([L(pA)], { area: 'القاهرة' });
+    check('tchk: a zone prices its areas (fee, zone name, ETA)', Number(qCai.shipping_fee) === 30 && qCai.shipping_zone === 'القاهرة الكبرى' && qCai.shipping_eta === 'خلال يوم' && Number(qCai.total) === 130, qCai);
+    const qGiza = await quote([L(pA, 5)], { area: ' الجيزه ' });
+    check('tchk: area matching ignores spaces and ة/ه; the zone\'s free-over applies', Number(qGiza.shipping_fee) === 0 && qGiza.shipping_zone === 'القاهرة الكبرى' && Number(qGiza.shipping_base) === 0, qGiza);
+    const qAlex = await quote([L(pA, 5)], { area: 'الإسكندرية' });
+    check('tchk: a zone without free-over keeps its fee', Number(qAlex.shipping_fee) === 50 && Number(qAlex.total) === 550, qAlex);
+    const qAswan = await quote([L(pA)], { area: 'أسوان' });
+    check('tchk: an unserved area is a blocking error («مش بنوصّل هناك»)', qAswan.can_order === false && qAswan.errors?.[0]?.code === 'not_served', qAswan);
+    check('tchk: …and the order is refused', errMsg(await place([L(pA)], { area: 'أسوان' })).includes('مش بيوصّل'));
+    check('tchk: no area with «مش بنوصّل» outside zones → area required', (await quote([L(pA)])).errors?.[0]?.code === 'area_required' && denied(await place([L(pA)])));
+    await ship({ ...zones, default_mode: 'rate', default_eta: '2-3 أيام' });
+    const qRest = await quote([L(pA)], { area: 'أسوان' });
+    check('tchk: «باقي المناطق» gets the default rate', Number(qRest.shipping_fee) === 20 && qRest.shipping_zone === 'باقي المناطق' && qRest.shipping_eta === '2-3 أيام', qRest);
+    check('tchk: the default rate is written back to shops.delivery_fee (old builds)',
+      Number((await admin(db, `select delivery_fee from shops where id = $1`, [cShop]))[0].delivery_fee) === 20);
+    const zoneOrder = one(await place([L(pA)], { area: 'القاهرة' }));
+    const zo = zoneOrder && await orderOf(zoneOrder);
+    check('tchk: the order snapshots shipping zone / area / fee and subtotal',
+      zo && zo.shipping_zone === 'القاهرة الكبرى' && zo.shipping_area === 'القاهرة' && Number(zo.delivery_fee) === 30 && Number(zo.subtotal) === 100 && Number(zo.total_amount) === 130, zo);
+
+    // ---- pickup
+    check('tchk: pickup is refused while it is off', (await quote([L(pA)], { ful: 'pickup' })).errors?.[0]?.code === 'pickup_unavailable' && denied(await place([L(pA)], { ful: 'pickup' })));
+    check('tchk: pickup needs an address', errMsg(await ship({ ...zones, pickup_enabled: true })).includes('عنوان الاستلام'));
+    await ship({ ...zones, default_mode: 'rate', pickup_enabled: true, pickup_address: 'المحل: 5 شارع 9 المعادي', pickup_instructions: 'من 10 لـ 10' });
+    const qPick = await quote([L(pA)], { ful: 'pickup' });
+    check('tchk: pickup costs no shipping', Number(qPick.shipping_fee) === 0 && qPick.shipping_zone === 'استلام من المحل' && Number(qPick.total) === 100, qPick);
+    const pickCode = one(await place([L(pA)], { ful: 'pickup', address: '' }));
+    const po = pickCode && await orderOf(pickCode);
+    check('tchk: a pickup order needs no address and records the fulfillment', po && po.fulfillment === 'pickup' && Number(po.delivery_fee) === 0 && po.delivery_address === 'استلام من المحل', po);
+    const trackPick = one(await as(db, null, `select public.get_store_order($1) as o`, [pickCode]));
+    check('tchk: tracking shows the pickup address', trackPick?.pickup_address === 'المحل: 5 شارع 9 المعادي' && trackPick.fulfillment === 'pickup', trackPick);
+    check('tchk: a bad fulfillment is refused', denied(await place([L(pA)], { ful: 'drone' })));
+
+    // ---- open / closed / minimum
+    const base = { ...zones, default_mode: 'rate', pickup_enabled: true, pickup_address: 'المحل: 5 شارع 9 المعادي' };
+    await ship({ ...base, accepting_orders: false });
+    check('tchk: «بنستقبل طلبات» off → refused', (await quote([L(pA)])).errors?.[0]?.code === 'paused' && errMsg(await place([L(pA)])).includes('موقّف'));
+    await ship({ ...base, vacation: true, vacation_message: 'إجازة العيد — راجعين السبت' });
+    check('tchk: vacation → refused with the merchant\'s message', errMsg(await place([L(pA)])).includes('إجازة العيد'));
+    const closedDays = Array.from({ length: 7 }, () => ({ open: false }));
+    await ship({ ...base, hours: closedDays, after_hours: 'refuse' });
+    check('tchk: outside the hours with «ارفض» → refused', (await quote([L(pA)])).errors?.[0]?.code === 'closed_hours' && denied(await place([L(pA)])));
+    await ship({ ...base, hours: closedDays, after_hours: 'accept' });
+    const qAfter = await quote([L(pA)]);
+    check('tchk: outside the hours with «اقبل» → accepted with a notice', qAfter.can_order && qAfter.open?.code === 'after_hours' && qAfter.open.message.includes('أول ما يفتح'), qAfter);
+    await ship({ ...base, hours: Array.from({ length: 7 }, () => ({ open: true, from: '00:00', to: '00:00' })), after_hours: 'refuse' });
+    check('tchk: open all day → ok', (await quote([L(pA)])).open?.code === 'ok');
+    check('tchk: bad hours are refused', denied(await ship({ ...base, hours: [{ open: true, from: '9', to: '25:00' }] })) &&
+      denied(await ship({ ...base, hours: Array.from({ length: 7 }, () => ({ open: true, from: '09:00', to: '9pm' })) })));
+    await ship({ ...base, min_order: 150 });
+    const qMin = await quote([L(pA)]);
+    check('tchk: under the minimum order → blocking error with what is missing', qMin.errors?.[0]?.code === 'min_order' && qMin.errors[0].message.includes('50'), qMin);
+    check('tchk: …refused; at the minimum it is accepted', denied(await place([L(pA)])) && ok(await place([L(pA), L(pB)])));
+    await ship(base);
+
+    // ---- discounts: saving
+    const disc = (p, u = cM) => as(db, u, `select public.save_shop_discount($1, $2::jsonb) as d`, [cShop, JSON.stringify(p)]);
+    const d10 = await disc({ method: 'code', code: ' save10 ', type: 'percent', value: 10 });
+    check('tchk: a code is saved upper-case', ok(d10) && one(d10).code === 'SAVE10' && one(d10).state === 'active', d10.error);
+    check('tchk: the same code twice is refused (case-insensitive)', errMsg(await disc({ method: 'code', code: 'Save10', type: 'fixed', value: 5 })).includes('موجود'));
+    check('tchk: another merchant cannot add discounts to the shop', denied(await disc({ method: 'code', code: 'HACK', type: 'percent', value: 90 }, cM2)));
+    check('tchk: bad discounts are refused (percent > 100, code too short, auto without a title, end before start)',
+      denied(await disc({ method: 'code', code: 'BIG', type: 'percent', value: 150 })) && denied(await disc({ method: 'code', code: 'AB', type: 'percent', value: 5 })) &&
+      denied(await disc({ method: 'auto', type: 'percent', value: 5 })) &&
+      denied(await disc({ method: 'code', code: 'DATES', type: 'percent', value: 5, starts_at: '2030-01-02', ends_at: '2030-01-01' })));
+    const q10 = await quote([L(pA, 2)], { code: 'save10', area: 'القاهرة' });
+    check('tchk: a percent code (typed lower-case) takes 10% of the subtotal', q10.code_status === 'applied' && Number(q10.discount_amount) === 20 && q10.discount_code === 'SAVE10' &&
+      Number(q10.total) === 210, q10);
+    await disc({ method: 'code', code: 'MINUS30', type: 'fixed', value: 30, min_subtotal: 150 });
+    const qFixLow = await quote([L(pA)], { code: 'MINUS30' });
+    const qFix = await quote([L(pA, 2)], { code: 'MINUS30' });
+    check('tchk: a fixed code with a minimum: refused under it (message), applied over it',
+      qFixLow.code_status === 'not_applicable' && qFixLow.code_message.includes('زوّد') && Number(qFixLow.discount_amount) === 0 &&
+      qFix.code_status === 'applied' && Number(qFix.discount_amount) === 30, { qFixLow, qFix });
+    await disc({ method: 'code', code: 'TINY', type: 'fixed', value: 500 });
+    check('tchk: a fixed amount never exceeds the subtotal', Number((await quote([L(pB)], { code: 'TINY' })).discount_amount) === 50);
+    await disc({ method: 'code', code: 'FREESHIP', type: 'free_shipping' });
+    const qFs = await quote([L(pA)], { code: 'freeship', area: 'الإسكندرية' });
+    check('tchk: a free-shipping code zeroes the shipping', qFs.code_status === 'applied' && qFs.free_shipping && Number(qFs.shipping_fee) === 0 && Number(qFs.shipping_base) === 50 && Number(qFs.total) === 100, qFs);
+    check('tchk: …not on pickup', (await quote([L(pA)], { code: 'FREESHIP', ful: 'pickup' })).code_status === 'not_applicable');
+    await disc({ method: 'code', code: 'BAGS', type: 'percent', value: 50, applies_to: 'products', product_ids: [pB] });
+    const qBags = await quote([L(pA), L(pB, 2)], { code: 'BAGS' });
+    check('tchk: a product discount only counts its products', Number(qBags.discount_amount) === 50 && qBags.code_status === 'applied', qBags);
+    check('tchk: …and says so when none of them is in the cart', (await quote([L(pA)], { code: 'BAGS' })).code_message?.includes('مش على المنتجات'));
+    await disc({ method: 'code', code: 'COLL', type: 'percent', value: 10, applies_to: 'collections', collection_ids: ['00000000-0000-4000-8000-000000000001'] });
+    check('tchk: a collection discount (hook until collections exist) matches nothing yet', (await quote([L(pA)], { code: 'COLL' })).code_status === 'not_applicable');
+    check('tchk: a product of another shop is dropped from product_ids',
+      errMsg(await disc({ method: 'code', code: 'OTHERS', type: 'percent', value: 10, applies_to: 'products', product_ids: ['00000000-0000-4000-8000-000000000009'] })).includes('اختار المنتجات'));
+
+    // ---- discounts: dates / limits
+    const future = new Date(Date.now() + 864e5).toISOString();
+    await disc({ method: 'code', code: 'LATER', type: 'percent', value: 10, starts_at: future });
+    await disc({ method: 'code', code: 'OLD', type: 'percent', value: 10, starts_at: new Date(Date.now() - 2 * 864e5).toISOString(), ends_at: new Date(Date.now() - 864e5).toISOString() });
+    const dOff = one(await disc({ method: 'code', code: 'OFFNOW', type: 'percent', value: 10, active: false }));
+    check('tchk: a scheduled / expired / switched-off code does not apply (with the reason)',
+      (await quote([L(pA)], { code: 'LATER' })).code_message.includes('مش شغال') && (await quote([L(pA)], { code: 'OLD' })).code_message.includes('خلصت') &&
+      (await quote([L(pA)], { code: 'OFFNOW' })).code_status === 'not_applicable' && dOff.state === 'disabled');
+    check('tchk: placing with a code that does not apply is refused', errMsg(await place([L(pA)], { code: 'OLD' })).includes('خلصت'));
+    const dOnce = one(await disc({ method: 'code', code: 'ONCE', type: 'fixed', value: 10, usage_limit: 1 }));
+    const once1 = await place([L(pA)], { code: 'ONCE' });
+    check('tchk: a code limited to 1 use: the first order gets it', ok(once1) && Number((await orderOf(one(once1))).discount_amount) === 10, once1.error);
+    check('tchk: …the second is refused', errMsg(await place([L(pA)], { code: 'once' })).includes('عدد استخداماته') &&
+      (await admin(db, `select used_count from shop_discounts where id = $1`, [dOnce.id]))[0].used_count === 1);
+    await disc({ method: 'code', code: 'WELCOME', type: 'percent', value: 15, per_phone_limit: 1 });
+    const welcomePhone = phone();
+    const w1 = await place([L(pA)], { code: 'WELCOME', phone: welcomePhone });
+    check('tchk: per-phone limit: first use ok, the same phone (other format) again refused, another phone ok',
+      ok(w1) && errMsg(await place([L(pA)], { code: 'WELCOME', phone: '+2' + welcomePhone })).includes('قبل كده') && ok(await place([L(pA)], { code: 'WELCOME' })), w1.error);
+    check('tchk: the quote already knows the phone used it', (await quote([L(pA)], { code: 'WELCOME', phone: welcomePhone })).code_status === 'not_applicable');
+
+    // ---- the order snapshot + timeline + usage list
+    const snapCode = one(await place([L(pA, 2)], { code: 'SAVE10', area: 'القاهرة', expected: 210 }));
+    const so = snapCode && await orderOf(snapCode);
+    check('tchk: the order snapshots subtotal, discount code / amount, shipping and the total',
+      so && Number(so.subtotal) === 200 && so.discount_code === 'SAVE10' && Number(so.discount_amount) === 20 && Number(so.delivery_fee) === 30 &&
+      so.shipping_zone === 'القاهرة الكبرى' && Number(so.total_amount) === 210 && so.discount_id === one(d10).id, so);
+    const ev = await admin(db, `select kind, body, actor_role from shop_order_events where order_id = $1 order by created_at, kind`, [so?.id]);
+    check('tchk: a «discount» event is on the timeline', ev.some((e) => e.kind === 'discount' && e.body.includes('SAVE10') && e.actor_role === 'customer'), ev);
+    const det = one(await as(db, cM, `select public.merchant_order($1) as o`, [so?.id]));
+    check('tchk: merchant_order shows discount / shipping / confirmation', det?.discount_code === 'SAVE10' && Number(det.discount_amount) === 20 &&
+      Number(det.shipping_fee) === 30 && det.shipping_zone === 'القاهرة الكبرى' && Number(det.subtotal) === 200 && det.confirmation_status === 'pending', det);
+    const tr = one(await as(db, null, `select public.get_store_order($1) as o`, [snapCode]));
+    check('tchk: tracking shows the discount and shipping lines', Number(tr?.discount_amount) === 20 && Number(tr.subtotal) === 200 && tr.can_cancel === true && tr.customer_phone === undefined, tr);
+    const usedBy = one(await as(db, cM, `select public.merchant_discount_orders($1) as o`, [one(d10).id]));
+    check('tchk: «الطلبات اللي استخدمته» lists the order; the counter went up',
+      usedBy?.some((o) => o.order_code === snapCode) && (await admin(db, `select used_count from shop_discounts where id = $1`, [one(d10).id]))[0].used_count === 1, usedBy);
+    check('tchk: another merchant cannot list its orders / read the discounts',
+      denied(await as(db, cM2, `select public.merchant_discount_orders($1)`, [one(d10).id])) && denied(await as(db, cM2, `select public.merchant_discounts($1)`, [cShop])) &&
+      ((await as(db, cM2, `select * from shop_discounts where shop_id = $1`, [cShop])).rows || []).length === 0);
+    const list = one(await as(db, cM, `select public.merchant_discounts($1) as l`, [cShop]));
+    check('tchk: the list carries state, uses and sales', list?.find((d) => d.code === 'SAVE10')?.used_count === 1 && Number(list.find((d) => d.code === 'SAVE10').sales) === 210 &&
+      list.find((d) => d.code === 'LATER')?.state === 'scheduled' && list.find((d) => d.code === 'OLD')?.state === 'expired' && list.find((d) => d.code === 'ONCE')?.state === 'used_up', list?.map((d) => [d.code, d.state]));
+    check('tchk: cancelling gives the use back', ok(await as(db, cM, `select public.merchant_cancel_order($1, 'تجربة')`, [so?.id])) &&
+      (await admin(db, `select used_count from shop_discounts where id = $1`, [one(d10).id]))[0].used_count === 0);
+    const delUsed = one(await as(db, cM, `select public.delete_shop_discount($1) as r`, [one(d10).id]));
+    const tmp = one(await disc({ method: 'code', code: 'UNUSED', type: 'percent', value: 5 }));
+    const delNew = one(await as(db, cM, `select public.delete_shop_discount($1) as r`, [tmp.id]));
+    check('tchk: a used discount is switched off, not deleted; an unused one is deleted',
+      delUsed?.deactivated === true && delNew?.deleted === true && (await admin(db, `select active from shop_discounts where id = $1`, [one(d10).id]))[0].active === false, { delUsed, delNew });
+    check('tchk: another merchant cannot delete it', denied(await as(db, cM2, `select public.delete_shop_discount($1)`, [dOnce.id])));
+
+    // ---- automatic discounts & the stacking rule
+    const auto5 = one(await disc({ method: 'auto', title: 'خصم 5% فوق 300', type: 'percent', value: 5, min_subtotal: 300 }));
+    const qAuto = await quote([L(pA, 4)]);
+    check('tchk: an automatic discount applies without a code', qAuto.auto_discount_id === auto5.id && Number(qAuto.discount_amount) === 20 && qAuto.auto_title === 'خصم 5% فوق 300', qAuto);
+    check('tchk: …with «زوّد» hint under its minimum', (await quote([L(pA, 2)])).hint?.includes('خصم 5% فوق 300'));
+    const auto10 = one(await disc({ method: 'auto', title: 'خصم 10% فوق 350', type: 'percent', value: 10, min_subtotal: 350 }));
+    check('tchk: the best automatic discount wins', (await quote([L(pA, 4)])).auto_discount_id === auto10.id && Number((await quote([L(pA, 4)])).discount_amount) === 40);
+    await disc({ method: 'code', code: 'BIG25', type: 'percent', value: 25 });
+    await disc({ method: 'code', code: 'SMALL5', type: 'fixed', value: 5 });
+    const qBig = await quote([L(pA, 4)], { code: 'BIG25' });
+    const qSmall = await quote([L(pA, 4)], { code: 'SMALL5' });
+    check('tchk: stacking: a code that does not combine replaces the automatic one when it saves more',
+      qBig.discount_code === 'BIG25' && qBig.auto_discount_id === null && Number(qBig.discount_amount) === 100, qBig);
+    check('tchk: …and the automatic one wins when it saves more (code not used, told why)',
+      qSmall.code_status === 'not_better' && qSmall.discount_code === null && qSmall.auto_discount_id === auto10.id && Number(qSmall.discount_amount) === 40 && qSmall.code_message.includes('أحسن'), qSmall);
+    const nb = one(await place([L(pA, 4)], { code: 'SMALL5' }));
+    check('tchk: …placing with it keeps the better automatic discount', nb && Number((await orderOf(nb)).discount_amount) === 40 && (await orderOf(nb)).discount_code === null);
+    await disc({ method: 'code', code: 'PLUS', type: 'fixed', value: 15, combines: true });
+    const qPlus = await quote([L(pA, 4)], { code: 'PLUS' });
+    check('tchk: a code that combines adds up with the best automatic discount', Number(qPlus.discount_amount) === 55 && qPlus.discount_code === 'PLUS' && qPlus.auto_discount_id === auto10.id &&
+      qPlus.discount_title.includes('+'), qPlus);
+    const plusO = one(await place([L(pA, 4)], { code: 'PLUS' }));
+    check('tchk: …both are counted', plusO && (await admin(db, `select count(*)::int n from shop_discount_uses where order_id = (select id from shop_orders where order_code = $1)`, [plusO]))[0].n === 2);
+    await admin(db, `update shop_discounts set active = false where method = 'auto' and shop_id = $1`, [cShop]);
+    await disc({ method: 'auto', title: 'توصيل مجاني فوق 250', type: 'free_shipping', min_subtotal: 250 });
+    const qAfs = await quote([L(pA, 3)], { area: 'الإسكندرية' });
+    check('tchk: an automatic free-shipping discount', qAfs.free_shipping && Number(qAfs.shipping_fee) === 0 && Number(qAfs.total) === 300, qAfs);
+
+    // ---- never trust the client
+    const fake = one(await place([L(pA, 1, { price: 1, unit_price: 1, line_total: 1 })], { area: 'القاهرة' }));
+    check('tchk: client prices in the cart are ignored', fake && Number((await orderOf(fake)).total_amount) === 130);
+    check('tchk: a total the customer saw that no longer holds is refused', errMsg(await place([L(pA)], { area: 'القاهرة', expected: 100 })).includes('اتغيروا'));
+    const qSpoof = await quote([L(pA, 1, { price: 1 })], { area: 'القاهرة' });
+    check('tchk: the quote prices from the database too', Number(qSpoof.subtotal) === 100 && Number(qSpoof.lines[0].unit_price) === 100, qSpoof);
+    check('tchk: garbage lines are refused', denied(await place([{ product_id: 'x', quantity: 1 }])) && !!(await quote([{ product_id: pA, quantity: 'lots' }])).error);
+    check('tchk: a product of another shop is refused', !!(await quote([L(pA)], { shop: cShop2 })).error);
+
+    // ---- brute force on codes
+    const bfPhone = phone();
+    let lastBad = null;
+    for (let i = 0; i < 10; i++) lastBad = await quote([L(pA)], { code: 'GUESS' + i, phone: bfPhone });
+    const blocked = await quote([L(pA)], { code: 'PLUS', phone: bfPhone });
+    check('tchk: 10 wrong codes from a phone → even a good one is blocked for an hour', lastBad.code_status === 'invalid' && blocked.code_status === 'blocked' && Number(blocked.discount_amount) === 0, blocked);
+    check('tchk: …another phone is not blocked', (await quote([L(pA)], { code: 'PLUS', phone: phone() })).code_status === 'applied');
+    const wrongPhone = phone();
+    const wrong = await place([L(pA)], { code: 'NOPE', phone: wrongPhone });
+    check('tchk: placing with a wrong code places nothing (null) — and the try is counted', ok(wrong) && one(wrong) === null &&
+      (await admin(db, `select count(*)::int n from shop_orders where customer_phone = $1`, [wrongPhone]))[0].n === 0, wrong);
+    for (let i = 0; i < 9; i++) await place([L(pA)], { code: 'NOPE' + i, phone: wrongPhone });
+    check('tchk: …10 wrong tries through placing block the phone too', (await quote([L(pA)], { code: 'PLUS', phone: wrongPhone })).code_status === 'blocked' &&
+      one(await place([L(pA)], { code: 'PLUS', phone: wrongPhone })) === null);
+
+    // ---- abandoned carts
+    const cartPhone = phone();
+    const saveCart = (lines, o = {}) => as(db, null, `select public.save_store_cart($1, $2, $3, $4::jsonb, $5) as t`,
+      [o.shop ?? cShop, o.phone ?? cartPhone, o.name ?? 'سارة', JSON.stringify(lines), o.area ?? null]);
+    const tok = one(await saveCart([L(pA, 2), L(pB, 1, { price: 1 })]));
+    const tok2 = one(await saveCart([L(pA, 3)], { area: 'الجيزة' }));
+    const cartRow = (await admin(db, `select * from shop_carts where token = $1`, [tok]))[0];
+    check('tchk: a guest saves the cart at checkout; the same phone updates it (same token, server prices)',
+      /^[0-9a-f]{32}$/.test(tok || '') && tok === tok2 && Number(cartRow.subtotal) === 300 && cartRow.item_count === 3 && cartRow.area === 'الجيزة' && cartRow.name === 'سارة', cartRow);
+    check('tchk: a bad phone is refused', denied(await saveCart([L(pA)], { phone: '123' })));
+    const list0 = one(await as(db, cM, `select public.merchant_abandoned_carts($1) as c`, [cShop]));
+    check('tchk: a fresh cart is not «abandoned» yet', list0?.carts?.length === 0, list0);
+    await admin(db, `update shop_carts set updated_at = now() - interval '2 hours' where token = $1`, [tok]);
+    const list1 = one(await as(db, cM, `select public.merchant_abandoned_carts($1) as c`, [cShop]));
+    check('tchk: after an hour the owner sees it (name, phone, lines snapshot, token)',
+      list1?.carts?.length === 1 && list1.carts[0].phone === cartPhone && list1.carts[0].lines[0].name === 'قميص' && list1.carts[0].token === tok, list1);
+    check('tchk: only the owner: other merchant / guest / customer are refused, and nobody reads the table',
+      denied(await as(db, cM2, `select public.merchant_abandoned_carts($1)`, [cShop])) && denied(await as(db, null, `select public.merchant_abandoned_carts($1)`, [cShop])) &&
+      ((await as(db, cM2, `select * from shop_carts`)).rows || []).length === 0 && ((await as(db, cBuyer, `select * from shop_carts`)).rows || []).length === 0 &&
+      denied(await as(db, null, `select * from shop_carts`)) && denied(await as(db, null, `insert into shop_carts (shop_id, token, phone) values ($1, 'x', '01000000000')`, [cShop])));
+    const restore = one(await as(db, null, `select public.get_store_cart($1) as c`, [tok]));
+    check('tchk: the «كمّل طلبك» link restores the lines only (no name / phone)',
+      restore?.shop_slug === 'tchk-shop' && restore.lines.length === 1 && restore.lines[0].quantity === 3 && JSON.stringify(restore).indexOf(cartPhone) === -1 && restore.name === undefined, restore);
+    check('tchk: the owner marks it reminded; another merchant cannot',
+      ok(await as(db, cM, `select public.merchant_mark_cart_reminded($1)`, [cartRow.id])) && denied(await as(db, cM2, `select public.merchant_mark_cart_reminded($1)`, [cartRow.id])));
+    const recCode = one(await place([L(pA, 3)], { phone: cartPhone, cart: tok }));
+    const recCart = (await admin(db, `select recovered_order_id, recovered_at from shop_carts where token = $1`, [tok]))[0];
+    check('tchk: an order from it marks the cart recovered (it leaves the list; the link stops working)',
+      recCode && recCart.recovered_order_id === (await orderOf(recCode)).id && (await orderOf(recCode)).cart_id !== null &&
+      one(await as(db, cM, `select public.merchant_abandoned_carts($1) as c`, [cShop])).carts.length === 0 &&
+      one(await as(db, cM, `select public.merchant_abandoned_carts($1) as c`, [cShop])).recovered_count === 1 &&
+      one(await as(db, null, `select public.get_store_cart($1) as c`, [tok])) === null, recCart);
+    const tok3 = one(await saveCart([L(pB)]));
+    check('tchk: shopping again after the order starts a fresh cart (new link)', tok3 && tok3 !== tok);
+    const spamPhone = phone();
+    let lastTok = null;
+    for (let i = 0; i < 20; i++) lastTok = one(await saveCart([L(pA)], { phone: spamPhone }));
+    const capped = await saveCart([L(pA)], { phone: spamPhone });
+    check('tchk: cart saves are rate-limited per phone (null, never an error)', !!lastTok && ok(capped) && one(capped) === null, capped.error);
+    check('tchk: an empty / all-unavailable cart is not saved', one(await saveCart([{ product_id: '00000000-0000-4000-8000-000000000123', quantity: 1 }], { phone: phone() })) === null);
+    check('tchk: the shop owner\'s own carts are not saved', one(await as(db, cM, `select public.save_store_cart($1, '01000099999', 'أنا', $2::jsonb) as t`, [cShop, JSON.stringify([L(pA)])])) === null);
+    await admin(db, `update shop_carts set updated_at = now() - interval '31 days' where token = $1`, [tok3]);
+    await as(db, cM, `select public.merchant_abandoned_carts($1)`, [cShop]);
+    check('tchk: carts older than 30 days are deleted', (await admin(db, `select count(*)::int n from shop_carts where token = $1`, [tok3]))[0].n === 0);
+
+    // ---- COD confirmation
+    const confCode = one(await place([L(pA)], { area: 'القاهرة' }));
+    const conf = await orderOf(confCode);
+    check('tchk: a store order starts «pending» confirmation', conf?.confirmation_status === 'pending');
+    await ship({ ...base, require_confirmation: true });
+    check('tchk: with «اطلب تأكيد واتساب» a pending order cannot be prepared',
+      errMsg(await as(db, cM, `select public.update_shop_order_status($1, 'preparing')`, [conf.id])).includes('أكّد'));
+    check('tchk: another merchant / a guest cannot confirm it',
+      denied(await as(db, cM2, `select public.merchant_confirm_order($1)`, [conf.id])) && denied(await as(db, null, `select public.merchant_confirm_order($1)`, [conf.id])));
+    check('tchk: the owner confirms (event), then prepares',
+      ok(await as(db, cM, `select public.merchant_confirm_order($1)`, [conf.id])) && ok(await as(db, cM, `select public.merchant_confirm_order($1)`, [conf.id])) &&
+      (await orderOf(confCode)).confirmation_status === 'confirmed' &&
+      (await admin(db, `select count(*)::int n from shop_order_events where order_id = $1 and kind = 'confirm' and actor_role = 'merchant'`, [conf.id]))[0].n === 1 &&
+      ok(await as(db, cM, `select public.update_shop_order_status($1, 'preparing')`, [conf.id])));
+    await ship(base);
+    const info = one(await as(db, null, `select public.store_checkout_info($1) as i`, [cShop]));
+    check('tchk: store_checkout_info (anyone): zones, pickup, open state, codes, automatic offers',
+      info?.zones?.length === 2 && info.zones[0].areas.includes('القاهرة') && info.pickup?.address === 'المحل: 5 شارع 9 المعادي' && info.open.code === 'ok' &&
+      info.has_codes === true && info.auto_discounts.length === 1 && info.default_mode === 'rate' && Number(info.default_fee) === 20, info);
+
+    // ---- guest cancel
+    const gPhone = phone();
+    const gCode = one(await place([L(pA)], { phone: gPhone, area: 'القاهرة' }));
+    const gcancel = (code, last4, reason = 'غيّرت رأيي') => as(db, null, `select public.guest_cancel_store_order($1, $2, $3) as o`, [code, last4, reason]);
+    check('tchk: guest cancel with wrong last 4 digits is refused', one(await gcancel(gCode, '0000'))?.error?.includes('مش مطابقين'));
+    const okCancel = await gcancel(gCode.toLowerCase(), gPhone.slice(-4).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d]));
+    const gO = await orderOf(gCode);
+    check('tchk: the right last 4 (Arabic digits ok) cancels a «placed» order with the reason', ok(okCancel) && gO.status === 'cancelled' && gO.cancel_reason === 'غيّرت رأيي' &&
+      one(okCancel).status === 'cancelled' && one(okCancel).ok === true && one(okCancel).can_cancel === false, okCancel.error || gO);
+    const gEv = (await admin(db, `select actor_role, body from shop_order_events where order_id = $1 and kind = 'cancel'`, [gO.id]))[0];
+    check('tchk: …the timeline shows the customer; the merchant is notified', gEv?.actor_role === 'customer' && gEv.body === 'غيّرت رأيي' &&
+      (await admin(db, `select count(*)::int n from notifications where user_id = $1 and title like '❌ الزبون لغى الطلب ' || $2 || '%'`, [cM, gCode]))[0].n === 1, gEv);
+    check('tchk: an order already cancelled cannot be cancelled again', denied(await gcancel(gCode, gPhone.slice(-4))));
+    const pPhone = phone();
+    const pCode = one(await place([L(pA)], { phone: pPhone, area: 'القاهرة' }));
+    await as(db, cM, `select public.update_shop_order_status((select id from shop_orders where order_code = $1), 'preparing')`, [pCode]);
+    check('tchk: once the shop prepares it, the guest cannot cancel', errMsg(await gcancel(pCode, pPhone.slice(-4))).includes('بدأ يجهّزه'));
+    const bPhone = phone();
+    const bCode = one(await place([L(pA)], { phone: bPhone, area: 'القاهرة' }));
+    for (let i = 0; i < 5; i++) await gcancel(bCode, String(1000 + i));
+    check('tchk: 5 wrong tries lock guest cancel for that order (even the right digits)', one(await gcancel(bCode, bPhone.slice(-4)))?.error?.includes('محاولات كتير') &&
+      (await orderOf(bCode)).status === 'placed');
+    check('tchk: an unknown code', errMsg(await gcancel('TNOPE123', '1234')).includes('مفيش طلب'));
+
+    // ---- «عملة المتجر»
+    const curM = await signUp(db, 'tchk currency merchant', '01000099050');
+    const curShop = one(await as(db, curM, `select public.create_my_shop('محل العملة', 'ملابس', 'tchk-currency', '01000099050') as id`));
+    const curProd = one(await as(db, curM, `insert into shop_products (shop_id, name, price) values ($1, 'كوباية', 100) returning id`, [curShop]));
+    const egpOrder = one(await place([L(curProd)], { shop: curShop }));
+    const setCur = (c, u = curM) => as(db, u, `select public.set_shop_currency($1, $2) as r`, [curShop, c]);
+    check('tchk: currency: a new shop starts in its country\'s currency', (await admin(db, `select currency from shops where id = $1`, [curShop]))[0].currency === 'EGP');
+    check('tchk: currency: other merchant / guest cannot change it; unknown / non-store currencies refused',
+      denied(await setCur('USD', cM)) && denied(await setCur('USD', null)) && errMsg(await setCur('XYZ')).includes('مش متاحة') && denied(await setCur('TRY')));
+    check('tchk: currency: switch to USD — products follow, the old order keeps EGP',
+      ok(await setCur('usd')) && (await admin(db, `select currency from shops where id = $1`, [curShop]))[0].currency === 'USD' &&
+      (await admin(db, `select currency from shop_products where id = $1`, [curProd]))[0].currency === 'USD' &&
+      (await orderOf(egpOrder)).currency === 'EGP');
+    const usdOrder = one(await place([L(curProd)], { shop: curShop }));
+    const qUsd = await quote([L(curProd)], { shop: curShop });
+    check('tchk: currency: new orders and quotes are in USD; texts use $', (await orderOf(usdOrder)).currency === 'USD' && qUsd.currency === 'USD' &&
+      (await admin(db, `select private.money_text(12.5, 'USD') a, private.money_text(3, 'EUR') b, private.money_text(1250, 'GBP') c, private.money_text(1.2345, 'KWD') d`))
+        .every((r) => r.a === '12.5 $' && r.b === '3 €' && r.c === '1,250 £' && r.d === '1.235 د.ك'));
+    check('tchk: currency: every Arab currency + USD/EUR/GBP is accepted',
+      (await admin(db, `select count(*)::int n from unnest(private.shop_currencies()) c where private.currency_label(c) <> c`))[0].n === 25);
+    check('tchk: currency: LBP lifts the caps (delivery 50,000 ل.ل ok)', ok(await setCur('LBP')) &&
+      ok(await as(db, curM, `select public.set_shop_shipping($1, $2::jsonb)`, [curShop, JSON.stringify({ default_fee: 50000, zones: [{ name: 'بيروت', areas: ['بيروت'], fee: 60000 }] })])));
+    check('tchk: currency: back to USD with a 60,000 fee is refused (caps are per currency)', errMsg(await setCur('USD')).includes('سعر التوصيل') &&
+      (await admin(db, `select currency from shops where id = $1`, [curShop]))[0].currency === 'LBP');
+    await as(db, curM, `select public.set_shop_shipping($1, $2::jsonb)`, [curShop, JSON.stringify({ default_fee: 5, zones: [] })]);
+    await as(db, curM, `update shop_products set price = 5000000 where id = $1`, [curProd]);
+    check('tchk: currency: …and a product priced over the new cap blocks it too', errMsg(await setCur('USD')).includes('منتجات'));
+    await as(db, curM, `update shop_products set price = 10 where id = $1`, [curProd]);
+    check('tchk: currency: fixed then it switches; zone fees cap in the new currency',
+      ok(await setCur('KWD')) && denied(await as(db, curM, `select public.set_shop_shipping($1, $2::jsonb)`, [curShop, JSON.stringify({ default_fee: 1001 })])));
+
+    // ---- with 0098: variants are priced per variant; collection discounts
+    const pV = await prod('تيشيرت ألوان', 100);
+    await admin(db, `update shop_products set options = '[{"name":"اللون","values":["أحمر","أزرق"]}]'::jsonb where id = $1`, [pV]);
+    const vRed = (await admin(db, `insert into shop_product_variants (product_id, shop_id, option_values, price, stock, sku) values ($1, $2, '["أحمر"]', 150, 3, 'TCHK-RED') returning id`, [pV, cShop]))[0].id;
+    await admin(db, `insert into shop_product_variants (product_id, shop_id, option_values, price, stock) values ($1, $2, '["أزرق"]', 120, 0)`, [pV, cShop]);
+    const qVar = await quote([L(pV, 2, { variant_id: vRed })], { area: 'القاهرة' });
+    check('tchk+0098: the quote prices the variant (not the product) and names it', Number(qVar.subtotal) === 300 && qVar.lines?.[0]?.variant_id === vRed &&
+      Number(qVar.lines[0].unit_price) === 150 && qVar.lines[0].options?.includes('أحمر'), qVar);
+    check('tchk+0098: a variant out of stock is refused by the quote', !!(await quote([L(pV, 4, { variant_id: vRed })])).error);
+    const coll = (await admin(db, `insert into shop_collections (shop_id, name, slug) values ($1, 'تيشيرتات', 'tchk-tees') returning id`, [cShop]))[0].id;
+    await admin(db, `insert into shop_collection_products (collection_id, product_id) values ($1, $2)`, [coll, pV]);
+    await disc({ method: 'code', code: 'TEES20', type: 'percent', value: 20, applies_to: 'collections', collection_ids: [coll] });
+    const qColl = await quote([L(pV, 2, { variant_id: vRed }), L(pA)], { code: 'TEES20', area: 'القاهرة' });
+    check('tchk+0098: a collection discount covers only its products', qColl.code_status === 'applied' && Number(qColl.discount_amount) === 60, qColl);
+    const varCode = one(await place([L(pV, 2, { variant_id: vRed }), L(pA)], { code: 'TEES20', area: 'القاهرة', expected: Number(qColl.total) }));
+    const varLines = varCode && await admin(db, `select variant_id, unit_price::float up, sku from shop_order_items where order_id = (select id from shop_orders where order_code = $1) order by unit_price desc`, [varCode]);
+    check('tchk+0098: the order takes the variant\'s stock, price and SKU, with the collection discount',
+      varLines?.[0]?.variant_id === vRed && varLines[0].up === 150 && varLines[0].sku === 'TCHK-RED' &&
+      (await admin(db, `select stock from shop_product_variants where id = $1`, [vRed]))[0].stock === 1 &&
+      Number((await orderOf(varCode)).discount_amount) === 60 && Number((await orderOf(varCode)).total_amount) === 400 - 60 + 30, { varLines, e: varCode });
+    check('tchk+0098: cancelling gives the variant stock back (0098) and the discount use (0099)',
+      ok(await as(db, cM, `select public.merchant_cancel_order((select id from shop_orders where order_code = $1), 'x')`, [varCode])) &&
+      (await admin(db, `select stock from shop_product_variants where id = $1`, [vRed]))[0].stock === 3 &&
+      (await admin(db, `select used_count from shop_discounts where code = 'TEES20'`))[0].used_count === 0);
+    const tokV = one(await as(db, null, `select public.save_store_cart($1, $2, 'نور', $3::jsonb) as t`, [cShop, phone(), JSON.stringify([L(pV, 1, { variant_id: vRed })])]));
+    check('tchk+0098: a saved cart keeps the variant (restore link)', one(await as(db, null, `select public.get_store_cart($1) as c`, [tokV]))?.lines?.[0]?.variant_id === vRed &&
+      (await admin(db, `select lines from shop_carts where token = $1`, [tokV]))[0].lines[0].variant_id === vRed);
+
+    // ---- pixels carry the checkout's shipping / discount / coupon
+    const px2 = require(path.join(__dirname, '..', '..', 'web', 'shop-pixels.js'));
+    const pc = px2.buildCalls('Purchase', { currency: 'SAR', value: 95, shipping: 15, discount: 20, coupon: 'SAVE10', order_id: 'T1', contents: [{ id: 'a', price: 100, quantity: 1 }] },
+      { ga4: 'G-ABC1234XYZ', gtm: 'GTM-AB12CD3', meta_pixel: '123456789012345' });
+    const ga2 = pc.find((c) => c[0] === 'gtag');
+    const dl2 = pc.filter((c) => c[0] === 'dl')[1];
+    check('tchk: Purchase pixels: GA4 / GTM get shipping, coupon and discount; Meta the coupon; a bad coupon is dropped',
+      ga2[3].shipping === 15 && ga2[3].coupon === 'SAVE10' && ga2[3].discount === 20 && dl2[1].ecommerce.shipping === 15 && dl2[1].ecommerce.coupon === 'SAVE10' &&
+      pc.find((c) => c[0] === 'fbq')[4].coupon === 'SAVE10' &&
+      px2.buildCalls('InitiateCheckout', { coupon: '<script>', contents: [] }, { ga4: 'G-ABC1234XYZ' })[0][3].coupon === undefined, { ga2, dl2 });
+  }
   console.log('\nPhase tcat — متجري catalog pro: variants, collections, CSV import, low stock (0098)');
   {
     const fs = require('fs');
     const path = require('path');
     const MIG98 = path.join(__dirname, '..', 'migrations', '0098_tajer_catalog.sql');
+    const MIG99 = path.join(__dirname, '..', 'migrations', '0099_tajer_checkout.sql'); // re-applied after 0098: it redefines place_store_order
     let rerun = null;
     try {
       await db.exec(fs.readFileSync(MIG98, 'utf8'));
+      await db.exec(fs.readFileSync(MIG99, 'utf8'));
     } catch (e) {
       rerun = e.message;
     }
@@ -4590,10 +5020,12 @@ const denied = (r) => !!r.error;
     check('tcat: before the data migration, legacy products have no variants',
       (await admin(db, `select count(*)::int n from shop_product_variants where product_id = any($1)`, [[legacyP, legacyUnl]]))[0].n === 0);
     await db.exec(fs.readFileSync(MIG98, 'utf8'));
+    await db.exec(fs.readFileSync(MIG99, 'utf8'));
     check('tcat: a plain re-run never repeats the data migration (marked)',
       (await admin(db, `select count(*)::int n from shop_product_variants where product_id = $1`, [legacyP]))[0].n === 0);
     await admin(db, `delete from private.migration_marks where name = '0098_catalog'`);
     await db.exec(fs.readFileSync(MIG98, 'utf8'));
+    await db.exec(fs.readFileSync(MIG99, 'utf8'));
     const lv = await admin(db, `select option_values, stock, price::float p, compare_at_price::float c from shop_product_variants where product_id = $1 order by position`, [legacyP]);
     check('tcat: data migration: old option lists → variants; stock split evenly so the total is unchanged',
       lv.length === 3 && lv.map((v) => v.stock).join(',') === '3,2,2' && lv.every((v) => v.p === 300 && v.c === 350) &&

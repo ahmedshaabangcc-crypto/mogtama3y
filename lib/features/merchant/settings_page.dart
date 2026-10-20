@@ -8,17 +8,17 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/demo/demo_mode.dart';
 import '../../core/demo/demo_store.dart';
-import '../../core/geo/money.dart';
 import '../../core/shops/store_service.dart';
 import '../../core/storage/upload_service.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/utils/numbers.dart';
 import '../shared/phone_field.dart';
 import 'admin/admin_common.dart';
 import 'admin/merchant_session.dart';
+import 'store_currency_card.dart';
 import 'store_qr_card_screen.dart';
 
-/// «متجري» (/settings): the store's look, delivery fee, link / QR and visits.
+/// «متجري» (/settings): the store's look, links to «الشحن والتوصيل» and
+/// «الربط والتكاملات», link / QR and visits.
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
@@ -109,7 +109,20 @@ class _SettingsBodyState extends State<_SettingsBody> {
           ),
         ),
         const SizedBox(height: 14),
-        DeliveryCard(shop: widget.shop, onSaved: widget.onChanged),
+        StoreCurrencyCard(shop: widget.shop, onSaved: widget.onChanged),
+        const SizedBox(height: 14),
+        // «الشحن والتوصيل» (0099): zones, pickup, hours, minimum order.
+        AdminCard(
+          padding: EdgeInsets.zero,
+          child: ListTile(
+            key: const ValueKey('open-shipping'),
+            leading: const Icon(Icons.local_shipping_rounded, color: AppColors.crystal),
+            title: const Text('الشحن والتوصيل', style: TextStyle(fontWeight: FontWeight.w800)),
+            subtitle: Text('${StoreService.deliveryLabel(widget.shop)} • مناطق، استلام من المحل، مواعيد'),
+            trailing: const Icon(Icons.chevron_left_rounded),
+            onTap: () => GoRouter.of(context).go('/settings/shipping'),
+          ),
+        ),
         const SizedBox(height: 14),
         Container(
           padding: const EdgeInsets.all(16),
@@ -305,98 +318,6 @@ class _StoreProfileCardState extends State<StoreProfileCard> {
               child: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('حفظ شكل المتجر'),
             ),
           ]),
-        ),
-      ]),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------
-// Delivery fee (added to every order total, shown to customers)
-// ---------------------------------------------------------------------
-
-class DeliveryCard extends StatefulWidget {
-  const DeliveryCard({super.key, required this.shop, required this.onSaved});
-  final Map<String, dynamic> shop;
-  final VoidCallback onSaved;
-
-  @override
-  State<DeliveryCard> createState() => _DeliveryCardState();
-}
-
-class _DeliveryCardState extends State<DeliveryCard> {
-  late final _fee = TextEditingController(text: _num(widget.shop['delivery_fee']));
-  late final _freeOver = TextEditingController(text: _num(widget.shop['free_delivery_over']));
-  bool _busy = false;
-
-  static String _num(Object? v) {
-    final d = (v as num?)?.toDouble();
-    if (d == null || d == 0) return '';
-    return d == d.roundToDouble() ? '${d.toInt()}' : '$d';
-  }
-
-  @override
-  void dispose() {
-    _fee.dispose();
-    _freeOver.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    final fee = _fee.text.trim().isEmpty ? 0.0 : looseDouble(_fee.text.trim());
-    final freeOver = _freeOver.text.trim().isEmpty ? null : looseDouble(_freeOver.text.trim());
-    if (fee == null || fee < 0 || (_freeOver.text.trim().isNotEmpty && (freeOver == null || freeOver <= 0))) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اكتب أرقام صحيحة')));
-      return;
-    }
-    setState(() => _busy = true);
-    try {
-      await StoreService.setShopDelivery(shopId: widget.shop['id'] as String, fee: fee, freeOver: freeOver);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اتحفظت قيمة التوصيل')));
-      widget.onSaved();
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(adminErrorText(e, 'تعذر الحفظ'))));
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        const Row(children: [
-          Icon(Icons.local_shipping_rounded, color: AppColors.crystal),
-          SizedBox(width: 8),
-          Text('التوصيل', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-        ]),
-        const SizedBox(height: 4),
-        const Text('بيتضاف على إجمالي كل طلب، والزبون بيشوفه قبل ما يطلب.', style: TextStyle(fontSize: 12, color: AppColors.inkMuted)),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(
-            child: TextField(
-              controller: _fee,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(labelText: 'قيمة التوصيل (${currencyLabelOf(widget.shop)})', hintText: 'فاضية = مجاني'),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: TextField(
-              controller: _freeOver,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'مجاني لو الطلب فوق', hintText: 'اختياري'),
-            ),
-          ),
-        ]),
-        const SizedBox(height: 12),
-        ElevatedButton(
-          onPressed: _busy ? null : _save,
-          child: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('حفظ التوصيل'),
         ),
       ]),
     );

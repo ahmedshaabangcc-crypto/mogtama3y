@@ -55,3 +55,20 @@ String moneyOf(Map<dynamic, dynamic>? row, num amount) => money(amount, currency
 
 /// Arabic label of [row]'s currency — «ج.م», «ر.س»…
 String currencyLabelOf(Map<dynamic, dynamic>? row) => currencyLabel(currencyOf(row));
+
+/// What a merchant can price their store in (0099 set_shop_currency): the
+/// 22 Arab states' currencies (Palestine: ₪) plus USD / EUR / GBP. Same
+/// list as private.shop_currencies().
+const storeCurrencies = [
+  'EGP', 'SAR', 'AED', 'KWD', 'QAR', 'BHD', 'OMR', 'JOD', 'LBP', 'SYP', 'IQD', 'YER', 'SDG', 'LYD',
+  'TND', 'DZD', 'MAD', 'MRU', 'SOS', 'DJF', 'KMF', 'ILS', 'USD', 'EUR', 'GBP',
+];
+
+/// Arabic names of [storeCurrencies].
+const currencyNames = <String, String>{
+  'EGP': 'جنيه مصري', 'SAR': 'ريال سعودي', 'AED': 'درهم إماراتي', 'KWD': 'دينار كويتي', 'QAR': 'ريال قطري',
+  'BHD': 'دينار بحريني', 'OMR': 'ريال عماني', 'JOD': 'دينار أردني', 'LBP': 'ليرة لبنانية', 'SYP': 'ليرة سورية',
+  'IQD': 'دينار عراقي', 'YER': 'ريال يمني', 'SDG': 'جنيه سوداني', 'LYD': 'دينار ليبي', 'TND': 'دينار تونسي',
+  'DZD': 'دينار جزائري', 'MAD': 'درهم مغربي', 'MRU': 'أوقية موريتانية', 'SOS': 'شلن صومالي', 'DJF': 'فرنك جيبوتي',
+  'KMF': 'فرنك قمري', 'ILS': 'شيكل', 'USD': 'دولار أمريكي', 'EUR': 'يورو', 'GBP': 'جنيه إسترليني',
+};

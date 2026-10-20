@@ -159,10 +159,11 @@ class DemoTajer {
     final orders = <DemoRow>[];
     final items = <DemoRow>[];
     final events = <DemoRow>[];
+    final uses = <DemoRow>[];
     // The status path an order took (0096 timeline), a few minutes apart.
     const path = ['placed', 'preparing', 'delivering', 'delivered'];
     void order(String code, String status, String name, String phone, String address, List<(int, int, String?)> lines, String createdAt,
-        {String? note, String? internalNote, String? cancelReason}) {
+        {String? note, String? internalNote, String? cancelReason, bool withCode = false}) {
       final orderId = id('8');
       num subtotal = 0;
       for (final (n, qty, opts) in lines) {
@@ -195,13 +196,30 @@ class DemoTajer {
       if (status == 'cancelled') {
         events.add({'id': id('e'), 'order_id': orderId, 'shop_id': shopId, 'kind': 'cancel', 'from_status': 'placed', 'to_status': 'cancelled', 'actor_role': 'merchant', 'actor_id': uMerchant, 'body': cancelReason, 'created_at': later(9)});
       }
+      // 0099: the «القاهرة والجيزة» zone (15, free over 200); [withCode]: SHAI10 (10%).
       final delivery = subtotal >= 200 ? 0 : 15;
+      final off = withCode ? (subtotal * 10).round() / 100 : 0;
+      if (withCode) {
+        uses.add({'discount_id': DemoTajerCheckout.codeTenId, 'order_id': orderId, 'shop_id': shopId, 'phone': phone, 'amount': off, 'created_at': createdAt});
+        events.add({'id': id('e'), 'order_id': orderId, 'shop_id': shopId, 'kind': 'discount', 'actor_role': 'customer', 'actor_id': null,
+            'body': 'خصم 10% على كل المنيو (كود ${DemoTajerCheckout.codeTen}) — ${off.toStringAsFixed(off == off.roundToDouble() ? 0 : 2)} ج.م', 'created_at': createdAt});
+      }
       orders.add({
         'id': orderId,
         'shop_id': shopId,
         'buyer_id': null,
         'status': status,
-        'total_amount': subtotal + delivery,
+        'total_amount': subtotal - off + delivery,
+        'subtotal': subtotal,
+        'discount_amount': off,
+        'discount_code': withCode ? DemoTajerCheckout.codeTen : null,
+        'discount_title': withCode ? 'خصم 10% على كل المنيو' : null,
+        'discount_id': withCode ? DemoTajerCheckout.codeTenId : null,
+        'auto_discount_id': null,
+        'shipping_zone': 'القاهرة والجيزة',
+        'shipping_area': 'القاهرة',
+        'fulfillment': 'delivery',
+        'confirmation_status': status == 'placed' ? 'pending' : 'confirmed',
         'delivery_fee': delivery,
         'customer_name': name,
         'customer_phone': phone,
@@ -217,7 +235,8 @@ class DemoTajer {
 
     order(orderPlaced, 'placed', 'منى عادل', '01000000301', _monaAddressText, [(1, 2, null), (6, 2, null)], ago(minutes: 12),
         note: 'من غير سكر في الشاي لو سمحت');
-    order(orderPlaced2, 'placed', 'شريف حمدي', '01100000302', 'عمارة 5، الدور 2، شارع 233، المعادي، القاهرة', [(2, 2, 'الحجم: مظبوط'), (5, 3, null)], ago(minutes: 35));
+    order(orderPlaced2, 'placed', 'شريف حمدي', '01100000302', 'عمارة 5، الدور 2، شارع 233، المعادي، القاهرة', [(2, 2, 'الحجم: مظبوط'), (5, 3, null)], ago(minutes: 35),
+        withCode: true);
     order(orderPreparing, 'preparing', 'دينا مجدي', '01200000303', 'فيلا 8، شارع 77، المعادي الجديدة، القاهرة', [(4, 2, null), (3, 1, 'الحجم: كبير')], ago(hours: 1, minutes: 10));
     order(orderDelivering, 'delivering', 'عمر طارق', '01500000304', 'مكتب 4، برج النيل، كورنيش المعادي، القاهرة — شركة تجريبية', [(3, 4, 'الحجم: وسط'), (6, 6, null)],
         ago(hours: 2, minutes: 5), note: 'اجتماع الساعة 1، ياريت قبلها', internalNote: 'الطيار أحمد — كلّم الأمن تحت البرج');
@@ -225,7 +244,8 @@ class DemoTajer {
     order(orderCancelled, 'cancelled', 'كريم فؤاد', '01100000306', 'عمارة 2، شارع 100، المعادي، القاهرة', [(2, 1, 'الحجم: سادة')], ago(days: 2, hours: 5),
         cancelReason: 'الزبون طلب الإلغاء');
     order('T4P7S2GN', 'delivered', 'منى عادل', '01000000301', _monaAddressText, [(1, 3, null), (6, 3, null), (5, 2, null)], ago(days: 4, hours: 2));
-    order('T6R3C8WB', 'delivered', 'ياسمين علي', '01200000308', 'عمارة 9، شارع 250، دجلة، المعادي، القاهرة', [(4, 3, null), (2, 2, 'الحجم: زيادة')], ago(days: 9, hours: 6));
+    order('T6R3C8WB', 'delivered', 'ياسمين علي', '01200000308', 'عمارة 9، شارع 250، دجلة، المعادي، القاهرة', [(4, 3, null), (2, 2, 'الحجم: زيادة')], ago(days: 9, hours: 6),
+        withCode: true);
 
     DemoRow eAddress(String owner, String code, String handle, Map<String, Object?> fields, String createdAt) => {
           'id': id('c'),
@@ -250,6 +270,9 @@ class DemoTajer {
       'shop_orders': orders,
       'shop_order_items': items,
       'shop_order_events': events,
+      // 0099: shipping zones, discounts, abandoned carts.
+      ...DemoTajerCheckout.seed(ago, shopId),
+      'shop_discount_uses': uses,
       'e_addresses': [
         eAddress(uMona, 'K7P2X9QM', monaAddress, {
           'governorate': 'القاهرة',
@@ -377,7 +400,6 @@ extension _TajerBackend on DemoStore {
     }
   }
 
-  static String _money(num v) => v == v.roundToDouble() ? '${v.toInt()}' : v.toStringAsFixed(2);
 
   /// An order of a shop the signed-in merchant owns (0096 merchant RPCs).
   DemoRow _myOrder(String? id) {
@@ -406,8 +428,13 @@ extension _TajerBackend on DemoStore {
       ];
 
   DemoRow _orderJson(DemoRow o) => {
-        for (final k in const ['id', 'order_code', 'created_at', 'status', 'customer_name', 'customer_phone', 'delivery_address', 'note', 'internal_note', 'cancel_reason', 'total_amount', 'delivery_fee'])
+        for (final k in const ['id', 'order_code', 'created_at', 'status', 'customer_name', 'customer_phone', 'delivery_address', 'note', 'internal_note', 'cancel_reason', 'total_amount', 'delivery_fee',
+          'discount_amount', 'discount_code', 'discount_title', 'shipping_zone', 'shipping_area', 'confirmation_status', 'confirmed_at'])
           k: o[k],
+        'subtotal': o['subtotal'] ?? (o['total_amount'] as num) - ((o['delivery_fee'] as num?) ?? 0),
+        'shipping_fee': o['delivery_fee'],
+        'fulfillment': o['fulfillment'] ?? 'delivery',
+        'from_cart': o['cart_id'] != null,
         'currency': o['currency'] ?? 'EGP',
         'payment': 'cash',
         'items': _lines(o['id'] as String),
@@ -429,6 +456,9 @@ extension _TajerBackend on DemoStore {
   }
 
   Object? _tajerRpc(String fn, Map<String, dynamic> p) {
+    // 0099 (checkout, shipping, discounts, carts): demo_tajer_checkout.dart.
+    final checkout = _checkoutRpc(fn, p);
+    if (!identical(checkout, _unhandled)) return checkout;
     switch (fn) {
       case 'ensure_my_profile':
       case 'save_push_subscription':
@@ -543,106 +573,7 @@ extension _TajerBackend on DemoStore {
           ],
         };
 
-      // ---- 0054 / 0057: guest checkout & tracking ----
-      case 'place_store_order':
-        final phone = canonicalPhone(p['p_customer_phone'] as String?) ?? '';
-        final name = (p['p_customer_name'] as String? ?? '').trim();
-        final address = (p['p_address'] as String? ?? '').trim();
-        final shop = _firstWhere('shops', (s) => s['id'] == p['p_shop_id']);
-        if (shop == null || shop['owner_id'] == null) throw DemoError('المحل ده مش مستقبل طلبات حالياً');
-        if (_uid != null && shop['owner_id'] == _uid) throw DemoError('مينفعش تطلب من محلك');
-        if (name.length < 2) throw DemoError('اكتب اسمك');
-        if (phone.isEmpty) throw DemoError(invalidPhoneMessage);
-        if (address.length < 8) throw DemoError('اكتب العنوان بالتفصيل عشان الطلب يوصلك');
-        final lines = p['p_items'] as List? ?? const [];
-        if (lines.isEmpty) throw DemoError('السلة فاضية');
-        if (lines.length > 50) throw DemoError('الطلب فيه منتجات كتير، قسّمه على أكتر من طلب');
-        // (The real server also rate-limits by phone — left out so the
-        // same sample customer can be recorded again and again.)
-        // 0098: a line may name a variant; old clients' options text
-        // matches one by its label (or the only variant).
-        final pending = <(DemoRow, int, String?, DemoRow?)>[];
-        for (final raw in lines) {
-          final line = Map<String, dynamic>.from(raw as Map);
-          final qty = ((line['quantity'] ?? line['qty']) as num?)?.toInt() ?? 0;
-          if (qty < 1 || qty > 99) throw DemoError('الكمية غير صحيحة');
-          final product = _firstWhere('shop_products', (x) => x['id'] == line['product_id'] && x['shop_id'] == shop['id'] && x['is_available'] == true);
-          if (product == null) throw DemoError('فيه منتج في السلة مبقاش متاح، حدّث الصفحة');
-          final opts = (line['options'] as String? ?? '').trim();
-          final variants = _variantsOf(product['id'] as String).where((v) => v['is_available'] != false).toList();
-          DemoRow? variant;
-          if (line['variant_id'] != null) {
-            variant = variants.where((v) => v['id'] == line['variant_id']).firstOrNull ?? (throw DemoError('فيه نوع في السلة مبقاش متاح، حدّث الصفحة'));
-          } else if (_variantsOf(product['id'] as String).isNotEmpty) {
-            variant = variants.where((v) => _label(product, v['option_values'] as List) == opts).firstOrNull ?? (variants.length == 1 ? variants.single : null);
-            if (variant == null) throw DemoError('اختار النوع (المقاس/اللون…) لـ «${product['name']}» من صفحة المنتج');
-          }
-          final holder = variant ?? product;
-          final already = pending.where((e) => (e.$4 ?? e.$1) == holder).fold<int>(0, (a, e) => a + e.$2);
-          final stock = holder['stock'] as num?;
-          final label = variant == null ? null : _label(product, variant['option_values'] as List);
-          if (stock != null && stock < already + qty) {
-            throw DemoError('الكمية المتاحة من «${product['name']}${label == null ? '' : ' — $label'}» هي ${stock.toInt()} بس');
-          }
-          pending.add((product, qty, label ?? (opts.isEmpty ? null : opts), variant));
-        }
-        final orderId = newId();
-        final code = _orderCode();
-        num subtotal = 0;
-        var count = 0;
-        for (final (product, qty, opts, variant) in pending) {
-          final holder = variant ?? product;
-          final before = (holder['stock'] as num?)?.toInt();
-          if (before != null) holder['stock'] = before - qty;
-          if (variant != null) _rollup(product['id'] as String);
-          if (before != null) _lowStockAlert(shop, product, variant, before, before - qty);
-          final price = holder['price'] as num;
-          t('shop_order_items').add({
-            'id': newId(),
-            'order_id': orderId,
-            'product_id': product['id'],
-            'variant_id': variant?['id'],
-            'quantity': qty,
-            'unit_price': price,
-            'chosen_options': opts,
-            'product_name': product['name'],
-            'variant_label': opts,
-            'sku': holder['sku'],
-            'image_url': variant?['image_url'] ?? (product['images'] as List?)?.firstOrNull ?? product['image_url'],
-            'created_at': DemoStore.nowIso(),
-          });
-          subtotal += price * qty;
-          count += qty;
-        }
-        final freeOver = shop['free_delivery_over'] as num?;
-        final delivery = freeOver != null && subtotal >= freeOver ? 0 : ((shop['delivery_fee'] as num?) ?? 0);
-        final note = (p['p_note'] as String? ?? '').trim();
-        t('shop_orders').add({
-          'id': orderId,
-          'shop_id': shop['id'],
-          'buyer_id': _uid,
-          'status': 'placed',
-          'total_amount': subtotal + delivery,
-          'delivery_fee': delivery,
-          'customer_name': name,
-          'customer_phone': phone,
-          'delivery_address': address,
-          'note': note.isEmpty ? null : note,
-          'internal_note': null,
-          'cancel_reason': null,
-          'currency': shop['currency'] ?? 'EGP',
-          'order_code': code,
-          'created_at': DemoStore.nowIso(),
-        });
-        _orderEvent(orderId, shop['id'] as String, 'created', to: 'placed', role: 'customer');
-        _notify(
-          [shop['owner_id'] as String],
-          '🛒 طلب جديد $code — ${shop['name']}',
-          '$name طلب $count منتج بإجمالي ${_money(subtotal + delivery)} ج.م (شامل التوصيل). افتح «الطلبات» في متجري.',
-          '/#/',
-        );
-        return code;
-
+      // ---- 0054 / 0057 / 0099: tracking (placing: demo_tajer_checkout.dart) ----
       case 'get_store_order':
         final code = (p['p_code'] as String? ?? '').trim().toUpperCase();
         final o = _firstWhere('shop_orders', (x) => x['order_code'] == code);
@@ -652,7 +583,19 @@ extension _TajerBackend on DemoStore {
           'code': o['order_code'],
           'status': o['status'],
           'total': o['total_amount'],
+          'subtotal': o['subtotal'] ?? (o['total_amount'] as num) - ((o['delivery_fee'] as num?) ?? 0),
           'delivery_fee': o['delivery_fee'],
+          'shipping_fee': o['delivery_fee'],
+          'discount_amount': o['discount_amount'] ?? 0,
+          'discount_code': o['discount_code'],
+          'discount_title': o['discount_title'],
+          'shipping_zone': o['shipping_zone'],
+          'fulfillment': o['fulfillment'] ?? 'delivery',
+          'confirmation_status': o['confirmation_status'],
+          'can_cancel': o['status'] == 'placed',
+          'cancel_reason': o['status'] == 'cancelled' ? o['cancel_reason'] : null,
+          'currency': o['currency'] ?? 'EGP',
+          'pickup_address': o['fulfillment'] == 'pickup' ? (_shipSettings(shop['id'] as String)?['pickup_address']) : null,
           'created_at': o['created_at'],
           'customer_name': o['customer_name'],
           'shop_name': shop['name'],
@@ -682,15 +625,14 @@ extension _TajerBackend on DemoStore {
         } else {
           throw DemoError('غير مصرح لك');
         }
+        // 0099: «اطلب تأكيد واتساب قبل التجهيز»; a cancelled order gives its discounts back.
+        if (from == 'placed' && status == 'preparing' && o['confirmation_status'] == 'pending' && _shipSettings(shop['id'] as String)?['require_confirmation'] == true) {
+          throw DemoError('أكّد الطلب مع الزبون الأول (زرار «اتأكد») قبل ما تبدأ تجهّزه');
+        }
         o['status'] = status;
         if (status == 'cancelled') {
-          // 0068 / 0098: the stock comes back (per variant).
-          for (final i in t('shop_order_items').where((i) => i['order_id'] == o['id'])) {
-            final v = i['variant_id'] == null ? null : _firstWhere('shop_product_variants', (x) => x['id'] == i['variant_id']);
-            final holder = v ?? (i['variant_id'] == null ? _firstWhere('shop_products', (x) => x['id'] == i['product_id']) : null);
-            if (holder != null && holder['stock'] != null) holder['stock'] = (holder['stock'] as num).toInt() + (i['quantity'] as num).toInt();
-            if (v != null) _rollup(v['product_id'] as String);
-          }
+          _releaseDiscounts(o);
+          _restockOrder(o);
         }
         _orderEvent(o['id'] as String, shop['id'] as String, status == 'cancelled' ? 'cancel' : 'status',
             from: from as String?, to: status, body: status == 'cancelled' ? o['cancel_reason'] as String? : null, role: shop['owner_id'] == _uid ? 'merchant' : 'customer');

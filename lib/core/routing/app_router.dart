@@ -347,7 +347,7 @@ final appRouter = GoRouter(
           GoRoute(path: 'a/:code', builder: (_, state) => PublicEAddressScreen(code: state.pathParameters['code']!)),
           GoRoute(
             path: 's/:slug',
-            builder: (_, state) => StorePageScreen(slug: state.pathParameters['slug']!),
+            builder: (_, state) => StorePageScreen(slug: state.pathParameters['slug']!, cartToken: state.uri.queryParameters['cart']),
             routes: [
               GoRoute(
                 path: 'p/:pid',

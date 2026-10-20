@@ -135,7 +135,7 @@ void main() {
       expect(find.text('شوف متجرك'), findsOneWidget);
       expect(find.text(DemoTajer.shopName), findsOneWidget);
       expect(find.text('الخصومات'), findsOneWidget);
-      expect(find.text('قريباً'), findsNWidgets(3)); // two sidebar pills + the page
+      expect(find.text('قريباً'), findsNWidgets(2)); // the «العملاء» sidebar pill + the page (الخصومات is live since 0099)
       await tester.tap(find.text('الخصومات'));
       await settle(tester);
       expect(router.routerDelegate.currentConfiguration.uri.path, '/discounts');

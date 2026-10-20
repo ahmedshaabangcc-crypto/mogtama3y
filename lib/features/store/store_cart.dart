@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:mogtama3y/core/geo/money.dart';
+import 'package:mogtama3y/core/shops/catalog.dart';
 import 'package:mogtama3y/core/shops/shop_pixels.dart';
 
 /// One line in the storefront cart: a product (as its chosen variant
@@ -72,6 +73,36 @@ class StoreCart extends ChangeNotifier {
 
   void clear() {
     _lines.clear();
+    notifyListeners();
+  }
+
+  /// Puts saved lines back (after a refresh, or a «كمّل طلبك» link) — no
+  /// pixel events. [lines]: product_id, variant_id?, quantity, options;
+  /// products / variants not in [products] (gone / hidden) are skipped.
+  /// Replaces the cart.
+  void restore(List<Map<String, dynamic>> lines, List<Map<String, dynamic>> products) {
+    final byId = {for (final p in products) p['id']: p};
+    _lines.clear();
+    for (final l in lines) {
+      final base = byId[l['product_id']];
+      final qty = (l['quantity'] as num?)?.toInt() ?? 0;
+      if (base == null || qty < 1) continue;
+      final variants = variantsOf(base);
+      Map<String, dynamic> p = base;
+      var options = (l['options'] as String?) ?? '';
+      if (variants.isNotEmpty) {
+        final v = variants.where((v) => v['id'] == l['variant_id']).firstOrNull ??
+            variants.where((v) => variantLabelOf(base, v) == options).firstOrNull;
+        if (v == null) continue;
+        p = productWithVariant(base, v);
+        options = variantLabelOf(base, v);
+      }
+      if (isSoldOut(p)) continue;
+      final line = CartLine(product: p, options: options, quantity: qty.clamp(1, 99), variantId: p['variant_id'] as String?);
+      final stock = line.stock;
+      if (stock != null && line.quantity > stock) line.quantity = stock;
+      _lines[line.key] = line;
+    }
     notifyListeners();
   }
 

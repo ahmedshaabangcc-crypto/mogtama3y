@@ -7,6 +7,8 @@ import '../../core/shops/shop_pixels.dart';
 import '../../core/shops/store_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
+import '../../core/shops/checkout_service.dart';
+import 'cart_storage.dart';
 import 'checkout_screen.dart';
 import 'product_screen.dart';
 import 'store_cart.dart';
@@ -17,8 +19,11 @@ import 'package:mogtama3y/core/geo/money.dart';
 /// no account: the customer checks out with name, mobile and address and
 /// pays on delivery (migration 0054).
 class StorePageScreen extends StatefulWidget {
-  const StorePageScreen({super.key, required this.slug, this.productId});
+  const StorePageScreen({super.key, required this.slug, this.productId, this.cartToken});
   final String slug;
+
+  /// `?cart=<token>`: a «كمّل طلبك» link (0099) — restores that cart.
+  final String? cartToken;
 
   /// Opens this product right away (shared product links `/s/<slug>/p/<id>`).
   final String? productId;
@@ -52,7 +57,29 @@ class _StorePageScreenState extends State<StorePageScreen> {
     _load();
   }
 
-  void _onCart() => setState(() {});
+  void _onCart() {
+    setState(() {});
+    final id = _shop?['id'] as String?;
+    if (id != null && _cartRestored) CartStorage.save(id, _cart);
+  }
+
+  /// The saved cart is back (so restoring doesn't overwrite it with nothing).
+  bool _cartRestored = false;
+
+  /// A «كمّل طلبك» link's cart, or the one saved in this browser.
+  Future<void> _restoreCart(String shopId, List<Map<String, dynamic>> products) async {
+    final token = widget.cartToken;
+    final fromLink = token == null ? null : await CheckoutService.cartLines(token);
+    final lines = fromLink ?? await CartStorage.load(shopId);
+    if (mounted && lines.isNotEmpty && _cart.isEmpty) _cart.restore(lines, products);
+    _cartRestored = true;
+    if (mounted && fromLink != null && fromLink.isNotEmpty && !_cart.isEmpty) {
+      CartStorage.save(shopId, _cart);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _openCart();
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -88,7 +115,10 @@ class _StorePageScreenState extends State<StorePageScreen> {
         _collections = collections;
         _loading = false;
       });
-      if (shop != null) _startPixels(shop['id'] as String);
+      if (shop != null) {
+        _startPixels(shop['id'] as String);
+        _restoreCart(shop['id'] as String, products);
+      }
       final pid = widget.productId;
       if (pid != null) {
         final p = products.where((x) => x['id'] == pid).firstOrNull;
@@ -147,7 +177,7 @@ class _StorePageScreenState extends State<StorePageScreen> {
   }
 
   void _openCart() {
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => CheckoutScreen(shop: _shop!, cart: _cart)));
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => CheckoutScreen(shop: _shop!, cart: _cart, cartToken: widget.cartToken)));
   }
 
   void _shareStore() {

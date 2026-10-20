@@ -241,6 +241,21 @@ class _OrdersViewState extends State<OrdersView> {
       search: AdminSearchField(controller: _search, hint: 'دوّر بالكود أو الاسم أو الموبايل', onChanged: _onSearch),
       actions: [
         IconButton(tooltip: 'تحديث', onPressed: _load, icon: const Icon(Icons.refresh_rounded)),
+        // «سلات متروكة» (0099).
+        if (MediaQuery.sizeOf(context).width < AdminBreakpoints.rail)
+          IconButton(
+            key: const ValueKey('open-abandoned'),
+            tooltip: 'سلات متروكة',
+            onPressed: () => context.go('/orders/abandoned'),
+            icon: const Icon(Icons.remove_shopping_cart_outlined),
+          )
+        else
+          TextButton.icon(
+            key: const ValueKey('open-abandoned'),
+            onPressed: () => context.go('/orders/abandoned'),
+            icon: const Icon(Icons.remove_shopping_cart_outlined, size: 18),
+            label: const Text('سلات متروكة'),
+          ),
         OutlinedButton.icon(
           onPressed: _exporting || (_counts['all'] ?? 0) == 0 ? null : _exportCsv,
           icon: _exporting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.download_rounded, size: 18),

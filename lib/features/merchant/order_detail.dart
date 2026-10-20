@@ -7,6 +7,7 @@ import '../../core/geo/money.dart';
 import '../../core/geo/phones.dart';
 import '../../core/shops/print_card.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/shops/checkout_service.dart';
 import '../../core/shops/store_service.dart';
 import '../e_address/e_address_widgets.dart';
 import '../shared/load_error_view.dart';
@@ -187,6 +188,18 @@ class _OrderDetailViewState extends State<OrderDetailView> {
     }
   }
 
+  /// «اتأكد» (0099): the customer confirmed the cash order.
+  Future<void> _confirm() async {
+    final session = MerchantScope.read(context);
+    try {
+      await CheckoutService.confirmOrder(widget.orderId);
+      session.ordersChanged();
+      await _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(adminErrorText(e, 'تعذر التأكيد'))));
+    }
+  }
+
   Future<void> _saveNote() async {
     setState(() => _savingNote = true);
     final session = MerchantScope.read(context);
@@ -221,6 +234,11 @@ class _OrderDetailViewState extends State<OrderDetailView> {
         Text('طلب ${o['order_code'] ?? ''}', textDirection: TextDirection.rtl, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
         OrderStatusPill(status),
         const CashPill(long: true),
+        if (o['fulfillment'] == 'pickup') const Pill('استلام من المحل', AppColors.surfaceAlt, AppColors.inkSecondary, icon: Icons.storefront_rounded),
+        if (o['confirmation_status'] == 'confirmed')
+          Pill('اتأكد', AppColors.success.withValues(alpha: 0.15), const Color(0xFF047857), icon: Icons.verified_rounded)
+        else if (o['confirmation_status'] == 'pending' && status == 'placed')
+          Pill('مستني تأكيد', AppColors.gold.withValues(alpha: 0.22), const Color(0xFF8A5A12), icon: Icons.hourglass_top_rounded),
         if (created != null) Text(DateFormat('d/M/yyyy – h:mm a').format(created), style: const TextStyle(fontSize: 12, color: AppColors.inkMuted)),
       ],
     );
@@ -237,13 +255,18 @@ class _OrderDetailViewState extends State<OrderDetailView> {
     final items = List<Map<String, dynamic>>.from((o['items'] as List? ?? const []).map((i) => Map<String, dynamic>.from(i as Map)));
     final delivery = (o['delivery_fee'] as num?) ?? 0;
     final total = (o['total_amount'] as num?) ?? 0;
+    final discount = (o['discount_amount'] as num?) ?? 0;
+    final subtotal = (o['subtotal'] as num?) ?? total - delivery + discount;
+    final zone = o['shipping_zone'] as String?;
     final itemsCard = AdminCard(
       title: 'المنتجات (${items.fold<num>(0, (a, i) => a + ((i['quantity'] as num?) ?? 0))} قطعة)',
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         for (final i in items) _line(i, m),
         const Divider(height: 20),
-        _total('المنتجات', m(total - delivery)),
-        _total('التوصيل', delivery == 0 ? 'مجاني' : m(delivery)),
+        _total('المنتجات', m(subtotal)),
+        if (discount > 0)
+          _total('الخصم${o['discount_code'] != null ? ' (${o['discount_code']})' : o['discount_title'] != null ? ' (${o['discount_title']})' : ''}', '−${m(discount)}'),
+        _total(o['fulfillment'] == 'pickup' ? 'استلام من المحل' : 'التوصيل${zone != null ? ' — $zone' : ''}', delivery == 0 ? 'مجاني' : m(delivery)),
         _total('الإجمالي', m(total), bold: true),
         const SizedBox(height: 4),
         const Text('الدفع كاش عند الاستلام', style: TextStyle(fontSize: 11.5, color: AppColors.inkMuted)),
@@ -303,11 +326,29 @@ class _OrderDetailViewState extends State<OrderDetailView> {
         ),
       ]),
     );
+    final pendingConfirm = o['confirmation_status'] == 'pending' && status == 'placed';
     final actions = nextOrderActions(status).isEmpty
         ? null
         : AdminCard(
             title: 'حرّك الطلب',
-            child: OrderActions(orderId: widget.orderId, status: status, onChanged: _load),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              if (pendingConfirm) ...[
+                Row(children: [
+                  const Expanded(
+                    child: Text('الزبون أكّد الطلب على واتساب أو في التليفون؟', style: TextStyle(fontSize: 12.5, color: AppColors.inkSecondary)),
+                  ),
+                  FilledButton.icon(
+                    key: const ValueKey('confirm-order'),
+                    onPressed: _confirm,
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.success),
+                    icon: const Icon(Icons.verified_rounded, size: 18),
+                    label: const Text('اتأكد'),
+                  ),
+                ]),
+                const SizedBox(height: 10),
+              ],
+              OrderActions(orderId: widget.orderId, status: status, onChanged: _load),
+            ]),
           );
     final cancelled = status == 'cancelled' && (o['cancel_reason'] as String?) != null
         ? Container(
@@ -407,6 +448,8 @@ class OrderTimeline extends StatelessWidget {
       'status' => 'الحالة بقت «$to» — $who',
       'cancel' => 'اتلغى الطلب — $who${(e['body'] as String?)?.isNotEmpty == true ? '\nالسبب: ${e['body']}' : ''}',
       'note' => 'ملاحظة داخلية — $who\n${e['body'] ?? ''}',
+      'confirm' => 'الطلب اتأكد مع الزبون — $who',
+      'discount' => 'خصم: ${e['body'] ?? ''}',
       _ => '${e['kind']}',
     };
   }
@@ -424,9 +467,16 @@ class OrderTimeline extends StatelessWidget {
               child: Column(children: [
                 CircleAvatar(
                   radius: 11,
-                  backgroundColor: switch (e['kind']) { 'cancel' => AppColors.categorySos, 'note' => AppColors.gold, 'created' => AppColors.success, _ => AppColors.crystal },
+                  backgroundColor: switch (e['kind']) { 'cancel' => AppColors.categorySos, 'note' || 'discount' => AppColors.gold, 'created' || 'confirm' => AppColors.success, _ => AppColors.crystal },
                   child: Icon(
-                    switch (e['kind']) { 'cancel' => Icons.close_rounded, 'note' => Icons.sticky_note_2_rounded, 'created' => Icons.shopping_bag_rounded, _ => Icons.sync_alt_rounded },
+                    switch (e['kind']) {
+                      'cancel' => Icons.close_rounded,
+                      'note' => Icons.sticky_note_2_rounded,
+                      'created' => Icons.shopping_bag_rounded,
+                      'confirm' => Icons.verified_rounded,
+                      'discount' => Icons.local_offer_rounded,
+                      _ => Icons.sync_alt_rounded,
+                    },
                     size: 12,
                     color: Colors.white,
                   ),
