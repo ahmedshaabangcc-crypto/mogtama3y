@@ -77,7 +77,7 @@ void main() {
 
     test('gateways by country', () {
       List<String> ids(String c) => gatewaySpecs.where((g) => g.availableIn(c)).map((g) => g.id).toList();
-      expect(ids('EG'), ['paymob', 'kashier', 'tap']);
+      expect(ids('EG'), ['fawaterak', 'paymob', 'kashier', 'tap']);
       expect(ids('SA'), ['paymob', 'tap', 'moyasar']);
       expect(ids('KW'), ['tap']);
       expect(ids('MA'), isEmpty);

@@ -181,3 +181,25 @@ CNAME target, Cloudflare for SaaS custom hostnames for `verified` domains,
 then `shop_domains.status = 'active'`, and the
 `facebook-domain-verification` meta tag from
 `shops.tracking->>'fb_domain_verification'` on that domain.
+
+## متجري «ادفع أونلاين» — `payments-checkout` + Fawaterak (migration 0100)
+
+Owner decision (2026-10-30): the first online gateway is **Fawaterak
+(فواتيرك)**, each merchant with THEIR OWN account (API key in «طرق الدفع»).
+
+Deploy: run `0100_fawaterak.sql`, deploy a new function named
+**`payments-checkout`** (`payments-checkout/index.ts`, **Enforce JWT
+verification OFF** — guests pay; the order code + its mobile are the check),
+and redeploy `payments-connect` and `payments-webhook` (both gained
+Fawaterak). No new secrets.
+
+| step | who | what |
+| --- | --- | --- |
+| `methods` | storefront | `payment_begin` (code + phone; the order becomes online / «مستني الدفع») → Fawaterak `GET getPaymentmethods` |
+| `pay` | storefront | `POST invoiceInitPay` (the order's total from the DB, one cart line, `payLoad.order_code`, `webhookUrl` = `payments-webhook?shop=…&provider=fawaterak`) → `redirect_to` (cards / wallets) or a Fawry / Aman code |
+| webhook | Fawaterak | `hashKey` = HMAC-SHA256(API key, `InvoiceId=…&InvoiceKey=…&PaymentMethod=…`) checked, then the invoice is **re-read** with `GET getInvoiceData/<id>` and `payment_settle` marks the order paid only for the order's exact amount and currency |
+| `status` | tracking page | the same re-read, when the customer comes back from Fawaterak's page |
+
+Hosts: `staging.fawaterk.com/api/v2` for «تجريبي», `app.fawaterk.com/api/v2`
+for «حقيقي». The merchant pastes nothing in their Fawaterak dashboard (each
+invoice carries its webhook URL). Tests: phase «tfaw» in `backend/tests/run.js`.

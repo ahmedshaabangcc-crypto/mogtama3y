@@ -13,7 +13,9 @@ import 'package:mogtama3y/features/merchant/admin/admin_shell.dart' show isTajer
 import 'package:mogtama3y/features/merchant/admin/merchant_session.dart';
 import 'package:mogtama3y/features/merchant/admin/tajer_routes.dart';
 import 'package:mogtama3y/features/merchant/checkout/abandoned_carts_page.dart';
+import 'package:mogtama3y/core/shops/online_payment.dart';
 import 'package:mogtama3y/features/store/checkout_screen.dart';
+import 'package:mogtama3y/features/store/online_payment_screen.dart';
 import 'package:mogtama3y/features/store/store_cart.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -206,6 +208,66 @@ void main() {
       expect(find.textContaining('أقل طلب'), findsOneWidget);
       final button = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'تأكيد الطلب — ${money(30)}'));
       expect(button.onPressed, isNull);
+    });
+
+    testWidgets('0100: a store with Fawaterak offers «ادفع أونلاين» next to cash', (tester) async {
+      tester.view.physicalSize = const Size(420, 4000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      var cod = true;
+      CheckoutService.debugRpc = (fn, p) async {
+        if (fn == 'shop_checkout_methods') return {'cod': cod, 'online': [{'provider': 'fawaterak', 'mode': 'test'}]};
+        return await Supabase.instance.client.rpc(fn, params: p);
+      };
+      addTearDown(() => CheckoutService.debugRpc = null);
+      final cart = StoreCart()..add(product(1), quantity: 4);
+      await tester.pumpWidget(app(CheckoutScreen(shop: shop(), cart: cart)));
+      await settle(tester);
+      expect(find.byKey(const ValueKey('pay-online')), findsOneWidget);
+      expect(find.byKey(const ValueKey('pay-cod')), findsOneWidget);
+      expect(find.widgetWithText(ElevatedButton, 'تأكيد الطلب — ${money(75)}'), findsOneWidget); // cash by default
+      await tester.ensureVisible(find.byKey(const ValueKey('pay-online')));
+      await tester.tap(find.byKey(const ValueKey('pay-online')));
+      await tester.pump();
+      expect(find.widgetWithText(ElevatedButton, 'كمّل للدفع — ${money(75)}'), findsOneWidget);
+
+      // Cash on delivery off: online is the only way.
+      cod = false;
+      await tester.pumpWidget(app(CheckoutScreen(key: UniqueKey(), shop: shop(), cart: cart)));
+      await settle(tester);
+      expect(find.byKey(const ValueKey('pay-cod')), findsNothing);
+      expect(find.widgetWithText(ElevatedButton, 'كمّل للدفع — ${money(75)}'), findsOneWidget);
+    });
+
+    testWidgets('0100: the payment page lists Fawaterak methods and shows a Fawry code', (tester) async {
+      tester.view.physicalSize = const Size(420, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final calls = <Map<String, dynamic>>[];
+      OnlinePayment.debugInvoke = (body) async {
+        calls.add(body);
+        return switch (body['action']) {
+          'methods' => {
+              'order': {'code': 'TABC2345', 'total': 75, 'currency': 'EGP', 'shop_name': 'محل'},
+              'methods': [
+                {'id': 2, 'name_ar': 'فيزا -ماستر كارد', 'redirect': true},
+                {'id': 3, 'name_ar': 'فوري', 'redirect': false},
+              ],
+            },
+          _ => {'codes': {'fawryCode': '981234567'}, 'expire_date': '2026-11-02'},
+        };
+      };
+      addTearDown(() => OnlinePayment.debugInvoke = null);
+      await tester.pumpWidget(app(const OnlinePaymentScreen(code: 'TABC2345', phone: '01011112222')));
+      await settle(tester);
+      expect((tester.widget<Text>(find.byKey(const ValueKey('pay-total')))).data, money(75));
+      expect(find.text('فيزا -ماستر كارد'), findsOneWidget);
+      expect(find.text('هتاخد كود تدفع بيه'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('pay-method-3')));
+      await settle(tester);
+      expect(calls.last, {'action': 'pay', 'code': 'TABC2345', 'phone': '01011112222', 'method_id': 3});
+      expect((tester.widget<Text>(find.byKey(const ValueKey('pay-code')))).data, '981234567');
+      expect(find.text('كود فوري'), findsOneWidget);
     });
   });
 

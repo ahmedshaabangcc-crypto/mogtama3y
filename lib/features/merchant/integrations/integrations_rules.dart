@@ -25,6 +25,7 @@ class GatewaySpec {
     required this.blurb,
     required this.webhookWhere,
     required this.fields,
+    this.checkoutReady = false,
   });
   final String id;
   final String name;
@@ -32,14 +33,31 @@ class GatewaySpec {
   final String signupUrl;
   final String blurb;
 
-  /// Where the merchant pastes our webhook URL in the gateway's dashboard.
+  /// Where the merchant pastes our webhook URL in the gateway's dashboard
+  /// ('' = nothing to paste: every invoice sends it itself).
   final String webhookWhere;
   final List<GatewayField> fields;
+
+  /// Customers can already pay with it in the store (0100: Fawaterak).
+  final bool checkoutReady;
 
   bool availableIn(String? country) => countries.contains((country ?? 'EG').toUpperCase());
 }
 
 const gatewaySpecs = <GatewaySpec>[
+  GatewaySpec(
+    id: 'fawaterak',
+    name: 'فواتيرك',
+    countries: ['EG'],
+    signupUrl: 'https://app.fawaterk.com',
+    blurb: 'فيزا وماستركارد وميزة، فوري وأمان، ومحافظ الموبايل — مصر. الزبون بيدفع أونلاين من صفحة متجرك على طول.',
+    webhookWhere: '',
+    checkoutReady: true,
+    fields: [
+      GatewayField('api_key', 'API Key', hint: 'لوحة فواتيرك ← Integrations ← Fawaterak ← API Key', secret: true, required: true, pattern: r'^[A-Za-z0-9]{20,200}$'),
+      GatewayField('provider_key', 'Provider Key (اختياري)', hint: 'من نفس الصفحة', pattern: r'^[A-Za-z0-9_-]{6,120}$'),
+    ],
+  ),
   GatewaySpec(
     id: 'paymob',
     name: 'Paymob',

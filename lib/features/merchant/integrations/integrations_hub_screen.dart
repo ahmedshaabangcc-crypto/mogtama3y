@@ -31,7 +31,7 @@ class _IntegrationsHubScreenState extends State<IntegrationsHubScreen> with Inte
               _HubTile(
                 icon: Icons.payments_rounded,
                 title: 'طرق الدفع',
-                text: 'الدفع عند الاستلام، InstaPay والمحافظ والتحويل البنكي، واربط بوابة دفع باسمك (Paymob، Kashier، Tap، Moyasar) — الفلوس بتنزل في حسابك أنت على طول.',
+                text: 'الدفع عند الاستلام، InstaPay والمحافظ والتحويل البنكي، واربط بوابة دفع باسمك (فواتيرك، Paymob، Kashier، Tap، Moyasar) — الفلوس بتنزل في حسابك أنت على طول.',
                 badge: _paymentsBadge(d!),
                 onTap: () => context.go('/settings/payments'),
               ),

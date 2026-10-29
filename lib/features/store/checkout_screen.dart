@@ -13,6 +13,7 @@ import '../../core/shops/checkout_service.dart';
 import '../../core/shops/shop_pixels.dart';
 import '../../core/shops/store_service.dart';
 import '../../core/theme/app_colors.dart';
+import 'online_payment_screen.dart';
 import 'order_tracking_screen.dart';
 import 'store_cart.dart';
 import '../legal/privacy_policy_screen.dart';
@@ -21,7 +22,8 @@ import '../shared/phone_field.dart';
 import 'package:mogtama3y/core/geo/money.dart';
 
 /// Cart + checkout: no account needed — name, mobile, area / address (or
-/// pickup from the store), an optional discount code, cash on delivery.
+/// pickup from the store), an optional discount code, cash on delivery or
+/// (0100) «ادفع أونلاين» with the store's Fawaterak.
 ///
 /// Totals come from the server (quote_store_checkout, 0099): shipping by
 /// zone, discounts, minimum order, open / closed. The cart is saved for
@@ -65,6 +67,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   String? _savedCartToken;
   bool _pixelSent = false;
   int _quoteSeq = 0;
+  CheckoutMethods _methods = const CheckoutMethods({});
+  bool _payOnlineChosen = false;
 
   String get _shopId => widget.shop['id'] as String;
   String get _country => (_info?.country ?? widget.shop['country'] as String?) ?? 'EG';
@@ -89,11 +93,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Future<void> _loadInfo() async {
-    final info = await CheckoutService.info(_shopId);
+    final (info, methods) = await (CheckoutService.info(_shopId), CheckoutService.methods(_shopId)).wait;
     if (!mounted) return;
     setState(() {
       _info = info;
       _infoLoaded = true;
+      _methods = methods;
     });
     _requote(now: true);
   }
@@ -250,6 +255,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   bool get _canPlace => !_placing && (_legacy || (_quote != null && !_quoting && _blocking == null));
 
+  // «ادفع أونلاين» (0100): offered when the store connected Fawaterak;
+  // the only way when it turned cash on delivery off.
+  bool get _onlineOffered => !_legacy && _methods.online;
+  bool get _payOnline => _onlineOffered && (_payOnlineChosen || !_methods.cod);
+
   void _useAddress(Map<String, dynamic> a) {
     final landmark = (a['landmark'] as String?)?.trim();
     _address.text = [
@@ -333,6 +343,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           value: total, currency: currencyOf(widget.shop), shipping: _shipping, discount: _discount, coupon: quote?.discountCode);
       widget.cart.clear();
       if (!mounted) return;
+      if (_payOnline) {
+        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => OnlinePaymentScreen(code: code!, phone: phone)));
+        return;
+      }
       Navigator.of(context).pushReplacement(MaterialPageRoute(
         builder: (_) => OrderPlacedScreen(
           shop: widget.shop,
@@ -543,16 +557,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             Text(m(_grandTotal), key: const ValueKey('checkout-total'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: AppColors.crystal)),
           ]),
           const SizedBox(height: 6),
-          Row(children: [
-            const Icon(Icons.payments_outlined, size: 18, color: AppColors.success),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(_fulfillment == 'pickup' ? 'الدفع كاش عند الاستلام من المحل' : 'الدفع كاش عند الاستلام',
-                  style: const TextStyle(fontSize: 12, color: AppColors.inkSecondary)),
-            ),
-          ]),
+          if (!_onlineOffered)
+            Row(children: [
+              const Icon(Icons.payments_outlined, size: 18, color: AppColors.success),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(_fulfillment == 'pickup' ? 'الدفع كاش عند الاستلام من المحل' : 'الدفع كاش عند الاستلام',
+                    style: const TextStyle(fontSize: 12, color: AppColors.inkSecondary)),
+              ),
+            ]),
         ]),
       ),
+      if (_onlineOffered) ..._paymentChoice(),
       if (_blocking != null && _error == null) Padding(padding: const EdgeInsets.only(top: 10), child: _Notice(icon: Icons.info_outline_rounded, text: _blocking!, danger: true)),
       if (_error != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(_error!, style: const TextStyle(color: Colors.redAccent))),
       const SizedBox(height: 16),
@@ -562,7 +578,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           onPressed: _canPlace ? _place : null,
           child: _placing
               ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : Text('تأكيد الطلب — ${moneyOf(widget.shop, _grandTotal)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              : Text('${_payOnline ? 'كمّل للدفع' : 'تأكيد الطلب'} — ${moneyOf(widget.shop, _grandTotal)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
         ),
       ),
       const SizedBox(height: 8),
@@ -573,6 +589,31 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           child: const Text('سياسة الخصوصية', style: TextStyle(fontSize: 11.5, color: AppColors.crystal, decoration: TextDecoration.underline)),
         ),
       ]),
+    ];
+  }
+
+  List<Widget> _paymentChoice() {
+    Widget option(bool online, IconData icon, String title, String subtitle) => Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: _payOnline == online ? AppColors.crystal : AppColors.border, width: _payOnline == online ? 2 : 1),
+          ),
+          child: ListTile(
+            key: ValueKey(online ? 'pay-online' : 'pay-cod'),
+            onTap: () => setState(() => _payOnlineChosen = online),
+            leading: Icon(icon, color: _payOnline == online ? AppColors.crystal : AppColors.inkMuted),
+            title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
+            trailing: Icon(_payOnline == online ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
+                color: _payOnline == online ? AppColors.crystal : AppColors.inkMuted),
+          ),
+        );
+    return [
+      _section('هتدفع إزاي؟'),
+      option(true, Icons.credit_card_rounded, 'ادفع أونلاين', 'كارت، فوري، أو محفظة موبايل — عن طريق فواتيرك'),
+      if (_methods.cod)
+        option(false, Icons.payments_outlined, _fulfillment == 'pickup' ? 'كاش عند الاستلام من المحل' : 'كاش عند الاستلام', 'بتدفع لما الطلب يوصلك'),
     ];
   }
 

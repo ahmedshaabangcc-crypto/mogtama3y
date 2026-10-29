@@ -233,7 +233,7 @@ class _OrderDetailViewState extends State<OrderDetailView> {
       children: [
         Text('طلب ${o['order_code'] ?? ''}', textDirection: TextDirection.rtl, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
         OrderStatusPill(status),
-        const CashPill(long: true),
+        CashPill(long: true, order: o),
         if (o['fulfillment'] == 'pickup') const Pill('استلام من المحل', AppColors.surfaceAlt, AppColors.inkSecondary, icon: Icons.storefront_rounded),
         if (o['confirmation_status'] == 'confirmed')
           Pill('اتأكد', AppColors.success.withValues(alpha: 0.15), const Color(0xFF047857), icon: Icons.verified_rounded)

@@ -10,8 +10,8 @@ import 'integrations_service.dart';
 
 /// «طرق الدفع» (/settings/payments) — like Shopify Settings → Payments:
 /// cash on delivery, manual methods, and the merchant's OWN online gateway
-/// (the money goes straight to the merchant). Online checkout itself is
-/// Phase 4; this is the connection layer.
+/// (the money goes straight to the merchant). Customers already pay online
+/// with Fawaterak (0100); the other gateways' checkout comes later.
 class PaymentsSettingsScreen extends StatefulWidget {
   const PaymentsSettingsScreen({super.key});
 
@@ -264,8 +264,17 @@ class _GatewayCardState extends State<_GatewayCard> {
           if (row['last_error'] != null)
             Padding(padding: const EdgeInsets.only(top: 4), child: Text(row['last_error'] as String, style: const TextStyle(fontSize: 12, color: Colors.redAccent))),
           const SizedBox(height: 6),
-          CopyValue(label: 'رابط الـ Webhook — الصقه في ${widget.spec.webhookWhere}', value: IntegrationsService.webhookUrl(widget.data.shopId, widget.spec.id)),
+          if (widget.spec.webhookWhere.isNotEmpty)
+            CopyValue(label: 'رابط الـ Webhook — الصقه في ${widget.spec.webhookWhere}', value: IntegrationsService.webhookUrl(widget.data.shopId, widget.spec.id)),
           if (widget.spec.id == 'moyasar' && row['webhook_token'] != null) CopyValue(label: 'Secret token للـ Webhook', value: row['webhook_token'] as String),
+          Text(
+            widget.spec.checkoutReady
+                ? (status == 'connected'
+                    ? 'الزبون بيشوف «ادفع أونلاين» في صفحة متجرك، والطلب بيتعلّم «اتدفع ✓» لوحده لما الفلوس توصل.'
+                    : 'اضغط «اختبر الاتصال» — أول ما يبقى «مربوط» الزبون يقدر يدفع أونلاين.')
+                : 'الربط محفوظ — الدفع أونلاين بـ ${widget.spec.name} في صفحة المتجر جاي قريباً.',
+            style: const TextStyle(fontSize: 12, color: AppColors.inkSecondary, height: 1.5),
+          ),
         ],
         const SizedBox(height: 8),
         Wrap(spacing: 8, runSpacing: 6, children: [

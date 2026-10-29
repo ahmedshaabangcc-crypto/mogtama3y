@@ -35,6 +35,17 @@ class CheckoutService {
     }
   }
 
+  /// How the customer may pay (shop_checkout_methods, 0097). Cash only when
+  /// it can't be read.
+  static Future<CheckoutMethods> methods(String shopId) async {
+    try {
+      final r = await _rpc('shop_checkout_methods', {'p_shop': shopId});
+      return r == null ? const CheckoutMethods({}) : CheckoutMethods(_map(r));
+    } catch (_) {
+      return const CheckoutMethods({});
+    }
+  }
+
   static Future<CheckoutQuote> quote({
     required String shopId,
     required List<Map<String, dynamic>> lines,
@@ -178,6 +189,17 @@ class CheckoutInfo {
   bool get requireConfirmation => raw['require_confirmation'] == true;
   Map<String, dynamic> get open => Map<String, dynamic>.from(raw['open'] as Map? ?? const {'can_order': true, 'code': 'ok'});
   List<Map<String, dynamic>> get autoDiscounts => [for (final d in raw['auto_discounts'] as List? ?? const []) Map<String, dynamic>.from(d as Map)];
+}
+
+/// shop_checkout_methods().
+class CheckoutMethods {
+  const CheckoutMethods(this.raw);
+  final Map<String, dynamic> raw;
+
+  bool get cod => raw['cod'] != false;
+
+  /// Online payment the store takes now (0100: the shop's Fawaterak).
+  bool get online => (raw['online'] as List? ?? const []).any((g) => g is Map && g['provider'] == 'fawaterak');
 }
 
 /// quote_store_checkout().

@@ -106,12 +106,24 @@ class OrderStatusPill extends StatelessWidget {
 
 /// «كاش عند الاستلام» — the only payment متجري has today.
 class CashPill extends StatelessWidget {
-  const CashPill({super.key, this.long = false});
+  const CashPill({super.key, this.long = false, this.order});
   final bool long;
 
+  /// The order row (0100): an online order shows «اتدفع» / «مستني الدفع».
+  final Map<String, dynamic>? order;
+
   @override
-  Widget build(BuildContext context) =>
-      Pill(long ? 'كاش عند الاستلام' : 'كاش', AppColors.surfaceAlt, AppColors.inkSecondary, icon: Icons.payments_outlined);
+  Widget build(BuildContext context) {
+    final o = order;
+    if (o != null && o['payment'] == 'online') {
+      return switch (o['payment_status']) {
+        'paid' => Pill(long ? 'اتدفع أونلاين' : 'اتدفع', AppColors.success.withValues(alpha: 0.15), const Color(0xFF047857), icon: Icons.credit_score_rounded),
+        'failed' => Pill(long ? 'الدفع مانجحش' : 'مادفعش', const Color(0x22B91C1C), const Color(0xFFB91C1C), icon: Icons.credit_card_off_rounded),
+        _ => Pill(long ? 'مستني الدفع أونلاين' : 'مستني الدفع', AppColors.gold.withValues(alpha: 0.22), const Color(0xFF8A5A12), icon: Icons.hourglass_top_rounded),
+      };
+    }
+    return Pill(long ? 'كاش عند الاستلام' : 'كاش', AppColors.surfaceAlt, AppColors.inkSecondary, icon: Icons.payments_outlined);
+  }
 }
 
 /// A white rounded card with an optional title row.

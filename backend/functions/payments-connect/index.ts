@@ -16,6 +16,7 @@
 //        Paymob  — POST <region>/api/auth/tokens {api_key} (issues a token, no money moves)
 //        Tap     — POST https://api.tap.company/v2/charges/list {limit: 1} (read-only list)
 //        Moyasar — GET  https://api.moyasar.com/v1/payments?limit=1 (read-only list)
+//        Fawaterak — GET <staging|app>.fawaterk.com/api/v2/getPaymentmethods (0100)
 //        Kashier — no public read-only "who am I" endpoint we could confirm in
 //                  the docs: FORMAT CHECK ONLY (checked: 'format'); the first
 //                  real test payment (Phase 4) is the true check.
@@ -89,6 +90,20 @@ async function testGateway(creds = Object(), fetchFn = fetch) {
         });
         return verdict(r.status, 'Moyasar قبل المفتاح ✓');
       }
+      case 'fawaterak': {
+        if (!s.api_key) return bad('الـ API key ناقص');
+        const base = creds.mode === 'live' ? 'https://app.fawaterk.com' : 'https://staging.fawaterk.com';
+        const r = await fetchFn(base + '/api/v2/getPaymentmethods', {
+          method: 'GET',
+          headers: { 'Authorization': 'Bearer ' + s.api_key, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        });
+        if (r.status >= 200 && r.status < 300) {
+          const j = await r.json().catch(() => ({}));
+          if (!j || j.status !== 'success') return bad('فواتيرك ماقبلتش المفتاح — اتأكد إنه مفتاح ' + (creds.mode === 'live' ? 'الحساب الحقيقي (app.fawaterk.com)' : 'حساب التجربة (staging.fawaterk.com)'));
+          return { ok: true, message: 'فواتيرك قبلت المفتاح ✓', checked: 'api' };
+        }
+        return verdict(r.status, '');
+      }
       case 'kashier': {
         const okMid = /^MID-[0-9]{1,10}-[0-9]{1,10}$/.test(p.merchant_id || '');
         if (!okMid || !s.api_key || !s.secret_key) return { ok: false, message: 'بيانات Kashier ناقصة', checked: 'format' };
@@ -122,7 +137,7 @@ function corsFor(req: Request): Record<string, string> {
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const PROVIDERS = new Set(['paymob', 'kashier', 'tap', 'moyasar']);
+const PROVIDERS = new Set(['paymob', 'kashier', 'tap', 'moyasar', 'fawaterak']);
 
 Deno.serve(async (req) => {
   const cors = corsFor(req);

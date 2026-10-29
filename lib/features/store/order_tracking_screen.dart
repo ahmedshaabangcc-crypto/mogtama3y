@@ -3,11 +3,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/shops/checkout_service.dart';
+import '../../core/shops/online_payment.dart';
 import '../../core/shops/store_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../shared/load_error_view.dart';
 import '../../core/geo/phones.dart';
 import 'package:mogtama3y/core/geo/money.dart';
+import 'online_payment_screen.dart';
 
 /// `mogtama3y.com/#/o/<code>` — anyone with the order code follows it.
 class OrderTrackingScreen extends StatefulWidget {
@@ -42,7 +44,15 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
       _error = false;
     });
     try {
-      final o = await StoreService.trackOrder(widget.code);
+      var o = await StoreService.trackOrder(widget.code);
+      // Back from Fawaterak's page (0100): ask it about the invoice now
+      // rather than wait for the webhook.
+      if (o != null && o['payment_method'] == 'online' && o['payment_status'] != 'paid') {
+        final phone = await OnlinePayment.phoneFor(widget.code);
+        if (phone != null && await OnlinePayment.refresh(widget.code, phone) == 'paid') {
+          o = await StoreService.trackOrder(widget.code);
+        }
+      }
       if (mounted) setState(() => _order = o);
     } catch (_) {
       if (mounted) setState(() => _error = true);
@@ -58,6 +68,48 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     if (done == null || !mounted) return;
     setState(() => _order = done);
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اتلغى طلبك، والمحل وصله إشعار')));
+  }
+
+  /// «ادفع دلوقتي»: the mobile this browser placed the order with, or ask.
+  Future<void> _payNow() async {
+    var phone = await OnlinePayment.phoneFor(widget.code);
+    if (phone == null && mounted) {
+      final c = TextEditingController();
+      phone = await showDialog<String>(
+        context: context,
+        builder: (d) => AlertDialog(
+          title: const Text('ادفع أونلاين'),
+          content: TextField(
+            controller: c,
+            keyboardType: TextInputType.phone,
+            textDirection: TextDirection.ltr,
+            decoration: const InputDecoration(labelText: 'رقم الموبايل اللي طلبت بيه'),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(d), child: const Text('رجوع')),
+            FilledButton(onPressed: () => Navigator.pop(d, c.text.trim()), child: const Text('كمّل')),
+          ],
+        ),
+      );
+    }
+    if (phone == null || phone.isEmpty || !mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => OnlinePaymentScreen(code: widget.code, phone: phone!)));
+    if (mounted) _load();
+  }
+
+  Widget _paymentTile(Map<String, dynamic> o) {
+    final (icon, color, text) = switch (o['payment_status']) {
+      'paid' => (Icons.verified_rounded, AppColors.success, 'اتدفع أونلاين ✓'),
+      'failed' => (Icons.error_outline_rounded, Colors.redAccent, 'الدفع مانجحش — تقدر تحاول تاني'),
+      _ => (Icons.hourglass_top_rounded, AppColors.gold, 'مستني الدفع أونلاين'),
+    };
+    return ListTile(
+      key: const ValueKey('track-payment'),
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: color),
+      title: Text(text, style: TextStyle(fontWeight: FontWeight.w700, color: color)),
+      trailing: o['can_pay'] == true ? FilledButton(onPressed: _payNow, child: const Text('ادفع دلوقتي')) : null,
+    );
   }
 
   @override
@@ -127,6 +179,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                           const Spacer(),
                           Text(moneyOf(o, (o['total'] as num?) ?? 0), style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.crystal)),
                         ]),
+                        if (o['payment_method'] == 'online' && o['status'] != 'cancelled') _paymentTile(o),
                         if (o['shop_whatsapp'] != null) ...[
                           const SizedBox(height: 16),
                           OutlinedButton.icon(

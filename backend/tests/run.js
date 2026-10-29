@@ -4054,8 +4054,8 @@ const denied = (r) => !!r.error;
 
     // ---- payments: access
     const i0 = J(await integ(tO, shopE));
-    check('tint: the owner reads the integrations (COD on by default, EG gateways: paymob/kashier/tap)',
-      i0?.payments?.cod_enabled === true && JSON.stringify(i0.payments.available) === '["paymob","kashier","tap"]', i0);
+    check('tint: the owner reads the integrations (COD on by default, EG gateways: fawaterak (0100)/paymob/kashier/tap)',
+      i0?.payments?.cod_enabled === true && JSON.stringify(i0.payments.available) === '["fawaterak","paymob","kashier","tap"]', i0);
     check('tint: a Saudi shop gets paymob/tap/moyasar', JSON.stringify(J(await integ(tS, shopA))?.payments?.available) === '["paymob","tap","moyasar"]');
     check('tint: another merchant / a guest cannot read them',
       denied(await integ(tX, shopE)) && denied(await integ(null, shopE)));
@@ -5064,6 +5064,176 @@ const denied = (r) => !!r.error;
     const mp = (await as(db, cM, `select public.merchant_product($1) as p`, [teeId])).rows?.[0]?.p;
     check('tcat: merchant_product returns variants + collection ids; another merchant gets nothing',
       mp?.variants?.length === 4 && mp.collection_ids.includes(colA) && (await as(db, cM2, `select public.merchant_product($1) as p`, [teeId])).rows?.[0]?.p === null, mp?.collection_ids);
+  }
+
+  console.log('\nPhase tfaw — متجري online payment: Fawaterak (0100)');
+  {
+    const fs = require('fs');
+    const path = require('path');
+    const nodeCrypto = require('crypto');
+    let rerun = null;
+    try {
+      await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0100_fawaterak.sql'), 'utf8'));
+    } catch (e) {
+      rerun = e.message;
+    }
+    check('tfaw: 0100 is safe to re-run', rerun === null, rerun);
+    const idOf = (r) => r.rows?.[0] && Object.values(r.rows[0])[0];
+    const svc = async (sql, params = []) => {
+      await db.exec('begin');
+      try {
+        await db.exec('set local role service_role');
+        const r = await db.query(sql, params);
+        await db.exec('commit');
+        return { rows: r.rows };
+      } catch (e) {
+        await db.exec('rollback');
+        return { error: e.message };
+      }
+    };
+    const fM = await signUp(db, 'tfaw merchant', '01000100001');
+    const fShop = idOf(await as(db, fM, `select public.create_my_shop('محل الدفع', 'ملابس وأحذية', 'tfaw-shop', '01000100001') as id`));
+    const prod = idOf(await as(db, fM, `select public.merchant_save_product($1, $2::jsonb) as id`,
+      [fShop, JSON.stringify({ name: 'شنطة جلد', price: 250, stock: 10, status: 'active' })]));
+    check('tfaw: a shop with a product', !!fShop && !!prod, { fShop, prod });
+
+    // ---- connecting Fawaterak
+    const KEY = 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0';
+    const gw = (pub, sec) => as(db, fM, `select public.set_shop_gateway($1, 'fawaterak', $2, $3, 'test') as j`, [fShop, JSON.stringify(pub), JSON.stringify(sec)]);
+    check('tfaw: a malformed API key is refused', denied(await gw({}, { api_key: 'short' })));
+    const g1 = await gw({ provider_key: 'FAWATERAK_123' }, { api_key: KEY });
+    check('tfaw: the owner connects Fawaterak; the key never comes back', ok(g1) && !JSON.stringify(g1.rows).includes(KEY), g1);
+    const avail = idOf(await as(db, fM, `select public.get_shop_integrations($1)->'payments'->'available' as a`, [fShop]));
+    check('tfaw: Fawaterak is offered first in Egypt', JSON.stringify(avail) === '["fawaterak","paymob","kashier","tap"]', avail);
+
+    // ---- a guest order, then «ادفع أونلاين»
+    const place = () => as(db, null, `select public.place_store_order($1, $2::jsonb, 'منى أحمد', '01011112222', 'شارع التحرير، الدقي، عمارة 5') as code`,
+      [fShop, JSON.stringify([{ product_id: prod, quantity: 2 }])]);
+    const code = idOf(await place());
+    const total = Number((await admin(db, `select total_amount from shop_orders where order_code = $1`, [code]))[0]?.total_amount);
+    check('tfaw: a guest places a cash order', !!code && total >= 500, { code, total });
+    const begin = async (c, ph) => (await svc(`select public.payment_begin($1, $2) as j`, [c, ph])).rows?.[0]?.j;
+    check('tfaw: payment_begin refuses while the gateway is not «connected»', /مش مفعّل/.test((await begin(code, '01011112222'))?.error || ''));
+    await admin(db, `select public.gateway_record_check($1, 'fawaterak', true, null)`, [fShop]);
+    const methods = idOf(await as(db, null, `select public.shop_checkout_methods($1) as m`, [fShop]));
+    check('tfaw: the storefront sees Fawaterak online (no secrets)',
+      methods?.online?.some((g) => g.provider === 'fawaterak') && !JSON.stringify(methods).includes(KEY), methods);
+    check('tfaw: EXPLOIT blocked: guests / merchants call payment_begin / settle / lookup / attach',
+      denied(await as(db, null, `select public.payment_begin($1, '01011112222')`, [code])) &&
+      denied(await as(db, fM, `select public.payment_settle($1, 'fawaterak', '1', true, 1, 'EGP')`, [fShop])) &&
+      denied(await as(db, null, `select public.payment_lookup($1, '01011112222')`, [code])) &&
+      denied(await as(db, fM, `select public.payment_attach(gen_random_uuid(), 'fawaterak', '1', 'k', null, null)`)));
+    check('tfaw: a wrong phone is refused', /مش هو رقم/.test((await begin(code, '01099998888'))?.error || ''));
+    const b1 = await begin(code, '+201011112222');
+    check('tfaw: the order\'s phone (either form) starts paying: awaiting, the real total, test mode',
+      b1?.payment_status === 'awaiting' && Number(b1.total) === total && b1.currency === 'EGP' && b1.mode === 'test', b1);
+    const row = async () => (await admin(db, `select payment_method, payment_status, payment_invoice_id, paid_at, paid_amount from shop_orders where order_code = $1`, [code]))[0];
+    check('tfaw: the order is online / awaiting with one «payment» event', (await row()).payment_method === 'online' &&
+      (await admin(db, `select count(*)::int n from shop_order_events e join shop_orders o on o.id = e.order_id where o.order_code = $1 and e.kind = 'payment'`, [code]))[0].n === 1);
+    const direct = await as(db, fM, `update shop_orders set payment_status = 'paid' where order_code = $1`, [code]);
+    check('tfaw: EXPLOIT blocked: the merchant marks the order paid directly', denied(direct) && (await row()).payment_status === 'awaiting', direct);
+    check('tfaw: EXPLOIT blocked: the customer marks it paid directly',
+      denied(await as(db, null, `update shop_orders set payment_status = 'paid' where order_code = $1`, [code])) && (await row()).payment_status === 'awaiting');
+
+    await svc(`select public.payment_attach($1, 'fawaterak', '1000428', 'hyU2', 'https://staging.fawaterk.com/link/X', null)`, [b1.order_id]);
+    const settle = async (inv, paid, amount, cur = 'EGP', c = null) =>
+      (await svc(`select public.payment_settle($1, 'fawaterak', $2, $3, $4, $5, 'Visa', $6) as j`, [fShop, inv, paid, amount, cur, c])).rows?.[0]?.j;
+    const s0 = await settle('1000428', true, total - 1);
+    check('tfaw: a paid invoice for another amount does NOT mark the order paid', s0?.reason === 'amount_mismatch' && (await row()).payment_status === 'awaiting', s0);
+    check('tfaw: …nor in another currency', (await settle('1000428', true, total, 'USD'))?.reason === 'amount_mismatch');
+    check('tfaw: an unknown invoice settles nothing', (await settle('999', true, total))?.reason === 'no_order');
+    const f1 = await settle('1000428', false, null);
+    check('tfaw: a failed payment → «failed», the customer may retry (can_pay)', f1?.status === 'failed' &&
+      idOf(await as(db, null, `select public.get_store_order($1) as o`, [code]))?.can_pay === true, f1);
+
+    // The customer switches to a Fawry code (new invoice); the first invoice is still paid later.
+    const b2 = await begin(code, '01011112222');
+    await svc(`select public.payment_attach($1, 'fawaterak', '1000500', 'k2', null, '{"fawryCode":"12345"}'::jsonb)`, [b2.order_id]);
+    check('tfaw: an old invoice failing says nothing about the current one', (await settle('1000428', false, null, 'EGP', code))?.status === 'awaiting');
+    const s1 = await settle('1000428', true, total, 'EGP', code);
+    const r1 = await row();
+    check('tfaw: paying an older invoice of the order (found by its code) marks it paid',
+      s1?.status === 'paid' && r1.payment_status === 'paid' && !!r1.paid_at && Number(r1.paid_amount) === total && r1.payment_invoice_id === '1000428', { s1, r1 });
+    check('tfaw: a repeated webhook changes nothing', (await settle('1000428', true, total, 'EGP', code))?.already === true);
+    check('tfaw: the merchant got one «💳 اتدفع» notification',
+      (await admin(db, `select count(*)::int n from notifications where user_id = $1 and title like '💳%'`, [fM]))[0].n === 1);
+    const tr = idOf(await as(db, null, `select public.get_store_order($1) as o`, [code]));
+    check('tfaw: the tracking page: paid, no «ادفع» / «إلغاء»', tr?.payment_status === 'paid' && tr.can_pay === false && tr.can_cancel === false, tr);
+    const gc = await as(db, null, `select public.guest_cancel_store_order($1, '2222', null) as r`, [code]);
+    check('tfaw: EXPLOIT blocked: the customer cancels a paid order (refunds go through the shop)',
+      denied(gc) && (await admin(db, `select status from shop_orders where order_code = $1`, [code]))[0].status === 'placed', gc);
+    const mj = (await admin(db, `select private.order_row_json(o) as j from shop_orders o where order_code = $1`, [code]))[0].j;
+    check('tfaw: the merchant\'s order row: online / paid', mj.payment === 'online' && mj.payment_status === 'paid' && mj.payment_provider === 'fawaterak', mj);
+    check('tfaw: payment_lookup needs the order\'s phone',
+      (await svc(`select public.payment_lookup($1, '01011112222') as j`, [code])).rows?.[0]?.j?.payment_status === 'paid' &&
+      (await svc(`select public.payment_lookup($1, '01000000000') as j`, [code])).rows?.[0]?.j === null);
+    const code2 = idOf(await place());
+    const mj2 = (await admin(db, `select private.order_row_json(o) as j from shop_orders o where order_code = $1`, [code2]))[0].j;
+    check('tfaw: a cash order stays cash (no payment status), and can still be cancelled',
+      mj2.payment === 'cash' && mj2.payment_status === null && idOf(await as(db, null, `select public.get_store_order($1) as o`, [code2]))?.can_cancel === true, mj2);
+
+    // ---- Edge Function blocks, run in Node
+    const block = (fn, tag) => {
+      const src = fs.readFileSync(path.join(__dirname, '..', 'functions', fn, 'index.ts'), 'utf8');
+      const s0 = src.indexOf('\n', src.indexOf(tag + ':begin')) + 1;
+      return src.slice(s0, src.lastIndexOf('\n', src.indexOf(tag + ':end')));
+    };
+    let fw = null, sig = null, gwc = null;
+    try {
+      fw = new Function(block('payments-checkout', 'fw') + '\nreturn { fawaterakBase, invoiceBody, readInitPay, readInvoice };')();
+      sig = new Function('crypto', block('payments-webhook', 'sig') + '\nreturn { verifyWebhook };')(nodeCrypto.webcrypto);
+      gwc = new Function('btoa', block('payments-connect', 'gw') + '\nreturn { testGateway };')(globalThis.btoa);
+    } catch (e) {
+      fw = { error: e.message };
+    }
+    check('tfaw: the Edge Function blocks run in Node', fw && !fw.error && sig && gwc, fw);
+    if (fw && !fw.error) {
+      check('tfaw: staging for test keys, app.fawaterk.com for live',
+        fw.fawaterakBase('test') === 'https://staging.fawaterk.com/api/v2' && fw.fawaterakBase('live') === 'https://app.fawaterk.com/api/v2');
+      const ib = fw.invoiceBody({ code: 'TABC2345', total: 512.5, currency: 'EGP', customer_name: 'منى أحمد علي', customer_phone: '01011112222', shop_name: 'محل', shop_id: 'S1' }, 2, 'https://hook');
+      check('tfaw: the invoice = the order total in one line, names split, back to /#/o/<code>, our webhook, payLoad',
+        ib.cartTotal === 512.5 && ib.cartItems.length === 1 && ib.cartItems[0].price * ib.cartItems[0].quantity === 512.5 &&
+        ib.customer.first_name === 'منى' && ib.customer.last_name === 'أحمد علي' && ib.payment_method_id === 2 &&
+        ib.redirectionUrls.successUrl === 'https://mogtama3y.com/#/o/TABC2345' && ib.redirectionUrls.webhookUrl === 'https://hook' &&
+        ib.payLoad.order_code === 'TABC2345', ib);
+      const one = fw.invoiceBody({ code: 'TABC2345', total: 10, customer_name: 'منى' }, 1, '');
+      check('tfaw: a one-word name fills both names', one.customer.first_name === 'منى' && one.customer.last_name === 'منى');
+      const r1i = fw.readInitPay({ status: 'success', data: { invoice_id: 1000428, invoice_key: 'hyU2', payment_data: { redirectTo: 'https://staging.fawaterk.com/link/I0PAH' } } });
+      check('tfaw: a card answer → redirect link', r1i.invoice_id === '1000428' && r1i.redirect_to === 'https://staging.fawaterk.com/link/I0PAH' && r1i.data === null, r1i);
+      const r2i = fw.readInitPay({ status: 'success', data: { invoice_id: 7, invoice_key: 'k', payment_data: { fawryCode: 981234567, expireDate: '2026-11-02 10:00' } } });
+      check('tfaw: a Fawry answer → the code + expiry (kept on the order)',
+        r2i.redirect_to === null && r2i.codes.fawryCode === '981234567' && r2i.data.fawryCode === '981234567' && r2i.expire_date === '2026-11-02 10:00', r2i);
+      check('tfaw: an error answer → a message; a non-https redirect is dropped',
+        !!fw.readInitPay({ status: 'error', message: 'invalid token' }).error &&
+        fw.readInitPay({ status: 'success', data: { invoice_id: 1, payment_data: { redirectTo: 'javascript:alert(1)' } } }).redirect_to === null);
+      const iv = fw.readInvoice({ status: 'success', data: { paid: 1, total: '512.50', currency: 'egp', payment_method: 'Visa-Mastercard', pay_load: '{"order_code":"TABC2345"}' } });
+      check('tfaw: getInvoiceData → paid, amount, currency, the order code from payLoad',
+        iv.paid === true && iv.amount === 512.5 && iv.currency === 'EGP' && iv.code === 'TABC2345' && fw.readInvoice({ status: 'success', data: { paid: 0 } }).paid === false, iv);
+
+      const hmac = (m) => nodeCrypto.createHmac('sha256', KEY).update(m).digest('hex');
+      const paidBody = { invoice_id: 1000428, invoice_key: 'hyU2', payment_method: 'Card', invoice_status: 'paid', pay_load: null, referenceNumber: '9' };
+      paidBody.hashKey = hmac('InvoiceId=1000428&InvoiceKey=hyU2&PaymentMethod=Card');
+      const creds = { secret: { api_key: KEY } };
+      const v1 = await sig.verifyWebhook('fawaterak', creds, paidBody, {}, {});
+      check('tfaw: webhook: a signed «paid» callback passes', v1.ok === true && v1.external_id === '1000428' && v1.event_type === 'invoice:paid', v1);
+      check('tfaw: webhook: EXPLOIT blocked: a forged / altered / unsigned callback',
+        (await sig.verifyWebhook('fawaterak', creds, { ...paidBody, invoice_id: 1000429 }, {}, {})).ok === false &&
+        (await sig.verifyWebhook('fawaterak', { secret: { api_key: KEY + 'x' } }, paidBody, {}, {})).ok === false &&
+        (await sig.verifyWebhook('fawaterak', creds, { ...paidBody, hashKey: undefined }, {}, {})).ok === false);
+      const cancelBody = { referenceId: '55501', status: 'EXPIRED', paymentMethod: 'Fawry', hashKey: hmac('referenceId=55501&PaymentMethod=Fawry') };
+      const v2 = await sig.verifyWebhook('fawaterak', creds, cancelBody, {}, {});
+      check('tfaw: webhook: a signed «expired» Fawry callback passes', v2.ok === true && v2.event_type === 'cancel:EXPIRED' && v2.external_id === '55501', v2);
+
+      const seen = [];
+      const fake = (status, body) => async (url, opts) => { seen.push({ url, opts }); return { status, json: async () => body }; };
+      const t1 = await gwc.testGateway({ provider: 'fawaterak', mode: 'test', secret: { api_key: KEY } }, fake(200, { status: 'success', data: [] }));
+      check('tfaw: «اختبر الاتصال»: staging getPaymentmethods with the Bearer key',
+        t1.ok === true && seen[0].url === 'https://staging.fawaterk.com/api/v2/getPaymentmethods' && seen[0].opts.headers.Authorization === 'Bearer ' + KEY, { t1, seen: seen[0] });
+      const t2 = await gwc.testGateway({ provider: 'fawaterak', mode: 'live', secret: { api_key: KEY } }, fake(200, { status: 'error' }));
+      const t3 = await gwc.testGateway({ provider: 'fawaterak', mode: 'live', secret: { api_key: KEY } }, fake(401, {}));
+      check('tfaw: live keys go to app.fawaterk.com; a refused key is «فيه مشكلة»',
+        seen[1].url.startsWith('https://app.fawaterk.com/') && t2.ok === false && t3.ok === false, { t2, t3 });
+    }
   }
 
   console.log(`\n${passed} passed, ${failures.length} failed`);

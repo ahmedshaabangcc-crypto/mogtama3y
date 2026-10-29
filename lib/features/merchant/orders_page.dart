@@ -408,7 +408,7 @@ class OrdersTable extends StatelessWidget {
                   ),
                   cell(3, Text(shopMoney((o['total_amount'] as num?) ?? 0), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13))),
                   cell(4, Align(alignment: AlignmentDirectional.centerStart, child: OrderStatusPill(o['status'] as String? ?? 'placed'))),
-                  cell(5, const Align(alignment: AlignmentDirectional.centerStart, child: CashPill())),
+                  cell(5, Align(alignment: AlignmentDirectional.centerStart, child: CashPill(order: o))),
                 ]),
               ),
             ),
@@ -481,7 +481,7 @@ class OrderCard extends StatelessWidget {
             Row(children: [
               OrderStatusPill(status),
               const SizedBox(width: 6),
-              const CashPill(),
+              CashPill(order: o),
               const Spacer(),
               Text(shopMoney((o['total_amount'] as num?) ?? 0), style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.teal)),
             ]),
