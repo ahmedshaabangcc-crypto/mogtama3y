@@ -6,7 +6,6 @@ import '../../core/theme/app_colors.dart';
 import 'package:mogtama3y/core/geo/money.dart';
 import 'package:mogtama3y/features/wallet/wallet_region_note.dart';
 
-const _minTokens = 5;
 
 /// Request a real manual token top-up — see
 /// backend/migrations/0026_ad_tokens.sql. No file/image upload exists
@@ -22,7 +21,9 @@ class TopUpTokensScreen extends StatefulWidget {
 
 class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
   bool _loading = true;
-  int _tokens = _minTokens;
+  // The smallest top-up (ad_token_settings.min_topup_tokens, 0103).
+  int _minTokens = 3;
+  int _tokens = 3;
   double _tokenPrice = 15;
   // Always the number from ad_token_settings — never a hardcoded fallback,
   // so money can't be sent to a stale number if the settings change.
@@ -60,6 +61,8 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
       if (!mounted) return;
       setState(() {
         _tokenPrice = (settings['token_price_egp'] as num?)?.toDouble() ?? 15;
+        _minTokens = (settings['min_topup_tokens'] as num?)?.toInt() ?? 3;
+        if (_tokens < _minTokens) _tokens = _minTokens;
         _phone = settings['topup_phone'] as String? ?? '';
         _online = settings['online_topup'] == true;
         _loadFailed = _phone.isEmpty;
@@ -153,7 +156,7 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _StepperButton(icon: Icons.remove_rounded, onTap: _tokens > _minTokens ? () => setState(() => _tokens -= 5) : null),
+                    _StepperButton(icon: Icons.remove_rounded, onTap: _tokens > _minTokens ? () => setState(() => _tokens -= 1) : null),
                     SizedBox(
                       width: 120,
                       child: Column(
@@ -163,11 +166,11 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
                         ],
                       ),
                     ),
-                    _StepperButton(icon: Icons.add_rounded, onTap: () => setState(() => _tokens += 5)),
+                    _StepperButton(icon: Icons.add_rounded, onTap: () => setState(() => _tokens += 1)),
                   ],
                 ),
                 const SizedBox(height: 6),
-                Text('الحد الأدنى $_minTokens توكن (${money((_minTokens * _tokenPrice).round(), 'EGP')}) • بمضاعفات 5', style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
+                Text('الحد الأدنى $_minTokens توكن (${money((_minTokens * _tokenPrice).round(), 'EGP')})', style: const TextStyle(fontSize: 9.5, color: AppColors.inkMuted)),
                 const Divider(height: 28, color: AppColors.border),
                 Row(children: [
                   const Text('المبلغ المطلوب تحويله', style: TextStyle(fontSize: 12, color: AppColors.inkSecondary)),

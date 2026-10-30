@@ -31,6 +31,7 @@ class _TokenWalletScreenState extends State<TokenWalletScreen> {
   int _balance = 0;
   double _tokenPrice = 15;
   int _dailyRate = 1;
+  int _minTopup = 3;
   List<Map<String, dynamic>> _activity = [];
 
   @override
@@ -63,6 +64,7 @@ class _TokenWalletScreenState extends State<TokenWalletScreen> {
         _balance = balance;
         _tokenPrice = (settings['token_price_egp'] as num?)?.toDouble() ?? 15;
         _dailyRate = settings['daily_rate_tokens'] as int? ?? 1;
+        _minTopup = (settings['min_topup_tokens'] as num?)?.toInt() ?? 3;
         _activity = activity;
         _loading = false;
       });
@@ -156,7 +158,7 @@ class _TokenWalletScreenState extends State<TokenWalletScreen> {
                     Text('كيف يعمل تمييز الإعلانات؟', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
                   ]),
                   const SizedBox(height: 8),
-                  _StepLine(number: 1, text: 'اشحن رصيدك بالتوكن (${money(_tokenPrice, 'EGP')} للتوكن، بحد أدنى 5 توكن).'),
+                  _StepLine(number: 1, text: 'اشحن رصيدك بالتوكن (${money(_tokenPrice, 'EGP')} للتوكن، بحد أدنى $_minTopup توكن).'),
                   const _StepLine(number: 2, text: 'اختر أي إعلان (سوق مستعمل، عقار، أو وظيفة) وحدد عدد أيام التمييز.'),
                   _StepLine(number: 3, text: 'يُخصم رصيد يومي من توكناتك طوال مدة التمييز (السعر اليومي الحالي: $_dailyRate توكن/يوم).'),
                   const _StepLine(number: 4, text: 'إعلانك يظهر أولاً في نتائج البحث وبعلامة "إعلان مميز" مدة التمييز.'),

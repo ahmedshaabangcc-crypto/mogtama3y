@@ -5282,6 +5282,7 @@ const denied = (r) => !!r.error;
     let rerun = null;
     try {
       await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0102_token_online_topup.sql'), 'utf8'));
+      await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0103_token_min_topup.sql'), 'utf8'));
     } catch (e) {
       rerun = e.message;
     }
@@ -5306,7 +5307,9 @@ const denied = (r) => !!r.error;
     await admin(db, `update ad_token_settings set online_topup = false, token_price_egp = 15 where id = 1`);
     check('ttok: refused while the owner hasn\'t turned online top-up on', /مش متاح/.test((await begin(U, 10))?.error || ''));
     await admin(db, `update ad_token_settings set online_topup = true where id = 1`);
-    check('ttok: fewer than 5 / absurd amounts are refused', /من 5/.test((await begin(U, 4))?.error || '') && /من 5/.test((await begin(U, 100000))?.error || ''));
+    check('ttok: fewer than the minimum (3, 0103) / absurd amounts are refused', /من 3/.test((await begin(U, 2))?.error || '') && /من 3/.test((await begin(U, 100000))?.error || ''));
+    check('ttok: manual requests follow the same minimum (3 ok, 2 refused)',
+      ok(await as(db, X, `select public.request_token_topup(3, 'InstaPay 123')`)) && denied(await as(db, X, `select public.request_token_topup(2, 'InstaPay 123')`)));
     const b1 = await begin(U, 10);
     check('ttok: begin → the price from the settings (10 × 15 = 150 EGP), the buyer\'s name', b1?.id && Number(b1.amount) === 150 && b1.currency === 'EGP' && b1.tokens === 10, b1);
     const row = async (id) => (await admin(db, `select status, method, intent_key, paid_at, proof_note from ad_token_topup_requests where id = $1`, [id]))[0];
