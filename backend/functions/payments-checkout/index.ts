@@ -7,7 +7,7 @@
 // No account needed: the order code + the order's mobile prove it is the
 // customer (payment_begin / payment_lookup, 20 tries an hour per order).
 //
-// POST { action: 'pay', code, phone }
+// POST { action: 'pay', code, phone, provider?: 'auto' | 'fawaterak' | 'mogtama3y' }
 //   → { redirect_to } — Fawaterak's hosted checkout (cards, wallets, Fawry,
 //     Aman… — the customer picks there); the order becomes «أونلاين —
 //     مستني الدفع» | { paid: true }
@@ -31,6 +31,13 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+// «اربط مع مُجتمعي» (0108): stores paid through the PLATFORM's Fawaterak
+// (provider 'mogtama3y') use these secrets instead of the shop's own keys.
+const PLATFORM = {
+  mode: Deno.env.get('FAWATERAK_MODE') === 'live' ? 'live' : 'test',
+  public: { client_id: Deno.env.get('FAWATERAK_CLIENT_ID') ?? '' },
+  secret: { client_secret: Deno.env.get('FAWATERAK_CLIENT_SECRET') ?? '' },
+};
 
 // ------------------------------------------------------------------ fw:begin
 
@@ -113,6 +120,7 @@ function readTransactionData(j = Object()) {
     currency: cur === 'SR' ? 'SAR' : cur,
     method: d.payment_method != null ? String(d.payment_method) : null,
     code: pl && pl.order_code ? String(pl.order_code) : null,
+    fee: d.commission != null ? Number(d.commission) : (d.financial_breakdown && d.financial_breakdown.fees != null ? Number(d.financial_breakdown.fees) : null),
   };
 }
 
@@ -160,7 +168,7 @@ function corsFor(req: Request): Record<string, string> {
 }
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
-const PROVIDER = 'fawaterak';
+const PROVIDERS = new Set(['fawaterak', 'mogtama3y']);
 
 Deno.serve(async (req) => {
   const cors = corsFor(req);
@@ -180,26 +188,37 @@ Deno.serve(async (req) => {
   const phone = String(body.phone ?? '').trim();
   if (!/^T[0-9A-Z]{7}$/.test(code) || phone.length < 8) return json({ error: 'بيانات ناقصة' }, 400);
 
-  const credsOf = async (shop: string) => {
-    const { data, error } = await admin.rpc('gateway_credentials', { p_shop: shop, p_provider: PROVIDER });
+  const credsOf = async (shop: string, provider: string) => {
+    if (provider === 'mogtama3y') return PLATFORM.public.client_id ? PLATFORM : null;
+    const { data, error } = await admin.rpc('gateway_credentials', { p_shop: shop, p_provider: provider });
     if (error || !data) return null;
     return data as { mode: string; public: Record<string, string>; secret: Record<string, string> };
   };
 
+  // The webhook of a transaction: the shop's own Fawaterak, or the platform's.
+  const hookFor = (shop: string, provider: string) => provider === 'mogtama3y'
+    ? `${SUPABASE_URL}/functions/v1/payments-webhook?provider=fawaterak&target=platform_orders&shop=${shop}`
+    : `${SUPABASE_URL}/functions/v1/payments-webhook?shop=${shop}&provider=fawaterak`;
+
   try {
     if (action === 'pay') {
-      const { data: order, error } = await admin.rpc('payment_begin', { p_code: code, p_phone: phone, p_provider: PROVIDER });
+      // 'auto': payment_begin picks the store's own Fawaterak, else «مُجتمعي».
+      const asked = String(body.provider ?? 'auto');
+      if (asked !== 'auto' && !PROVIDERS.has(asked)) return json({ error: 'طريقة دفع مش معروفة' }, 400);
+      const { data: order, error } = await admin.rpc('payment_begin', { p_code: code, p_phone: phone, p_provider: asked });
       if (error) return json({ error: 'تعذر فتح الطلب، جرّب تاني' }, 500);
       if (order?.error) return json({ error: order.error }, 400);
       if (order?.payment_status === 'paid') return json({ paid: true, payment_status: 'paid' });
-      const creds = await credsOf(order.shop_id);
+      const PROVIDER = String(order.provider ?? asked);
+      if (!PROVIDERS.has(PROVIDER)) return json({ error: 'طريقة دفع مش معروفة' }, 400);
+      const creds = await credsOf(order.shop_id, PROVIDER);
       if (!creds) return json({ error: 'المحل ده مش مفعّل الدفع الأونلاين دلوقتي' }, 400);
       const t = await fawaterakToken(creds);
       if ('error' in t) {
         console.error('fawaterak token', t.error);
         return json({ error: 'الدفع الأونلاين عند المحل ده فيه مشكلة دلوقتي — اختار الدفع عند الاستلام أو كلّم المحل' }, 502);
       }
-      const hook = `${SUPABASE_URL}/functions/v1/payments-webhook?shop=${order.shop_id}&provider=${PROVIDER}`;
+      const hook = hookFor(order.shop_id, PROVIDER);
       const r = await fawaterakCall(creds.mode, t.token, '/api/v3/createTransaction', transactionBody(order, hook));
       const tr = readTransaction(r.json);
       if ('error' in tr) {
@@ -218,8 +237,9 @@ Deno.serve(async (req) => {
       const { data: o, error } = await admin.rpc('payment_lookup', { p_code: code, p_phone: phone });
       if (error) return json({ error: 'تعذر قراءة الطلب' }, 500);
       if (!o) return json({ error: 'مفيش طلب بالرقم ده والموبايل ده' }, 404);
-      if (o.payment_status === 'paid' || !o.invoice_id || o.provider !== PROVIDER) return json({ payment_status: o.payment_status });
-      const creds = await credsOf(o.shop_id);
+      if (o.payment_status === 'paid' || !o.invoice_id || !PROVIDERS.has(o.provider)) return json({ payment_status: o.payment_status });
+      const PROVIDER = String(o.provider);
+      const creds = await credsOf(o.shop_id, PROVIDER);
       if (!creds) return json({ payment_status: o.payment_status });
       const t = await fawaterakToken(creds);
       if ('error' in t) return json({ payment_status: o.payment_status });
@@ -231,6 +251,7 @@ Deno.serve(async (req) => {
         p_amount: tx.amount, p_currency: tx.currency, p_method: tx.method, p_code: o.code,
       });
       if (s.error) return json({ error: 'تعذر تحديث الطلب' }, 500);
+      if (tx.fee != null) await admin.rpc('payment_record_fee', { p_shop: o.shop_id, p_provider: PROVIDER, p_invoice_id: o.invoice_id, p_fee: tx.fee });
       return json({ payment_status: s.data?.status ?? o.payment_status });
     }
 

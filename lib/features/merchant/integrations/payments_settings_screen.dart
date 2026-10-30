@@ -7,6 +7,7 @@ import '../admin/admin_common.dart';
 import 'integrations_common.dart';
 import 'integrations_rules.dart';
 import 'integrations_service.dart';
+import 'platform_pay_card.dart';
 
 /// «طرق الدفع» (/settings/payments) — like Shopify Settings → Payments:
 /// cash on delivery, manual methods, and the merchant's OWN online gateway
@@ -95,7 +96,7 @@ class _PaymentsSettingsScreenState extends State<PaymentsSettingsScreen> with In
   Widget build(BuildContext context) {
     return AdminPage(
       title: 'طرق الدفع',
-      subtitle: 'الفلوس بتنزل في حسابك أنت — مُجتمعي مش بتمسك فلوس',
+      subtitle: 'اختار الزبون يدفع إزاي — كاش، تحويل، أو أونلاين',
       backTo: '/settings/integrations',
       scrollable: true,
       maxWidth: 980,
@@ -166,8 +167,12 @@ class _PaymentsSettingsScreenState extends State<PaymentsSettingsScreen> with In
           label: const Text('احفظ طرق الدفع'),
         ),
       ),
+      if (d.country == 'EG') ...[
+        const SizedBox(height: 22),
+        PlatformPayCard(shopId: d.shopId),
+      ],
       const SizedBox(height: 22),
-      const Text('الدفع أونلاين — اربط بوابتك', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+      const Text('الدفع أونلاين — أو اربط بوابتك أنت', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
       const SizedBox(height: 4),
       const Text('افتح حساب تاجر عند البوابة باسمك، وبعدين الصق المفاتيح هنا. المفاتيح السرية بتتحفظ على السيرفر ومحدش يقدر يشوفها تاني (ولا إنت) — بتظهر آخر 4 حروف بس.',
           style: TextStyle(fontSize: 12.5, color: AppColors.inkSecondary, height: 1.6)),

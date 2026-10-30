@@ -15,10 +15,14 @@ void main() {
   final calls = <String>[];
   var suspended = false;
   String? lastReason;
+  var ppStatus = 'pending';
+  Map<String, dynamic>? lastPayout;
   setUp(() {
     calls.clear();
     suspended = false;
     lastReason = null;
+    ppStatus = 'pending';
+    lastPayout = null;
     final today = DateTime.now();
     AdminConsoleService.debugRpc = (fn, p) async {
       calls.add(fn);
@@ -56,6 +60,21 @@ void main() {
           suspended = p['p_suspend'] == true;
           lastReason = p['p_reason'] as String?;
           return {'id': p['p_shop'], 'suspended': suspended};
+        case 'admin_platform_pay_list':
+          return [
+            {
+              'shop_id': 's1', 'shop_name': 'محل الشاي', 'owner_name': 'منى أحمد', 'owner_phone': '01011112222', 'status': ppStatus,
+              'entity': 'individual', 'legal_name': 'منى أحمد علي', 'id_number': '29001011234567', 'documents': ['u1/platform_pay/a.jpg', 'u1/platform_pay/b.jpg'],
+              'payout': {'method': 'instapay', 'handle': 'mona@instapay'}, 'submitted_at': today.toIso8601String(),
+              'balance': {'orders': 2, 'gross': 1000, 'fees': 27.5, 'commission': 0, 'paid_out': 0, 'due': 972.5, 'currency': 'EGP'},
+            },
+          ];
+        case 'admin_platform_pay_review':
+          ppStatus = p['p_action'] == 'approve' ? 'approved' : p['p_action'] == 'reject' ? 'rejected' : 'suspended';
+          return null;
+        case 'admin_record_payout':
+          lastPayout = p;
+          return {'due': 0};
         case 'admin_shops':
           return {
             'total': 1,
@@ -160,6 +179,28 @@ void main() {
     await tester.pumpAndSettle();
     expect(suspended, isFalse);
     expect(find.text('شغال'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('0108: the admin reviews «اربط مع مُجتمعي» papers, approves, and records a payout', (tester) async {
+    await desktop(tester);
+    await tester.pumpWidget(app(const AdminConsoleScreen(initialPage: 'platform_pay')));
+    await tester.pumpAndSettle();
+    expect(find.text('منى أحمد علي'), findsOneWidget);
+    expect(find.text('29001011234567'), findsOneWidget);
+    expect(find.text('ورقة 2'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('pp-approve-s1')));
+    await tester.pumpAndSettle();
+    expect(ppStatus, 'approved');
+    await tester.tap(find.widgetWithText(ChoiceChip, 'الكل'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('المستحق'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('pp-payout-s1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('سجّل التحويل'));
+    await tester.pumpAndSettle();
+    expect(lastPayout?['p_amount'], 972.5);
+    expect(lastPayout?['p_method'], 'instapay');
     await tester.pumpWidget(const SizedBox());
   });
 

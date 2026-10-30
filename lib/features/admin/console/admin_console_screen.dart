@@ -14,6 +14,7 @@ import '../admin_tutorial_videos_screen.dart';
 import '../admin_user_flags_screen.dart';
 import '../superadmin_control_panel_screen.dart';
 import 'list_pages.dart';
+import 'platform_pay_page.dart';
 import 'overview_page.dart';
 
 /// One page of the console.
@@ -32,6 +33,7 @@ List<ConsolePage> consolePages() => [
       ConsolePage('users', 'المشتركين', Icons.people_alt_rounded, (_) => const AdminUsersPage()),
       ConsolePage('payments', 'المدفوعات والإيراد', Icons.payments_rounded, (_) => const AdminPaymentsPage()),
       ConsolePage('shops', 'المتاجر', Icons.storefront_rounded, (_) => const AdminShopsPage()),
+      ConsolePage('platform_pay', 'الدفع عن طريق مُجتمعي', Icons.account_balance_wallet_rounded, (_) => const AdminPlatformPayPage()),
       ConsolePage('approvals', 'الطلبات والموافقات', Icons.fact_check_rounded, (_) => const SuperadminControlPanelScreen(embedded: true)),
       ConsolePage('governance', 'الرئاسة والانضمام', Icons.how_to_reg_rounded, (_) => const AdminGovernanceScreen(), group: 'community'),
       ConsolePage('reports', 'البلاغات', Icons.campaign_rounded, (_) => const AdminReportsScreen(), group: 'community'),

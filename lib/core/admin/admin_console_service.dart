@@ -36,6 +36,19 @@ class AdminConsoleService {
   /// {total, rows}.
   static Future<Map<String, dynamic>> shops({String? query, int offset = 0, int limit = 50}) async =>
       _map(await _rpc('admin_shops', {'p_q': query, 'p_offset': offset, 'p_limit': limit}));
+
+  /// «اربط مع مُجتمعي» applications (0108), pending first, with documents
+  /// (private storage paths) and each store's balance.
+  static Future<List<Map<String, dynamic>>> platformPayList({String? status}) async =>
+      [for (final r in (await _rpc('admin_platform_pay_list', {'p_status': status})) as List? ?? const []) Map<String, dynamic>.from(r as Map)];
+
+  /// [action]: approve | reject | suspend — a note is required unless approving.
+  static Future<void> platformPayReview(String shopId, String action, {String? note}) =>
+      _rpc('admin_platform_pay_review', {'p_shop': shopId, 'p_action': action, 'p_note': note});
+
+  /// A manual transfer sent to the merchant → the new balance.
+  static Future<Map<String, dynamic>> recordPayout(String shopId, num amount, {String? method, String? reference, String? note}) async =>
+      _map(await _rpc('admin_record_payout', {'p_shop': shopId, 'p_amount': amount, 'p_method': method, 'p_reference': reference, 'p_note': note}));
 }
 
 /// Not a super admin (the RPC said 42501).

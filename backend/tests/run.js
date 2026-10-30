@@ -5452,6 +5452,98 @@ const denied = (r) => !!r.error;
       (await admin(db, `select count(*)::int n from notifications where user_id = $1 and title like '✅%'`, [M]))[0].n === 1);
   }
 
+  console.log('\nPhase tplat — «اربط مع مُجتمعي»: stores paid through the platform (0108)');
+  {
+    const fs = require('fs');
+    const path = require('path');
+    let rerun = null;
+    try {
+      await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0108_platform_pay.sql'), 'utf8'));
+    } catch (e) {
+      rerun = e.message;
+    }
+    check('tplat: 0108 is safe to re-run', rerun === null, rerun);
+    const one = (r) => r.rows?.[0] && Object.values(r.rows[0])[0];
+    const svc = async (sql, params = []) => {
+      await db.exec('begin');
+      try {
+        await db.exec('set local role service_role');
+        const r = await db.query(sql, params);
+        await db.exec('commit');
+        return { rows: r.rows };
+      } catch (e) {
+        await db.exec('rollback');
+        return { error: e.message };
+      }
+    };
+    const A = await signUp(db, 'tplat admin', '01000108001');
+    const M = await signUp(db, 'tplat merchant', '01000108002');
+    const X = await signUp(db, 'tplat other', '01000108003');
+    await admin(db, `update profiles set role = 'super_admin' where id = $1`, [A]);
+    const shop = one(await as(db, M, `select public.create_my_shop('محل مُجتمعي', 'ملابس وأحذية', 'tplat-shop', '01000108002') as id`));
+    const prod = one(await as(db, M, `select public.merchant_save_product($1, $2::jsonb) as id`, [shop, JSON.stringify({ name: 'جاكيت', price: 500, stock: 10, status: 'active' })]));
+    const docs = [`${M}/platform_pay/id-front.jpg`, `${M}/platform_pay/id-back.jpg`];
+    const good = { entity: 'individual', legal_name: 'محمد أحمد علي', id_number: '29001011234567', documents: docs, payout: { method: 'instapay', handle: 'mohamed' + '@instapay' } };
+    const apply = (u, p) => as(db, u, `select public.platform_pay_apply($1, $2::jsonb) as j`, [shop, JSON.stringify(p)]);
+
+    check('tplat: EXPLOIT blocked: another user applies for my store', denied(await apply(X, good)));
+    check('tplat: a wrong national ID / missing documents / no payout are refused',
+      denied(await apply(M, { ...good, id_number: '123' })) && denied(await apply(M, { ...good, documents: [docs[0]] })) &&
+      denied(await apply(M, { ...good, payout: {} })));
+    check('tplat: EXPLOIT blocked: documents from someone else\'s folder', denied(await apply(M, { ...good, documents: [`${X}/platform_pay/a.jpg`, `${X}/platform_pay/b.jpg`] })));
+    check('tplat: a company needs its tax card number', denied(await apply(M, { ...good, entity: 'company', id_number: '12345' })));
+    const ap = await apply(M, good);
+    check('tplat: the owner applies → pending; the admins are told', ok(ap) && one(ap)?.application?.status === 'pending' &&
+      (await admin(db, `select count(*)::int n from notifications where user_id = $1 and title like '🧾%'`, [A]))[0].n === 1, one(ap));
+    const methods0 = one(await as(db, null, `select public.shop_checkout_methods($1) as m`, [shop]));
+    check('tplat: not approved yet → no «مُجتمعي» at checkout', !(methods0?.online || []).some((g) => g.provider === 'mogtama3y'), methods0);
+    check('tplat: EXPLOIT blocked: the owner / another user approves', denied(await as(db, M, `select public.admin_platform_pay_review($1, 'approve')`, [shop])) &&
+      denied(await as(db, X, `select public.admin_platform_pay_review($1, 'approve')`, [shop])));
+    check('tplat: a rejection needs a note', denied(await as(db, A, `select public.admin_platform_pay_review($1, 'reject', null)`, [shop])));
+    const list = one(await as(db, A, `select public.admin_platform_pay_list('pending') as j`));
+    check('tplat: the admin sees the application with its documents', list?.some((r) => r.shop_id === shop && r.documents.length === 2 && r.id_number === good.id_number), list);
+    check('tplat: the admin approves; the owner is told', ok(await as(db, A, `select public.admin_platform_pay_review($1, 'approve')`, [shop])) &&
+      (await admin(db, `select count(*)::int n from notifications where user_id = $1 and title like '✅ الدفع الأونلاين%'`, [M]))[0].n === 1);
+    const methods = one(await as(db, null, `select public.shop_checkout_methods($1) as m`, [shop]));
+    check('tplat: approved → «مُجتمعي» is an online method at checkout', methods?.online?.some((g) => g.provider === 'mogtama3y'), methods);
+
+    // A customer pays an order through the platform.
+    const code = one(await as(db, null, `select public.place_store_order($1, $2::jsonb, 'سارة', '01011114444', 'شارع الهرم، الجيزة، عمارة 9') as code`,
+      [shop, JSON.stringify([{ product_id: prod, quantity: 2 }])]));
+    const b = one(await svc(`select public.payment_begin($1, '01011114444', 'mogtama3y') as j`, [code]));
+    check('tplat: payment_begin with «مُجتمعي» works for an approved store', b?.payment_status === 'awaiting' && Number(b.total) === 1000, b);
+    const code2 = one(await as(db, null, `select public.place_store_order($1, $2::jsonb, 'سارة', '01011114444', 'شارع الهرم، الجيزة، عمارة 9') as code`,
+      [shop, JSON.stringify([{ product_id: prod, quantity: 1 }])]));
+    const auto = one(await svc(`select public.payment_begin($1, '01011114444', 'auto') as j`, [code2]));
+    check('tplat: the storefront «auto» picks «مُجتمعي» when the store has no gateway of its own', auto?.provider === 'mogtama3y' && auto?.payment_status === 'awaiting', auto);
+    const IK = '880e8400-e29b-41d4-a716-446655440088';
+    await svc(`select public.payment_attach($1, 'mogtama3y', $2, null, 'https://app.fawaterk.com/ts/x', null)`, [b.order_id, IK]);
+    const s = one(await svc(`select public.payment_settle($1, 'mogtama3y', $2, true, 1000, 'EGP', 'Visa', $3) as j`, [shop, IK, code]));
+    await svc(`select public.payment_record_fee($1, 'mogtama3y', $2, 27.5)`, [shop, IK]);
+    check('tplat: EXPLOIT blocked: users record a fee', denied(await as(db, M, `select public.payment_record_fee($1, 'mogtama3y', $2, 0)`, [shop, IK])));
+    check('tplat: paid → the order is paid, the fee is kept', s?.status === 'paid' &&
+      Number((await admin(db, `select payment_fee from shop_orders where order_code = $1`, [code]))[0].payment_fee) === 27.5, s);
+    const g = one(await as(db, M, `select public.platform_pay_get($1) as j`, [shop]));
+    check('tplat: the owner\'s balance: 1000 − 27.50 fee, no commission → 972.50 due', Number(g?.balance?.due) === 972.5 &&
+      Number(g.balance.gross) === 1000 && Number(g.balance.fees) === 27.5 && Number(g.balance.commission) === 0, g?.balance);
+    check('tplat: EXPLOIT blocked: another user reads my balance', denied(await as(db, X, `select public.platform_pay_get($1)`, [shop])));
+    check('tplat: EXPLOIT blocked: the owner records a payout to themselves', denied(await as(db, M, `select public.admin_record_payout($1, 100)`, [shop])));
+    check('tplat: a payout above what is due is refused', denied(await as(db, A, `select public.admin_record_payout($1, 973)`, [shop])));
+    const p1 = one(await as(db, A, `select public.admin_record_payout($1, 500, 'instapay', 'IP-778899', 'دفعة أولى') as j`, [shop]));
+    check('tplat: the admin records a payout → due 472.50; the owner is told', Number(p1?.due) === 472.5 &&
+      (await admin(db, `select count(*)::int n from notifications where user_id = $1 and title like '💸%'`, [M]))[0].n === 1, p1);
+    const bals = one(await as(db, A, `select public.admin_platform_balances() as j`));
+    check('tplat: the admin balances list', bals?.some((r) => r.shop_id === shop && Number(r.balance.due) === 472.5 && Number(r.balance.paid_out) === 500), bals);
+    await admin(db, `update shop_orders set status = 'cancelled' where order_code = $1`, [code]);
+    check('tplat: a cancelled paid order leaves the balance (the customer is refunded): due = −500 already paid out',
+      Number(one(await as(db, M, `select public.platform_pay_get($1) as j`, [shop]))?.balance?.due) === -500);
+    check('tplat: suspend needs a note; suspended → «مُجتمعي» leaves checkout',
+      denied(await as(db, A, `select public.admin_platform_pay_review($1, 'suspend', '')`, [shop])) &&
+      ok(await as(db, A, `select public.admin_platform_pay_review($1, 'suspend', 'شكاوى')`, [shop])) &&
+      !(one(await as(db, null, `select public.shop_checkout_methods($1) as m`, [shop]))?.online || []).some((g2) => g2.provider === 'mogtama3y'));
+    check('tplat: a suspended store can\'t re-apply on its own', denied(await apply(M, good)));
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

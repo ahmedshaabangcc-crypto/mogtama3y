@@ -8,6 +8,7 @@ import 'package:mogtama3y/features/merchant/integrations/integrations_hub_screen
 import 'package:mogtama3y/features/merchant/integrations/integrations_rules.dart';
 import 'package:mogtama3y/features/merchant/integrations/integrations_service.dart';
 import 'package:mogtama3y/features/merchant/integrations/payments_settings_screen.dart';
+import 'package:mogtama3y/features/merchant/integrations/platform_pay_card.dart';
 import 'package:mogtama3y/features/merchant/integrations/tracking_settings_screen.dart';
 import 'package:mogtama3y/features/store/store_cart.dart';
 
@@ -253,5 +254,44 @@ void main() {
       expect(isTajerAdminPath(p), isTrue, reason: p);
     }
     expect(isTajerAdminPath('/settings/other'), isFalse);
+  });
+
+  group('«اربط مع مُجتمعي» (0108)', () {
+    tearDown(() => PlatformPayService.debugGet = null);
+
+    Future<void> pump(WidgetTester tester, Map<String, dynamic> raw) async {
+      PlatformPayService.debugGet = (_) async => PlatformPay(raw);
+      await tester.pumpWidget(const MaterialApp(
+        home: Directionality(textDirection: TextDirection.rtl, child: Scaffold(body: SingleChildScrollView(child: PlatformPayCard(shopId: 's1')))),
+      ));
+      await tester.pump();
+    }
+
+    testWidgets('not applied yet → the call to action', (tester) async {
+      await pump(tester, {'application': null, 'balance': {}, 'payouts': []});
+      expect(find.text('مش مفعّل'), findsOneWidget);
+      expect(find.text('شغّل الدفع عن طريق مُجتمعي'), findsOneWidget);
+    });
+
+    testWidgets('approved → the balance and payouts', (tester) async {
+      await pump(tester, {
+        'application': {'status': 'approved', 'entity': 'individual'},
+        'balance': {'orders': 2, 'gross': 1000, 'fees': 27.5, 'commission': 0, 'paid_out': 500, 'due': 472.5, 'currency': 'EGP'},
+        'payouts': [
+          {'amount': 500, 'currency': 'EGP', 'reference': 'IP-1', 'created_at': '2026-10-29T10:00:00Z'},
+        ],
+      });
+      expect(find.text('شغال'), findsOneWidget);
+      expect(find.text('472.50 ج.م'), findsOneWidget);
+      expect(find.textContaining('مرجع IP-1'), findsOneWidget);
+      expect(find.text('عدّل البيانات'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('suspended → the reason, no button', (tester) async {
+      await pump(tester, {'application': {'status': 'suspended', 'review_note': 'شكاوى'}, 'balance': {}, 'payouts': []});
+      expect(find.text('السبب: شكاوى'), findsOneWidget);
+      expect(find.byType(ElevatedButton), findsNothing);
+    });
   });
 }

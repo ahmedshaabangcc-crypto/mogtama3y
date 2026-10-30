@@ -198,8 +198,9 @@ class CheckoutMethods {
 
   bool get cod => raw['cod'] != false;
 
-  /// Online payment the store takes now (0100: the shop's Fawaterak).
-  bool get online => (raw['online'] as List? ?? const []).any((g) => g is Map && g['provider'] == 'fawaterak');
+  /// Online payment the store takes now: the shop's own Fawaterak (0100)
+  /// or the platform's («اربط مع مُجتمعي», 0108) — the server picks which.
+  bool get online => (raw['online'] as List? ?? const []).any((g) => g is Map && (g['provider'] == 'fawaterak' || g['provider'] == 'mogtama3y'));
 }
 
 /// quote_store_checkout().

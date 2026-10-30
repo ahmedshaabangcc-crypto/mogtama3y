@@ -156,7 +156,7 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSess
 // (payment_settle checks the amount and currency against the order).
 // A «pending» callback (a Fawry code was issued) changes nothing.
 // → its status, or a reason.
-async function settleFawaterak(shop: string, creds: Record<string, any>, intentKey: string): Promise<string> {
+async function settleFawaterak(shop: string, creds: Record<string, any>, intentKey: string, provider = 'fawaterak'): Promise<string> {
   try {
     const host = creds.mode === 'live' ? 'https://app.fawaterk.com' : 'https://staging.fawaterk.com';
     const tr = await fetch(host + '/oauth/token', {
@@ -182,13 +182,17 @@ async function settleFawaterak(shop: string, creds: Record<string, any>, intentK
     if (!paid) return 'not_paid';
     const cur = d.currency != null ? String(d.currency).toUpperCase() : null;
     const { data, error } = await admin.rpc('payment_settle', {
-      p_shop: shop, p_provider: 'fawaterak', p_invoice_id: intentKey, p_paid: true,
+      p_shop: shop, p_provider: provider, p_invoice_id: intentKey, p_paid: true,
       p_amount: d.total != null ? Number(d.total) : null, p_currency: cur === 'SR' ? 'SAR' : cur,
       p_method: d.payment_method ?? null, p_code: pl?.order_code ?? null,
     });
     if (error) {
       console.error('payment_settle', error.message);
       return 'not_settled';
+    }
+    const fee = d.commission != null ? Number(d.commission) : d.financial_breakdown?.fees != null ? Number(d.financial_breakdown.fees) : null;
+    if (fee != null && data?.status === 'paid') {
+      await admin.rpc('payment_record_fee', { p_shop: shop, p_provider: provider, p_invoice_id: intentKey, p_fee: fee });
     }
     return data?.status ?? data?.reason ?? 'ok';
   } catch (e) {
@@ -248,6 +252,24 @@ Deno.serve(async (req) => {
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
   const url = new URL(req.url);
+
+  // 0108 — a store order paid through the platform's account («اربط مع مُجتمعي»).
+  if (url.searchParams.get('target') === 'platform_orders' && url.searchParams.get('provider') === 'fawaterak') {
+    const shopId = url.searchParams.get('shop') ?? '';
+    if (!UUID.test(shopId)) return json({ error: 'bad url' }, 400);
+    const raw = await req.text();
+    if (raw.length > 100_000) return json({ error: 'too large' }, 413);
+    let b: Record<string, unknown>;
+    try {
+      b = JSON.parse(raw);
+    } catch {
+      return json({ error: 'invalid JSON' }, 400);
+    }
+    const v = await verifyWebhook('fawaterak', PLATFORM_FW, b, {}, {});
+    if (!v.ok) return json({ error: 'bad signature' }, 401);
+    if (b.transaction_key == null) return json({ received: true });
+    return json({ received: true, settled: await settleFawaterak(shopId, PLATFORM_FW, String(b.transaction_key), 'mogtama3y') });
+  }
 
   if (url.searchParams.get('target') === 'tokens' && url.searchParams.get('provider') === 'fawaterak') {
     const raw = await req.text();
