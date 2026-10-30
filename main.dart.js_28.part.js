@@ -232,17 +232,17 @@ if(u!=null)if(w.b(t))if(J.aR(t)>=3){v=C.j.aH(u,1000)
 s=C.j.a3(u,1000)
 v=!(v>=1&&v<=114&&s>=1&&s<=I.cR[v-1].a[1])}if(v)continue
 v=J.bd(t)
-r=C.f.bB(A.cN(v.h(t,0)))
+r=C.f.bA(A.cN(v.h(t,0)))
 if(r<0||r>=3)continue
-o.p(0,u,new B.rt(D.aLq[r],C.f.bB(A.cN(v.h(t,1))),new A.aQ(A.ks(C.f.bB(A.cN(v.h(t,2))),0,!0),0,!0)))}q=d.h(0,"dirty")
+o.p(0,u,new B.rt(D.aLq[r],C.f.bA(A.cN(v.h(t,1))),new A.aQ(A.ks(C.f.bA(A.cN(v.h(t,2))),0,!0),0,!0)))}q=d.h(0,"dirty")
 if(y.j.b(q)){x=J.aAZ(q,y.o)
 p=A.mr(x,new B.b6a(),x.$ti.i("Z.E"),p)
 n.A(0,new A.ag(p,o.ga47(),A.y(p).i("ag<Z.E>")))}m.c=A.t(d.h(0,"last"))
-p=A.ax(d.h(0,"streak"))
-p=p==null?null:C.f.bB(p)
+p=A.aw(d.h(0,"streak"))
+p=p==null?null:C.f.bA(p)
 p=m.d=p==null?0:p
-o=A.ax(d.h(0,"best"))
-o=o==null?null:C.f.bB(o)
+o=A.aw(d.h(0,"best"))
+o=o==null?null:C.f.bA(o)
 m.e=o==null?p:o
 return m},
 aAf(d,e){return"https://everyayah.com/data/Husary_Muallim_128kbps/"+C.c.dq(C.j.k(d),3,"0")+C.c.dq(C.j.k(e),3,"0")+".mp3"},
@@ -918,7 +918,7 @@ q.p(0,""+u,A.a([t.a.a,t.b,t.c.a],w))}x=s.b
 x=A.a9(x,A.y(x).c)
 return A.I(["v",1,"rows",q,"dirty",x,"last",s.c,"streak",s.d,"best",s.e],r,y.z)},
 bdc(){var x,w,v,u,t,s,r,q,p,o=A.a([],y.Z)
-for(x=this.b,x=A.b4y(x,300,A.y(x).c),x=new A.JD(J.aw(x.a),x.b,A.y(x).i("JD<1>")),w=y.N,v=y.z,u=this.a;x.v();){t=x.gG()
+for(x=this.b,x=A.b4y(x,300,A.y(x).c),x=new A.JD(J.ax(x.a),x.b,A.y(x).i("JD<1>")),w=y.N,v=y.z,u=this.a;x.v();){t=x.gG()
 s=C.j.aH(t,1000)
 t=C.j.a3(t,1000)
 r=s*1000+t
@@ -934,12 +934,12 @@ s=A.ey(t.h(0,"surah"))*1000+A.ey(t.h(0,"ayah"))
 r=w.h(0,C.j.aH(s,1000)*1000+C.j.a3(s,1000))
 if((r==null?$.ri():r).c.iC()===t.h(0,"updated_at"))v.K(0,s)}},
 bi_(d){var x,w,v,u,t,s,r,q,p,o,n,m,l,k,j
-for(x=J.aw(d),w=this.b,v=this.a,u=y.f,t=!1;x.v();){s=x.gG()
+for(x=J.ax(d),w=this.b,v=this.a,u=y.f,t=!1;x.v();){s=x.gG()
 if(!u.b(s))continue
-r=A.ax(s.h(0,"surah"))
-q=r==null?null:C.f.bB(r)
-r=A.ax(s.h(0,"ayah"))
-p=r==null?null:C.f.bB(r)
+r=A.aw(s.h(0,"surah"))
+q=r==null?null:C.f.bA(r)
+r=A.aw(s.h(0,"ayah"))
+p=r==null?null:C.f.bA(r)
 o=A.dO(A.n(s.h(0,"updated_at")))
 r=!0
 if(q!=null)if(p!=null)if(o!=null)r=!(q>=1&&q<=114&&p>=1&&p<=I.cR[q-1].a[1])
@@ -955,8 +955,8 @@ if(k<=j)l=k===j&&o.b>l.b
 else l=!0
 l=!l}else l=!1
 if(l)continue
-l=A.ax(s.h(0,"perfect_count"))
-l=l==null?null:C.f.bB(l)
+l=A.aw(s.h(0,"perfect_count"))
+l=l==null?null:C.f.bA(l)
 v.p(0,r,new B.rt(n,C.j.cZ(l==null?0:l,0,100),o.h5()))
 w.K(0,r)
 t=!0}return t}}
@@ -2016,7 +2016,7 @@ B.b6d.prototype={
 $1(d){return C.j.aH(d,1000)},
 $S:59}
 B.b6a.prototype={
-$1(d){return C.f.bB(d)},
+$1(d){return C.f.bA(d)},
 $S:1124}
 B.b6e.prototype={
 $0(){var x=0,w=A.k(y.a),v,u=2,t=[],s=this,r,q,p,o,n,m,l,k,j,i,h,g,f,e,d,a0,a1
@@ -2026,8 +2026,8 @@ x=7
 return A.c(A.iB("mt.tutor.settings"),$async$$0)
 case 7:r=a3
 if(r!=null){k=y.P.a(C.am.f0(r,null))
-j=A.ax(k.h(0,"n"))
-j=j==null?null:C.f.bB(j)
+j=A.aw(k.h(0,"n"))
+j=j==null?null:C.f.bA(j)
 j=C.j.cZ(j==null?2:j,1,5)
 i=C.b.n(D.JC,k.h(0,"r"))?A.ey(k.h(0,"r")):1
 h=A.ei(k.h(0,"auto"))
@@ -2061,9 +2061,9 @@ x=17
 return A.c(A.iB("mt.tutor.last"),$async$$0)
 case 17:p=a3
 if(p!=null){o=y.P.a(C.am.f0(p,null))
-n=C.f.bB(A.cN(J.as(o,"s")))
-m=C.f.bB(A.cN(J.as(o,"f")))
-l=C.f.bB(A.cN(J.as(o,"t")))
+n=C.f.bA(A.cN(J.as(o,"s")))
+m=C.f.bA(A.cN(J.as(o,"f")))
+l=C.f.bA(A.cN(J.as(o,"t")))
 if(B.coM(n,m)&&B.coM(n,l)&&m<=l)s.a.z=new A.aX(n,m,l)}u=2
 x=16
 break
@@ -2824,4 +2824,4 @@ x($,"cS8","crW",()=>A.aD("[^\u0621-\u064a\\s]",!0,!1,!1))
 x($,"cSS","cdq",()=>A.aD("\\s+",!0,!1,!1))
 x($,"cMM","ri",()=>B.ctu(D.pd,0,A.c8q(0,!0)))
 x($,"cPt","N_",()=>new B.VK($.ccP(),D.bAo,B.cBG(),D.aT_,$.X()))})()};
-(a=>{a["AM7n2qTCN7lcc9PDyt9MPXBzSwQ="]=a.current})($__dart_deferred_initializers__);
+(a=>{a["1K7TRlzbHakD6GepFQvRSUAV4vo="]=a.current})($__dart_deferred_initializers__);
