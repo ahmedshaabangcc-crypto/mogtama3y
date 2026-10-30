@@ -37,6 +37,16 @@ class _TokenWalletScreenState extends State<TokenWalletScreen> {
   void initState() {
     super.initState();
     _load();
+    _checkOnline();
+  }
+
+  // Back from Fawaterak's page (0102): credit a paid online top-up now
+  // rather than wait for the webhook, then show the new balance.
+  Future<void> _checkOnline() async {
+    if (await AdTokenService.checkOnlineTopups() && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اتشحن رصيدك ✓')));
+      _load();
+    }
   }
 
   Future<void> _load() async {

@@ -5275,6 +5275,95 @@ const denied = (r) => !!r.error;
     }
   }
 
+  console.log('\nPhase ttok — ad tokens bought online on the platform\'s Fawaterak (0102)');
+  {
+    const fs = require('fs');
+    const path = require('path');
+    let rerun = null;
+    try {
+      await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0102_token_online_topup.sql'), 'utf8'));
+    } catch (e) {
+      rerun = e.message;
+    }
+    check('ttok: 0102 is safe to re-run', rerun === null, rerun);
+    const svc = async (sql, params = []) => {
+      await db.exec('begin');
+      try {
+        await db.exec('set local role service_role');
+        const r = await db.query(sql, params);
+        await db.exec('commit');
+        return { rows: r.rows };
+      } catch (e) {
+        await db.exec('rollback');
+        return { error: e.message };
+      }
+    };
+    const one = (r) => r.rows?.[0] && Object.values(r.rows[0])[0];
+    const U = await signUp(db, 'ttok buyer', '01000102001');
+    const X = await signUp(db, 'ttok other', '01000102002');
+    const begin = async (u, n) => one(await svc(`select public.token_payment_begin($1, $2) as j`, [u, n]));
+    const bal = async (u) => (await admin(db, `select ad_token_balance b from profiles where id = $1`, [u]))[0].b;
+    await admin(db, `update ad_token_settings set online_topup = false, token_price_egp = 15 where id = 1`);
+    check('ttok: refused while the owner hasn\'t turned online top-up on', /مش متاح/.test((await begin(U, 10))?.error || ''));
+    await admin(db, `update ad_token_settings set online_topup = true where id = 1`);
+    check('ttok: fewer than 5 / absurd amounts are refused', /من 5/.test((await begin(U, 4))?.error || '') && /من 5/.test((await begin(U, 100000))?.error || ''));
+    const b1 = await begin(U, 10);
+    check('ttok: begin → the price from the settings (10 × 15 = 150 EGP), the buyer\'s name', b1?.id && Number(b1.amount) === 150 && b1.currency === 'EGP' && b1.tokens === 10, b1);
+    const row = async (id) => (await admin(db, `select status, method, intent_key, paid_at, proof_note from ad_token_topup_requests where id = $1`, [id]))[0];
+    check('ttok: the request is online / awaiting_payment (not in the admin\'s manual queue)',
+      (await row(b1.id)).status === 'awaiting_payment' && (await row(b1.id)).method === 'online' &&
+      (await admin(db, `select count(*)::int n from ad_token_topup_requests where status = 'pending' and id = $1`, [b1.id]))[0].n === 0);
+    check('ttok: EXPLOIT blocked: users call begin / attach / settle / lookup',
+      denied(await as(db, U, `select public.token_payment_begin($1, 10)`, [U])) &&
+      denied(await as(db, U, `select public.token_payment_attach($1, 'k', null)`, [b1.id])) &&
+      denied(await as(db, U, `select public.token_payment_settle('k', true, 150, 'EGP')`)) &&
+      denied(await as(db, U, `select public.token_payment_lookup($1, $2)`, [U, b1.id])));
+    check('ttok: EXPLOIT blocked: a user raises their own balance directly',
+      denied(await as(db, U, `update profiles set ad_token_balance = 999 where id = $1`, [U])) || (await bal(U)) === 0);
+    const IK = '770e8400-e29b-41d4-a716-446655440077';
+    await svc(`select public.token_payment_attach($1, $2, 'https://staging.fawaterk.com/ts/tok')`, [b1.id, IK]);
+    const settle = async (paid, amount, cur = 'EGP') => one(await svc(`select public.token_payment_settle($1, $2, $3, $4, 'Visa') as j`, [IK, paid, amount, cur]));
+    const before = await bal(U);
+    check('ttok: another amount / currency credits nothing', (await settle(true, 149))?.reason === 'amount_mismatch' && (await settle(true, 150, 'USD'))?.reason === 'amount_mismatch' && (await bal(U)) === before);
+    check('ttok: «not paid yet» (a Fawry code issued) changes nothing', (await settle(false, null))?.status === 'awaiting_payment' && (await bal(U)) === before);
+    const s1 = await settle(true, 150);
+    check('ttok: paid → +10 tokens, approved, activity + notification', s1?.status === 'approved' && (await bal(U)) === before + 10 &&
+      !!(await row(b1.id)).paid_at &&
+      (await admin(db, `select count(*)::int n from ad_token_activity where user_id = $1 and kind = 'topup' and tokens = 10`, [U]))[0].n === 1 &&
+      (await admin(db, `select count(*)::int n from notifications where user_id = $1 and title like '%اتشحن%'`, [U]))[0].n === 1, s1);
+    check('ttok: a repeated webhook credits nothing more', (await settle(true, 150))?.already === true && (await bal(U)) === before + 10);
+    check('ttok: lookup is per user', one(await svc(`select public.token_payment_lookup($1, $2) as j`, [U, b1.id]))?.status === 'approved' &&
+      one(await svc(`select public.token_payment_lookup($1, $2) as j`, [X, b1.id])) == null);
+    const mine = await as(db, U, `select id, status from ad_token_topup_requests where method = 'online'`);
+    const theirs = await as(db, X, `select id from ad_token_topup_requests where method = 'online'`);
+    check('ttok: users read only their own top-ups', ok(mine) && mine.rows.length === 1 && ok(theirs) && theirs.rows.length === 0, { mine, theirs });
+    for (let i = 0; i < 10; i++) await begin(X, 5);
+    check('ttok: at most 10 online top-ups an hour per user', /محاولات كتير/.test((await begin(X, 5))?.error || ''));
+    await admin(db, `update ad_token_settings set online_topup = false where id = 1`);
+
+    const block = (fn, tag) => {
+      const src = fs.readFileSync(path.join(__dirname, '..', 'functions', fn, 'index.ts'), 'utf8');
+      const s0 = src.indexOf('\n', src.indexOf(tag + ':begin')) + 1;
+      return src.slice(s0, src.lastIndexOf('\n', src.indexOf(tag + ':end')));
+    };
+    let tk = null;
+    try {
+      tk = new Function(block('tokens-checkout', 'fw') + '\nreturn { topupBody, readTransaction, readTransactionData, fawaterakToken };')();
+    } catch (e) {
+      tk = { error: e.message };
+    }
+    check('ttok: the tokens-checkout block runs in Node', tk && !tk.error, tk);
+    if (tk && !tk.error) {
+      const tb = tk.topupBody({ id: b1.id, tokens: 10, amount: 150, first_name: 'منى', last_name: 'أحمد', phone: '01000102001' }, 'https://hook?target=tokens');
+      check('ttok: hosted checkout for the top-up: EGP 150 in one line, back to /#/tokens, the platform webhook, pay_load',
+        tb.payment_method_id === undefined && tb.cartTotal === 150 && tb.currency === 'EGP' && tb.cartItems[0].price === 150 &&
+        tb.redirectionUrls.successUrl === 'https://mogtama3y.com/#/tokens' && tb.redirectionUrls.webhookUrl === 'https://hook?target=tokens' &&
+        tb.pay_load.kind === 'tokens' && tb.pay_load.request_id === b1.id && /10 توكن/.test(tb.cartItems[0].name), tb);
+      check('ttok: no platform credentials → no call out',
+        (await tk.fawaterakToken({ mode: 'test', public: { client_id: '' }, secret: { client_secret: '' } }, async () => { throw new Error('called'); })).error === 'missing_credentials');
+    }
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

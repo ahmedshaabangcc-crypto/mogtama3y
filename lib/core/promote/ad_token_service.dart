@@ -56,6 +56,55 @@ class AdTokenService {
     await _client.rpc('request_token_topup', params: {'p_tokens': tokens, 'p_proof_note': proofNote});
   }
 
+  /// «اشحن أونلاين» (0102): starts a top-up on the platform's Fawaterak
+  /// and returns its hosted checkout link. Throws [TopupProblem].
+  static Future<String> startOnlineTopup(int tokens) async {
+    final r = await _invoke({'action': 'pay', 'tokens': tokens});
+    final url = r['redirect_to'] as String?;
+    if (url == null) throw const TopupProblem('فواتيرك ماردّتش بلينك الدفع — جرّب تاني');
+    return url;
+  }
+
+  /// Back from Fawaterak: asks about my online top-ups still waiting for
+  /// payment (last 2 days) and credits the paid ones. True when any was
+  /// credited. Never throws.
+  static Future<bool> checkOnlineTopups() async {
+    final userId = AuthService.currentUser?.id;
+    if (userId == null) return false;
+    try {
+      final rows = await _client
+          .from('ad_token_topup_requests')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('method', 'online')
+          .eq('status', 'awaiting_payment')
+          .not('intent_key', 'is', null)
+          .gte('created_at', DateTime.now().toUtc().subtract(const Duration(days: 2)).toIso8601String())
+          .order('created_at', ascending: false)
+          .limit(3);
+      var credited = false;
+      for (final r in List<Map<String, dynamic>>.from(rows as List)) {
+        final s = await _invoke({'action': 'status', 'id': r['id']});
+        if (s['status'] == 'approved') credited = true;
+      }
+      return credited;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<Map<String, dynamic>> _invoke(Map<String, dynamic> body) async {
+    try {
+      final r = await _client.functions.invoke('tokens-checkout', body: body);
+      final m = Map<String, dynamic>.from(r.data as Map? ?? const {});
+      if (m['error'] is String) throw TopupProblem(m['error'] as String);
+      return m;
+    } on FunctionException catch (e) {
+      final d = e.details;
+      throw TopupProblem((d is Map ? d['error'] as String? : null) ?? 'مقدرناش نوصل للدفع دلوقتي — جرّب تاني بعد شوية');
+    }
+  }
+
   static Future<void> featureListing({required String listingTable, required String listingId, required int days}) async {
     await _client.rpc('feature_listing', params: {'p_listing_table': listingTable, 'p_listing_id': listingId, 'p_days': days});
   }
@@ -98,4 +147,12 @@ class AdTokenService {
   static Future<void> reviewTopup({required String requestId, required bool approve}) async {
     await _client.rpc('review_token_topup', params: {'p_request_id': requestId, 'p_approve': approve});
   }
+}
+
+/// A refusal to show as is.
+class TopupProblem implements Exception {
+  const TopupProblem(this.message);
+  final String message;
+  @override
+  String toString() => message;
 }

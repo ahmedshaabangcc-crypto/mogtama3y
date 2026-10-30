@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/promote/ad_token_service.dart';
 import '../../core/theme/app_colors.dart';
@@ -31,6 +32,9 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
   bool _submitting = false;
   bool _submitted = false;
   String? _error;
+  // «اشحن أونلاين» (0102): the platform's Fawaterak, when the owner turned it on.
+  bool _online = false;
+  bool _paying = false;
 
   int get _amountEgp => (_tokens * _tokenPrice).round();
 
@@ -57,6 +61,7 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
       setState(() {
         _tokenPrice = (settings['token_price_egp'] as num?)?.toDouble() ?? 15;
         _phone = settings['topup_phone'] as String? ?? '';
+        _online = settings['online_topup'] == true;
         _loadFailed = _phone.isEmpty;
         _loading = false;
       });
@@ -87,6 +92,22 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
       setState(() => _error = 'تعذر إرسال الطلب، حاول مرة أخرى.');
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _payOnline() async {
+    setState(() {
+      _paying = true;
+      _error = null;
+    });
+    try {
+      final url = await AdTokenService.startOnlineTopup(_tokens);
+      // Same tab on the web: Fawaterak sends the user back to /#/tokens.
+      await launchUrl(Uri.parse(url), webOnlyWindowName: '_self', mode: LaunchMode.platformDefault);
+    } on TopupProblem catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _paying = false);
     }
   }
 
@@ -156,6 +177,32 @@ class _TopUpTokensScreenState extends State<TopUpTokensScreen> {
               ],
             ),
           ),
+          if (_online) ...[
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: ElevatedButton.icon(
+                key: const ValueKey('tokens-pay-online'),
+                onPressed: _paying ? null : _payOnline,
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                icon: _paying
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.credit_card_rounded, size: 18),
+                label: Text('ادفع أونلاين ${money(_amountEgp, 'EGP')}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text('كارت، محفظة موبايل، أو فوري — عن طريق فواتيرك. الرصيد بيتضاف لحسابك أول ما الدفع يتم.',
+                textAlign: TextAlign.center, style: TextStyle(fontSize: 10.5, color: AppColors.inkMuted, height: 1.6)),
+            if (_error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.redAccent, fontSize: 12))),
+            const SizedBox(height: 18),
+            const Row(children: [
+              Expanded(child: Divider(color: AppColors.border)),
+              Padding(padding: EdgeInsets.symmetric(horizontal: 10), child: Text('أو حوّل يدوي', style: TextStyle(fontSize: 11, color: AppColors.inkMuted))),
+              Expanded(child: Divider(color: AppColors.border)),
+            ]),
+          ],
           const SizedBox(height: 18),
           Container(
             padding: const EdgeInsets.all(16),

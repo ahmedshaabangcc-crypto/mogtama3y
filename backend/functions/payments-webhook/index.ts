@@ -199,10 +199,71 @@ async function settleFawaterak(shop: string, creds: Record<string, any>, intentK
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// 0102 — ad tokens bought with the PLATFORM's Fawaterak account
+// (?provider=fawaterak&target=tokens): signed with FAWATERAK_API_KEY, then
+// the transaction is re-read with the platform's OAuth client and
+// token_payment_settle credits the tokens.
+const PLATFORM_FW = {
+  mode: Deno.env.get('FAWATERAK_MODE') === 'live' ? 'live' : 'test',
+  public: { client_id: Deno.env.get('FAWATERAK_CLIENT_ID') ?? '' },
+  secret: { client_secret: Deno.env.get('FAWATERAK_CLIENT_SECRET') ?? '', api_key: Deno.env.get('FAWATERAK_API_KEY') ?? '' },
+};
+
+async function settlePlatformTokens(intentKey: string): Promise<string> {
+  try {
+    const c = PLATFORM_FW;
+    const host = c.mode === 'live' ? 'https://app.fawaterk.com' : 'https://staging.fawaterk.com';
+    const tr = await fetch(host + '/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ grant_type: 'client_credentials', client_id: c.public.client_id, client_secret: c.secret.client_secret }),
+    });
+    const token = (await tr.json().catch(() => null))?.access_token;
+    if (!token) return 'token_refused';
+    const r = await fetch(host + '/api/v3/getTransactionData', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ intent_key: intentKey }),
+    });
+    const d = (await r.json().catch(() => null))?.data;
+    if (!d) return 'transaction_unreadable';
+    const paid = d.paid === 1 || d.paid === '1' || d.paid === true || d.status_text === 'paid';
+    if (!paid) return 'not_paid';
+    const { data, error } = await admin.rpc('token_payment_settle', {
+      p_intent: intentKey, p_paid: true, p_amount: d.total != null ? Number(d.total) : null,
+      p_currency: d.currency ?? null, p_method: d.payment_method ?? null,
+    });
+    if (error) {
+      console.error('token_payment_settle', error.message);
+      return 'not_settled';
+    }
+    return data?.status ?? data?.reason ?? 'ok';
+  } catch (e) {
+    console.error('settlePlatformTokens', String(e));
+    return 'unreachable';
+  }
+}
+
 Deno.serve(async (req) => {
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
   const url = new URL(req.url);
+
+  if (url.searchParams.get('target') === 'tokens' && url.searchParams.get('provider') === 'fawaterak') {
+    const raw = await req.text();
+    if (raw.length > 100_000) return json({ error: 'too large' }, 413);
+    let b: Record<string, unknown>;
+    try {
+      b = JSON.parse(raw);
+    } catch {
+      return json({ error: 'invalid JSON' }, 400);
+    }
+    const v = await verifyWebhook('fawaterak', PLATFORM_FW, b, {}, {});
+    if (!v.ok) return json({ error: 'bad signature' }, 401);
+    if (b.transaction_key == null) return json({ received: true });
+    return json({ received: true, settled: await settlePlatformTokens(String(b.transaction_key)) });
+  }
+
   const shop = url.searchParams.get('shop') ?? '';
   const provider = url.searchParams.get('provider') ?? '';
   if (!UUID.test(shop) || !['paymob', 'kashier', 'tap', 'moyasar', 'fawaterak'].includes(provider)) return json({ error: 'bad url' }, 400);
