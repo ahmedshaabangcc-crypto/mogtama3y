@@ -5,7 +5,7 @@ import '../demo/demo_mode.dart';
 import '../support/feedback_route_observer.dart';
 
 import '../../features/about/about_platform_screen.dart';
-import '../../features/admin/superadmin_control_panel_screen.dart';
+import '../../features/admin/console/admin_console_screen.dart';
 import '../../features/auth/auth_landing_screen.dart';
 import '../../features/auth/password_reset_screens.dart';
 import '../../features/chat/building_chat_screen.dart';
@@ -231,7 +231,7 @@ final _sharedSections = <String, GoRouterWidgetBuilder>{
   AppRoutes.faq: (_, _) => const FaqHelpCenterScreen(),
   AppRoutes.terms: (_, _) => const TermsConditionsScreen(),
   AppRoutes.privacy: (_, _) => const PrivacyPolicyScreen(),
-  AppRoutes.admin: (_, _) => const SuperadminControlPanelScreen(),
+  AppRoutes.admin: (_, _) => const AdminConsoleScreen(),
   AppRoutes.login: (_, _) => const AuthLandingScreen(),
   AppRoutes.resetPassword: (_, _) => const SetNewPasswordScreen(),
 };

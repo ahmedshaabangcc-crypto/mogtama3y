@@ -33,7 +33,11 @@ String _money(num v) => money(v, 'EGP');
 /// 'super_admin'`, granted manually in the SQL editor — there is
 /// deliberately no self-service way to become an admin.
 class SuperadminControlPanelScreen extends StatefulWidget {
-  const SuperadminControlPanelScreen({super.key});
+  const SuperadminControlPanelScreen({super.key, this.embedded = false});
+
+  /// Inside the admin console (0106): no app bar and no navigation tiles —
+  /// the console's sidebar has them — just the stats and the queues.
+  final bool embedded;
 
   @override
   State<SuperadminControlPanelScreen> createState() => _SuperadminControlPanelScreenState();
@@ -298,12 +302,13 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
 
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('لوحة تحكم السوبر أدمن')),
+      appBar: widget.embedded ? null : AppBar(title: const Text('لوحة تحكم السوبر أدمن')),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           children: [
+            if (!widget.embedded) ...[
             Card(
               child: ListTile(
                 leading: const Icon(Icons.how_to_reg_rounded, color: AppColors.crystal),
@@ -395,6 +400,7 @@ class _SuperadminControlPanelScreenState extends State<SuperadminControlPanelScr
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminRoomModerationScreen())),
                 ),
               ),
+            ],
             ],
             const SizedBox(height: 14),
             const Text('مؤشرات المنصة', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),

@@ -5367,6 +5367,50 @@ const denied = (r) => !!r.error;
     }
   }
 
+  console.log('\nPhase tadm — the super-admin console (0106)');
+  {
+    const fs = require('fs');
+    const path = require('path');
+    // The local auth.users has no last_sign_in_at (Supabase's does).
+    await db.exec('alter table auth.users add column if not exists last_sign_in_at timestamptz');
+    let rerun = null;
+    try {
+      await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0106_admin_console.sql'), 'utf8'));
+    } catch (e) {
+      rerun = e.message;
+    }
+    check('tadm: 0106 is safe to re-run', rerun === null, rerun);
+    const one = (r) => r.rows?.[0] && Object.values(r.rows[0])[0];
+    const A = await signUp(db, 'tadm admin', '01000106001');
+    const N = await signUp(db, 'tadm normal', '01000106002');
+    await admin(db, `update profiles set role = 'super_admin' where id = $1`, [A]);
+    await admin(db, `update auth.users set last_sign_in_at = now() where id = $1`, [A]);
+    for (const fn of [`admin_overview()`, `admin_series(30)`, `admin_users(null, 0, 10)`, `admin_token_payments(null, 0, 10)`, `admin_shops(null, 0, 10)`]) {
+      check(`tadm: EXPLOIT blocked: a normal user / a guest calls ${fn}`,
+        denied(await as(db, N, `select public.${fn}`)) && denied(await as(db, null, `select public.${fn}`)));
+    }
+    const ov = one(await as(db, A, `select public.admin_overview() as j`));
+    const usersTotal = Number((await admin(db, `select count(*) n from profiles`))[0].n);
+    check('tadm: the overview counts users (total / today / active 24 h), stores, tokens and every queue',
+      ov && ov.users.total === usersTotal && ov.users.today >= 2 && ov.users.active_24h >= 1 &&
+      typeof ov.shops.total === 'number' && Array.isArray(ov.shops.sales_month) && typeof ov.community.buildings === 'number' &&
+      typeof ov.tokens.revenue_month === 'number' && typeof ov.queues.token_topups === 'number' && typeof ov.queues.tickets === 'number', ov);
+    const se = one(await as(db, A, `select public.admin_series(14) as j`));
+    check('tadm: the series has one row per day (14), today last, sign-ups counted', Array.isArray(se) && se.length === 14 &&
+      se[13].signups >= 2 && 'orders' in se[0] && 'tokens' in se[0], se?.slice(-2));
+    const us = one(await as(db, A, `select public.admin_users('tadm', 0, 10) as j`));
+    check('tadm: users search by name, with last sign-in and stores owned', us?.total === 2 && us.rows.length === 2 &&
+      us.rows.some((r) => r.id === A && r.last_sign_in_at) && us.rows.every((r) => typeof r.shops === 'number'), us);
+    const byPhone = one(await as(db, A, `select public.admin_users('01000106002', 0, 10) as j`));
+    check('tadm: …and by phone', byPhone?.total === 1 && byPhone.rows[0].id === N, byPhone);
+    const tp = one(await as(db, A, `select public.admin_token_payments(null, 0, 5) as j`));
+    check('tadm: token payments: total, approved sum, rows with the buyer', typeof tp?.total === 'number' && typeof tp.approved_sum === 'number' &&
+      Array.isArray(tp.rows) && tp.rows.length <= 5, tp);
+    const sh = one(await as(db, A, `select public.admin_shops(null, 0, 5) as j`));
+    check('tadm: stores: total, products / orders / sales per store', typeof sh?.total === 'number' && sh.rows.length <= 5 &&
+      sh.rows.every((r) => 'products' in r && 'orders' in r && 'sales' in r && 'gateway' in r), sh?.rows?.[0]);
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));
