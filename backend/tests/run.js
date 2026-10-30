@@ -5411,6 +5411,47 @@ const denied = (r) => !!r.error;
       sh.rows.every((r) => 'products' in r && 'orders' in r && 'sales' in r && 'gateway' in r), sh?.rows?.[0]);
   }
 
+  console.log('\nPhase tsus — the super admin suspends a store (0107)');
+  {
+    const fs = require('fs');
+    const path = require('path');
+    let rerun = null;
+    try {
+      await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0107_shop_suspension.sql'), 'utf8'));
+    } catch (e) {
+      rerun = e.message;
+    }
+    check('tsus: 0107 is safe to re-run', rerun === null, rerun);
+    const one = (r) => r.rows?.[0] && Object.values(r.rows[0])[0];
+    const A = await signUp(db, 'tsus admin', '01000107001');
+    const M = await signUp(db, 'tsus merchant', '01000107002');
+    await admin(db, `update profiles set role = 'super_admin' where id = $1`, [A]);
+    const shop = one(await as(db, M, `select public.create_my_shop('محل موقوف', 'ملابس وأحذية', 'tsus-shop', '01000107002') as id`));
+    const prod = one(await as(db, M, `select public.merchant_save_product($1, $2::jsonb) as id`, [shop, JSON.stringify({ name: 'قميص', price: 100, stock: 10, status: 'active' })]));
+    const place = () => as(db, null, `select public.place_store_order($1, $2::jsonb, 'زبون', '01011113333', 'شارع النصر، مدينة نصر، عمارة 3') as code`,
+      [shop, JSON.stringify([{ product_id: prod, quantity: 1 }])]);
+    check('tsus: a working store takes orders', ok(await place()));
+    const susp = (u, on, reason) => as(db, u, `select public.admin_set_shop_suspended($1, $2, $3) as j`, [shop, on, reason]);
+    check('tsus: EXPLOIT blocked: the owner / another user / a guest suspends or lifts it',
+      denied(await susp(M, true, 'x')) && denied(await susp(null, true, 'x')) && denied(await susp(M, false, null)));
+    check('tsus: a suspension needs a reason', denied(await susp(A, true, '  ')));
+    check('tsus: the admin suspends it', ok(await susp(A, true, 'منتجات مقلّدة')) &&
+      !!(await admin(db, `select suspended_at from shops where id = $1`, [shop]))[0].suspended_at);
+    check('tsus: the owner is told why',
+      (await admin(db, `select count(*)::int n from notifications where user_id = $1 and title like '⛔%' and body like '%مقلّدة%'`, [M]))[0].n === 1);
+    const refused = await place();
+    check('tsus: a suspended store takes no orders (with the reason)', denied(refused) && /موقوف/.test(refused.error) && /مقلّدة/.test(refused.error), refused);
+    check('tsus: EXPLOIT blocked: the owner clears the suspension with a direct update',
+      denied(await as(db, M, `update shops set suspended_at = null, suspended_reason = null where id = $1`, [shop])) &&
+      !!(await admin(db, `select suspended_at from shops where id = $1`, [shop]))[0].suspended_at);
+    check('tsus: the owner still edits the rest of the store', ok(await as(db, M, `update shops set whatsapp = '01000107009' where id = $1`, [shop])));
+    const row = one(await as(db, A, `select public.admin_shops('tsus', 0, 5) as j`))?.rows?.[0];
+    check('tsus: the admin stores table shows the suspension', row?.suspended_reason === 'منتجات مقلّدة' && !!row.suspended_at, row);
+    check('tsus: the admin lifts it — orders work again, the owner is told',
+      ok(await susp(A, false, null)) && ok(await place()) &&
+      (await admin(db, `select count(*)::int n from notifications where user_id = $1 and title like '✅%'`, [M]))[0].n === 1);
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

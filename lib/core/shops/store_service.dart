@@ -64,7 +64,7 @@ class StoreService {
   static Future<Map<String, dynamic>?> fetchStoreBySlug(String slug) async {
     return _client
         .from('shops')
-        .select('id, name, category, description, cover_image_url, logo_url, address, lat, lng, slug, whatsapp, owner_id, is_claimed, delivery_fee, free_delivery_over, currency, country')
+        .select('id, name, category, description, cover_image_url, logo_url, address, lat, lng, slug, whatsapp, owner_id, is_claimed, delivery_fee, free_delivery_over, currency, country, suspended_at, suspended_reason')
         .eq('slug', slug.toLowerCase())
         .maybeSingle();
   }

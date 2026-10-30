@@ -134,7 +134,9 @@ class _StorePageScreenState extends State<StorePageScreen> {
     }
   }
 
-  bool get _acceptsOrders => _shop?['owner_id'] != null;
+  // A store the admin suspended (0107) shows its products but takes no orders.
+  bool get _suspended => _shop?['suspended_at'] != null;
+  bool get _acceptsOrders => _shop?['owner_id'] != null && !_suspended;
 
   List<String> get _categories {
     final set = <String>{};
@@ -228,6 +230,23 @@ class _StorePageScreenState extends State<StorePageScreen> {
             ],
             flexibleSpace: FlexibleSpaceBar(background: _StoreHeader(shop: shop)),
           ),
+          if (_suspended)
+            SliverToBoxAdapter(
+              child: Container(
+                key: const ValueKey('store-suspended'),
+                margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: AppColors.categorySos.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(14)),
+                child: const Row(children: [
+                  Icon(Icons.block_rounded, color: AppColors.categorySos),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text('المتجر ده موقوف مؤقتاً من إدارة مُجتمعي ومش بيستقبل طلبات دلوقتي.',
+                        style: TextStyle(color: AppColors.categorySos, fontWeight: FontWeight.w700, height: 1.5)),
+                  ),
+                ]),
+              ),
+            ),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),

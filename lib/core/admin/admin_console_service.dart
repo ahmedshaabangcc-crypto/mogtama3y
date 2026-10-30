@@ -29,6 +29,10 @@ class AdminConsoleService {
   static Future<Map<String, dynamic>> tokenPayments({String? status, int offset = 0, int limit = 50}) async =>
       _map(await _rpc('admin_token_payments', {'p_status': status, 'p_offset': offset, 'p_limit': limit}));
 
+  /// Suspends (needs a reason, sent to the owner) or restores a store (0107).
+  static Future<void> setShopSuspended(String shopId, {required bool suspend, String? reason}) =>
+      _rpc('admin_set_shop_suspended', {'p_shop': shopId, 'p_suspend': suspend, 'p_reason': reason});
+
   /// {total, rows}.
   static Future<Map<String, dynamic>> shops({String? query, int offset = 0, int limit = 50}) async =>
       _map(await _rpc('admin_shops', {'p_q': query, 'p_offset': offset, 'p_limit': limit}));

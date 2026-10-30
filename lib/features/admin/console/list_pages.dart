@@ -20,6 +20,7 @@ typedef _Loader = Future<Map<String, dynamic>> Function(String? query, String? f
 
 class _TablePage extends StatefulWidget {
   const _TablePage({
+    super.key,
     required this.searchHint,
     required this.load,
     required this.columns,
@@ -229,16 +230,65 @@ class AdminPaymentsPage extends StatelessWidget {
   }
 }
 
-/// المتاجر: every store with its owner, products, orders and sales.
-class AdminShopsPage extends StatelessWidget {
+/// المتاجر: every store with its owner, products, orders and sales, and
+/// «إيقاف» / «تشغيل» (0107).
+class AdminShopsPage extends StatefulWidget {
   const AdminShopsPage({super.key});
+
+  @override
+  State<AdminShopsPage> createState() => _AdminShopsPageState();
+}
+
+class _AdminShopsPageState extends State<AdminShopsPage> {
+  int _version = 0;
+
+  Future<void> _toggle(Map<String, dynamic> r) async {
+    final suspended = r['suspended_at'] != null;
+    String? reason;
+    if (!suspended) {
+      final ctrl = TextEditingController();
+      reason = await showDialog<String>(
+        context: context,
+        builder: (d) => AlertDialog(
+          title: Text('إيقاف «${r['name']}»'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('المتجر مش هيستقبل طلبات لحد ما ترجّعه، وصاحبه هيوصله إشعار بالسبب.', style: TextStyle(fontSize: 13, color: AppColors.inkSecondary)),
+            const SizedBox(height: 10),
+            TextField(key: const ValueKey('suspend-reason'), controller: ctrl, decoration: const InputDecoration(labelText: 'السبب *', hintText: 'منتجات مخالفة، شكاوى نصب…')),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(d), child: const Text('رجوع')),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.categorySos),
+              onPressed: () => Navigator.pop(d, ctrl.text.trim()),
+              child: const Text('أوقف المتجر'),
+            ),
+          ],
+        ),
+      );
+      if (reason == null) return;
+      if (reason.isEmpty) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اكتب سبب الإيقاف')));
+        return;
+      }
+    }
+    try {
+      await AdminConsoleService.setShopSuspended(r['id'] as String, suspend: !suspended, reason: reason);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(suspended ? 'المتجر رجع يشتغل ✓' : 'المتجر اتوقف ✓')));
+      setState(() => _version++);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر التنفيذ: $e')));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return _TablePage(
+      key: ValueKey('shops-$_version'),
       searchHint: 'دوّر باسم المتجر أو الرابط',
       load: (q, _, offset) => AdminConsoleService.shops(query: q, offset: offset),
-      columns: const ['المتجر', 'صاحبه', 'الدولة', 'منتجات', 'طلبات', 'مبيعات', 'دفع أونلاين', 'آخر طلب', 'اتعمل'],
+      columns: const ['المتجر', 'صاحبه', 'الدولة', 'منتجات', 'طلبات', 'مبيعات', 'دفع أونلاين', 'آخر طلب', 'اتعمل', 'الحالة'],
       cells: (r) => [
         Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
           Text(r['name'] as String? ?? '—', style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -255,6 +305,18 @@ class AdminShopsPage extends StatelessWidget {
         r['gateway'] == null ? const Text('—') : ConsolePill(r['gateway'] == 'fawaterak' ? 'فواتيرك' : r['gateway'] as String, color: AppColors.success),
         Text(agoText(r['last_order_at'] as String?)),
         Text(_date(r['created_at'] as String?)),
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          r['suspended_at'] == null
+              ? const ConsolePill('شغال', color: AppColors.success)
+              : Tooltip(message: r['suspended_reason'] as String? ?? '', child: const ConsolePill('موقوف', color: AppColors.categorySos)),
+          const SizedBox(width: 6),
+          TextButton(
+            key: ValueKey('shop-toggle-${r['id']}'),
+            onPressed: () => _toggle(r),
+            style: TextButton.styleFrom(foregroundColor: r['suspended_at'] == null ? AppColors.categorySos : AppColors.success),
+            child: Text(r['suspended_at'] == null ? 'إيقاف' : 'تشغيل'),
+          ),
+        ]),
       ],
       onTapRow: (context, r) {
         final slug = r['slug'] as String?;

@@ -13,8 +13,12 @@ void main() {
   setUpAll(() => initializeDateFormatting('ar'));
 
   final calls = <String>[];
+  var suspended = false;
+  String? lastReason;
   setUp(() {
     calls.clear();
+    suspended = false;
+    lastReason = null;
     final today = DateTime.now();
     AdminConsoleService.debugRpc = (fn, p) async {
       calls.add(fn);
@@ -48,11 +52,15 @@ void main() {
               {'id': 't1', 'tokens_requested': 3, 'amount_egp': 45, 'status': p['p_status'] ?? 'awaiting_payment', 'method': 'online', 'created_at': today.toIso8601String(), 'full_name': 'منى أحمد', 'phone': '01011112222'},
             ],
           };
+        case 'admin_set_shop_suspended':
+          suspended = p['p_suspend'] == true;
+          lastReason = p['p_reason'] as String?;
+          return {'id': p['p_shop'], 'suspended': suspended};
         case 'admin_shops':
           return {
             'total': 1,
             'rows': [
-              {'id': 's1', 'name': 'محل الشاي', 'slug': 'tea', 'category': 'مشروبات', 'country': 'EG', 'currency': 'EGP', 'owner_name': 'منى أحمد', 'owner_phone': '01011112222', 'products': 12, 'orders': 30, 'sales': 4500, 'gateway': 'fawaterak', 'last_order_at': today.toIso8601String(), 'created_at': today.toIso8601String()},
+              {'id': 's1', 'name': 'محل الشاي', 'slug': 'tea', 'category': 'مشروبات', 'country': 'EG', 'currency': 'EGP', 'owner_name': 'منى أحمد', 'owner_phone': '01011112222', 'products': 12, 'orders': 30, 'sales': 4500, 'gateway': 'fawaterak', 'last_order_at': today.toIso8601String(), 'created_at': today.toIso8601String(), 'suspended_at': suspended ? today.toIso8601String() : null, 'suspended_reason': suspended ? lastReason : null},
             ],
           };
       }
@@ -133,6 +141,25 @@ void main() {
     await tester.tap(find.text('المتاجر').last);
     await tester.pumpAndSettle();
     expect((tester.widget<Text>(find.byKey(const ValueKey('console-title')))).data, 'المتاجر');
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('0107: the admin suspends a store with a reason, then restores it', (tester) async {
+    await desktop(tester);
+    await tester.pumpWidget(app(const AdminConsoleScreen(initialPage: 'shops')));
+    await tester.pumpAndSettle();
+    expect(find.text('شغال'), findsOneWidget);
+    tester.widget<TextButton>(find.byKey(const ValueKey('shop-toggle-s1'))).onPressed!(); // the last column may be scrolled off
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('suspend-reason')), 'منتجات مقلّدة');
+    await tester.tap(find.text('أوقف المتجر'));
+    await tester.pumpAndSettle();
+    expect(lastReason, 'منتجات مقلّدة');
+    expect(find.text('موقوف'), findsOneWidget);
+    tester.widget<TextButton>(find.byKey(const ValueKey('shop-toggle-s1'))).onPressed!(); // the last column may be scrolled off
+    await tester.pumpAndSettle();
+    expect(suspended, isFalse);
+    expect(find.text('شغال'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
