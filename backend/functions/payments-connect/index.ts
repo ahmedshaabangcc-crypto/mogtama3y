@@ -16,7 +16,7 @@
 //        Paymob  — POST <region>/api/auth/tokens {api_key} (issues a token, no money moves)
 //        Tap     — POST https://api.tap.company/v2/charges/list {limit: 1} (read-only list)
 //        Moyasar — GET  https://api.moyasar.com/v1/payments?limit=1 (read-only list)
-//        Fawaterak — GET <staging|app>.fawaterk.com/api/v2/getPaymentmethods (0100)
+//        Fawaterak — POST /oauth/token, then GET /api/v3/getTrPaymentmethods (0101)
 //        Kashier — no public read-only "who am I" endpoint we could confirm in
 //                  the docs: FORMAT CHECK ONLY (checked: 'format'); the first
 //                  real test payment (Phase 4) is the true check.
@@ -91,16 +91,27 @@ async function testGateway(creds = Object(), fetchFn = fetch) {
         return verdict(r.status, 'Moyasar قبل المفتاح ✓');
       }
       case 'fawaterak': {
-        if (!s.api_key) return bad('الـ API key ناقص');
-        const base = creds.mode === 'live' ? 'https://app.fawaterk.com' : 'https://staging.fawaterk.com';
-        const r = await fetchFn(base + '/api/v2/getPaymentmethods', {
+        // API v3: client credentials → token, then the payment methods list.
+        if (!p.client_id || !s.client_secret) return bad('الـ Client ID أو الـ Client Secret ناقص');
+        if (!s.api_key) return bad('الـ API Key ناقص');
+        const host = creds.mode === 'live' ? 'https://app.fawaterk.com' : 'https://staging.fawaterk.com';
+        const where = creds.mode === 'live' ? 'الحساب الحقيقي (app.fawaterk.com)' : 'حساب التجربة (staging.fawaterk.com)';
+        const tr = await fetchFn(host + '/oauth/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ grant_type: 'client_credentials', client_id: p.client_id, client_secret: s.client_secret }),
+        });
+        const tj = await tr.json().catch(() => ({}));
+        if (!tj || !tj.access_token) return bad('فواتيرك رفضت الـ Client ID / Secret — اتأكد إنهم من ' + where);
+        const r = await fetchFn(host + '/api/v3/getTrPaymentmethods', {
           method: 'GET',
-          headers: { 'Authorization': 'Bearer ' + s.api_key, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          headers: { 'Authorization': 'Bearer ' + tj.access_token, 'Content-Type': 'application/json', 'Accept': 'application/json' },
         });
         if (r.status >= 200 && r.status < 300) {
           const j = await r.json().catch(() => ({}));
-          if (!j || j.status !== 'success') return bad('فواتيرك ماقبلتش المفتاح — اتأكد إنه مفتاح ' + (creds.mode === 'live' ? 'الحساب الحقيقي (app.fawaterk.com)' : 'حساب التجربة (staging.fawaterk.com)'));
-          return { ok: true, message: 'فواتيرك قبلت المفتاح ✓', checked: 'api' };
+          if (!j || j.status !== 'success') return bad('فواتيرك ماردّتش بطرق الدفع — جرّب تاني بعد شوية');
+          if (!Array.isArray(j.data) || j.data.length === 0) return bad('مفيش ولا طريقة دفع مفعّلة للربط — من لوحة فواتيرك: Business settings ← Payment methods ← فعّل «Integration status»');
+          return { ok: true, message: 'فواتيرك قبلت الربط ✓ (' + j.data.length + ' طرق دفع)', checked: 'api' };
         }
         return verdict(r.status, '');
       }

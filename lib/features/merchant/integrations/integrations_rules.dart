@@ -53,9 +53,13 @@ const gatewaySpecs = <GatewaySpec>[
     blurb: 'فيزا وماستركارد وميزة، فوري وأمان، ومحافظ الموبايل — مصر. الزبون بيدفع أونلاين من صفحة متجرك على طول.',
     webhookWhere: '',
     checkoutReady: true,
+    // API v3 (0101): OAuth client credentials + the vendor API key that
+    // signs the webhooks. The «Hash key» is for Fawaterak's iframe — not needed.
     fields: [
-      GatewayField('api_key', 'API Key', hint: 'لوحة فواتيرك ← Integrations ← Fawaterak ← API Key', secret: true, required: true, pattern: r'^[A-Za-z0-9]{20,200}$'),
-      GatewayField('provider_key', 'Provider Key (اختياري)', hint: 'من نفس الصفحة', pattern: r'^[A-Za-z0-9_-]{6,120}$'),
+      GatewayField('client_id', 'Client ID', hint: 'لوحة فواتيرك ← Integrations ← OAuth client credentials',
+          required: true, pattern: r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'),
+      GatewayField('client_secret', 'Client Secret', hint: 'من نفس المكان', secret: true, required: true, pattern: r'^[A-Za-z0-9._~+/=-]{16,255}$'),
+      GatewayField('api_key', 'API Key', hint: 'لوحة فواتيرك ← Integrations ← API Key', secret: true, required: true, pattern: r'^[A-Za-z0-9._~+/=-]{16,255}$'),
     ],
   ),
   GatewaySpec(

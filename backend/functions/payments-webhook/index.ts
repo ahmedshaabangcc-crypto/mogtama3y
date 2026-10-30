@@ -23,9 +23,10 @@
 //             keyed with the secret key (amount with the currency's decimals).
 //   Moyasar — the JSON body's secret_token = the token we show the merchant
 //             (shop_payment_gateways.webhook_token) to paste when adding the webhook.
-//   Fawaterak (0100) — hashKey in the body (see verifyWebhook). Every invoice
-//             sends this URL itself (redirectionUrls.webhookUrl); a paid
-//             invoice settles its order (payment_settle).
+//   Fawaterak (0100 / 0101, API v3) — transactionHashKey in the body (see
+//             verifyWebhook). Every transaction sends this URL itself
+//             (redirectionUrls.webhookUrl); a paid one settles its order
+//             (payment_settle) after re-reading it from Fawaterak.
 //
 // Deploy with JWT verification OFF (the gateways don't send a Supabase
 // JWT; the signature is the check). The block between the sig markers is
@@ -118,20 +119,29 @@ async function verifyWebhook(provider = '', creds = Object(), body = Object(), h
       return { ok: sameText(String(body.secret_token || ''), String(creds.webhook_token || '')), event_type: String(body.type || 'event'), external_id: body.id || (body.data && body.data.id) || null };
     }
     case 'fawaterak': {
-      // Paid: hashKey = HMAC-SHA256(api key, "InvoiceId=…&InvoiceKey=…&PaymentMethod=…").
-      // Cancelled (an expired Fawry / Aman code): "referenceId=…&PaymentMethod=…".
-      // Failed / refund callbacks carry no hashKey → refused (nothing to do for them).
-      if (!s.api_key || !body.hashKey) return { ok: false };
-      const paid = body.invoice_id != null;
-      const msg = paid
-        ? 'InvoiceId=' + body.invoice_id + '&InvoiceKey=' + (body.invoice_key ?? '') + '&PaymentMethod=' + (body.payment_method ?? '')
-        : 'referenceId=' + (body.referenceId ?? '') + '&PaymentMethod=' + (body.paymentMethod ?? '');
+      // Signed with the vendor API key, HMAC-SHA256 (hex):
+      //   v3 paid / pending / failed — transactionHashKey (or hashKey) over
+      //     "TransactionId=…&TransactionKey=…&PaymentMethod=…";
+      //   cancelled (an expired Fawry / Aman code) — hashKey over "referenceId=…&PaymentMethod=…";
+      //   legacy v2 invoices — hashKey over "InvoiceId=…&InvoiceKey=…&PaymentMethod=…".
+      const sig = body.transactionHashKey || body.hashKey;
+      if (!s.api_key || !sig) return { ok: false };
+      let msg, event_type, external_id;
+      if (body.transaction_key != null) {
+        msg = 'TransactionId=' + (body.transaction_id ?? '') + '&TransactionKey=' + body.transaction_key + '&PaymentMethod=' + (body.payment_method ?? '');
+        event_type = 'transaction:' + String(body.status || (body.errorMessage ? 'failed' : ''));
+        external_id = String(body.transaction_key);
+      } else if (body.invoice_id != null) {
+        msg = 'InvoiceId=' + body.invoice_id + '&InvoiceKey=' + (body.invoice_key ?? '') + '&PaymentMethod=' + (body.payment_method ?? '');
+        event_type = 'invoice:' + String(body.invoice_status || '');
+        external_id = String(body.invoice_id);
+      } else {
+        msg = 'referenceId=' + (body.referenceId ?? '') + '&PaymentMethod=' + (body.paymentMethod ?? '');
+        event_type = 'cancel:' + String(body.status || '');
+        external_id = body.referenceId != null ? String(body.referenceId) : null;
+      }
       const mine = await hmacHex('SHA-256', s.api_key, msg);
-      return {
-        ok: sameText(mine, String(body.hashKey).toLowerCase()),
-        event_type: paid ? 'invoice:' + String(body.invoice_status || '') : 'cancel:' + String(body.status || ''),
-        external_id: paid ? String(body.invoice_id) : (body.referenceId != null ? String(body.referenceId) : null),
-      };
+      return { ok: sameText(mine, String(sig).toLowerCase()), event_type, external_id };
     }
     default:
       return { ok: false };
@@ -141,25 +151,39 @@ async function verifyWebhook(provider = '', creds = Object(), body = Object(), h
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
-// Re-reads the invoice from Fawaterak and settles its order (payment_settle
-// checks the amount and currency against the order). → its status, or a reason.
-async function settleFawaterak(shop: string, creds: Record<string, any>, invoiceId: string): Promise<string> {
+// Re-reads the transaction from Fawaterak (API v3: OAuth token, then
+// getTransactionData) and, when it is paid, settles its order
+// (payment_settle checks the amount and currency against the order).
+// A «pending» callback (a Fawry code was issued) changes nothing.
+// → its status, or a reason.
+async function settleFawaterak(shop: string, creds: Record<string, any>, intentKey: string): Promise<string> {
   try {
-    const base = creds.mode === 'live' ? 'https://app.fawaterk.com' : 'https://staging.fawaterk.com';
-    const r = await fetch(base + '/api/v2/getInvoiceData/' + encodeURIComponent(invoiceId), {
-      headers: { 'Authorization': 'Bearer ' + creds.secret?.api_key, 'Accept': 'application/json' },
+    const host = creds.mode === 'live' ? 'https://app.fawaterk.com' : 'https://staging.fawaterk.com';
+    const tr = await fetch(host + '/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ grant_type: 'client_credentials', client_id: creds.public?.client_id, client_secret: creds.secret?.client_secret }),
+    });
+    const token = (await tr.json().catch(() => null))?.access_token;
+    if (!token) return 'token_refused';
+    const r = await fetch(host + '/api/v3/getTransactionData', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ intent_key: intentKey }),
     });
     const j = await r.json().catch(() => null);
     const d = j?.status === 'success' ? j.data : null;
-    if (!d) return 'invoice_unreadable';
+    if (!d) return 'transaction_unreadable';
     let pl = d.pay_load;
     if (typeof pl === 'string') {
       try { pl = JSON.parse(pl); } catch { pl = null; }
     }
-    const paid = d.paid === 1 || d.paid === '1' || d.paid === true;
+    const paid = d.paid === 1 || d.paid === '1' || d.paid === true || d.status_text === 'paid';
+    if (!paid) return 'not_paid';
+    const cur = d.currency != null ? String(d.currency).toUpperCase() : null;
     const { data, error } = await admin.rpc('payment_settle', {
-      p_shop: shop, p_provider: 'fawaterak', p_invoice_id: invoiceId, p_paid: paid,
-      p_amount: d.total != null ? Number(d.total) : null, p_currency: d.currency ?? null,
+      p_shop: shop, p_provider: 'fawaterak', p_invoice_id: intentKey, p_paid: true,
+      p_amount: d.total != null ? Number(d.total) : null, p_currency: cur === 'SR' ? 'SAR' : cur,
       p_method: d.payment_method ?? null, p_code: pl?.order_code ?? null,
     });
     if (error) {
@@ -212,8 +236,8 @@ Deno.serve(async (req) => {
   }
   // Phase 4 (0100), Fawaterak: the order is settled from Fawaterak's own
   // copy of the invoice (getInvoiceData), never from the callback body.
-  if (provider === 'fawaterak' && body.invoice_id != null) {
-    const s = await settleFawaterak(shop, creds, String(body.invoice_id));
+  if (provider === 'fawaterak' && body.transaction_key != null) {
+    const s = await settleFawaterak(shop, creds, String(body.transaction_key));
     return json({ received: true, settled: s });
   }
   // Other gateways: marking orders paid comes with their checkout.

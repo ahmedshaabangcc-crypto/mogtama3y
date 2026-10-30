@@ -239,35 +239,25 @@ void main() {
       expect(find.widgetWithText(ElevatedButton, 'كمّل للدفع — ${money(75)}'), findsOneWidget);
     });
 
-    testWidgets('0100: the payment page lists Fawaterak methods and shows a Fawry code', (tester) async {
+    testWidgets('0101: the payment page asks for Fawaterak\'s hosted checkout; a refusal shows with «جرّب تاني»', (tester) async {
       tester.view.physicalSize = const Size(420, 1600);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       final calls = <Map<String, dynamic>>[];
       OnlinePayment.debugInvoke = (body) async {
         calls.add(body);
-        return switch (body['action']) {
-          'methods' => {
-              'order': {'code': 'TABC2345', 'total': 75, 'currency': 'EGP', 'shop_name': 'محل'},
-              'methods': [
-                {'id': 2, 'name_ar': 'فيزا -ماستر كارد', 'redirect': true},
-                {'id': 3, 'name_ar': 'فوري', 'redirect': false},
-              ],
-            },
-          _ => {'codes': {'fawryCode': '981234567'}, 'expire_date': '2026-11-02'},
-        };
+        return {'error': 'المحل ده مش مفعّل الدفع الأونلاين دلوقتي'};
       };
       addTearDown(() => OnlinePayment.debugInvoke = null);
       await tester.pumpWidget(app(const OnlinePaymentScreen(code: 'TABC2345', phone: '01011112222')));
       await settle(tester);
-      expect((tester.widget<Text>(find.byKey(const ValueKey('pay-total')))).data, money(75));
-      expect(find.text('فيزا -ماستر كارد'), findsOneWidget);
-      expect(find.text('هتاخد كود تدفع بيه'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('pay-method-3')));
+      expect(calls, [
+        {'action': 'pay', 'code': 'TABC2345', 'phone': '01011112222'},
+      ]);
+      expect((tester.widget<Text>(find.byKey(const ValueKey('pay-error')))).data, 'المحل ده مش مفعّل الدفع الأونلاين دلوقتي');
+      await tester.tap(find.text('جرّب تاني'));
       await settle(tester);
-      expect(calls.last, {'action': 'pay', 'code': 'TABC2345', 'phone': '01011112222', 'method_id': 3});
-      expect((tester.widget<Text>(find.byKey(const ValueKey('pay-code')))).data, '981234567');
-      expect(find.text('كود فوري'), findsOneWidget);
+      expect(calls.length, 2);
     });
   });
 

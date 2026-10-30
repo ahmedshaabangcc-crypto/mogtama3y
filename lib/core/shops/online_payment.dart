@@ -33,14 +33,10 @@ class OnlinePayment {
     return r;
   }
 
-  /// The order (code, total, currency, shop_name) + Fawaterak's methods;
-  /// {paid: true} when it is already paid. The order becomes «أونلاين».
-  static Future<Map<String, dynamic>> methods(String code, String phone) async =>
-      _ok(await _call({'action': 'methods', 'code': code, 'phone': phone}));
-
-  /// {redirect_to} or {codes, expire_date}.
-  static Future<Map<String, dynamic>> pay(String code, String phone, int methodId) async =>
-      _ok(await _call({'action': 'pay', 'code': code, 'phone': phone, 'method_id': methodId}));
+  /// {redirect_to}: Fawaterak's hosted checkout (the customer picks the
+  /// method there), or {paid: true}. The order becomes «أونلاين».
+  static Future<Map<String, dynamic>> pay(String code, String phone) async =>
+      _ok(await _call({'action': 'pay', 'code': code, 'phone': phone}));
 
   /// Re-checks with Fawaterak → 'awaiting' | 'paid' | 'failed' | null.
   static Future<String?> refresh(String code, String phone) async {
@@ -77,11 +73,3 @@ class PaymentProblem implements Exception {
   @override
   String toString() => message;
 }
-
-/// What the codes of a non-redirect method are called.
-const paymentCodeLabels = {
-  'fawryCode': 'كود فوري',
-  'amanCode': 'كود أمان',
-  'masaryCode': 'كود مصاري / بسطة',
-  'meezaReference': 'رقم مرجع ميزة',
-};
