@@ -242,7 +242,7 @@ async function placePage(id) {
   const near = await nearbyCell(p.lat, p.lng, p.category);
   const where = city ? ` في ${city}` : country.iso !== 'EG' ? ` في ${country.name}` : '';
   const title = `${p.name} — ${p.category}${where} | دليل مُجتمعي`;
-  const description = `${p.name}: ${p.category}${where}${p.address ? '، ' + p.address : ''}. العنوان على الخريطة${p.phone ? ' ورقم التليفون' : ''}، واطلب منه أونلاين على مُجتمعي.`;
+  const description = `${p.name}: ${p.category}${where}${p.address ? '، ' + p.address : ''}. العنوان على الخريطة${p.phone ? ' ورقم التليفون' : ''}، واطلب منه أونلاين.`;
   const order = `${APP}/#/d/${encodeURIComponent(p.id)}`;
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -268,7 +268,7 @@ ${p.address ? `<p>📍 ${esc(p.address)}</p>` : ''}
 ${p.phone ? `<p>📞 <a href="tel:${esc(p.phone.replace(/\s/g, ''))}" dir="ltr">${esc(p.phone)}</a></p>` : ''}
 ${p.opening_hours ? `<p>🕒 ${esc(p.opening_hours)}</p>` : ''}
 <p>
-<a class="btn wa" href="${order}">اطلب منه على مُجتمعي</a>
+<a class="btn wa" href="${order}">اطلب منه أونلاين</a>
 <a class="btn line" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}" rel="nofollow">الاتجاهات</a>
 </p>
 <p class="muted" style="font-size:13px">ده محلك؟ <a href="${TAJER}">افتح متجرك واستقبل الطلبات أونلاين ببلاش</a>.</p>
@@ -530,7 +530,7 @@ async function storePage(slugName) {
   return page({
     country: country.iso,
     image: shop.cover_image_url || shop.logo_url || imagesOf(products[0] || {})[0],
-    title: `${shop.name} — ${shop.category || 'متجر'}${where} | اطلب أونلاين على مُجتمعي`,
+    title: `${shop.name} — ${shop.category || 'متجر'}${where} | اطلب أونلاين`,
     description: `${shop.name}${where}: ${products.length} منتج بالأسعار${shop.description ? ' — ' + shop.description.slice(0, 120) : ''}. اطلب أونلاين والدفع عند الاستلام.`,
     canonical,
     jsonLd,
@@ -569,7 +569,7 @@ async function productPage(slugName, productId) {
     country: country.iso,
     image: imgs[0],
     // 0098: the merchant's own SEO title / description when set.
-    title: p.seo_title ? `${p.seo_title} — ${shop.name} | مُجتمعي` : `${p.name} بسعر ${money(p.price, curOf(p))} — ${shop.name}${city ? ' ' + city : ''} | مُجتمعي`,
+    title: p.seo_title ? `${p.seo_title} — ${shop.name}` : `${p.name} بسعر ${money(p.price, curOf(p))} — ${shop.name}${city ? ' ' + city : ''}`,
     description: p.seo_description || `${p.name} بـ ${money(p.price, curOf(p))} من ${shop.name}${city ? ' في ' + city : ''}. ${p.description ? p.description.slice(0, 120) + ' ' : ''}اطلب أونلاين والدفع عند الاستلام.`,
     canonical,
     jsonLd,

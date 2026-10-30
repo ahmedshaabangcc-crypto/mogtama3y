@@ -121,7 +121,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                             onPressed: () => context.go(AppRoutes.store(place['store_slug'] as String)),
                             style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, foregroundColor: Colors.white, minimumSize: const Size.fromHeight(48)),
                             icon: const Icon(Icons.storefront_rounded),
-                            label: const Text('اطلب من متجره على مُجتمعي'),
+                            label: const Text('اطلب من متجره أونلاين'),
                           ),
                           const SizedBox(height: 10),
                         ],
