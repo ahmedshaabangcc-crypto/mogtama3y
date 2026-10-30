@@ -125,6 +125,25 @@ function cached(key, ttlMs, make) {
   return value;
 }
 
+// «أماكن قريبة» of a place page, shared by every place of that category in
+// the same ~1 km grid cell and kept a day (Supabase Disk IO warning,
+// 2026-10-30: Google crawling ~300k place pages ran nearby_directory half a
+// million times). Small rows only (~3 KB a cell), so many more cells fit
+// than whole pages: 20 000 × 3 KB ≈ 60 MB.
+const NEAR_MAX = 20000;
+const nearCache = new Map();
+function nearbyCell(lat, lng, category) {
+  const cLat = Math.round(lat * 100) / 100;
+  const cLng = Math.round(lng * 100) / 100;
+  const key = `${category}|${cLat}|${cLng}`;
+  const hit = nearCache.get(key);
+  if (hit && hit.until > Date.now()) return hit.value;
+  const value = rpc('nearby_directory', { p_lat: cLat, p_lng: cLng, p_km: 1.5, p_category: category, p_limit: 12 }).catch(() => []);
+  nearCache.set(key, { until: Date.now() + 24 * 3600e3, value });
+  while (nearCache.size > NEAR_MAX) nearCache.delete(nearCache.keys().next().value);
+  return value;
+}
+
 // Hub URLs: Egypt keeps /city/<city> and /c/<category>/<city>; the other
 // states live under /<country>/<city>/<category>.
 const cityUrl = (c, city) =>
@@ -220,7 +239,7 @@ async function placePage(id) {
   }
   const country = countryOf(p.country);
   const city = cityOf(p.lat, p.lng, country.iso);
-  const near = await rpc('nearby_directory', { p_lat: p.lat, p_lng: p.lng, p_km: 1.5, p_category: p.category, p_limit: 11 }).catch(() => []);
+  const near = await nearbyCell(p.lat, p.lng, p.category);
   const where = city ? ` في ${city}` : country.iso !== 'EG' ? ` في ${country.name}` : '';
   const title = `${p.name} — ${p.category}${where} | دليل مُجتمعي`;
   const description = `${p.name}: ${p.category}${where}${p.address ? '، ' + p.address : ''}. العنوان على الخريطة${p.phone ? ' ورقم التليفون' : ''}، واطلب منه أونلاين على مُجتمعي.`;
@@ -1004,7 +1023,7 @@ const server = http.createServer(async (req, res) => {
       return xml ? send(res, 200, xml, 'application/xml; charset=utf-8', 86400) : send(res, 404, 'not found', 'text/plain');
     }
     if ((m = path.match(/^\/p\/([0-9a-zA-Z-]{8,64})$/))) {
-      const html = await cached('p:' + m[1], 6 * 3600e3, () => placePage(m[1]));
+      const html = await cached('p:' + m[1], 24 * 3600e3, () => placePage(m[1]));
       if (html?.redirect) {
         res.writeHead(301, { Location: html.redirect });
         return res.end();
