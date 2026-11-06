@@ -628,7 +628,7 @@ async function reportUrls() {
   const rows = await rpc('list_reports', { p_limit: 200 }).catch(() => []);
   return (rows || []).filter((r) => r && r.status !== 'rejected').map((r) => [`${SITE}/r/${r.id}`, day(r.updated_at || r.created_at)]);
 }
-const SITEMAP_KINDS = { stores: storeUrls, products: productUrls, offers: offerUrls, reports: reportUrls };
+const SITEMAP_KINDS = { stores: storeUrls, products: productUrls, offers: offerUrls, reports: reportUrls, want: () => wantUrls() };
 
 // ---------------------------------------------------------------- sitemaps
 
@@ -735,6 +735,125 @@ async function sitemapPart(n) {
     if (page.length < PAGE) break;
   }
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${chunks.join('\n')}\n</urlset>`;
+}
+
+// ------------------------------------------- «عايز …؟» product pages (/w/…)
+// What people type into Google: «بنادول مدينة نصر», «شاحن ايفون المعادي».
+//   /w/<product>         stores on مُجتمعي that sell it, with their prices
+//   /w/<product>/<city>  the same near that city + the places of its kind
+// A page is indexed (and in the sitemap) only when a store on مُجتمعي really
+// sells the product there — no made-up prices; without one it is a noindex
+// helper page (the nearby places of that kind) so it never becomes thin
+// doorway content.
+
+const WANTS = [
+  // [the name people search, words a product name may contain, directory category]
+  ['بنادول', ['بنادول', 'باراسيتامول'], 'صيدليات'],
+  ['كونجستال', ['كونجستال'], 'صيدليات'],
+  ['فيتامين سي', ['فيتامين سي', 'فيتامين c'], 'صيدليات'],
+  ['حفاضات أطفال', ['حفاض', 'بامبرز', 'بيبي جوي'], 'صيدليات'],
+  ['لبن أطفال', ['لبن أطفال', 'حليب أطفال', 'سيميلاك', 'بيبيلاك'], 'صيدليات'],
+  ['ترمومتر', ['ترمومتر', 'مقياس حرارة'], 'صيدليات'],
+  ['جهاز ضغط', ['جهاز ضغط', 'جهاز قياس الضغط'], 'صيدليات'],
+  ['واقي شمس', ['واقي شمس', 'صن بلوك', 'sunblock'], 'صيدليات'],
+  ['أرز', ['أرز', 'ارز', 'رز'], 'سوبر ماركت وبقالة'],
+  ['سكر', ['سكر'], 'سوبر ماركت وبقالة'],
+  ['زيت', ['زيت'], 'سوبر ماركت وبقالة'],
+  ['شاي', ['شاي'], 'سوبر ماركت وبقالة'],
+  ['قهوة', ['قهوة', 'بن '], 'سوبر ماركت وبقالة'],
+  ['مكرونة', ['مكرونة', 'مكرونه'], 'سوبر ماركت وبقالة'],
+  ['تونة', ['تونة', 'تونه'], 'سوبر ماركت وبقالة'],
+  ['مياه معدنية', ['مياه معدنية', 'مياه'], 'سوبر ماركت وبقالة'],
+  ['لبن', ['لبن', 'حليب'], 'سوبر ماركت وبقالة'],
+  ['جبنة', ['جبنة', 'جبن'], 'سوبر ماركت وبقالة'],
+  ['مسحوق غسيل', ['مسحوق غسيل', 'برسيل', 'اريال', 'أريال'], 'سوبر ماركت وبقالة'],
+  ['شاحن موبايل', ['شاحن'], 'إلكترونيات وموبايلات'],
+  ['سماعة بلوتوث', ['سماعة بلوتوث', 'ايربودز', 'إيربودز'], 'إلكترونيات وموبايلات'],
+  ['جراب موبايل', ['جراب', 'كفر موبايل'], 'إلكترونيات وموبايلات'],
+  ['اسكرينة موبايل', ['اسكرينة', 'سكرينة', 'اسكرين'], 'إلكترونيات وموبايلات'],
+  ['باور بانك', ['باور بانك', 'power bank'], 'إلكترونيات وموبايلات'],
+  ['كابل شحن', ['كابل', 'وصلة شحن'], 'إلكترونيات وموبايلات'],
+  ['تورتة', ['تورتة', 'تورته', 'كيك'], 'حلويات ومخبوزات'],
+  ['كنافة', ['كنافة', 'كنافه'], 'حلويات ومخبوزات'],
+  ['جاكيت', ['جاكيت', 'جاكت'], 'ملابس وأزياء'],
+  ['حذاء رياضي', ['كوتشي', 'حذاء رياضي', 'سنيكرز'], 'ملابس وأزياء'],
+];
+const WANT_BY_SLUG = new Map(WANTS.map((w) => [slug(w[0]), w]));
+const WANT_KM = 10;
+const wantUrl = (want, city) => `${SITE}/w/${encodeURIComponent(slug(want))}${city ? `/${encodeURIComponent(slug(city))}` : ''}`;
+const norm = (s) => String(s || '').toLowerCase().replace(/[إأآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
+const kmBetween = (a, b, c, d) => {
+  const r = (x) => (x * Math.PI) / 180;
+  const h = Math.sin(r(c - a) / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(r(d - b) / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(h));
+};
+
+// Every priced, live product of a store that has a link (hourly).
+async function liveProducts() {
+  return cached('want:products', 3600e3, async () => {
+    const rows = await rest(`shop_products?is_available=eq.true&price=gt.0&select=${PRODUCT_COLS},shops!inner(slug,name,lat,lng,suspended_at)&shops.slug=not.is.null&limit=20000`);
+    return rows.filter((p) => p.shops && !p.shops.suspended_at);
+  });
+}
+const sells = (p, words) => words.some((w) => norm(p.name).includes(norm(w)));
+
+async function wantPage(wantSlug, citySlug) {
+  const w = WANT_BY_SLUG.get(wantSlug);
+  if (!w) return null;
+  const [want, words, category] = w;
+  const c = citySlug ? CITIES.find(([n]) => n === citySlug) : null;
+  if (citySlug && !c) return null;
+  let products = (await liveProducts()).filter((p) => sells(p, words));
+  if (c) products = products.filter((p) => p.shops.lat != null && kmBetween(c[1], c[2], Number(p.shops.lat), Number(p.shops.lng)) <= WANT_KM);
+  products.sort((a, b) => Number(a.price) - Number(b.price));
+  const args = c && { p_lat: c[1], p_lng: c[2], p_km: WANT_KM, p_category: category, p_limit: 30 };
+  const places = c ? await rpc('nearby_directory', args).catch(() => rpc('nearby_directory', args)).catch(() => []) : [];
+  const where = c ? ` في ${c[0]}` : '';
+  const title = products.length
+    ? `${want}${where} — ${products.length === 1 ? 'سعره' : 'الأسعار'} و${category} | دليل مُجتمعي`
+    : `فين ألاقي ${want}${where}؟ — ${category} قريبة | دليل مُجتمعي`;
+  const description = products.length
+    ? `${want}${where}: ${products.length} منتج بأسعاره من محلات على مُجتمعي، من ${money(products[0].price, curOf(products[0]))}. اطلب أونلاين، أو شوف ${category} قريبة بالعنوان والتليفون.`
+    : `دوّر على ${want}${where}؟ دي ${category} قريبة بالعنوان على الخريطة ورقم التليفون — اسأل المحل أو ابعتله طلبك على واتساب.`;
+  const items = products.slice(0, 40).map((p) => {
+    const img = imagesOf(p)[0];
+    return `<li style="display:flex;gap:12px;align-items:center">${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" width="56" height="56" loading="lazy" style="border-radius:10px;object-fit:cover">` : ''}<div><a href="${SITE}/s/${esc(p.shops.slug)}/p/${esc(p.id)}">${esc(p.name)}</a> — <b style="color:#b7791f">${money(p.price, curOf(p))}</b><br><span class="muted">${esc(p.shops.name)}</span></div></li>`;
+  }).join('');
+  const cityLinks = !c
+    ? CITIES.map(([n]) => `<a href="${wantUrl(want, n)}">${esc(n)}</a>`).join('')
+    : '';
+  return page({
+    noindex: products.length === 0,
+    title,
+    description,
+    canonical: wantUrl(want, c?.[0]),
+    image: products.length ? imagesOf(products[0])[0] : undefined,
+    jsonLd: products.length ? {
+      '@context': 'https://schema.org', '@type': 'ItemList', name: `${want}${where}`,
+      itemListElement: products.slice(0, 20).map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: `${SITE}/s/${p.shops.slug}/p/${p.id}`, name: p.name })),
+    } : undefined,
+    body: `<p class="muted"><a href="${SITE}/">الدليل</a>${c ? ` › <a href="${wantUrl(want)}">${esc(want)}</a> › <a href="${hubUrl(countryOf('EG'), category, c[0])}">${esc(category)} في ${esc(c[0])}</a>` : ''}</p>
+<h1>${products.length ? `${esc(want)}${esc(where)} بالأسعار` : `فين ألاقي ${esc(want)}${esc(where)}؟`}</h1>
+${products.length ? `<div class="card"><h2>من محلات على مُجتمعي</h2><ul class="list">${items}</ul></div>` : ''}
+${places.length ? `<div class="card"><h2>${esc(category)} قريبة${esc(where)}</h2><p class="muted" style="font-size:13px">اسأل المحل عن ${esc(want)} قبل ما تروح، أو ابعتله طلبك على واتساب من صفحته.</p><ul class="list">${places.map((x) => placeItem(x)).join('')}</ul></div>` : ''}
+${cityLinks ? `<div class="card"><h2>${esc(want)} في مدينتك</h2><div class="chips">${cityLinks}</div></div>` : ''}
+<div class="card"><p style="margin:0">عندك ${esc(category)} وبتبيع ${esc(want)}؟ <a href="${TAJER}">افتح متجرك ببلاش</a> وخلّي الناس تلاقيك هنا وفي جوجل.</p></div>`,
+  });
+}
+
+// Sitemap: only /w/ pages that have a real product (hourly).
+async function wantUrls() {
+  const products = await liveProducts();
+  const urls = [];
+  for (const [want, words] of WANTS) {
+    const ps = products.filter((p) => sells(p, words));
+    if (!ps.length) continue;
+    urls.push([wantUrl(want), undefined]);
+    for (const [city, lat, lng] of CITIES) {
+      if (ps.some((p) => p.shops.lat != null && kmBetween(lat, lng, Number(p.shops.lat), Number(p.shops.lng)) <= WANT_KM)) urls.push([wantUrl(want, city), undefined]);
+    }
+  }
+  return urls;
 }
 
 // ------------------------------------------------------------------ IndexNow
@@ -1068,7 +1187,7 @@ const server = http.createServer(async (req, res) => {
     if (path === `/${INDEXNOW_KEY}.txt`) return send(res, 200, INDEXNOW_KEY, 'text/plain; charset=utf-8', 86400);
     if (path === '/sitemap.xml') return send(res, 200, await sitemapIndex(), 'application/xml; charset=utf-8', 86400);
     if (path === '/sitemap-hubs.xml') return send(res, 200, await cached('sitemap-hubs', 24 * 3600e3, sitemapHubs), 'application/xml; charset=utf-8', 86400);
-    if ((m = path.match(/^\/sitemap-(stores|products|offers|reports)-(\d+)\.xml$/))) {
+    if ((m = path.match(/^\/sitemap-(stores|products|offers|reports|want)-(\d+)\.xml$/))) {
       const all = await cached('sm-' + m[1], 3600e3, SITEMAP_KINDS[m[1]]);
       const part = all.slice((Number(m[2]) - 1) * PER_SITEMAP, Number(m[2]) * PER_SITEMAP);
       return part.length || m[2] === '1' ? send(res, 200, urlset(part), 'application/xml; charset=utf-8', 3600) : send(res, 404, 'not found', 'text/plain');
@@ -1108,6 +1227,12 @@ const server = http.createServer(async (req, res) => {
       const cat = unslug(m[1]);
       const city = unslug(m[2]);
       const html = await cached(`c:${cat}:${city}`, 6 * 3600e3, () => hubPage(cat, city));
+      return html ? send(res, 200, html) : send(res, 404, await cached('home', 3600e3, homePage));
+    }
+    if ((m = path.match(/^\/w\/([^/]+)(?:\/([^/]+))?$/))) {
+      const w = decodeURIComponent(m[1]);
+      const city = m[2] ? unslug(m[2]) : null;
+      const html = await cached(`w:${w}:${city || ''}`, 3600e3, () => wantPage(w, city));
       return html ? send(res, 200, html) : send(res, 404, await cached('home', 3600e3, homePage));
     }
     if ((m = path.match(/^\/city\/([^/]+)$/))) {
