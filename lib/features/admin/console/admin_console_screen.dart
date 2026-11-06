@@ -15,6 +15,7 @@ import '../admin_user_flags_screen.dart';
 import '../superadmin_control_panel_screen.dart';
 import 'list_pages.dart';
 import 'place_claims_page.dart';
+import 'prepare_store_page.dart';
 import 'platform_pay_page.dart';
 import 'overview_page.dart';
 
@@ -35,6 +36,7 @@ List<ConsolePage> consolePages() => [
       ConsolePage('payments', 'المدفوعات والإيراد', Icons.payments_rounded, (_) => const AdminPaymentsPage()),
       ConsolePage('shops', 'المتاجر', Icons.storefront_rounded, (_) => const AdminShopsPage()),
       ConsolePage('platform_pay', 'الدفع عن طريق مُجتمعي', Icons.account_balance_wallet_rounded, (_) => const AdminPlatformPayPage()),
+      ConsolePage('prepare_store', 'جهّز متجر لمحل', Icons.storefront_rounded, (_) => const AdminPrepareStorePage()),
       ConsolePage('place_claims', 'استلام المحلات', Icons.add_business_rounded, (_) => const AdminPlaceClaimsPage()),
       ConsolePage('approvals', 'الطلبات والموافقات', Icons.fact_check_rounded, (_) => const SuperadminControlPanelScreen(embedded: true)),
       ConsolePage('governance', 'الرئاسة والانضمام', Icons.how_to_reg_rounded, (_) => const AdminGovernanceScreen(), group: 'community'),

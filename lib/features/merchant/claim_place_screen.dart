@@ -104,15 +104,21 @@ class _ClaimPlaceScreenState extends State<ClaimPlaceScreen> {
       );
       if (!mounted) return;
       final approved = r['status'] == 'approved';
+      final prepared = r['prepared'] == true;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(approved
-            ? 'متجرك جاهز ✓ ومحلك في الدليل بقى بيفتح متجرك'
-            : 'متجرك جاهز ✓ وطلب ربط المحل بيتراجع، هنبلغك أول ما يتوافق عليه'),
+        content: Text(prepared
+            ? (approved ? 'المتجر بقى بتاعك ✓ بمنتجاته وأسعاره' : 'طلبك اتبعت ✓ هنتأكد إن المحل بتاعك ونسلّمهولك')
+            : approved
+                ? 'متجرك جاهز ✓ ومحلك في الدليل بقى بيفتح متجرك'
+                : 'متجرك جاهز ✓ وطلب ربط المحل بيتراجع، هنبلغك أول ما يتوافق عليه'),
       ));
-      // Ready-made products for the activity: the merchant only sets prices.
-      await Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => StarterProductsScreen(shopId: r['shop_id'] as String, shopCategory: _category),
-      ));
+      // A new store: ready-made products for the activity (only prices to set).
+      // A prepared one already has them.
+      if (!prepared) {
+        await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => StarterProductsScreen(shopId: r['shop_id'] as String, shopCategory: _category),
+        ));
+      }
       if (mounted) context.go(isTajerApp ? '/' : AppRoutes.merchant);
     } catch (e) {
       if (mounted) setState(() => _error = adminErrorText(e, 'تعذر استلام المحل، حاول مرة أخرى'));
@@ -164,7 +170,7 @@ class _ClaimPlaceScreenState extends State<ClaimPlaceScreen> {
     ]);
   }
 
-  List<Widget> _form(String? phone) => [
+  List<Widget> _form(String? phone) => _place?['prepared'] == true ? _preparedForm(phone) : [
         const Text('بياناته جاهزة من الدليل — راجعها واختار اسم الرابط.', style: TextStyle(fontSize: 13, color: AppColors.inkSecondary)),
         const SizedBox(height: 12),
         TextField(controller: _name, decoration: const InputDecoration(labelText: 'اسم المحل *')),
@@ -223,6 +229,41 @@ class _ClaimPlaceScreenState extends State<ClaimPlaceScreen> {
           key: const ValueKey('claim-submit'),
           onPressed: _saving ? null : _submit,
           child: _saving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('استلم محلك'),
+        ),
+      ];
+
+  /// «جهّزنالك متجرك» (0112): the team already built the store with the
+  /// owner's prices — the owner only proves the number and takes it.
+  List<Widget> _preparedForm(String? phone) => [
+        Text('متجرك جاهز فيه ${_place?['products'] ?? 0} منتج بالأسعار اللي اتفقنا عليها، ورابطه ${StoreService.storeUrl('${_place?['store_slug']}')}',
+            style: const TextStyle(fontWeight: FontWeight.w700, height: 1.6)),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(
+              _verified
+                  ? 'اتأكدنا من رقمك ✓ — المتجر هيبقى بتاعك على طول.'
+                  : 'أكّد رقمك برسالة SMS (رقم المحل أو الرقم اللي كلّمناك عليه) والمتجر يبقى بتاعك على طول.',
+              style: const TextStyle(fontSize: 12.5, height: 1.6),
+            ),
+            if (!_verified)
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton.icon(onPressed: _verify, icon: const Icon(Icons.sms_rounded, size: 18), label: const Text('أكّد رقمي')),
+              ),
+          ]),
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: 12),
+          Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+        ],
+        const SizedBox(height: 16),
+        FilledButton(
+          key: const ValueKey('claim-submit'),
+          onPressed: _saving ? null : _submit,
+          child: _saving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('استلم متجرك'),
         ),
       ];
 }

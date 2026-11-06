@@ -18,7 +18,9 @@ void main() {
   var ppStatus = 'pending';
   Map<String, dynamic>? lastPayout;
   Map<String, dynamic>? lastClaimReview;
+  Map<String, dynamic>? lastPrepare;
   setUp(() {
+    lastPrepare = null;
     lastClaimReview = null;
     calls.clear();
     suspended = false;
@@ -71,6 +73,17 @@ void main() {
               'balance': {'orders': 2, 'gross': 1000, 'fees': 27.5, 'commission': 0, 'paid_out': 0, 'due': 972.5, 'currency': 'EGP'},
             },
           ];
+        case 'search_directory':
+          return [
+            {'id': 'pl1', 'name': 'صيدلية النور', 'category': 'صيدليات', 'address': 'التجمع', 'phone': '01000112001', 'claimed_shop_id': null},
+          ];
+        case 'admin_prepared_stores':
+          return lastPrepare == null ? [] : [
+            {'shop_id': 's77', 'name': 'صيدلية النور', 'slug': 'elnour', 'whatsapp': '01000112001', 'products': 2, 'place_id': 'pl1', 'claim_url': 'https://tajer.mogtama3y.com/#/claim/pl1'},
+          ];
+        case 'admin_prepare_place_store':
+          lastPrepare = Map<String, dynamic>.from(p);
+          return {'shop_id': 's77', 'slug': p['p_slug'], 'products': (p['p_products'] as List).length, 'claim_url': 'https://tajer.mogtama3y.com/#/claim/pl1'};
         case 'admin_place_claims':
           return [
             {
@@ -236,6 +249,31 @@ void main() {
     expect(lastClaimReview?['p_approve'], isTrue);
     expect(lastClaimReview?['p_claim'], 'c1');
     expect(find.text('مفيش طلبات هنا'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('0112: the team prepares a store for a directory place with the owner prices', (tester) async {
+    await desktop(tester);
+    await tester.pumpWidget(app(const AdminConsoleScreen(initialPage: 'prepare_store')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('prep-search')), 'النور');
+    await tester.tap(find.widgetWithText(FilledButton, 'بحث'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('prep-place-pl1')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('prep-slug')), 'elnour');
+    await tester.enterText(find.byKey(const ValueKey('prep-price-0')), '45');
+    await tester.enterText(find.byKey(const ValueKey('prep-price-2')), '60');
+    await tester.ensureVisible(find.byKey(const ValueKey('prep-submit')));
+    await tester.tap(find.byKey(const ValueKey('prep-submit')));
+    await tester.pumpAndSettle();
+    expect(lastPrepare?['p_place'], 'pl1');
+    expect(lastPrepare?['p_category'], 'صيدلية / مستحضرات');
+    final sent = lastPrepare?['p_products'] as List;
+    expect(sent.length, 2); // unpriced rows are left out
+    expect(sent.every((x) => (x['price'] as num) > 0 && (x['name'] as String).isNotEmpty), isTrue);
+    expect(find.textContaining('المتجر جاهز'), findsOneWidget);
+    expect(find.byKey(const ValueKey('prep-send')), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 

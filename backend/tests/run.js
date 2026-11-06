@@ -5621,6 +5621,89 @@ const denied = (r) => !!r.error;
     check('tclaim: a reviewed claim can\'t be reviewed again', denied(await as(db, A, `select public.admin_place_claim_review($1, false, 'لا')`, [r2?.claim_id])));
   }
 
+  console.log('\nPhase tprep — «جهّزنالك متجرك»: the team prepares a store, the owner claims it (0112)');
+  {
+    const fs = require('fs');
+    const path = require('path');
+    let rerun = null;
+    try {
+      await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0112_prepared_stores.sql'), 'utf8'));
+    } catch (e) {
+      rerun = e.message;
+    }
+    check('tprep: 0112 is safe to re-run', rerun === null, rerun);
+    const one = (r) => r.rows?.[0] && Object.values(r.rows[0])[0];
+    const verify = async (user, phone) => {
+      await db.exec('begin; set local role service_role;');
+      try { await db.query('select public.confirm_phone_verified($1, $2)', [user, phone]); } finally { await db.exec('commit'); }
+    };
+    await admin(db, `insert into directory_places (id, name, category, phone, address, lat, lng, confidence) values
+      ('tprep-1', 'صيدلية النور', 'صيدليات', '01000112001', 'التجمع الخامس', 30.0074, 31.4913, 0.9),
+      ('tprep-2', 'بقالة السلام', 'سوبر ماركت وبقالة', '0222222222', 'شبرا', 30.0950, 31.2440, 0.9),
+      ('tprep-3', 'محل بلا واتساب', 'صيدليات', '01000112003', 'حلوان', 29.8500, 31.3340, 0.9)`);
+    const A = await signUp(db, 'tprep admin', '01000112090');
+    const O = await signUp(db, 'tprep owner', '01000112091');
+    const S = await signUp(db, 'tprep stranger', '01000112092');
+    const V = await signUp(db, 'tprep verified other', '01000112093');
+    await admin(db, `update profiles set role = 'super_admin' where id = $1`, [A]);
+    const products = [
+      { name: 'بنادول إكسترا', category: 'مسكنات', price: 45, images: ['https://mogtama3y.com/catalog/x.jpg', 'javascript:alert(1)'] },
+      { name: 'فيتامين سي', price: 60 },
+    ];
+    const prep = (u, place, slug, phone, list = products) =>
+      as(db, u, `select public.admin_prepare_place_store($1, $2, $3, 'صيدلية / مستحضرات', $4::jsonb) as j`, [place, slug, phone, JSON.stringify(list)]);
+
+    check('tprep: EXPLOIT blocked: a user prepares a store for a place', denied(await prep(S, 'tprep-1', 'tprep-x', '01000112092')));
+    check('tprep: a product without a price is refused', denied(await prep(A, 'tprep-1', 'tprep-nour', '01000112099', [{ name: 'بلا سعر', price: 0 }])));
+    const p1 = one(await prep(A, 'tprep-1', 'tprep-nour', '01000112099'));
+    const shop = (await admin(db, `select owner_id, prepared_at, lat, name from shops where id = $1`, [p1?.shop_id]))[0];
+    const prods = await admin(db, `select name, price, is_available, status, images from shop_products where shop_id = $1 order by position`, [p1?.shop_id]);
+    check('tprep: the admin prepares it: no owner yet, the place\'s data, priced live products, unsafe image URLs dropped',
+      p1?.products === 2 && shop?.owner_id === null && !!shop?.prepared_at && shop?.name === 'صيدلية النور' &&
+      prods.length === 2 && prods.every((x) => x.is_available && x.status === 'active') && prods[0].images.length === 1, { p1, shop, prods });
+    check('tprep: the place points at it (its dalil page shows the products)',
+      (await admin(db, `select claimed_shop_id from directory_places where id = 'tprep-1'`))[0].claimed_shop_id === p1?.shop_id);
+    const info = one(await as(db, null, `select public.place_claim_info('tprep-1') as j`));
+    check('tprep: the claim page sees a prepared store with its products (not «already claimed»)',
+      info?.prepared === true && info?.claimed === false && Number(info?.products) === 2, info);
+    check('tprep: a place can\'t be prepared twice', denied(await prep(A, 'tprep-1', 'tprep-nour2', '01000112099')));
+    check('tprep: a prepared store takes no orders before its owner claims it',
+      denied(await as(db, S, `select public.place_shop_order($1, $2::jsonb, '01000112092')`,
+        [p1?.shop_id, JSON.stringify([{ product_id: (await admin(db, `select id from shop_products where shop_id = $1 limit 1`, [p1?.shop_id]))[0].id, qty: 1 }])])));
+    check('tprep: EXPLOIT blocked: someone takes the prepared store by editing it',
+      denied(await as(db, S, `update shops set owner_id = $2 where id = $1`, [p1?.shop_id, S])) ||
+      (await admin(db, `select owner_id from shops where id = $1`, [p1?.shop_id]))[0].owner_id === null);
+
+    // A stranger without the number → pending; the store stays unowned.
+    const c1 = one(await as(db, S, `select public.claim_place_as_shop('tprep-1', 'ignored', '01000112092') as j`));
+    check('tprep: a claim without the number waits; no second store is made', c1?.status === 'pending' && c1?.prepared === true &&
+      c1?.shop_id === p1?.shop_id && (await admin(db, `select count(*)::int n from shops where owner_id = $1`, [S]))[0].n === 0, c1);
+    // The owner verifies the number they gave the team → takes it at once.
+    await verify(O, '01000112099');
+    const c2 = one(await as(db, O, `select public.claim_place_as_shop('tprep-1', 'ignored', '01000112099') as j`));
+    check('tprep: the owner with the number they gave the team takes the store with its products', c2?.status === 'approved' &&
+      (await admin(db, `select owner_id from shops where id = $1`, [p1?.shop_id]))[0].owner_id === O &&
+      (await admin(db, `select count(*)::int n from shop_products where shop_id = $1`, [p1?.shop_id]))[0].n === 2, c2);
+    check('tprep: once owned, nobody else can claim it', denied(await as(db, V, `select public.claim_place_as_shop('tprep-1', 'tprep-v', '01000112093') as j`)));
+    check('tprep: the stranger\'s pending claim can no longer hand it over',
+      denied(await as(db, A, `select public.admin_place_claim_review($1, true)`, [c1?.claim_id])) &&
+      (await admin(db, `select owner_id from shops where id = $1`, [p1?.shop_id]))[0].owner_id === O);
+
+    // A landline place: prepared, then an admin-approved claim hands it over.
+    const p2 = one(await prep(A, 'tprep-2', 'tprep-salam', '01000112098', [{ name: 'أرز', price: 30 }]));
+    const c3 = one(await as(db, S, `select public.claim_place_as_shop('tprep-2', 'ignored', '01000112092') as j`));
+    check('tprep: the admin list shows the stores still waiting for their owner',
+      one(await as(db, A, `select public.admin_prepared_stores() as j`))?.some((r) => r.shop_id === p2?.shop_id && r.claim_url.endsWith('tprep-2')));
+    check('tprep: approving the claim hands the prepared store over',
+      ok(await as(db, A, `select public.admin_place_claim_review($1, true)`, [c3?.claim_id])) &&
+      (await admin(db, `select owner_id from shops where id = $1`, [p2?.shop_id]))[0].owner_id === S);
+
+    // 0111 fix: a verified number that isn't the place's, place without WhatsApp → pending, not an error.
+    await verify(V, '01000112093');
+    const c4 = await as(db, V, `select public.claim_place_as_shop('tprep-3', 'tprep-third', '01000112093') as j`);
+    check('tprep: a verified number that isn\'t the place\'s → a pending claim (no error)', ok(c4) && one(c4)?.status === 'pending', c4);
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

@@ -54,6 +54,24 @@ class AdminConsoleService {
   static Future<void> placeClaimReview(String claimId, {required bool approve, String? note}) =>
       _rpc('admin_place_claim_review', {'p_claim': claimId, 'p_approve': approve, 'p_note': note});
 
+  /// «جهّزنالك متجرك» (0112): directory places to prepare a store for.
+  static Future<List<Map<String, dynamic>>> searchPlaces(String query) async =>
+      [for (final r in (await _rpc('search_directory', {'p_query': query, 'p_lat': null, 'p_lng': null, 'p_limit': 20})) as List? ?? const []) Map<String, dynamic>.from(r as Map)];
+
+  /// A store with the owner's prices, no owner yet → {shop_id, slug, products, claim_url}.
+  static Future<Map<String, dynamic>> preparePlaceStore({
+    required String placeId,
+    required String slug,
+    required String whatsapp,
+    required String category,
+    required List<Map<String, dynamic>> products,
+  }) async =>
+      _map(await _rpc('admin_prepare_place_store', {'p_place': placeId, 'p_slug': slug, 'p_whatsapp': whatsapp, 'p_category': category, 'p_products': products}));
+
+  /// Prepared stores still waiting for their owner to claim them.
+  static Future<List<Map<String, dynamic>>> preparedStores() async =>
+      [for (final r in (await _rpc('admin_prepared_stores')) as List? ?? const []) Map<String, dynamic>.from(r as Map)];
+
   /// A manual transfer sent to the merchant → the new balance.
   static Future<Map<String, dynamic>> recordPayout(String shopId, num amount, {String? method, String? reference, String? note}) async =>
       _map(await _rpc('admin_record_payout', {'p_shop': shopId, 'p_amount': amount, 'p_method': method, 'p_reference': reference, 'p_note': note}));
