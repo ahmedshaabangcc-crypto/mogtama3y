@@ -5544,6 +5544,83 @@ const denied = (r) => !!r.error;
     check('tplat: a suspended store can\'t re-apply on its own', denied(await apply(M, good)));
   }
 
+  console.log('\nPhase tclaim — «استلم محلك جاهز»: a directory place becomes its owner\'s store (0111)');
+  {
+    const fs = require('fs');
+    const path = require('path');
+    let rerun = null;
+    try {
+      await db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0111_place_claims.sql'), 'utf8'));
+    } catch (e) {
+      rerun = e.message;
+    }
+    check('tclaim: 0111 is safe to re-run', rerun === null, rerun);
+    const one = (r) => r.rows?.[0] && Object.values(r.rows[0])[0];
+    const verify = async (user, phone) => {
+      await db.exec('begin; set local role service_role;');
+      try { await db.query('select public.confirm_phone_verified($1, $2)', [user, phone]); } finally { await db.exec('commit'); }
+    };
+    await admin(db, `insert into directory_places (id, name, category, phone, whatsapp, address, lat, lng, confidence) values
+      ('tclaim-1', 'صيدلية الأمل', 'صيدليات', '01000111001', null, 'شارع النصر، مدينة نصر', 30.0561, 31.3301, 0.9),
+      ('tclaim-2', 'سوبر ماركت الخير', 'سوبر ماركت وبقالة', '01000111002', null, 'المعادي', 29.9602, 31.2569, 0.9)`);
+    const A = await signUp(db, 'tclaim admin', '01000111090');
+    const O = await signUp(db, 'tclaim owner', '01000111091');
+    const S = await signUp(db, 'tclaim stranger', '01000111092');
+    const X = await signUp(db, 'tclaim other', '01000111093');
+    await admin(db, `update profiles set role = 'super_admin' where id = $1`, [A]);
+
+    const info = one(await as(db, null, `select public.place_claim_info('tclaim-1') as j`));
+    check('tclaim: guests see the place to claim, with the store activity it maps to',
+      info?.name === 'صيدلية الأمل' && info?.shop_category === 'صيدلية / مستحضرات' && info?.claimed === false, info);
+    const claim = (u, place, slug, phone) => as(db, u, `select public.claim_place_as_shop($1, $2, $3) as j`, [place, slug, phone]);
+    check('tclaim: EXPLOIT blocked: a guest claims a place', denied(await claim(null, 'tclaim-1', 'tclaim-guest', '01000111001')));
+
+    // The owner proves the place's number by SMS → linked at once.
+    await verify(O, '01000111001');
+    const r1 = one(await claim(O, 'tclaim-1', 'tclaim-amal', '01000111001'));
+    const linked = (await admin(db, `select claimed_shop_id from directory_places where id = 'tclaim-1'`))[0].claimed_shop_id;
+    const shop1 = (await admin(db, `select name, category, address, lat, lng from shops where id = $1`, [r1?.shop_id]))[0];
+    check('tclaim: the verified owner gets the store at once, filled from the place', r1?.status === 'approved' && linked === r1.shop_id &&
+      shop1?.name === 'صيدلية الأمل' && shop1?.category === 'صيدلية / مستحضرات' && /مدينة نصر/.test(shop1?.address) &&
+      Math.abs(Number(shop1?.lat) - 30.0561) < 1e-4, { r1, shop1 });
+    check('tclaim: the place now says it has a store (dalil redirects to it)',
+      one(await as(db, null, `select public.place_claim_info('tclaim-1') as j`))?.store_slug === 'tclaim-amal');
+    check('tclaim: no duplicate «merchant» directory row for the claimed store',
+      (await admin(db, `select count(*)::int n from directory_places where claimed_shop_id = $1`, [r1?.shop_id]))[0].n === 1);
+    check('tclaim: a claimed place can\'t be claimed again', denied(await claim(S, 'tclaim-1', 'tclaim-steal', '01000111092')));
+
+    // Someone without the place's number → pending, the place stays unlinked.
+    const r2 = one(await claim(S, 'tclaim-2', 'tclaim-khair', '01000111092'));
+    check('tclaim: without the place\'s verified number the claim waits for an admin; the admins are told', r2?.status === 'pending' &&
+      (await admin(db, `select claimed_shop_id from directory_places where id = 'tclaim-2'`))[0].claimed_shop_id === null &&
+      (await admin(db, `select count(*)::int n from notifications where user_id = $1 and title like '🏪%'`, [A]))[0].n >= 1, r2);
+    check('tclaim: the same person can\'t file it twice while it waits', denied(await claim(S, 'tclaim-2', 'tclaim-khair2', '01000111092')));
+    check('tclaim: the claimant sees their claim', one(await as(db, S, `select public.my_place_claims() as j`))?.some((c) => c.place_id === 'tclaim-2' && c.status === 'pending'));
+    check('tclaim: EXPLOIT blocked: a user reads others\' claims', (await as(db, X, `select count(*)::int n from place_claims`)).rows?.[0]?.n === 0);
+    check('tclaim: EXPLOIT blocked: the claimant links the place directly',
+      denied(await as(db, S, `update directory_places set claimed_shop_id = $1 where id = 'tclaim-2'`, [r2?.shop_id])) ||
+      (await admin(db, `select claimed_shop_id from directory_places where id = 'tclaim-2'`))[0].claimed_shop_id === null);
+    check('tclaim: EXPLOIT blocked: the claimant approves their own claim',
+      denied(await as(db, S, `select public.admin_place_claim_review($1, true)`, [r2?.claim_id])) &&
+      denied(await as(db, S, `update place_claims set status = 'approved' where id = $1`, [r2?.claim_id])));
+    check('tclaim: EXPLOIT blocked: a user reads the admin list', denied(await as(db, S, `select public.admin_place_claims('pending')`)));
+    const list = one(await as(db, A, `select public.admin_place_claims('pending') as j`));
+    check('tclaim: the admin sees the claim with the place and the store', list?.some((c) => c.id === r2?.claim_id && c.place_name === 'سوبر ماركت الخير' && c.shop_slug === 'tclaim-khair'), list);
+
+    // A second person claims the same place; approving one rejects the other.
+    const r3 = one(await claim(X, 'tclaim-2', 'tclaim-khair-x', '01000111093'));
+    check('tclaim: a rejection needs a reason', denied(await as(db, A, `select public.admin_place_claim_review($1, false, '')`, [r3?.claim_id])));
+    // The store pinned its own location meanwhile → its «merchant» row goes on approval.
+    await as(db, S, `select public.set_my_shop_location($1, 29.9605, 31.2570)`, [r2?.shop_id]);
+    check('tclaim: the admin approves → the place points at the store, the rival claim loses, the owner is told',
+      ok(await as(db, A, `select public.admin_place_claim_review($1, true)`, [r2?.claim_id])) &&
+      (await admin(db, `select claimed_shop_id from directory_places where id = 'tclaim-2'`))[0].claimed_shop_id === r2?.shop_id &&
+      (await admin(db, `select status from place_claims where id = $1`, [r3?.claim_id]))[0].status === 'rejected' &&
+      (await admin(db, `select count(*)::int n from notifications where user_id = $1 and title like '✅%'`, [S]))[0].n === 1 &&
+      (await admin(db, `select count(*)::int n from directory_places where claimed_shop_id = $1`, [r2?.shop_id]))[0].n === 1);
+    check('tclaim: a reviewed claim can\'t be reviewed again', denied(await as(db, A, `select public.admin_place_claim_review($1, false, 'لا')`, [r2?.claim_id])));
+  }
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('FAILED:\n - ' + failures.join('\n - '));

@@ -52,6 +52,7 @@ import '../../features/shell/app_shell.dart';
 import '../../features/shell/masjid_shell.dart';
 import '../../features/shell/open_tajer_app.dart';
 import '../../features/shell/tajer_shell.dart';
+import '../../features/merchant/claim_place_screen.dart';
 import '../../features/merchant/admin/admin_shell.dart' show isTajerAdminPath;
 import '../../features/merchant/admin/tajer_routes.dart';
 import '../../features/shell/union_shell.dart';
@@ -356,6 +357,7 @@ final appRouter = GoRouter(
             ],
           ),
           GoRoute(path: 'o/:code', builder: (_, state) => OrderTrackingScreen(code: state.pathParameters['code']!)),
+          GoRoute(path: 'claim/:id', builder: (_, state) => ClaimPlaceScreen(placeId: state.pathParameters['id']!)),
           GoRoute(path: 'd/:id', builder: (_, state) => DirectoryPlaceScreen(placeId: state.pathParameters['id']!, place: state.extra as Map<String, dynamic>?, openReport: state.uri.queryParameters['report'] == '1')),
           GoRoute(path: 'r/:id', builder: (_, state) => ReportDetailsScreen(reportId: state.pathParameters['id']!)),
           GoRoute(path: 'cars/:id', builder: (_, state) => CarDetailsScreen(listingId: state.pathParameters['id']!, initial: state.extra as Map<String, dynamic>?)),
@@ -402,7 +404,7 @@ bool isInAppPath(String path) {
   if (isUnionApp && _passPath.hasMatch(path)) return true;
   if (!isUnionApp && !isTajerApp && !isMasjidApp && _roomPath.hasMatch(path)) return true;
   return _neighbourhoodLinks &&
-      (_storePath.hasMatch(path.toLowerCase()) || _eAddressPath.hasMatch(path) || _orderPath.hasMatch(path) || _placePath.hasMatch(path) || _reportPath.hasMatch(path) || _carPath.hasMatch(path) || _tutorPath.hasMatch(path) || _kidsPath.hasMatch(path) || _chatPath.hasMatch(path));
+      (_storePath.hasMatch(path.toLowerCase()) || _eAddressPath.hasMatch(path) || _orderPath.hasMatch(path) || _placePath.hasMatch(path) || _claimPath.hasMatch(path) || _reportPath.hasMatch(path) || _carPath.hasMatch(path) || _tutorPath.hasMatch(path) || _kidsPath.hasMatch(path) || _chatPath.hasMatch(path));
 }
 
 /// Where to open an in-app [path] this app can't show: union sections live
@@ -428,6 +430,7 @@ final _mosquePath = RegExp(r'^/masjid/[0-9a-f-]{36}$');
 final _storePath = RegExp(r'^/s/[a-z0-9-]{3,40}(/p/[0-9a-f-]{36})?$');
 final _orderPath = RegExp(r'^/o/T[0-9A-Z]{7}$');
 final _placePath = RegExp(r'^/d/[0-9a-zA-Z-]{8,64}$');
+final _claimPath = RegExp(r'^/claim/[0-9a-zA-Z-]{8,64}$');
 final _eAddressPath = RegExp(r'^/a/[A-Za-z0-9-]{4,30}$');
 final _reportPath = RegExp(r'^/r/[0-9a-f-]{36}$');
 final _chatPath = RegExp(r'^/chat/[0-9a-f-]{36}$');

@@ -278,7 +278,11 @@ ${p.opening_hours ? `<p>🕒 ${esc(p.opening_hours)}</p>` : ''}
 <a class="btn wa" href="${order}">${p.phone ? 'اطلب منه على واتساب' : 'التفاصيل في التطبيق'}</a>
 <a class="btn line" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}" rel="nofollow">الاتجاهات</a>
 </p>
-<p class="muted" style="font-size:13px">ده محلك؟ <a href="${TAJER}">افتح متجرك واستقبل الطلبات أونلاين ببلاش</a>.</p>
+<div style="margin-top:14px;padding:12px;border-radius:12px;background:#fdf6e8;border:1px solid #f1d9a6">
+<p style="margin:0 0 8px;font-weight:700">ده محلك؟ استلمه متجر أونلاين جاهز</p>
+<p class="muted" style="margin:0 0 10px;font-size:13px">اسمه وعنوانه ومكانه ورقمه جاهزين، ومنتجات جاهزة لنشاطه تحط أسعارها بس. ببلاش ومن غير عمولة.</p>
+<a class="btn gold" href="${TAJER}/#/claim/${encodeURIComponent(p.id)}" rel="nofollow">استلم محلك جاهز</a>
+</div>
 <p class="muted" style="font-size:12px">فيه غلط؟ <a href="${order}?report=1" rel="nofollow">بلّغنا</a></p>
 </div>
 ${others.length ? `<div class="card"><h2>${esc(p.category)} قريبة</h2><ul class="list">${others.map((x) => placeItem(x, country.iso)).join('')}</ul></div>` : ''}`,

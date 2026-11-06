@@ -246,9 +246,12 @@ class _DirectoryPlaceScreenState extends State<DirectoryPlaceScreen> {
         const SizedBox(height: 10),
         Center(
           child: TextButton.icon(
-            onPressed: () => context.go('/merchant'),
+            key: const ValueKey('claim-place'),
+            // Our own rows open «استلم محلك جاهز» (0111); an OSM row a guest
+            // opened has no id of ours yet → a blank store.
+            onPressed: () => context.go(p['osm'] == true ? '/merchant' : '/claim/$id'),
             icon: const Icon(Icons.verified_rounded, size: 18),
-            label: const Text('ده محلك؟ افتح متجرك واستقبل الطلبات ببلاش'),
+            label: const Text('ده محلك؟ استلمه متجر جاهز ببلاش'),
           ),
         ),
         // Only rows that are ours (an OSM row a guest opened has no id here yet).

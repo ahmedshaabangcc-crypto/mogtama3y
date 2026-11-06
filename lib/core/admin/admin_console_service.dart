@@ -46,6 +46,14 @@ class AdminConsoleService {
   static Future<void> platformPayReview(String shopId, String action, {String? note}) =>
       _rpc('admin_platform_pay_review', {'p_shop': shopId, 'p_action': action, 'p_note': note});
 
+  /// «استلم محلك جاهز» (0111): claims of directory places waiting for review.
+  static Future<List<Map<String, dynamic>>> placeClaims({String? status}) async =>
+      [for (final r in (await _rpc('admin_place_claims', {'p_status': status})) as List? ?? const []) Map<String, dynamic>.from(r as Map)];
+
+  /// Approve links the place to the claimant's store; a rejection needs a note.
+  static Future<void> placeClaimReview(String claimId, {required bool approve, String? note}) =>
+      _rpc('admin_place_claim_review', {'p_claim': claimId, 'p_approve': approve, 'p_note': note});
+
   /// A manual transfer sent to the merchant → the new balance.
   static Future<Map<String, dynamic>> recordPayout(String shopId, num amount, {String? method, String? reference, String? note}) async =>
       _map(await _rpc('admin_record_payout', {'p_shop': shopId, 'p_amount': amount, 'p_method': method, 'p_reference': reference, 'p_note': note}));

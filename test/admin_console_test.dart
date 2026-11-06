@@ -17,7 +17,9 @@ void main() {
   String? lastReason;
   var ppStatus = 'pending';
   Map<String, dynamic>? lastPayout;
+  Map<String, dynamic>? lastClaimReview;
   setUp(() {
+    lastClaimReview = null;
     calls.clear();
     suspended = false;
     lastReason = null;
@@ -69,6 +71,18 @@ void main() {
               'balance': {'orders': 2, 'gross': 1000, 'fees': 27.5, 'commission': 0, 'paid_out': 0, 'due': 972.5, 'currency': 'EGP'},
             },
           ];
+        case 'admin_place_claims':
+          return [
+            {
+              'id': 'c1', 'status': lastClaimReview == null ? 'pending' : (lastClaimReview!['p_approve'] == true ? 'approved' : 'rejected'),
+              'auto': false, 'created_at': today.toIso8601String(), 'place_id': 'p1', 'place_name': 'صيدلية الأمل', 'place_category': 'صيدليات',
+              'place_address': 'مدينة نصر', 'place_phone': '01000111001', 'shop_id': 's9', 'shop_name': 'صيدلية الأمل', 'shop_slug': 'elamal',
+              'shop_whatsapp': '01000111092', 'user_name': 'كريم', 'user_phone': '01000111092', 'user_phone_verified': true,
+            },
+          ].where((r) => p['p_status'] == null || r['status'] == p['p_status']).toList();
+        case 'admin_place_claim_review':
+          lastClaimReview = Map<String, dynamic>.from(p);
+          return {'id': p['p_claim'], 'status': p['p_approve'] == true ? 'approved' : 'rejected'};
         case 'admin_platform_pay_review':
           ppStatus = p['p_action'] == 'approve' ? 'approved' : p['p_action'] == 'reject' ? 'rejected' : 'suspended';
           return null;
@@ -201,6 +215,27 @@ void main() {
     await tester.pumpAndSettle();
     expect(lastPayout?['p_amount'], 972.5);
     expect(lastPayout?['p_method'], 'instapay');
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('0111: the admin links a claimed directory place to the claimant store', (tester) async {
+    await desktop(tester);
+    await tester.pumpWidget(app(const AdminConsoleScreen(initialPage: 'place_claims')));
+    await tester.pumpAndSettle();
+    expect(find.text('صيدلية الأمل'), findsWidgets);
+    expect(find.textContaining('elamal'), findsOneWidget);
+    expect(find.text('كلّم رقم المحل'), findsOneWidget);
+    // A rejection without a reason is refused; with one it goes through.
+    await tester.tap(find.text('ارفض'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'ارفض'));
+    await tester.pumpAndSettle();
+    expect(lastClaimReview, isNull);
+    await tester.tap(find.byKey(const ValueKey('claim-approve-c1')));
+    await tester.pumpAndSettle();
+    expect(lastClaimReview?['p_approve'], isTrue);
+    expect(lastClaimReview?['p_claim'], 'c1');
+    expect(find.text('مفيش طلبات هنا'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
