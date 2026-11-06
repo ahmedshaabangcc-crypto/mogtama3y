@@ -638,7 +638,10 @@ const PAGE = 1000;
 // a phone, an address, a real category and a source confidence ≥ 0.7.
 // Google had crawled ~4k of the full list in a month; the rest stay
 // reachable from hubs and «قريبة» links, just not listed.
+// (0110 indexes exactly this filter; cold pages can still near the 3 s anon
+// timeout, hence the retries.)
 const SITEMAP_PLACES = `hidden=is.false&phone=neq.&address=neq.&category=neq.${encodeURIComponent('أخرى')}&confidence=gte.0.7`;
+const restRetry = (p) => rest(p).catch(() => rest(p)).catch(() => rest(p));
 let bounds = { list: [], until: 0, loading: null };
 async function placeBounds() {
   if (bounds.until > Date.now()) return bounds.list;
@@ -648,7 +651,7 @@ async function placeBounds() {
       let last = '';
       let n = 0;
       for (;;) {
-        const page = await rest(`directory_places?${SITEMAP_PLACES}&select=id&order=id.asc&limit=${PAGE}${last ? `&id=gt.${encodeURIComponent(last)}` : ''}`);
+        const page = await restRetry(`directory_places?${SITEMAP_PLACES}&select=id&order=id.asc&limit=${PAGE}${last ? `&id=gt.${encodeURIComponent(last)}` : ''}`);
         for (const r of page) {
           if (n % PER_SITEMAP === 0) list.push(r.id);
           n++;
@@ -719,7 +722,7 @@ async function sitemapPart(n) {
   let op = 'gte';
   let got = 0;
   while (got < PER_SITEMAP) {
-    const page = await rest(`directory_places?${SITEMAP_PLACES}&select=id&order=id.asc&limit=${Math.min(PAGE, PER_SITEMAP - got)}&id=${op}.${encodeURIComponent(last)}`);
+    const page = await restRetry(`directory_places?${SITEMAP_PLACES}&select=id&order=id.asc&limit=${Math.min(PAGE, PER_SITEMAP - got)}&id=${op}.${encodeURIComponent(last)}`);
     op = 'gt';
     if (!page.length) break;
     for (const r of page) chunks.push(`<url><loc>${esc(`${SITE}/p/${encodeURIComponent(r.id)}`)}</loc></url>`);
@@ -728,6 +731,50 @@ async function sitemapPart(n) {
     if (page.length < PAGE) break;
   }
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${chunks.join('\n')}\n</urlset>`;
+}
+
+// ------------------------------------------------------------------ IndexNow
+// Tells Bing (and through it DuckDuckGo / Yahoo) and Yandex about pages
+// straight away instead of waiting for a crawl. The key is public by design
+// (served at /<key>.txt). First run: every sitemap URL once; then each day
+// only stores / products / ads / reports created since the last run.
+
+const INDEXNOW_KEY = process.env.INDEXNOW_KEY || '1abac39f4a85186493a2f285d3bbbec0';
+const INDEXNOW_STATE = () => nodePath.join(MEDIA_DIR, 'indexnow.json');
+
+async function indexNow(urls) {
+  for (let i = 0; i < urls.length; i += 10000) {
+    const res = await fetch('https://api.indexnow.org/indexnow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ host: new URL(SITE).host, key: INDEXNOW_KEY, keyLocation: `${SITE}/${INDEXNOW_KEY}.txt`, urlList: urls.slice(i, i + 10000) }),
+    });
+    if (res.status >= 300) throw new Error(`indexnow ${res.status}`);
+  }
+}
+
+async function indexNowRun() {
+  let state = {};
+  try {
+    state = JSON.parse(await fsp.readFile(INDEXNOW_STATE(), 'utf8'));
+  } catch {}
+  const since = state.last || '';
+  const urls = [];
+  for (const kind of Object.keys(SITEMAP_KINDS)) {
+    for (const [loc, mod] of await SITEMAP_KINDS[kind]()) if (!since || (mod && mod >= since)) urls.push(loc);
+  }
+  if (!state.full) {
+    const hubs = await cached('sitemap-hubs', 24 * 3600e3, sitemapHubs);
+    urls.push(...[...hubs.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1].replace(/&amp;/g, '&')));
+    for (let n = 1; n <= (await placeBounds()).length; n++) {
+      const xml = await sitemapPart(n);
+      if (xml) urls.push(...[...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]));
+    }
+  }
+  if (process.env.INDEXNOW === 'dry') return console.log(`indexnow (dry): ${urls.length} urls, e.g. ${urls.slice(0, 3).join(' ')}`);
+  if (urls.length) await indexNow(urls);
+  await fsp.writeFile(INDEXNOW_STATE(), JSON.stringify({ full: true, last: day(new Date().toISOString()) }));
+  console.log(`indexnow: ${urls.length} urls`);
 }
 
 // ------------------------------------------------ marketplace ads (/o/<id>)
@@ -1014,6 +1061,7 @@ const server = http.createServer(async (req, res) => {
     if (path === '/') return send(res, 200, await cached('home', 3600e3, homePage));
     if (path === '/robots.txt') return send(res, 200, `User-agent: *\nAllow: /\nDisallow: /search\nSitemap: ${SITE}/sitemap.xml\n`, 'text/plain; charset=utf-8', 86400);
     if (path === '/healthz') return send(res, 200, 'ok', 'text/plain', 0);
+    if (path === `/${INDEXNOW_KEY}.txt`) return send(res, 200, INDEXNOW_KEY, 'text/plain; charset=utf-8', 86400);
     if (path === '/sitemap.xml') return send(res, 200, await sitemapIndex(), 'application/xml; charset=utf-8', 86400);
     if (path === '/sitemap-hubs.xml') return send(res, 200, await cached('sitemap-hubs', 24 * 3600e3, sitemapHubs), 'application/xml; charset=utf-8', 86400);
     if ((m = path.match(/^\/sitemap-(stores|products|offers|reports)-(\d+)\.xml$/))) {
@@ -1089,5 +1137,10 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`dalil listening on ${PORT}`);
   placeBounds().catch((e) => console.error('sitemap bounds failed', e.message));
+  if (process.env.INDEXNOW !== 'off') {
+    const ping = () => indexNowRun().catch((e) => console.error('indexnow failed', e.message));
+    setTimeout(ping, Number(process.env.INDEXNOW_DELAY_MS || 5 * 60e3));
+    setInterval(ping, 24 * 3600e3);
+  }
   convertLeftovers().catch((e) => console.error('convert leftovers failed', e.message));
 });
