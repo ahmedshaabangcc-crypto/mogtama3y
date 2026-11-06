@@ -634,6 +634,11 @@ const PAGE = 1000;
 // Places: only the first id of each 40k part is kept (refreshed daily by
 // walking the ids in order), so a part never has to skip 40k rows with
 // OFFSET — that timed out and returned empty files.
+// Only the places most likely to be indexed (~55k of ~298k, 2026-11-06):
+// a phone, an address, a real category and a source confidence ≥ 0.7.
+// Google had crawled ~4k of the full list in a month; the rest stay
+// reachable from hubs and «قريبة» links, just not listed.
+const SITEMAP_PLACES = `hidden=is.false&phone=neq.&address=neq.&category=neq.${encodeURIComponent('أخرى')}&confidence=gte.0.7`;
 let bounds = { list: [], until: 0, loading: null };
 async function placeBounds() {
   if (bounds.until > Date.now()) return bounds.list;
@@ -643,7 +648,7 @@ async function placeBounds() {
       let last = '';
       let n = 0;
       for (;;) {
-        const page = await rest(`directory_places?hidden=is.false&select=id&order=id.asc&limit=${PAGE}${last ? `&id=gt.${encodeURIComponent(last)}` : ''}`);
+        const page = await rest(`directory_places?${SITEMAP_PLACES}&select=id&order=id.asc&limit=${PAGE}${last ? `&id=gt.${encodeURIComponent(last)}` : ''}`);
         for (const r of page) {
           if (n % PER_SITEMAP === 0) list.push(r.id);
           n++;
@@ -714,7 +719,7 @@ async function sitemapPart(n) {
   let op = 'gte';
   let got = 0;
   while (got < PER_SITEMAP) {
-    const page = await rest(`directory_places?hidden=is.false&select=id&order=id.asc&limit=${Math.min(PAGE, PER_SITEMAP - got)}&id=${op}.${encodeURIComponent(last)}`);
+    const page = await rest(`directory_places?${SITEMAP_PLACES}&select=id&order=id.asc&limit=${Math.min(PAGE, PER_SITEMAP - got)}&id=${op}.${encodeURIComponent(last)}`);
     op = 'gt';
     if (!page.length) break;
     for (const r of page) chunks.push(`<url><loc>${esc(`${SITE}/p/${encodeURIComponent(r.id)}`)}</loc></url>`);
