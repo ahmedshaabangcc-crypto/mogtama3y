@@ -118,7 +118,13 @@ function cached(key, ttlMs, make) {
     cache.set(key, hit);
     return hit.value;
   }
-  const value = make();
+  // A failed refresh serves the expired copy for a few minutes instead of a
+  // 503 (a hub's nearby_directory can time out when its rows are cold).
+  const value = make().catch((e) => {
+    if (!hit) throw e;
+    cache.set(key, { until: Date.now() + 300e3, value: hit.value });
+    return hit.value;
+  });
   cache.set(key, { until: Date.now() + ttlMs, value });
   while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
   value.catch(() => cache.delete(key));
@@ -191,10 +197,10 @@ footer{max-width:860px;margin:24px auto;padding:0 16px 32px;color:var(--muted);f
 </style>
 </head>
 <body>
-<header><div class="in"><a href="${SITE}/">دليل <span>مُجتمعي</span></a> <small style="opacity:.75">— كل محلات ${esc(c.name)}، واطلب منها أونلاين</small></div></header>
+<header><div class="in"><a href="${SITE}/">دليل <span>مُجتمعي</span></a> <small style="opacity:.75">— كل محلات ${esc(c.name)} بالعنوان والتليفون</small></div></header>
 <main>${body}</main>
 <footer>
-<p><a href="${APP}">مُجتمعي</a> — كل حيّك في تطبيق واحد. عندك محل؟ <a href="${APP}/tajer/">افتح متجرك أونلاين ببلاش</a>.</p>
+<p><a href="${APP}">مُجتمعي</a> — كل حيّك في تطبيق واحد. عندك محل؟ <a href="${TAJER}">افتح متجرك أونلاين ببلاش</a>.</p>
 <p><a href="${APP}/dalil/">عن دليل المحلات</a> · <a href="${APP}/balagh/">بلّغ عن مشكلة في حيّك</a> · <a href="${APP}/ittihad/">اتحاد الملاك أونلاين</a> · <a href="${APP}/privacy/">الخصوصية</a> · <a href="${APP}/terms/">الشروط</a></p>
 <p>بيانات الأماكن: © Overture Maps Foundation (CDLA-Permissive-2.0) و<a href="https://www.openstreetmap.org/copyright" rel="nofollow">© OpenStreetMap contributors</a> (ODbL). تصميم وتنفيذ <a href="https://getapex.tech">Get Apex</a>.</p>
 </footer>
@@ -218,7 +224,7 @@ async function homePage() {
   const cats = CATEGORIES.map((c) => `<a href="${SITE}/c/${encodeURIComponent(slug(c))}/${encodeURIComponent(slug('القاهرة'))}">${esc(c)}</a>`).join('');
   return page({
     title: 'دليل مُجتمعي — محلات وصيدليات ومطاعم مصر وأرقامها',
-    description: 'دليل محلات مصر: سوبر ماركت وصيدليات ومطاعم وعيادات ومحلات ملابس وموبايلات في كل مدينة، بالعنوان والتليفون، واطلب منها أونلاين على مُجتمعي.',
+    description: 'دليل محلات مصر: سوبر ماركت وصيدليات ومطاعم وعيادات ومحلات ملابس وموبايلات في كل مدينة، بالعنوان والتليفون والاتجاهات.',
     canonical: `${SITE}/`,
     body: `<h1>كل محلات مصر في مكان واحد</h1><p class="muted">ابحث عن أي محل أو صيدلية أو مطعم، واعرف عنوانه ورقمه، واطلب منه على واتساب.</p>
 <div class="card">${searchForm()}</div>
@@ -242,7 +248,8 @@ async function placePage(id) {
   const near = await nearbyCell(p.lat, p.lng, p.category);
   const where = city ? ` في ${city}` : country.iso !== 'EG' ? ` في ${country.name}` : '';
   const title = `${p.name} — ${p.category}${where} | دليل مُجتمعي`;
-  const description = `${p.name}: ${p.category}${where}${p.address ? '، ' + p.address : ''}. العنوان على الخريطة${p.phone ? ' ورقم التليفون' : ''}، واطلب منه أونلاين.`;
+  // Ordering from a place goes through its WhatsApp, so only promise it with a phone.
+  const description = `${p.name}: ${p.category}${where}${p.address ? '، ' + p.address : ''}. العنوان على الخريطة${p.phone ? ' ورقم التليفون، واطلب منه على واتساب' : ' والاتجاهات'}.`;
   const order = `${APP}/#/d/${encodeURIComponent(p.id)}`;
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -268,7 +275,7 @@ ${p.address ? `<p>📍 ${esc(p.address)}</p>` : ''}
 ${p.phone ? `<p>📞 <a href="tel:${esc(p.phone.replace(/\s/g, ''))}" dir="ltr">${esc(p.phone)}</a></p>` : ''}
 ${p.opening_hours ? `<p>🕒 ${esc(p.opening_hours)}</p>` : ''}
 <p>
-<a class="btn wa" href="${order}">اطلب منه أونلاين</a>
+<a class="btn wa" href="${order}">${p.phone ? 'اطلب منه على واتساب' : 'التفاصيل في التطبيق'}</a>
 <a class="btn line" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}" rel="nofollow">الاتجاهات</a>
 </p>
 <p class="muted" style="font-size:13px">ده محلك؟ <a href="${TAJER}">افتح متجرك واستقبل الطلبات أونلاين ببلاش</a>.</p>
@@ -281,13 +288,15 @@ ${others.length ? `<div class="card"><h2>${esc(p.category)} قريبة</h2><ul c
 async function hubPage(category, city) {
   const c = CITIES.find(([n]) => n === city);
   if (!c || !CATEGORIES.includes(category)) return null;
-  const places = await rpc('nearby_directory', { p_lat: c[1], p_lng: c[2], p_km: 10, p_category: category, p_limit: 200 });
+  // One retry: a timeout on cold rows usually leaves them warm for the second try.
+  const args = { p_lat: c[1], p_lng: c[2], p_km: 10, p_category: category, p_limit: 200 };
+  const places = await rpc('nearby_directory', args).catch(() => rpc('nearby_directory', args));
   const noindex = places.length === 0;
   const otherCats = CATEGORIES.filter((x) => x !== category).map((x) => `<a href="${SITE}/c/${encodeURIComponent(slug(x))}/${encodeURIComponent(slug(city))}">${esc(x)}</a>`).join('');
   return page({
     noindex,
     title: `${category} في ${city} — العناوين والتليفونات | دليل مُجتمعي`,
-    description: `${places.length} من ${category} في ${city} بالعنوان على الخريطة ورقم التليفون، واطلب أونلاين على مُجتمعي.`,
+    description: `${places.length} من ${category} في ${city} بالعنوان على الخريطة ورقم التليفون والاتجاهات.`,
     canonical: `${SITE}/c/${slug(category)}/${slug(city)}`,
     body: `<p class="muted"><a href="${SITE}/">الدليل</a> › <a href="${SITE}/city/${encodeURIComponent(slug(city))}">${esc(city)}</a></p>
 <h1>${esc(category)} في ${esc(city)}</h1>
@@ -359,7 +368,7 @@ async function countryPage(c) {
     country: c.iso,
     noindex: cities.length === 0,
     title: `محلات ${c.name} — صيدليات ومطاعم وسوبر ماركت | دليل مُجتمعي`,
-    description: `دليل محلات ${c.name}: صيدليات ومطاعم وسوبر ماركت وعيادات بالعنوان والتليفون، واطلب منها على مُجتمعي.`,
+    description: `دليل محلات ${c.name}: صيدليات ومطاعم وسوبر ماركت وعيادات بالعنوان والتليفون والاتجاهات.`,
     canonical: `${SITE}/${c.slug}/`,
     body: `<p class="muted"><a href="${SITE}/">الدليل</a></p><h1>محلات ${esc(c.name)}</h1>
 <div class="card">${searchForm()}</div>
@@ -387,12 +396,13 @@ ${listed ? `${cats ? `<div class="card"><div class="chips">${cats}</div></div>` 
 async function countryHubPage(c, city, category) {
   const ct = c.cities.find(([n]) => n === city);
   if (!ct || !CATEGORIES.includes(category)) return null;
-  const places = await rpc('nearby_directory', { p_lat: ct[1], p_lng: ct[2], p_km: CITY_KM, p_category: category, p_limit: 200 });
+  const args = { p_lat: ct[1], p_lng: ct[2], p_km: CITY_KM, p_category: category, p_limit: 200 };
+  const places = await rpc('nearby_directory', args).catch(() => rpc('nearby_directory', args));
   return page({
     country: c.iso,
     noindex: places.length < MIN_HUB_PLACES,
     title: `${category} في ${city} — العناوين والتليفونات | دليل مُجتمعي`,
-    description: `${places.length} من ${category} في ${city} (${c.name}) بالعنوان على الخريطة ورقم التليفون، واطلب أونلاين على مُجتمعي.`,
+    description: `${places.length} من ${category} في ${city} (${c.name}) بالعنوان على الخريطة ورقم التليفون والاتجاهات.`,
     canonical: hubUrl(c, category, city),
     body: `<p class="muted"><a href="${SITE}/">الدليل</a> › <a href="${SITE}/${c.slug}/">${esc(c.name)}</a> › <a href="${cityUrl(c, city)}">${esc(city)}</a></p>
 <h1>${esc(category)} في ${esc(city)}</h1>
@@ -527,11 +537,15 @@ async function storePage(slugName) {
       return `<li style="display:flex;gap:12px;align-items:center">${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" width="64" height="64" loading="lazy" style="border-radius:12px;object-fit:cover">` : ''}<div><a href="${SITE}/s/${esc(shop.slug)}/p/${esc(p.id)}">${esc(p.name)}</a><br><b style="color:#b7791f">${money(p.price, curOf(p))}</b>${off}</div></li>`;
     })
     .join('');
+  // «نشاط تاني» is the picker's catch-all, not a category worth a title.
+  const kind = shop.category && shop.category !== 'نشاط تاني' ? shop.category : 'متجر';
   return page({
     country: country.iso,
+    // A store with no priced product yet is a thin page: out of the index until it has one.
+    noindex: products.length === 0,
     image: shop.cover_image_url || shop.logo_url || imagesOf(products[0] || {})[0],
-    title: `${shop.name} — ${shop.category || 'متجر'}${where} | اطلب أونلاين`,
-    description: `${shop.name}${where}: ${products.length} منتج بالأسعار${shop.description ? ' — ' + shop.description.slice(0, 120) : ''}. اطلب أونلاين والدفع عند الاستلام.`,
+    title: `${shop.name} — ${kind}${where} | اطلب أونلاين`,
+    description: `${shop.name}${where}: ${products.length ? `${products.length} منتج بالأسعار` : kind}${shop.description ? ' — ' + shop.description.slice(0, 120) : ''}. اطلب أونلاين والدفع عند الاستلام.`,
     canonical,
     jsonLd,
     body: `<p class="muted"><a href="${SITE}/">الدليل</a>${city ? ` › <a href="${cityUrl(country, city)}">${esc(city)}</a>` : ''}</p>
@@ -590,8 +604,10 @@ ${p.description ? `<p>${esc(p.description)}</p>` : ''}
 const day = (t) => (t ? String(t).slice(0, 10) : undefined);
 
 async function storeUrls() {
-  const shops = await rest('shops?slug=not.is.null&select=slug,created_at&order=created_at.asc&limit=10000');
-  return shops.map((s) => [`${SITE}/s/${encodeURIComponent(s.slug)}`, day(s.created_at)]);
+  const shops = await rest('shops?slug=not.is.null&select=id,slug,created_at&order=created_at.asc&limit=10000');
+  // Only stores with a priced product (the others are noindex).
+  const live = new Set((await rest('shop_products?is_available=eq.true&price=gt.0&select=shop_id&limit=50000')).map((p) => p.shop_id));
+  return shops.filter((s) => live.has(s.id)).map((s) => [`${SITE}/s/${encodeURIComponent(s.slug)}`, day(s.created_at)]);
 }
 async function productUrls() {
   const shops = await rest('shops?slug=not.is.null&select=id,slug&limit=10000');
@@ -962,7 +978,8 @@ async function serveVideo(req, res, userId, name) {
 // ---------------------------------------------------------------- server
 
 function send(res, status, body, type = 'text/html; charset=utf-8', maxAge = 3600) {
-  res.writeHead(status, { 'Content-Type': type, 'Cache-Control': `public, max-age=${maxAge}`, 'X-Content-Type-Options': 'nosniff' });
+  // Retry-After tells crawlers a 503 is temporary.
+  res.writeHead(status, { 'Content-Type': type, 'Cache-Control': `public, max-age=${maxAge}`, 'X-Content-Type-Options': 'nosniff', ...(status === 503 ? { 'Retry-After': '120' } : {}) });
   res.end(body);
 }
 
